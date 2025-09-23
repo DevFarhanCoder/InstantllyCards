@@ -11,14 +11,18 @@
     "extra": {
       "EXPO_PUBLIC_API_BASE": "https://instantlly-cards-backend.onrender.com",
       "router": {},
-      "eas": {}
+      "eas": {
+        "projectId": "e06ba64f-fdfc-47ea-b841-7072987510ef"
+      }
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "ios": { "supportsTablet": true },
+    "ios": {
+      "supportsTablet": true
+    },
     "android": {
       "package": "com.devfarhancoder.instantllycards",
       "versionCode": 1,
@@ -45,11 +49,18 @@
             "targetSdkVersion": 34,
             "androidGradlePluginVersion": "8.2.2",
             "kotlinVersion": "1.9.24",
-            "packagingOptions": { "pickFirst": ["META-INF/*"] }
+            "packagingOptions": {
+              "pickFirst": [
+                "META-INF/*"
+              ]
+            }
           }
         }
       ]
     ],
-    "experiments": { "typedRoutes": true }
+    "experiments": {
+      "typedRoutes": true
+    },
+    "owner": "devfarhancoder"
   }
 }
