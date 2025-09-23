@@ -48,7 +48,7 @@
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
             "androidGradlePluginVersion": "8.2.2",
-            "kotlinVersion": "1.9.24",
+            "kotlinVersion": "2.0.21",
             "packagingOptions": {
               "pickFirst": [
                 "META-INF/*"
