@@ -11,9 +11,7 @@
     "extra": {
       "EXPO_PUBLIC_API_BASE": "https://instantlly-cards-backend.onrender.com",
       "router": {},
-      "eas": {
-        "projectId": "e06ba64f-fdfc-47ea-b841-7072987510ef"
-      }
+      "eas": {}
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
