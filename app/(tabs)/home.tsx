@@ -132,7 +132,7 @@ export default function Home() {
       <View style={[s.adContainer, { bottom: 0 }]}>
         <TouchableOpacity style={s.adTouchable} activeOpacity={0.8} onPress={handleAdClick}>
           <Image 
-            source={require('@/assets/images/tpl-ad.png')} 
+            source={require('@/assets/images/tplad.png')} 
             style={s.adImage}
             resizeMode="stretch"
           />
