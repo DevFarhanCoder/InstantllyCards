@@ -1,12 +1,11 @@
 {
-  "cli": {
-    "appVersionSource": "remote"
-  },
+  "cli": { "appVersionSource": "remote" },
   "build": {
     "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
+      "android": { "buildType": "app-bundle" }
     }
+  },
+  "submit": {
+    "production": {}
   }
 }

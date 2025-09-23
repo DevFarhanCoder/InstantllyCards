@@ -11,30 +11,24 @@
     "extra": {
       "EXPO_PUBLIC_API_BASE": "https://instantlly-cards-backend.onrender.com",
       "router": {},
-      "eas": {
-        "projectId": "3046185b-d2ab-470e-818f-b93d470d6d1a"
-      }
+      "eas": {}
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "ios": {
-      "supportsTablet": true
-    },
+    "ios": { "supportsTablet": true },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff",
-        "package": "com.instantllycards.app",
-        "versionCode": 1,
-        "permissions": []
-      },
-      "version": "1.0.0",
+      "package": "com.devfarhancoder.instantllycards",
+      "versionCode": 1,
+      "permissions": [],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.devfarhancoder.instantllycards"
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -42,10 +36,20 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "androidGradlePluginVersion": "8.2.2",
+            "kotlinVersion": "1.9.24",
+            "packagingOptions": { "pickFirst": ["META-INF/*"] }
+          }
+        }
+      ]
     ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    "experiments": { "typedRoutes": true }
   }
 }
