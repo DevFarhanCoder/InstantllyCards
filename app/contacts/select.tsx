@@ -29,11 +29,24 @@ type DeviceContact = {
   profilePicture?: string;
   userId?: string;
   about?: string;
+  itemType: 'contact';
 };
 
-type ContactSection = {
+type GroupItem = {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  memberCount: number;
+  itemType: 'group';
+};
+
+type SelectableItem = DeviceContact | GroupItem;
+
+type ListSection = {
   title: string;
-  data: DeviceContact[];
+  data: SelectableItem[];
+  type: 'contacts' | 'groups';
 };
 
 export default function ContactSelectScreen() {
@@ -52,6 +65,7 @@ export default function ContactSelectScreen() {
   const [contactsSynced, setContactsSynced] = useState(false);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<DeviceContact[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<any[]>([]);
   const queryClient = useQueryClient();
 
   // Check if contacts have been synced before
@@ -202,12 +216,35 @@ export default function ContactSelectScreen() {
     enabled: contactsSynced, // Only fetch if contacts have been synced
   });
 
+  // Fetch groups when in card sharing mode
+  const groupsQuery = useQuery({
+    queryKey: ["groups"],
+    queryFn: async () => {
+      try {
+        const token = await ensureAuth();
+        if (!token) return [];
+
+        const response = await api.get("/groups");
+        console.log("Groups response:", response);
+        
+        return response.groups || [];
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    enabled: isCardShareMode, // Only fetch groups when in card sharing mode
+  });
+
   // Determine overall loading state
   const queryLoading = storedContactsQuery.isLoading;
-  const isLoading = !!(queryLoading || contactsLoading);
+  const groupsLoading = groupsQuery.isLoading && isCardShareMode;
+  const isLoading = !!(queryLoading || contactsLoading || groupsLoading);
 
   // Use stored contacts or empty array if loading
   const storedContacts = storedContactsQuery.data || [];
+  const availableGroups = groupsQuery.data || [];
 
   console.log("Stored contacts data:", storedContacts);
   console.log("Stored contacts length:", storedContacts.length);
@@ -221,7 +258,8 @@ export default function ContactSelectScreen() {
     isAppUser: contact.isAppUser,
     profilePicture: contact.profilePicture,
     userId: contact.appUserId, // The populated user ID for app users
-    about: contact.about || (contact.isAppUser ? "Available" : undefined) // Use API about or default
+    about: contact.about || (contact.isAppUser ? "Available" : undefined), // Use API about or default
+    itemType: 'contact' as const
   }));
 
   const handleInvite = async (contact: DeviceContact) => {
@@ -304,6 +342,18 @@ export default function ContactSelectScreen() {
     }
   };
 
+  const handleGroupSelect = (group: any) => {
+    const isSelected = selectedGroups.some(g => g._id === group._id);
+    
+    if (isSelected) {
+      // Remove from selection
+      setSelectedGroups(prev => prev.filter(g => g._id !== group._id));
+    } else {
+      // Add to selection
+      setSelectedGroups(prev => [...prev, group]);
+    }
+  };
+
   const addMembersToGroup = async () => {
     if (!groupId || selectedContacts.length === 0) return;
 
@@ -378,8 +428,8 @@ export default function ContactSelectScreen() {
     }
   };
 
-  const shareCardWithContacts = async () => {
-    if (!cardId || selectedContacts.length === 0) return;
+  const shareCardWithContactsAndGroups = async () => {
+    if (!cardId || (selectedContacts.length === 0 && selectedGroups.length === 0)) return;
 
     try {
       const token = await ensureAuth();
@@ -389,56 +439,105 @@ export default function ContactSelectScreen() {
       }
 
       // Show progress
-      Alert.alert('Sharing', 'Sending card to selected contacts...');
+      Alert.alert('Sharing', 'Sending card to selected contacts and groups...');
 
-      const sharePromises = selectedContacts.map(async (contact) => {
-        if (!contact.userId) {
-          console.log(`⚠️ Skipping ${contact.name} - not an app user`);
-          return { success: false, contact: contact.name, reason: 'Not an app user' };
+      const sharePromises: Promise<any>[] = [];
+
+      // Share to contacts
+      selectedContacts.forEach((contact) => {
+        if (contact.userId) {
+          sharePromises.push(
+            api.post(`/cards/${cardId}/share`, {
+              recipientId: contact.userId,
+              message: `Check out my business card!`
+            }).then(() => ({ success: true, target: contact.name, type: 'contact' }))
+            .catch((error: any) => {
+              console.error(`❌ Failed to share with ${contact.name}:`, error);
+              return { 
+                success: false, 
+                target: contact.name, 
+                type: 'contact',
+                reason: error.response?.status === 404 ? 'Card not found' : 'Share failed'
+              };
+            })
+          );
+        } else {
+          sharePromises.push(
+            Promise.resolve({ 
+              success: false, 
+              target: contact.name, 
+              type: 'contact',
+              reason: 'Not an app user' 
+            })
+          );
         }
+      });
 
-        try {
-          const response = await api.post(`/cards/${cardId}/share`, {
-            recipientId: contact.userId,
+      // Share to groups
+      selectedGroups.forEach((group) => {
+        sharePromises.push(
+          api.post(`/cards/${cardId}/share-to-group`, {
+            groupId: group._id,
             message: `Check out my business card!`
-          });
-
-          console.log(`✅ Card shared with ${contact.name}:`, response);
-          return { success: true, contact: contact.name };
-        } catch (error: any) {
-          console.error(`❌ Failed to share with ${contact.name}:`, error);
-          
-          // Handle specific error cases
-          if (error.response?.status === 404) {
-            return { success: false, contact: contact.name, reason: 'Card not found' };
-          } else {
-            return { success: false, contact: contact.name, reason: 'Share failed' };
-          }
-        }
+          }).then(() => ({ success: true, target: group.name, type: 'group' }))
+          .catch((error: any) => {
+            console.error(`❌ Failed to share to group ${group.name}:`, error);
+            return { 
+              success: false, 
+              target: group.name, 
+              type: 'group',
+              reason: error.response?.status === 404 ? 'Group not found' : 'Share failed'
+            };
+          })
+        );
       });
 
       const results = await Promise.all(sharePromises);
       const successful = results.filter(r => r.success);
       const failed = results.filter(r => !r.success);
 
-      // Refresh the sent cards query to show the new shares
+      // Refresh relevant queries
       queryClient.invalidateQueries({ queryKey: ["sent-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["groups"] });
 
       // Show results
       let alertMessage = '';
       if (successful.length > 0) {
-        alertMessage += `Card successfully shared with ${successful.length} contact${successful.length === 1 ? '' : 's'}:\n`;
-        alertMessage += successful.map(r => `• ${r.contact}`).join('\n');
+        const successfulContacts = successful.filter(r => r.type === 'contact');
+        const successfulGroups = successful.filter(r => r.type === 'group');
+        
+        if (successfulContacts.length > 0) {
+          alertMessage += `Card successfully shared with ${successfulContacts.length} contact${successfulContacts.length === 1 ? '' : 's'}:\n`;
+          alertMessage += successfulContacts.map(r => `• ${r.target}`).join('\n');
+        }
+        
+        if (successfulGroups.length > 0) {
+          if (alertMessage) alertMessage += '\n\n';
+          alertMessage += `Card successfully shared to ${successfulGroups.length} group${successfulGroups.length === 1 ? '' : 's'}:\n`;
+          alertMessage += successfulGroups.map(r => `• ${r.target}`).join('\n');
+        }
       }
       
       if (failed.length > 0) {
-        if (alertMessage) alertMessage += '\n\n';
-        alertMessage += `Failed to share with ${failed.length} contact${failed.length === 1 ? '' : 's'}:\n`;
-        alertMessage += failed.map(r => `• ${r.contact} (${r.reason})`).join('\n');
+        const failedContacts = failed.filter(r => r.type === 'contact');
+        const failedGroups = failed.filter(r => r.type === 'group');
+        
+        if (failedContacts.length > 0) {
+          if (alertMessage) alertMessage += '\n\n';
+          alertMessage += `Failed to share with ${failedContacts.length} contact${failedContacts.length === 1 ? '' : 's'}:\n`;
+          alertMessage += failedContacts.map(r => `• ${r.target} (${r.reason})`).join('\n');
+        }
+        
+        if (failedGroups.length > 0) {
+          if (alertMessage) alertMessage += '\n\n';
+          alertMessage += `Failed to share to ${failedGroups.length} group${failedGroups.length === 1 ? '' : 's'}:\n`;
+          alertMessage += failedGroups.map(r => `• ${r.target} (${r.reason})`).join('\n');
+        }
       }
 
+      const totalSelected = selectedContacts.length + selectedGroups.length;
       Alert.alert(
-        successful.length === selectedContacts.length ? 'Success!' : 'Partial Success',
+        successful.length === totalSelected ? 'Success!' : 'Partial Success',
         alertMessage,
         [
           {
@@ -476,20 +575,73 @@ export default function ContactSelectScreen() {
     contact.phoneNumber.includes(searchQuery)
   );
 
-  // Create sections for app users and non-app users
+  const filteredGroups = isCardShareMode ? availableGroups.filter((group: any) =>
+    group.name.toLowerCase().includes(searchQuery.toLowerCase())
+  ) : [];
+
+  // Create sections for groups (if in card share mode), app users and non-app users
   const filteredAppUsers = filteredContacts.filter((contact: DeviceContact) => contact.isAppUser);
   const filteredNonAppUsers = filteredContacts.filter((contact: DeviceContact) => !contact.isAppUser);
 
-  const contactSections: ContactSection[] = [
+  const contactSections: ListSection[] = [
+    ...(isCardShareMode && filteredGroups.length > 0 ? [{
+      title: "Groups",
+      data: filteredGroups.map((group: any) => ({
+        id: group._id,
+        name: group.name,
+        description: group.description,
+        icon: group.icon,
+        memberCount: group.members?.length || 0,
+        itemType: 'group' as const
+      })),
+      type: "groups" as const
+    }] : []),
     ...(filteredAppUsers.length > 0 ? [{
       title: "Contacts on InstantllyCards",
-      data: filteredAppUsers
+      data: filteredAppUsers,
+      type: "contacts" as const
     }] : []),
     ...(filteredNonAppUsers.length > 0 ? [{
       title: "Invite to InstantllyCards",
-      data: filteredNonAppUsers
+      data: filteredNonAppUsers,
+      type: "contacts" as const
     }] : [])
   ];
+
+  const renderGroupItem = ({ item }: { item: GroupItem }) => {
+    const isSelected = selectedGroups.some(group => group._id === item.id);
+    
+    return (
+      <View style={styles.groupItem}>
+        <View style={styles.groupAvatar}>
+          {item.icon ? (
+            <Image source={{ uri: item.icon }} style={styles.groupAvatarImage} />
+          ) : (
+            <Ionicons name="people" size={24} color="#FFFFFF" />
+          )}
+        </View>
+
+        <View style={styles.groupInfo}>
+          <Text style={styles.groupName}>{item.name}</Text>
+          <Text style={styles.groupDescription}>
+            {item.memberCount} member{item.memberCount === 1 ? '' : 's'}
+            {item.description ? ` • ${item.description}` : ''}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.selectButton, isSelected && styles.selectedButton]}
+          onPress={() => handleGroupSelect({ _id: item.id, name: item.name, description: item.description, icon: item.icon, members: [] })}
+        >
+          {isSelected ? (
+            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+          ) : (
+            <View style={styles.selectCircle} />
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderContactItem = ({ item }: { item: DeviceContact }) => {
     if (item.isAppUser) {
@@ -567,7 +719,7 @@ export default function ContactSelectScreen() {
     }
   };
 
-  const renderSectionHeader = ({ section }: { section: ContactSection }) => (
+  const renderSectionHeader = ({ section }: { section: ListSection }) => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{section.title}</Text>
       {section.title === "Contacts on InstantllyCards" && (
@@ -615,9 +767,11 @@ export default function ContactSelectScreen() {
             }
           </Text>
           <Text style={styles.contactCount}>
-            {(isGroupMode || isGroupAddMode || isCardShareMode) && selectedContacts.length > 0 
-              ? `${selectedContacts.length} selected`
-              : `${processedContacts.length} contacts`
+            {(isGroupMode || isGroupAddMode || isCardShareMode) && (selectedContacts.length > 0 || selectedGroups.length > 0)
+              ? `${selectedContacts.length + selectedGroups.length} selected`
+              : isCardShareMode 
+                ? `${processedContacts.length} contacts • ${availableGroups.length} groups`
+                : `${processedContacts.length} contacts`
             }
           </Text>
           {isCardShareMode && cardTitle && (
@@ -626,12 +780,12 @@ export default function ContactSelectScreen() {
             </Text>
           )}
         </View>
-        {((isGroupMode || isGroupAddMode || isCardShareMode) && selectedContacts.length > 0) ? (
+        {((isGroupMode || isGroupAddMode || isCardShareMode) && (selectedContacts.length > 0 || selectedGroups.length > 0)) ? (
           <TouchableOpacity 
             onPress={() => {
               if (isCardShareMode) {
-                // Share card with selected contacts
-                shareCardWithContacts();
+                // Share card with selected contacts and groups
+                shareCardWithContactsAndGroups();
               } else if (isGroupAddMode && groupId) {
                 // Add members to existing group
                 addMembersToGroup();
@@ -696,11 +850,23 @@ export default function ContactSelectScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Contacts List */}
+      {/* Contacts and Groups List */}
       <SectionList
         sections={contactSections}
-        keyExtractor={(item: DeviceContact, index: number) => `${item.phoneNumber}-${index}`}
-        renderItem={renderContactItem}
+        keyExtractor={(item: SelectableItem, index: number) => {
+          if (item.itemType === 'contact') {
+            return `contact-${item.phoneNumber}-${index}`;
+          } else {
+            return `group-${item.id}-${index}`;
+          }
+        }}
+        renderItem={({ item }) => {
+          if (item.itemType === 'group') {
+            return renderGroupItem({ item: item as GroupItem });
+          } else {
+            return renderContactItem({ item: item as DeviceContact });
+          }
+        }}
         renderSectionHeader={renderSectionHeader}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
@@ -710,6 +876,9 @@ export default function ContactSelectScreen() {
           // Manual refresh: re-sync contacts and refresh queries
           syncDeviceContacts();
           storedContactsQuery.refetch();
+          if (isCardShareMode) {
+            groupsQuery.refetch();
+          }
           refreshContactStatus();
         }}
         ListEmptyComponent={
@@ -1078,5 +1247,42 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
+  },
+  // Group styles
+  groupItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#000000",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#333333",
+  },
+  groupAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#4B5563",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  groupAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  groupInfo: {
+    flex: 1,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#FFFFFF",
+    marginBottom: 2,
+  },
+  groupDescription: {
+    fontSize: 14,
+    color: "#9CA3AF",
   },
 });
