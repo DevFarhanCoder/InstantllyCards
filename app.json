@@ -2,7 +2,7 @@
   "expo": {
     "name": "instantllycards",
     "slug": "instantllycards",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "instantllycards",
@@ -46,7 +46,7 @@
         {
           "android": {
             "compileSdkVersion": 35,
-            "targetSdkVersion": 34,
+            "targetSdkVersion": 35,
             "androidGradlePluginVersion": "8.2.2",
             "kotlinVersion": "2.0.21",
             "packagingOptions": {
