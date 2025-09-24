@@ -11,7 +11,9 @@
     "extra": {
       "EXPO_PUBLIC_API_BASE": "https://instantlly-cards-backend.onrender.com",
       "router": {},
-      "eas": {}
+      "eas": {
+        "projectId": "4dd09b65-9c0b-4025-ac16-dd98834e90de"
+      }
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -22,8 +24,8 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.devfarhancoder.instantllycards",
-      "versionCode": 1,
+      "package": "com.instantllycards.www.twa",
+      "versionCode": 3,
       "permissions": [],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -43,7 +45,7 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
+            "compileSdkVersion": 35,
             "targetSdkVersion": 34,
             "androidGradlePluginVersion": "8.2.2",
             "kotlinVersion": "2.0.21",
