@@ -38,6 +38,30 @@ interface GroupMember {
   isAdmin?: boolean;
 }
 
+interface GroupCard {
+  _id: string;
+  cardId: string;
+  senderId?: string;
+  senderName?: string;
+  senderProfilePicture?: string;
+  cardTitle: string;
+  cardPhoto?: string;
+  sentAt: string;
+  message?: string;
+  isFromMe?: boolean;
+}
+
+interface GroupCardsSummary {
+  sent: {
+    count: number;
+    cards: GroupCard[];
+  };
+  received: {
+    count: number;
+    cards: GroupCard[];
+  };
+}
+
 export default function GroupDetailsScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
@@ -46,9 +70,13 @@ export default function GroupDetailsScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [cardsSummary, setCardsSummary] = useState<GroupCardsSummary | null>(null);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [activeCardsTab, setActiveCardsTab] = useState<'sent' | 'received'>('sent');
 
   useEffect(() => {
     loadGroupDetails();
+    loadGroupCards();
   }, [id]);
 
   const loadGroupDetails = async () => {
@@ -217,8 +245,34 @@ export default function GroupDetailsScreen() {
     }
   };
 
+  const loadGroupCards = async () => {
+    if (!id) return;
+    
+    try {
+      setCardsLoading(true);
+      console.log('🔍 Loading group cards for group:', id);
+      
+      // Fetch group cards summary from backend API
+      const response = await api.get(`/cards/group/${id}/summary`);
+      if (response && response.success) {
+        console.log('✅ Group cards loaded:', response.data);
+        setCardsSummary(response.data);
+      } else {
+        console.log('❌ Failed to load group cards');
+      }
+    } catch (error) {
+      console.error('Error loading group cards:', error);
+    } finally {
+      setCardsLoading(false);
+    }
+  };
+
   const addMembers = () => {
     router.push(`/contacts/select?mode=group_add&groupId=${id}` as any);
+  };
+
+  const navigateToCard = (cardId: string) => {
+    router.push(`/(main)/card/${cardId}` as any);
   };
 
   const removeMember = (memberId: string, memberName: string) => {
@@ -495,6 +549,43 @@ export default function GroupDetailsScreen() {
     </TouchableOpacity>
   );
 
+  const renderCardItem = (card: GroupCard) => (
+    <TouchableOpacity
+      key={card._id}
+      style={styles.cardItem}
+      onPress={() => navigateToCard(card.cardId)}
+    >
+      <View style={styles.cardImageContainer}>
+        {card.cardPhoto ? (
+          <Image source={{ uri: card.cardPhoto }} style={styles.cardImage} />
+        ) : (
+          <View style={styles.cardPlaceholder}>
+            <Ionicons name="card" size={24} color="#9CA3AF" />
+          </View>
+        )}
+      </View>
+      <View style={styles.cardInfo}>
+        <Text style={styles.cardTitle}>{card.cardTitle}</Text>
+        {card.senderName && !card.isFromMe && (
+          <Text style={styles.cardSender}>Shared by {card.senderName}</Text>
+        )}
+        <Text style={styles.cardDate}>
+          {new Date(card.sentAt).toLocaleDateString([], {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          })}
+        </Text>
+        {card.message && (
+          <Text style={styles.cardMessage} numberOfLines={2}>
+            {card.message}
+          </Text>
+        )}
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.root}>
       {/* Header */}
@@ -559,6 +650,69 @@ export default function GroupDetailsScreen() {
             )}
           </View>
           {groupMembers.map(renderMemberItem)}
+        </View>
+
+        {/* Cards Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Group Cards</Text>
+            {cardsLoading && (
+              <Text style={styles.loadingText}>Loading...</Text>
+            )}
+          </View>
+          
+          {cardsSummary && (
+            <>
+              {/* Cards Tab Navigation */}
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.tabButton,
+                    activeCardsTab === 'sent' && styles.tabButtonActive
+                  ]}
+                  onPress={() => setActiveCardsTab('sent')}
+                >
+                  <Text style={[
+                    styles.tabButtonText,
+                    activeCardsTab === 'sent' && styles.tabButtonTextActive
+                  ]}>
+                    Cards Sent ({cardsSummary.sent.count})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.tabButton,
+                    activeCardsTab === 'received' && styles.tabButtonActive
+                  ]}
+                  onPress={() => setActiveCardsTab('received')}
+                >
+                  <Text style={[
+                    styles.tabButtonText,
+                    activeCardsTab === 'received' && styles.tabButtonTextActive
+                  ]}>
+                    Cards Received ({cardsSummary.received.count})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Cards List */}
+              <View style={styles.cardsContainer}>
+                {activeCardsTab === 'sent' ? (
+                  cardsSummary.sent.cards.length > 0 ? (
+                    cardsSummary.sent.cards.map(renderCardItem)
+                  ) : (
+                    <Text style={styles.emptyText}>No cards sent in this group yet</Text>
+                  )
+                ) : (
+                  cardsSummary.received.cards.length > 0 ? (
+                    cardsSummary.received.cards.map(renderCardItem)
+                  ) : (
+                    <Text style={styles.emptyText}>No cards received in this group yet</Text>
+                  )
+                )}
+              </View>
+            </>
+          )}
         </View>
 
         {/* Actions Section */}
@@ -867,5 +1021,89 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  
+  // Cards Section Styles
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#1F2937",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  tabButtonActive: {
+    backgroundColor: "#3B82F6",
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#9CA3AF",
+  },
+  tabButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  cardsContainer: {
+    marginTop: 8,
+  },
+  cardItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#333333",
+  },
+  cardImageContainer: {
+    marginRight: 12,
+  },
+  cardImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+  },
+  cardPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#374151",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardInfo: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#FFFFFF",
+    marginBottom: 2,
+  },
+  cardSender: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    marginBottom: 2,
+  },
+  cardDate: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  cardMessage: {
+    fontSize: 14,
+    color: "#D1D5DB",
+    fontStyle: "italic",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#9CA3AF",
+    textAlign: "center",
+    paddingVertical: 32,
+    fontStyle: "italic",
   },
 });
