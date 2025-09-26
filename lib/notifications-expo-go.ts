@@ -85,3 +85,7 @@ export async function getBadgeCount() {
 export async function setBadgeCount(count: number) {
   console.log('📱 Badge count set to:', count);
 }
+
+export async function sendLocalNotification(title: string, body: string, data?: any) {
+  return showExpoGoNotification(title, body, data);
+}
