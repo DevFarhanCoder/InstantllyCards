@@ -33,8 +33,8 @@ console.log("🔍 Environment check:", {
   __DEV__: __DEV__
 });
 
-// Extended timeout for slow network connections and cold starts (60 seconds)
-const TIMEOUT_MS = 60000;
+// Optimized timeout for better user experience (15 seconds)
+const TIMEOUT_MS = 15000;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Json = Record<string, any>;
@@ -76,7 +76,7 @@ async function request<T>(
 
   let lastErr: any;
   for (const url of candidates) {
-    let retries = 3; // Increase retries for cold starts
+    let retries = 2; // Reduce retries for faster failure
     
     while (retries > 0) {
       try {
@@ -133,13 +133,15 @@ async function request<T>(
         
         // Handle timeout and network errors with better messages
         if (e.name === 'AbortError') {
-          lastErr = new Error('Request timeout - Server may be sleeping. Please try again.');
+          lastErr = new Error('Connection timeout. The server might be starting up, please wait a moment and try again.');
         } else if (e.message?.includes('Network request failed') || e.message?.includes('Failed to fetch')) {
           lastErr = new Error('Network error - Please check your internet connection and try again.');
         } else if (e.status === 404) {
-          lastErr = new Error('API endpoint not found. Please check if the server is running properly.');
+          lastErr = new Error('Service temporarily unavailable. Please try again in a moment.');
         } else if (e.status >= 500) {
           lastErr = new Error('Server error. Please try again later.');
+        } else if (e.status === 401) {
+          lastErr = new Error('Authentication required. Please log in again.');
         } else {
           lastErr = e;
         }
@@ -148,7 +150,7 @@ async function request<T>(
         
         // If we have retries left and it's a recoverable error, wait before retrying
         if (retries > 0 && (e.name === 'AbortError' || e.message?.includes('Network') || e.message?.includes('Failed to fetch'))) {
-          const waitTime = (4 - retries) * 2; // Progressive backoff: 2s, 4s, 6s
+          const waitTime = (3 - retries) * 1; // Faster backoff: 1s, 2s
           console.log(`⏳ Retrying in ${waitTime} seconds... (${retries} attempts left)`);
           await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
         }
@@ -160,6 +162,21 @@ async function request<T>(
   throw lastErr || new Error("API unreachable - Server may be sleeping. Please try again in a moment.");
 }
 
+// Non-critical API calls that shouldn't block user experience
+async function requestNonCritical<T>(
+  method: HttpMethod,
+  path: string,
+  body?: Json | FormData,
+  options?: { headers?: Record<string, string> }
+): Promise<T | null> {
+  try {
+    return await request<T>(method, path, body, options);
+  } catch (error) {
+    console.log(`⚠️ Non-critical API call failed: ${method} ${path}`, (error as any)?.message || error);
+    return null; // Return null instead of throwing
+  }
+}
+
 const api = {
   get: <T = any>(p: string) => request<T>("GET", p),
   post: <T = any>(p: string, b?: Json | FormData, options?: { headers?: Record<string, string> }) => 
@@ -167,6 +184,16 @@ const api = {
   put: <T = any>(p: string, b?: Json) => request<T>("PUT", p, b),
   patch: <T = any>(p: string, b?: Json) => request<T>("PATCH", p, b),
   del: <T = any>(p: string) => request<T>("DELETE", p),
+  
+  // Non-critical API methods that won't throw errors
+  nonCritical: {
+    get: <T = any>(p: string) => requestNonCritical<T>("GET", p),
+    post: <T = any>(p: string, b?: Json | FormData, options?: { headers?: Record<string, string> }) => 
+      requestNonCritical<T>("POST", p, b, options),
+    put: <T = any>(p: string, b?: Json) => requestNonCritical<T>("PUT", p, b),
+    patch: <T = any>(p: string, b?: Json) => requestNonCritical<T>("PATCH", p, b),
+    del: <T = any>(p: string) => requestNonCritical<T>("DELETE", p),
+  }
 };
 
 export default api;

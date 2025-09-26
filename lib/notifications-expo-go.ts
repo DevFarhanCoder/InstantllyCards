@@ -12,21 +12,38 @@ export async function registerForPushNotifications() {
   console.log('📱 Running in Expo Go - Using simplified notification system');
   await AsyncStorage.setItem('usingExpoGo', 'true');
   
-  // Register the expo-go-local-mode token with backend
+  // Schedule token registration for after user authentication (non-blocking)
+  registerTokenWithBackendAsync();
+  
+  return 'expo-go-local-mode';
+}
+
+// Separate async function to register token with backend
+async function registerTokenWithBackendAsync() {
   try {
+    // Wait a bit to ensure app is fully loaded
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     const authToken = await ensureAuth();
     if (authToken) {
-      await api.post('/notifications/register-token', {
+      console.log('🔔 Attempting to register push token with backend...');
+      const result = await api.nonCritical.post('/notifications/register-token', {
         pushToken: 'expo-go-local-mode',
         platform: Platform.OS
       });
-      console.log('✅ Expo Go local mode token registered with backend');
+      
+      if (result) {
+        console.log('✅ Expo Go local mode token registered with backend');
+      } else {
+        console.log('⚠️ Push token registration failed silently (non-critical)');
+      }
+    } else {
+      console.log('⏸️ Skipping push token registration - user not authenticated');
     }
   } catch (error) {
-    console.log('Failed to register expo-go token with backend:', error);
+    console.log('📱 Push token registration failed (non-critical):', (error as any)?.message || error);
+    // This is non-critical, don't throw or show alerts
   }
-  
-  return 'expo-go-local-mode';
 }
 
 export async function setupLocalNotificationPermissions() {

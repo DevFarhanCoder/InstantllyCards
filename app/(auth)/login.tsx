@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 
 import api from "@/lib/api";
+import serverWarmup from "@/lib/serverWarmup";
 import Field from "@/components/Field";
 import PasswordField from "@/components/PasswordField";
 import CountryCodePicker from "@/components/CountryCodePicker";
@@ -26,6 +27,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Signing in...");
+  const [progress, setProgress] = useState(0);
 
   const doLogin = async () => {
     try {
@@ -46,8 +48,18 @@ export default function Login() {
       }
 
       setLoading(true);
-      setLoadingMessage("Connecting to server...");
+      setProgress(10);
+      setLoadingMessage("Preparing...");
 
+      // Pre-warm server if not already warm
+      if (!serverWarmup.isServerWarm()) {
+        setLoadingMessage("Waking up server...");
+        setProgress(30);
+        await serverWarmup.warmupServer();
+      }
+
+      setProgress(50);
+      setLoadingMessage("Signing in...");
       console.log('🚀 Attempting login with phone:', fullPhone);
 
       // Call backend -> POST /api/auth/login
@@ -56,10 +68,15 @@ export default function Login() {
         { phone: fullPhone, password: passwordT }
       );
 
+      setProgress(80);
+
       const token = res?.token;
       if (!token) {
         throw new Error(res?.message || "No token returned from server.");
       }
+
+      setProgress(95);
+      setLoadingMessage("Finalizing...");
 
       await AsyncStorage.setItem("token", token);
       if (res?.user?.name) {
@@ -69,6 +86,7 @@ export default function Login() {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
       
+      setProgress(100);
       console.log('Login successful, redirecting to home');
       router.replace("/(tabs)/home");
     } catch (e: any) {
@@ -94,6 +112,7 @@ export default function Login() {
     } finally {
       setLoading(false);
       setLoadingMessage("Signing in...");
+      setProgress(0);
     }
   };
 
@@ -139,7 +158,7 @@ export default function Login() {
           />
 
           <PrimaryButton
-            title={loading ? loadingMessage : "Log in"}
+            title={loading ? `${loadingMessage}${progress > 0 ? ` (${progress}%)` : ''}` : "Log in"}
             onPress={doLogin}
             disabled={loading}
           />

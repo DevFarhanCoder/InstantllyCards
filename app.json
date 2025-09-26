@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "instantllycards",
+    "name": "InstantllyCards",
     "slug": "instantllycards",
-    "version": "1.0.4",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "instantllycards",
@@ -18,20 +18,21 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0F1111"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 3,
+      "versionCode": 5,
       "permissions": [],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0F1111"
       }
     },
     "web": {

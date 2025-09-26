@@ -13,6 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 
 import api from "@/lib/api";
+import serverWarmup from "@/lib/serverWarmup";
 import Field from "@/components/Field";
 import PasswordField from "@/components/PasswordField";
 import CountryCodePicker from "@/components/CountryCodePicker";
@@ -26,6 +27,7 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Creating...");
+  const [progress, setProgress] = useState(0);
 
   const doSignup = async () => {
     try {
@@ -48,8 +50,18 @@ export default function Signup() {
       }
 
       setLoading(true);
-      setLoadingMessage("Connecting to server...");
+      setProgress(10);
+      setLoadingMessage("Preparing...");
 
+      // Pre-warm server if not already warm
+      if (!serverWarmup.isServerWarm()) {
+        setLoadingMessage("Waking up server...");
+        setProgress(30);
+        await serverWarmup.warmupServer();
+      }
+
+      setProgress(50);
+      setLoadingMessage("Creating account...");
       console.log('🚀 Attempting signup with:', { name: nameT, phone: fullPhone });
 
       const res = await api.post("/auth/signup", {
@@ -58,6 +70,8 @@ export default function Signup() {
         password: passwordT
       });
 
+      setProgress(80);
+
       console.log('✅ Signup response received:', res);
 
       let token = res?.token;
@@ -65,6 +79,7 @@ export default function Signup() {
       if (!token) {
         try {
           console.log('No token in signup response, attempting login...');
+          setProgress(85);
           setLoadingMessage("Signing in...");
           const loginRes = await api.post("/auth/login", { phone: fullPhone, password: passwordT });
           token = loginRes?.token;
@@ -75,6 +90,9 @@ export default function Signup() {
         throw new Error(res?.message || "Signup failed. Please try again.");
       }
 
+      setProgress(95);
+      setLoadingMessage("Finalizing...");
+
       await AsyncStorage.setItem("token", token);
       if (res?.user?.name) {
         await AsyncStorage.setItem("user_name", res.user.name);
@@ -83,6 +101,7 @@ export default function Signup() {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
       
+      setProgress(100);
       console.log('Signup successful, redirecting to home');
       router.replace("/(tabs)/home");
     } catch (e: any) {
@@ -116,6 +135,7 @@ export default function Signup() {
     } finally {
       setLoading(false);
       setLoadingMessage("Creating...");
+      setProgress(0);
     }
   };
 
@@ -164,7 +184,7 @@ export default function Signup() {
           />
 
           <PrimaryButton
-            title={loading ? loadingMessage : "Sign up"}
+            title={loading ? `${loadingMessage}${progress > 0 ? ` (${progress}%)` : ''}` : "Sign up"}
             onPress={doSignup}
             disabled={loading}
           />

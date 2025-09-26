@@ -219,7 +219,7 @@ export default function Profile() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.brown} />
+          <ActivityIndicator size="large" color="#22C55E" />
           <Text style={styles.loadingText}>Loading Profile...</Text>
         </View>
       </SafeAreaView>
@@ -261,7 +261,7 @@ export default function Profile() {
             )}
             {updating && (
               <View style={styles.uploadingOverlay}>
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={COLORS.white} />
               </View>
             )}
           </View>
@@ -303,7 +303,7 @@ export default function Profile() {
                     disabled={updating}
                   >
                     {updating ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator size="small" color={COLORS.white} />
                     ) : (
                       <Text style={styles.saveButtonText}>Save</Text>
                     )}
@@ -351,7 +351,7 @@ export default function Profile() {
                     disabled={updating}
                   >
                     {updating ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator size="small" color={COLORS.white} />
                     ) : (
                       <Text style={styles.saveButtonText}>Save</Text>
                     )}
@@ -400,7 +400,7 @@ export default function Profile() {
                     disabled={updating}
                   >
                     {updating ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator size="small" color={COLORS.white} />
                     ) : (
                       <Text style={styles.saveButtonText}>Save</Text>
                     )}
@@ -433,7 +433,7 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.white,
   },
   scrollView: {
     flex: 1,
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#FFFFFF',
+    color: '#333333',
     fontSize: 16,
     marginTop: 16,
   },
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorText: {
-    color: '#FFFFFF',
+    color: '#333333',
     fontSize: 18,
     textAlign: 'center',
     marginBottom: 16,
@@ -467,17 +467,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontWeight: '600',
   },
   header: {
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: '#E5E5E5',
   },
   headerTitle: {
-    color: '#FFFFFF',
+    color: '#1A1A1A',
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -493,17 +493,21 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
   },
   profilePicturePlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#333333',
+    backgroundColor: '#F0F0F0',
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
     justifyContent: 'center',
     alignItems: 'center',
   },
   profilePicturePlaceholderText: {
-    color: '#FFFFFF',
+    color: '#666666',
     fontSize: 36,
     fontWeight: 'bold',
   },
@@ -525,7 +529,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   editButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -539,7 +543,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    color: '#FFFFFF',
+    color: '#1A1A1A',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -549,7 +553,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   infoValue: {
-    color: '#CCCCCC',
+    color: '#555555',
     fontSize: 14,
     flex: 1,
   },
@@ -563,13 +567,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   textInput: {
-    backgroundColor: '#333333',
-    color: '#FFFFFF',
+    backgroundColor: '#F8F8F8',
+    color: '#1A1A1A',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
     fontSize: 14,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
   },
   editActions: {
     flexDirection: 'row',
@@ -582,10 +588,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#666666',
+    backgroundColor: '#E5E5E5',
   },
   cancelButtonText: {
-    color: '#FFFFFF',
+    color: '#666666',
     fontWeight: '600',
     fontSize: 14,
   },
@@ -593,7 +599,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
   },
   saveButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -606,7 +612,7 @@ const styles = StyleSheet.create({
     marginVertical: 24,
   },
   logoutButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
   },
