@@ -2,8 +2,16 @@ import React, { useEffect } from "react";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query";
-import { registerForPushNotifications, setupNotificationListeners } from "../lib/notifications-expo-go";
+import Constants from 'expo-constants';
 import serverWarmup from "../lib/serverWarmup";
+
+// Import the appropriate notification system based on environment
+const isExpoGo = Constants.appOwnership === 'expo';
+const notificationModule = isExpoGo 
+  ? require("../lib/notifications-expo-go")
+  : require("../lib/notifications-production");
+
+const { registerForPushNotifications, setupNotificationListeners } = notificationModule;
 
 export default function RootLayout() {
   useEffect(() => {
