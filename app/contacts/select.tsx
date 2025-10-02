@@ -123,17 +123,40 @@ export default function ContactSelectScreen() {
 
       console.log(`Found ${phoneNumbers.length} contacts with valid phone numbers`);
 
-      // Send to backend to sync and store all contacts
+      // Send to backend in batches to handle large contact lists
       const token = await ensureAuth();
       if (token) {
-        console.log(`Syncing ${phoneNumbers.length} contacts to backend...`);
-        await api.post("/contacts/sync-all", { contacts: phoneNumbers });
+        const BATCH_SIZE = 500; // Send 500 contacts at a time
+        const totalBatches = Math.ceil(phoneNumbers.length / BATCH_SIZE);
+        
+        console.log(`Syncing ${phoneNumbers.length} contacts in ${totalBatches} batches...`);
+        
+        for (let i = 0; i < phoneNumbers.length; i += BATCH_SIZE) {
+          const batch = phoneNumbers.slice(i, i + BATCH_SIZE);
+          const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+          
+          console.log(`Syncing batch ${batchNumber}/${totalBatches} (${batch.length} contacts)...`);
+          
+          try {
+            await api.post("/contacts/sync-all", { contacts: batch });
+            console.log(`✅ Batch ${batchNumber}/${totalBatches} synced successfully`);
+          } catch (batchError) {
+            console.error(`❌ Error syncing batch ${batchNumber}:`, batchError);
+            // Continue with next batch even if one fails
+          }
+          
+          // Small delay between batches to prevent server overload
+          if (i + BATCH_SIZE < phoneNumbers.length) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+        
         setContactsSynced(true);
         
         // Save sync status to AsyncStorage
         try {
           await AsyncStorage.setItem('contactsSynced', 'true');
-          console.log('✅ Contacts synced successfully');
+          console.log('✅ All contacts synced successfully');
         } catch (storageError) {
           console.error('Error saving sync status:', storageError);
         }

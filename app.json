@@ -2,9 +2,9 @@
   "expo": {
     "name": "InstantllyCards",
     "slug": "instantllycards",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "orientation": "portrait",
-    "icon": "./assets/images/instantlly-logo.png",
+    "icon": "./assets/images/instantlly-logo-black.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,16 +16,16 @@
       }
     },
     "splash": {
-      "image": "./assets/images/instantlly-logo.png",
+      "image": "./assets/images/instantlly-logo-black.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1a2e"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 9,
+      "versionCode": 10,
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
@@ -33,10 +33,10 @@
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "icon": "./assets/images/instantlly-logo.png",
+      "icon": "./assets/images/instantlly-logo-black.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/instantlly-logo.png",
-        "backgroundColor": "#1a1a2e"
+        "foregroundImage": "./assets/images/instantlly-logo-black.png",
+        "backgroundColor": "#000000"
       }
     },
     "web": {
@@ -51,7 +51,9 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#0F1111",
-          "defaultChannel": "default"
+          "defaultChannel": "default",
+          "sounds": ["notification.wav"],
+          "mode": "production"
         }
       ],
       [

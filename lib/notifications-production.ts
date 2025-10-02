@@ -7,16 +7,36 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from './api';
 import { ensureAuth } from './auth';
 
-// Configure notification behavior
+// Configure notification behavior - THIS IS CRITICAL FOR KILLED APP STATE
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    // Log for debugging
+    console.log('🔔 Processing notification:', notification.request.content.title);
+    
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      // Priority settings for killed app state
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    };
+  },
 });
+
+// Configure Android notification channel for better reliability
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Default Notifications',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#FF231F7C',
+    sound: 'default',
+    enableVibrate: true,
+    showBadge: true,
+  });
+}
 
 // Check if running in development vs production
 const isDevelopment = __DEV__;

@@ -19,15 +19,18 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
         ? `+${c.companyCountryCode}${c.companyPhone}` : "";
 
     const handleCardPress = () => {
-        console.log("Navigating with data:", c.companyName || c.name);
-        if (showEditButton) {
-            router.push(`/builder?edit=${c._id}`);
-        } else {
-            router.push({
-                pathname: "/(main)/card/[id]",
-                params: { id: c._id, cardData: JSON.stringify(c) }
-            });
-        }
+        // Use requestAnimationFrame to prevent UI blocking
+        requestAnimationFrame(() => {
+            console.log("Navigating with data:", c.companyName || c.name);
+            if (showEditButton) {
+                router.push(`/builder?edit=${c._id}`);
+            } else {
+                router.push({
+                    pathname: "/(main)/card/[id]",
+                    params: { id: c._id, cardData: JSON.stringify(c) }
+                });
+            }
+        });
     };
 
     const handleEditPress = () => {

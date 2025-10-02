@@ -21,9 +21,15 @@ export default function CardDetail() {
           const parsedCard = JSON.parse(cardData);
           console.log("Parsed card successfully:", parsedCard?.companyName || parsedCard?.name);
           setCard(parsedCard);
+          // Don't set loading state since we already have the data
         } catch (error) {
           console.error("Error parsing card data:", error);
-          setError("Invalid card data");
+          // Only fetch if parsing fails
+          if (id) {
+            await fetchCardById(id);
+          } else {
+            setError("Invalid card data");
+          }
         }
       } else if (id) {
         console.log("No cardData received, fetching card with ID:", id);
