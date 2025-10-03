@@ -32,9 +32,12 @@ export default function SignIn() {
         await AsyncStorage.setItem("user_phone", data.user.phone);
       }
       
-      // Register push token after successful login
+      // Register push token after successful login (non-blocking)
       console.log('🔔 Attempting to register pending push token after sign-in...');
-      await registerPendingPushToken();
+      registerPendingPushToken().catch((error: any) => {
+        console.error('⚠️ Push token registration failed, but sign-in succeeded:', error);
+        // Don't block sign-in if push token registration fails
+      });
       
       r.replace("/"); // to (main)/index
     } catch (e:any) { Alert.alert("Login failed", e.message); }

@@ -110,9 +110,12 @@ export default function Signup() {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
       
-      // Register push token after successful signup
+      // Register push token after successful signup (non-blocking)
       console.log('🔔 Attempting to register pending push token after signup...');
-      await registerPendingPushToken();
+      registerPendingPushToken().catch((error: any) => {
+        console.error('⚠️ Push token registration failed, but signup succeeded:', error);
+        // Don't block signup if push token registration fails
+      });
       
       setProgress(100);
       console.log('Signup successful, redirecting to home');

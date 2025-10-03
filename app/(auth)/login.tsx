@@ -95,9 +95,12 @@ export default function Login() {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
       
-      // Register push token after successful login
+      // Register push token after successful login (non-blocking)
       console.log('🔔 Attempting to register pending push token after login...');
-      await registerPendingPushToken();
+      registerPendingPushToken().catch((error: any) => {
+        console.error('⚠️ Push token registration failed, but login succeeded:', error);
+        // Don't block login if push token registration fails
+      });
       
       setProgress(100);
       console.log('Login successful, redirecting to home');

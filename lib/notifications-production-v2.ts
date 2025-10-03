@@ -194,14 +194,15 @@ async function registerTokenWithBackend(pushToken: string) {
 
   } catch (error: any) {
     console.error('❌ [BACKEND] Failed to register token:', error);
-    console.error('❌ [BACKEND] Error details:', {
-      message: error.message,
-      response: error.response?.data,
-    });
+    console.error('❌ [BACKEND] Error message:', error?.message || 'Unknown error');
+    console.error('❌ [BACKEND] Error status:', error?.status || 'No status');
+    console.error('❌ [BACKEND] Error data:', error?.data || 'No data');
+    console.error('❌ [BACKEND] Full error object:', JSON.stringify(error, null, 2));
     
-    // Store as pending if registration fails
+    // DON'T throw error - just store as pending and continue
+    // This prevents the "Server error" alert from blocking login
     await AsyncStorage.setItem('pendingPushToken', pushToken);
-    console.log('💾 [BACKEND] Stored as pending due to error');
+    console.log('💾 [BACKEND] Stored as pending due to error - user can continue using app');
   }
 }
 
