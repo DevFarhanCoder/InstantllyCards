@@ -25,7 +25,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 const isExpoGo = Constants.appOwnership === 'expo';
 const notificationModule = isExpoGo 
   ? null // Expo Go doesn't need post-login registration
-  : require("@/lib/notifications-production");
+  : require("@/lib/notifications-production-v2");
 
 const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 import { COLORS } from "@/lib/theme";

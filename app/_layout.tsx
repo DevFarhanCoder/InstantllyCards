@@ -7,9 +7,11 @@ import serverWarmup from "../lib/serverWarmup";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
+
+// Use the NEW v2 notification system for production
 const notificationModule = isExpoGo 
   ? require("../lib/notifications-expo-go")
-  : require("../lib/notifications-production");
+  : require("../lib/notifications-production-v2");
 
 const { registerForPushNotifications, setupNotificationListeners } = notificationModule;
 

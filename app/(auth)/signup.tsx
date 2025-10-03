@@ -25,7 +25,7 @@ import { COLORS } from "@/lib/theme";
 const isExpoGo = Constants.appOwnership === 'expo';
 const notificationModule = isExpoGo 
   ? null
-  : require("@/lib/notifications-production");
+  : require("@/lib/notifications-production-v2");
 
 const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 
