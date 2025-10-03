@@ -2,7 +2,7 @@
   "cli": { "appVersionSource": "local" },
   "build": {
     "production": {
-      "android": { "buildType": "app-bundle" }
+      "android": { "buildType": "apk" }
     }
   },
   "submit": {

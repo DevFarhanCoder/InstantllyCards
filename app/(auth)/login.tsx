@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import Constants from 'expo-constants';
 
 import api from "@/lib/api";
 import serverWarmup from "@/lib/serverWarmup";
@@ -19,6 +20,14 @@ import Field from "@/components/Field";
 import PasswordField from "@/components/PasswordField";
 import CountryCodePicker from "@/components/CountryCodePicker";
 import { PrimaryButton } from "@/components/PrimaryButton";
+
+// Import notification registration
+const isExpoGo = Constants.appOwnership === 'expo';
+const notificationModule = isExpoGo 
+  ? null // Expo Go doesn't need post-login registration
+  : require("@/lib/notifications-production");
+
+const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 import { COLORS } from "@/lib/theme";
 
 export default function Login() {
@@ -85,6 +94,10 @@ export default function Login() {
       if (res?.user?.phone) {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
+      
+      // Register push token after successful login
+      console.log('🔔 Attempting to register pending push token after login...');
+      await registerPendingPushToken();
       
       setProgress(100);
       console.log('Login successful, redirecting to home');

@@ -2,8 +2,17 @@
 import { useState } from "react";
 import { View, TextInput, Button, Text, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from 'expo-constants';
 import api from "@/lib/api";
 import { Link, useRouter } from "expo-router";
+
+// Import notification registration
+const isExpoGo = Constants.appOwnership === 'expo';
+const notificationModule = isExpoGo 
+  ? null
+  : require("@/lib/notifications-production");
+
+const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 
 export default function SignIn() {
   const r = useRouter();
@@ -22,6 +31,11 @@ export default function SignIn() {
       if (data.user?.phone) {
         await AsyncStorage.setItem("user_phone", data.user.phone);
       }
+      
+      // Register push token after successful login
+      console.log('🔔 Attempting to register pending push token after sign-in...');
+      await registerPendingPushToken();
+      
       r.replace("/"); // to (main)/index
     } catch (e:any) { Alert.alert("Login failed", e.message); }
     finally { setLoading(false); }

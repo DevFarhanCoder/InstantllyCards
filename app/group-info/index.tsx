@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
   iconSection: {
     alignItems: "center",
     paddingVertical: 32,
-    backgroundColor: "#000000",
+    backgroundColor: "#FFFFFF",
   },
   iconContainer: {
     marginBottom: 12,
@@ -376,22 +376,22 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "#374151",
+    backgroundColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#4B5563",
+    borderColor: "#9CA3AF",
     borderStyle: "dashed",
   },
   iconHint: {
     fontSize: 14,
-    color: "#9CA3AF",
+    color: "#6B7280",
     textAlign: "center",
   },
   formSection: {
     paddingHorizontal: 16,
     paddingVertical: 20,
-    backgroundColor: "#000000",
+    backgroundColor: "#FFFFFF",
   },
   inputGroup: {
     marginBottom: 24,
@@ -399,18 +399,18 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#111827",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#1F2937",
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: "#FFFFFF",
+    color: "#111827",
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: "#D1D5DB",
   },
   descriptionInput: {
     height: 80,
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   charCount: {
     fontSize: 12,
-    color: "#9CA3AF",
+    color: "#6B7280",
     textAlign: "right",
     marginTop: 4,
   },

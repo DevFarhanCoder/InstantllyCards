@@ -92,7 +92,9 @@ async function registerTokenWithBackend(pushToken: string) {
   try {
     const authToken = await ensureAuth();
     if (!authToken) {
-      console.log('⏸️ Skipping token registration - user not authenticated');
+      console.log('⏸️ User not authenticated yet - will register token after login');
+      // Store the token to register later after login
+      await AsyncStorage.setItem('pendingPushToken', pushToken);
       return;
     }
 
@@ -109,6 +111,9 @@ async function registerTokenWithBackend(pushToken: string) {
     });
 
     console.log('✅ Push token registered with backend successfully');
+    
+    // Clear pending token after successful registration
+    await AsyncStorage.removeItem('pendingPushToken');
   } catch (error) {
     console.error('❌ Failed to register push token with backend:', error);
   }
@@ -223,6 +228,21 @@ export async function setBadgeCount(count: number) {
 // Clear all notifications
 export async function clearAllNotifications() {
   await Notifications.dismissAllNotificationsAsync();
+}
+
+// Register pending push token after login
+export async function registerPendingPushToken() {
+  try {
+    const pendingToken = await AsyncStorage.getItem('pendingPushToken');
+    if (pendingToken) {
+      console.log('📲 Found pending push token, registering with backend...');
+      await registerTokenWithBackend(pendingToken);
+    } else {
+      console.log('ℹ️ No pending push token found');
+    }
+  } catch (error) {
+    console.error('❌ Error registering pending push token:', error);
+  }
 }
 
 // Cancel scheduled notifications

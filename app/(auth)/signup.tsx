@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import Constants from 'expo-constants';
 
 import api from "@/lib/api";
 import serverWarmup from "@/lib/serverWarmup";
@@ -19,6 +20,14 @@ import PasswordField from "@/components/PasswordField";
 import CountryCodePicker from "@/components/CountryCodePicker";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { COLORS } from "@/lib/theme";
+
+// Import notification registration
+const isExpoGo = Constants.appOwnership === 'expo';
+const notificationModule = isExpoGo 
+  ? null
+  : require("@/lib/notifications-production");
+
+const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -100,6 +109,10 @@ export default function Signup() {
       if (res?.user?.phone) {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
+      
+      // Register push token after successful signup
+      console.log('🔔 Attempting to register pending push token after signup...');
+      await registerPendingPushToken();
       
       setProgress(100);
       console.log('Signup successful, redirecting to home');
