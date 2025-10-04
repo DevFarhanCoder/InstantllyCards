@@ -61,13 +61,8 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "androidGradlePluginVersion": "8.2.2",
+            "buildToolsVersion": "35.0.0",
             "kotlinVersion": "2.0.21",
-            "packagingOptions": {
-              "pickFirst": [
-                "META-INF/*"
-              ]
-            },
             "googleServicesFile": "./google-services.json"
           }
         }
