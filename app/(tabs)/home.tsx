@@ -23,21 +23,27 @@ export default function Home() {
     Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
   };
 
-  // Public feed of all users' cards - use correct backend endpoint
+  // Contacts feed - only show cards from my contacts (privacy-focused)
   const feedQ = useQuery({
-    queryKey: ["public-feed"],
+    queryKey: ["contacts-feed"],
     queryFn: async () => {
-      console.log("Home: Fetching public feed...");
+      console.log("Home: Fetching contacts feed...");
       try {
-        // Direct fetch to bypass auth issues - this endpoint doesn't need auth
+        const token = await AsyncStorage.getItem("token");
+        if (!token) {
+          console.log("Home: No auth token found");
+          return [];
+        }
+
         const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend.onrender.com";
-        const url = `${apiBase}/api/cards/feed/public`;
+        const url = `${apiBase}/api/cards/feed/contacts`;
         console.log("Home: Fetching from URL:", url);
         
         const response = await fetch(url, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
         });
         
@@ -46,17 +52,18 @@ export default function Home() {
         }
         
         const result = await response.json();
-        console.log("Home: Raw API Response:", result);
-        console.log("Home: Feed data:", result.data);
-        console.log("Home: Data type:", typeof result.data, "Length:", result.data?.length);
+        console.log("Home: Contacts Feed Response:", result);
+        console.log("Home: Total contacts:", result.meta?.totalContacts);
+        console.log("Home: Cards from contacts:", result.meta?.cardsCount);
         
-        // Backend returns { data: [...] } format
         return result.data || [];
       } catch (error) {
-        console.error("Home: Error fetching public feed:", error);
+        console.error("Home: Error fetching contacts feed:", error);
         return [];
       }
     },
+    staleTime: 30000, // 30 seconds
+    refetchOnMount: true,
   });
 
   // Filter cards based on search query
@@ -118,8 +125,13 @@ export default function Home() {
           contentContainerStyle={{ padding: 16, paddingBottom: 180 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Text style={s.emptyTxt}>No business cards available yet.</Text>
-              <Text style={s.emptySubTxt}>Check back later for new cards!</Text>
+              <Text style={s.emptyTxt}>No cards from your contacts yet.</Text>
+              <Text style={s.emptySubTxt}>
+                Cards from people in your contacts will appear here.
+              </Text>
+              <Text style={s.emptySubTxt}>
+                Make sure to sync your contacts!
+              </Text>
             </View>
           }
           showsVerticalScrollIndicator={false}

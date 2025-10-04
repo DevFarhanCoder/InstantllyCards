@@ -1,7 +1,7 @@
 // app/(main)/card/[id].tsx
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator, Animated } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import api from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
@@ -9,11 +9,14 @@ import { ensureAuth } from "@/lib/auth";
 export default function CardDetail() {
   const { id, cardData } = useLocalSearchParams<{ id: string; cardData: string }>();
   const [card, setCard] = useState<any>(null);
-  const [loading, setLoading] = useState(true); // Always start with loading true
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // ⚡ Animated shimmer effect for skeleton
   const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnimation = useRef<Animated.CompositeAnimation | null>(null);
+  const isUnmounted = useRef(false);
+  const hasInitialized = useRef(false);
 
   // ⚡ OPTIMIZATION: Memoize calculated values - MUST be before any returns (Rules of Hooks)
   const fullPersonal = useMemo(() => {
@@ -34,7 +37,8 @@ export default function CardDetail() {
   // ⚡ Shimmer animation effect
   useEffect(() => {
     if (loading) {
-      Animated.loop(
+      // Start shimmer animation
+      shimmerAnimation.current = Animated.loop(
         Animated.sequence([
           Animated.timing(shimmerAnim, {
             toValue: 1,
@@ -47,63 +51,134 @@ export default function CardDetail() {
             useNativeDriver: true,
           }),
         ])
-      ).start();
+      );
+      shimmerAnimation.current.start();
+    } else {
+      // Stop animation when loading completes
+      if (shimmerAnimation.current) {
+        shimmerAnimation.current.stop();
+        shimmerAnimation.current = null;
+      }
     }
+
+    // ⚡ CRITICAL: Cleanup animation on unmount
+    return () => {
+      if (shimmerAnimation.current) {
+        shimmerAnimation.current.stop();
+        shimmerAnimation.current = null;
+      }
+    };
   }, [loading, shimmerAnim]);
+
+  // ⚡ RESET state when navigating to new card (prevents stuck screens)
+  useFocusEffect(
+    useCallback(() => {
+      // Reset tracking flags when screen focuses
+      isUnmounted.current = false;
+      hasInitialized.current = false;
+      
+      // Cleanup when screen loses focus
+      return () => {
+        isUnmounted.current = true;
+        // Stop any ongoing animations
+        if (shimmerAnimation.current) {
+          shimmerAnimation.current.stop();
+          shimmerAnimation.current = null;
+        }
+      };
+    }, [])
+  );
 
   // ⚡ SMOOTH FLOW: Parse card data asynchronously to avoid UI blocking
   useEffect(() => {
+    // Prevent re-initialization if already done
+    if (hasInitialized.current) {
+      console.log("⏭️ Skipping re-initialization - already loaded");
+      return;
+    }
+
     const initializeCard = async () => {
+      // Early exit if component unmounted
+      if (isUnmounted.current) return;
+
       try {
+        setLoading(true);
+        setError(null);
+
         if (cardData) {
           console.log("📄 Parsing cached card data...");
           
-          // ⚡ Use setTimeout to defer parsing - allows skeleton to render FIRST
+          // ⚡ Defer parsing to prevent blocking
           await new Promise(resolve => setTimeout(resolve, 0));
+          
+          // Check unmount again before parsing
+          if (isUnmounted.current) return;
           
           const parsedCard = JSON.parse(cardData);
           
-          // Small delay to ensure smooth skeleton → content transition
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Check unmount before updating state
+          if (isUnmounted.current) return;
           
-          setCard(parsedCard);
-          setLoading(false);
-          console.log("✅ Card rendered from cache with smooth transition");
+          // Small delay for smooth transition
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          if (!isUnmounted.current) {
+            setCard(parsedCard);
+            setLoading(false);
+            hasInitialized.current = true;
+            console.log("✅ Card rendered from cache");
+          }
           return;
         }
         
-        // No cached data - fetch from server (skeleton will show during fetch)
-        if (id) {
+        // No cached data - fetch from server
+        if (id && !isUnmounted.current) {
           console.log("🔍 No cache - fetching card:", id);
           await fetchCardById(id);
+          hasInitialized.current = true;
         } else {
-          setError("No card ID provided");
-          setLoading(false);
+          if (!isUnmounted.current) {
+            setError("No card ID provided");
+            setLoading(false);
+          }
         }
       } catch (parseError) {
         console.error("❌ Parse error:", parseError);
         // Fallback to fetching if parse fails
-        if (id) {
+        if (id && !isUnmounted.current) {
           await fetchCardById(id);
+          hasInitialized.current = true;
         } else {
-          setError("Invalid card data");
-          setLoading(false);
+          if (!isUnmounted.current) {
+            setError("Invalid card data");
+            setLoading(false);
+          }
         }
       }
     };
 
     initializeCard();
+
+    // Cleanup function
+    return () => {
+      isUnmounted.current = true;
+    };
   }, [id, cardData]);
 
   const fetchCardById = async (cardId: string) => {
     try {
+      // Early exit if unmounted
+      if (isUnmounted.current) return;
+
       setLoading(true);
       setError(null);
       
       const token = await ensureAuth();
-      if (!token) {
-        setError("Authentication required");
-        setLoading(false);
+      if (!token || isUnmounted.current) {
+        if (!isUnmounted.current) {
+          setError("Authentication required");
+          setLoading(false);
+        }
         return;
       }
 
@@ -115,6 +190,9 @@ export default function CardDetail() {
         api.get('/cards/feed/public').catch(() => ({ data: [] })),
         api.get(`/cards/${cardId}`).catch(() => ({ data: null }))
       ]);
+
+      // Check if component unmounted during fetch
+      if (isUnmounted.current) return;
 
       let foundCard = null;
 
@@ -154,12 +232,16 @@ export default function CardDetail() {
       }
 
       console.log("❌ Card not found in any source");
-      setError("Card not found or no access");
-      setLoading(false);
+      if (!isUnmounted.current) {
+        setError("Card not found or no access");
+        setLoading(false);
+      }
     } catch (error) {
       console.error("❌ Error fetching card:", error);
-      setError("Failed to load card");
-      setLoading(false);
+      if (!isUnmounted.current) {
+        setError("Failed to load card");
+        setLoading(false);
+      }
     }
   };
 
