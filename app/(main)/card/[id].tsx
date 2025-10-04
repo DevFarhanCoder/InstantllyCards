@@ -9,7 +9,7 @@ import { ensureAuth } from "@/lib/auth";
 export default function CardDetail() {
   const { id, cardData } = useLocalSearchParams<{ id: string; cardData: string }>();
   const [card, setCard] = useState<any>(null);
-  const [loading, setLoading] = useState(true); // Start with loading true
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // ⚡ OPTIMIZATION: Memoize calculated values - MUST be before any returns (Rules of Hooks)
@@ -28,33 +28,38 @@ export default function CardDetail() {
     return card?.keywords ? card.keywords.split(',').map((k: string) => k.trim()) : [];
   }, [card?.keywords]);
 
-  // Parse the card data from navigation params or fetch it
+  // ⚡ OPTIMIZATION: Parse card data immediately and synchronously for instant rendering
   useEffect(() => {
     const initializeCard = async () => {
-      if (cardData) {
-        try {
-          console.log("📄 Using cached card data");
+      try {
+        if (cardData) {
+          console.log("📄 Parsing cached card data...");
           const parsedCard = JSON.parse(cardData);
           
-          // Immediately set the card without delay - instant rendering
+          // ⚡ INSTANT: Set card data immediately - no delay
           setCard(parsedCard);
           setLoading(false);
-        } catch (error) {
-          console.error("❌ Error parsing card data:", error);
-          // Only fetch if parsing fails
-          if (id) {
-            await fetchCardById(id);
-          } else {
-            setError("Invalid card data");
-            setLoading(false);
-          }
+          console.log("✅ Card rendered instantly from cache");
+          return;
         }
-      } else if (id) {
-        console.log("🔍 No cached data, fetching card with ID:", id);
-        await fetchCardById(id);
-      } else {
-        setError("No card ID or data provided");
-        setLoading(false);
+        
+        // No cached data - fetch from server
+        if (id) {
+          console.log("🔍 No cache - fetching card:", id);
+          await fetchCardById(id);
+        } else {
+          setError("No card ID provided");
+          setLoading(false);
+        }
+      } catch (parseError) {
+        console.error("❌ Parse error:", parseError);
+        // Fallback to fetching if parse fails
+        if (id) {
+          await fetchCardById(id);
+        } else {
+          setError("Invalid card data");
+          setLoading(false);
+        }
       }
     };
 
@@ -162,23 +167,46 @@ export default function CardDetail() {
           <TouchableOpacity onPress={() => router.back()} style={s.backButton}>
             <Text style={s.backText}>← Back</Text>
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Business Profile</Text>
+          <Text style={s.headerTitle}>Loading...</Text>
           <View style={{ width: 80 }} />
         </View>
         
-        {/* Skeleton Loading UI */}
-        <ScrollView style={s.content}>
-          <View style={s.skeletonPhoto} />
-          <View style={s.skeletonTitle} />
-          <View style={s.skeletonSubtitle} />
-          <View style={s.skeletonSection}>
-            <View style={s.skeletonLine} />
-            <View style={s.skeletonLine} />
-            <View style={s.skeletonLine} />
+        {/* ⚡ ENHANCED Skeleton Loading UI with better UX */}
+        <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
+          {/* Photo skeleton */}
+          <View style={[s.skeletonPhoto, s.shimmer]} />
+          
+          {/* Title skeleton */}
+          <View style={[s.skeletonTitle, s.shimmer]} />
+          
+          {/* Subtitle skeleton */}
+          <View style={[s.skeletonSubtitle, s.shimmer]} />
+          
+          {/* Keywords skeleton */}
+          <View style={s.skeletonKeywords}>
+            <View style={[s.skeletonTag, s.shimmer]} />
+            <View style={[s.skeletonTag, s.shimmer]} />
+            <View style={[s.skeletonTag, s.shimmer]} />
           </View>
+          
+          {/* Contact info skeleton */}
+          <View style={s.skeletonSection}>
+            <View style={[s.skeletonSectionTitle, s.shimmer]} />
+            <View style={[s.skeletonContactItem, s.shimmer]} />
+            <View style={[s.skeletonContactItem, s.shimmer]} />
+            <View style={[s.skeletonContactItem, s.shimmer]} />
+          </View>
+          
+          {/* Location skeleton */}
+          <View style={s.skeletonSection}>
+            <View style={[s.skeletonSectionTitle, s.shimmer]} />
+            <View style={[s.skeletonLine, s.shimmer]} />
+          </View>
+          
+          {/* Loading indicator at bottom */}
           <View style={s.loadingCenter}>
             <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={s.loadingText}>Loading business card...</Text>
+            <Text style={s.loadingText}>Loading card details...</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -577,8 +605,33 @@ const s = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 24,
   },
+  skeletonKeywords: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 24,
+  },
+  skeletonTag: {
+    width: 80,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: "#E5E7EB",
+  },
   skeletonSection: {
     marginBottom: 24,
+  },
+  skeletonSectionTitle: {
+    width: "40%",
+    height: 20,
+    borderRadius: 6,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 12,
+  },
+  skeletonContactItem: {
+    width: "100%",
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 8,
   },
   skeletonLine: {
     width: "100%",
@@ -586,6 +639,9 @@ const s = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#E5E7EB",
     marginBottom: 12,
+  },
+  shimmer: {
+    opacity: 0.6,
   },
   loadingCenter: {
     alignItems: "center",

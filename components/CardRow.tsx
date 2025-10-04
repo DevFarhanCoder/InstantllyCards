@@ -7,7 +7,6 @@ import { Ionicons } from "@expo/vector-icons";
 export default function CardRow({ c, showEditButton = false, onRefresh }: { c: any; showEditButton?: boolean; onRefresh?: () => void }) {
     const [shareModalVisible, setShareModalVisible] = useState(false);
     const [menuModalVisible, setMenuModalVisible] = useState(false);
-    const [navigating, setNavigating] = useState(false);
     const [scaleAnim] = useState(new Animated.Value(1));
     
     const companyName = c.companyName || c.name || "Business";
@@ -21,37 +20,31 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
         ? `+${c.companyCountryCode}${c.companyPhone}` : "";
 
     const handleCardPress = () => {
-        // Animate card press
+        // ⚡ OPTIMIZATION: Immediate animation feedback
         Animated.sequence([
             Animated.timing(scaleAnim, {
                 toValue: 0.95,
-                duration: 100,
+                duration: 80,
                 useNativeDriver: true,
             }),
             Animated.timing(scaleAnim, {
                 toValue: 1,
-                duration: 100,
+                duration: 80,
                 useNativeDriver: true,
             }),
         ]).start();
 
-        // Show loading state
-        setNavigating(true);
-
-        // Use setTimeout to allow UI to update before navigation
-        setTimeout(() => {
-            console.log("Navigating with data:", c.companyName || c.name);
-            if (showEditButton) {
-                router.push(`/builder?edit=${c._id}`);
-            } else {
-                router.push({
-                    pathname: "/(main)/card/[id]",
-                    params: { id: c._id, cardData: JSON.stringify(c) }
-                });
-            }
-            // Reset navigating state after a delay
-            setTimeout(() => setNavigating(false), 500);
-        }, 150);
+        // ⚡ OPTIMIZATION: Instant navigation without setTimeout - show skeleton immediately
+        console.log("Navigating with data:", c.companyName || c.name);
+        if (showEditButton) {
+            router.push(`/builder?edit=${c._id}`);
+        } else {
+            // Navigate immediately with card data - skeleton will show while rendering
+            router.push({
+                pathname: "/(main)/card/[id]",
+                params: { id: c._id, cardData: JSON.stringify(c) }
+            });
+        }
     };
 
     const handleEditPress = () => {
@@ -142,15 +135,7 @@ Contact them now!`,
                     style={s.card} 
                     onPress={handleCardPress} 
                     activeOpacity={0.7}
-                    disabled={navigating}
                 >
-                    {/* Loading Overlay */}
-                    {navigating && (
-                        <View style={s.loadingOverlay}>
-                            <ActivityIndicator size="large" color="#3B82F6" />
-                        </View>
-                    )}
-
                     <Image source={{ uri: photo }} style={s.logo} />
                     
                     <View style={s.info}>
@@ -169,7 +154,6 @@ Contact them now!`,
                                     setMenuModalVisible(true); 
                                 }} 
                                 style={s.menuBtn}
-                                disabled={navigating}
                             >
                                 <Text style={s.menuBtnText}>⋮</Text>
                             </TouchableOpacity>
@@ -178,7 +162,6 @@ Contact them now!`,
                                 <TouchableOpacity 
                                     onPress={handleCallPress} 
                                     style={s.callBtn}
-                                    disabled={navigating}
                                 >
                                     <Ionicons name="call" size={24} color="white" />
                                 </TouchableOpacity>
