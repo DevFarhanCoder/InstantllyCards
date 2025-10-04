@@ -12,6 +12,22 @@ export default function CardDetail() {
   const [loading, setLoading] = useState(true); // Start with loading true
   const [error, setError] = useState<string | null>(null);
 
+  // ⚡ OPTIMIZATION: Memoize calculated values - MUST be before any returns (Rules of Hooks)
+  const fullPersonal = useMemo(() => {
+    return card?.personalCountryCode && card?.personalPhone
+      ? `+${card.personalCountryCode}${card.personalPhone}` : "";
+  }, [card?.personalCountryCode, card?.personalPhone]);
+
+  const fullCompany = useMemo(() => {
+    return card?.companyCountryCode && card?.companyPhone
+      ? `+${card.companyCountryCode}${card.companyPhone}` : "";
+  }, [card?.companyCountryCode, card?.companyPhone]);
+
+  // Memoize keywords array
+  const keywords = useMemo(() => {
+    return card?.keywords ? card.keywords.split(',').map((k: string) => k.trim()) : [];
+  }, [card?.keywords]);
+
   // Parse the card data from navigation params or fetch it
   useEffect(() => {
     const initializeCard = async () => {
@@ -183,22 +199,6 @@ export default function CardDetail() {
       </SafeAreaView>
     );
   }
-
-  // ⚡ OPTIMIZATION: Memoize calculated values to prevent recalculation on every render
-  const fullPersonal = useMemo(() => {
-    return card?.personalCountryCode && card?.personalPhone
-      ? `+${card.personalCountryCode}${card.personalPhone}` : "";
-  }, [card?.personalCountryCode, card?.personalPhone]);
-
-  const fullCompany = useMemo(() => {
-    return card?.companyCountryCode && card?.companyPhone
-      ? `+${card.companyCountryCode}${card.companyPhone}` : "";
-  }, [card?.companyCountryCode, card?.companyPhone]);
-
-  // Memoize keywords array
-  const keywords = useMemo(() => {
-    return card?.keywords ? card.keywords.split(',').map((k: string) => k.trim()) : [];
-  }, [card?.keywords]);
 
   return (
     <SafeAreaView style={s.container}>
