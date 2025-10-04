@@ -1,5 +1,5 @@
 // app/(main)/card/[id].tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,17 +17,14 @@ export default function CardDetail() {
     const initializeCard = async () => {
       if (cardData) {
         try {
-          console.log("Received cardData:", cardData.substring(0, 100) + "...");
+          console.log("📄 Using cached card data");
           const parsedCard = JSON.parse(cardData);
-          console.log("Parsed card successfully:", parsedCard?.companyName || parsedCard?.name);
           
-          // Add a small delay to show the loading state smoothly
-          setTimeout(() => {
-            setCard(parsedCard);
-            setLoading(false);
-          }, 300);
+          // Immediately set the card without delay - instant rendering
+          setCard(parsedCard);
+          setLoading(false);
         } catch (error) {
-          console.error("Error parsing card data:", error);
+          console.error("❌ Error parsing card data:", error);
           // Only fetch if parsing fails
           if (id) {
             await fetchCardById(id);
@@ -37,7 +34,7 @@ export default function CardDetail() {
           }
         }
       } else if (id) {
-        console.log("No cardData received, fetching card with ID:", id);
+        console.log("🔍 No cached data, fetching card with ID:", id);
         await fetchCardById(id);
       } else {
         setError("No card ID or data provided");
@@ -56,65 +53,62 @@ export default function CardDetail() {
       const token = await ensureAuth();
       if (!token) {
         setError("Authentication required");
+        setLoading(false);
         return;
       }
 
       console.log("🔍 Fetching card with ID:", cardId);
       
-      // Try multiple sources to find the card
+      // ⚡ OPTIMIZATION: Fetch from all sources in PARALLEL instead of sequential
+      const [userCardsResult, publicFeedResult, directCardResult] = await Promise.allSettled([
+        api.get('/cards').catch(() => ({ data: [] })),
+        api.get('/cards/feed/public').catch(() => ({ data: [] })),
+        api.get(`/cards/${cardId}`).catch(() => ({ data: null }))
+      ]);
+
       let foundCard = null;
-      
-      // 1. First try to get from user's own cards
-      try {
-        const userCardsResponse = await api.get('/cards');
-        const userCards = userCardsResponse.data || [];
+
+      // Check user's cards first
+      if (userCardsResult.status === 'fulfilled' && userCardsResult.value?.data) {
+        const userCards = userCardsResult.value.data || [];
         foundCard = userCards.find((c: any) => c._id === cardId);
-        
         if (foundCard) {
-          console.log("✅ Found card in user's cards:", foundCard.companyName || foundCard.name);
-        }
-      } catch (error) {
-        console.log("Could not fetch user's cards:", error);
-      }
-      
-      // 2. If not found in user's cards, try the public feed (for received cards)
-      if (!foundCard) {
-        try {
-          const publicFeedResponse = await api.get('/cards/feed/public');
-          const publicCards = publicFeedResponse.data || [];
-          foundCard = publicCards.find((c: any) => c._id === cardId);
-          
-          if (foundCard) {
-            console.log("✅ Found card in public feed:", foundCard.companyName || foundCard.name);
-          }
-        } catch (error) {
-          console.log("Could not fetch public feed:", error);
+          console.log("✅ Found in user's cards:", foundCard.companyName || foundCard.name);
+          setCard(foundCard);
+          setLoading(false);
+          return;
         }
       }
-      
-      // 3. If still not found, try direct card endpoint
-      if (!foundCard) {
-        try {
-          const directResponse = await api.get(`/cards/${cardId}`);
-          if (directResponse.data) {
-            foundCard = directResponse.data;
-            console.log("✅ Found card via direct endpoint:", foundCard.companyName || foundCard.name);
-          }
-        } catch (error) {
-          console.log("Could not fetch card directly:", error);
+
+      // Check public feed
+      if (publicFeedResult.status === 'fulfilled' && publicFeedResult.value?.data) {
+        const publicCards = publicFeedResult.value.data || [];
+        foundCard = publicCards.find((c: any) => c._id === cardId);
+        if (foundCard) {
+          console.log("✅ Found in public feed:", foundCard.companyName || foundCard.name);
+          setCard(foundCard);
+          setLoading(false);
+          return;
         }
       }
-      
-      if (foundCard) {
-        setCard(foundCard);
-      } else {
-        console.log("❌ Card not found in any source");
-        setError("Card not found or no access");
+
+      // Check direct endpoint
+      if (directCardResult.status === 'fulfilled' && directCardResult.value?.data) {
+        foundCard = directCardResult.value.data;
+        if (foundCard && foundCard._id === cardId) {
+          console.log("✅ Found via direct endpoint:", foundCard.companyName || foundCard.name);
+          setCard(foundCard);
+          setLoading(false);
+          return;
+        }
       }
+
+      console.log("❌ Card not found in any source");
+      setError("Card not found or no access");
+      setLoading(false);
     } catch (error) {
-      console.error("Error fetching card:", error);
+      console.error("❌ Error fetching card:", error);
       setError("Failed to load card");
-    } finally {
       setLoading(false);
     }
   };
@@ -152,11 +146,25 @@ export default function CardDetail() {
           <TouchableOpacity onPress={() => router.back()} style={s.backButton}>
             <Text style={s.backText}>← Back</Text>
           </TouchableOpacity>
+          <Text style={s.headerTitle}>Business Profile</Text>
+          <View style={{ width: 80 }} />
         </View>
-        <View style={s.loading}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={s.loadingText}>Loading business card...</Text>
-        </View>
+        
+        {/* Skeleton Loading UI */}
+        <ScrollView style={s.content}>
+          <View style={s.skeletonPhoto} />
+          <View style={s.skeletonTitle} />
+          <View style={s.skeletonSubtitle} />
+          <View style={s.skeletonSection}>
+            <View style={s.skeletonLine} />
+            <View style={s.skeletonLine} />
+            <View style={s.skeletonLine} />
+          </View>
+          <View style={s.loadingCenter}>
+            <ActivityIndicator size="large" color="#3B82F6" />
+            <Text style={s.loadingText}>Loading business card...</Text>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -176,10 +184,21 @@ export default function CardDetail() {
     );
   }
 
-  const fullPersonal = card.personalCountryCode && card.personalPhone
-    ? `+${card.personalCountryCode}${card.personalPhone}` : "";
-  const fullCompany = card.companyCountryCode && card.companyPhone
-    ? `+${card.companyCountryCode}${card.companyPhone}` : "";
+  // ⚡ OPTIMIZATION: Memoize calculated values to prevent recalculation on every render
+  const fullPersonal = useMemo(() => {
+    return card?.personalCountryCode && card?.personalPhone
+      ? `+${card.personalCountryCode}${card.personalPhone}` : "";
+  }, [card?.personalCountryCode, card?.personalPhone]);
+
+  const fullCompany = useMemo(() => {
+    return card?.companyCountryCode && card?.companyPhone
+      ? `+${card.companyCountryCode}${card.companyPhone}` : "";
+  }, [card?.companyCountryCode, card?.companyPhone]);
+
+  // Memoize keywords array
+  const keywords = useMemo(() => {
+    return card?.keywords ? card.keywords.split(',').map((k: string) => k.trim()) : [];
+  }, [card?.keywords]);
 
   return (
     <SafeAreaView style={s.container}>
@@ -193,9 +212,15 @@ export default function CardDetail() {
       </View>
 
       <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
-        {/* Business Photo */}
+        {/* Business Photo with optimized loading */}
         {card.companyPhoto && (
-          <Image source={{ uri: card.companyPhoto }} style={s.photo} />
+          <Image 
+            source={{ uri: card.companyPhoto }} 
+            style={s.photo}
+            resizeMode="cover"
+            progressiveRenderingEnabled={true}
+            fadeDuration={200}
+          />
         )}
 
         {/* Company Name */}
@@ -210,13 +235,13 @@ export default function CardDetail() {
         )}
 
         {/* Keywords */}
-        {card.keywords && (
+        {keywords.length > 0 && (
           <View style={s.keywordsSection}>
             <Text style={s.sectionTitle}>Specialties</Text>
             <View style={s.keywordsContainer}>
-              {card.keywords.split(',').map((keyword: string, index: number) => (
+              {keywords.map((keyword: string, index: number) => (
                 <View key={index} style={s.keywordTag}>
-                  <Text style={s.keywordText}>{keyword.trim()}</Text>
+                  <Text style={s.keywordText}>{keyword}</Text>
                 </View>
               ))}
             </View>
@@ -527,5 +552,43 @@ const s = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  // Skeleton loading styles
+  skeletonPhoto: {
+    width: "100%",
+    height: 200,
+    borderRadius: 16,
+    marginBottom: 20,
+    backgroundColor: "#E5E7EB",
+  },
+  skeletonTitle: {
+    width: "80%",
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+    alignSelf: "center",
+    marginBottom: 12,
+  },
+  skeletonSubtitle: {
+    width: "60%",
+    height: 20,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+    alignSelf: "center",
+    marginBottom: 24,
+  },
+  skeletonSection: {
+    marginBottom: 24,
+  },
+  skeletonLine: {
+    width: "100%",
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 12,
+  },
+  loadingCenter: {
+    alignItems: "center",
+    paddingVertical: 40,
   },
 });
