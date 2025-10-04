@@ -125,12 +125,9 @@ export default function Home() {
           contentContainerStyle={{ padding: 16, paddingBottom: 180 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Text style={s.emptyTxt}>No cards from your contacts yet.</Text>
+              <Text style={s.emptyTxt}>No cards yet.</Text>
               <Text style={s.emptySubTxt}>
-                Cards from people in your contacts will appear here.
-              </Text>
-              <Text style={s.emptySubTxt}>
-                Make sure to sync your contacts!
+                Create your first card or sync your contacts to see cards from your network!
               </Text>
             </View>
           }
