@@ -1,6 +1,6 @@
 // app/(main)/card/[id].tsx
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import api from "@/lib/api";
@@ -9,7 +9,7 @@ import { ensureAuth } from "@/lib/auth";
 export default function CardDetail() {
   const { id, cardData } = useLocalSearchParams<{ id: string; cardData: string }>();
   const [card, setCard] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const [error, setError] = useState<string | null>(null);
 
   // Parse the card data from navigation params or fetch it
@@ -20,8 +20,12 @@ export default function CardDetail() {
           console.log("Received cardData:", cardData.substring(0, 100) + "...");
           const parsedCard = JSON.parse(cardData);
           console.log("Parsed card successfully:", parsedCard?.companyName || parsedCard?.name);
-          setCard(parsedCard);
-          // Don't set loading state since we already have the data
+          
+          // Add a small delay to show the loading state smoothly
+          setTimeout(() => {
+            setCard(parsedCard);
+            setLoading(false);
+          }, 300);
         } catch (error) {
           console.error("Error parsing card data:", error);
           // Only fetch if parsing fails
@@ -29,6 +33,7 @@ export default function CardDetail() {
             await fetchCardById(id);
           } else {
             setError("Invalid card data");
+            setLoading(false);
           }
         }
       } else if (id) {
@@ -36,6 +41,7 @@ export default function CardDetail() {
         await fetchCardById(id);
       } else {
         setError("No card ID or data provided");
+        setLoading(false);
       }
     };
 
@@ -148,7 +154,8 @@ export default function CardDetail() {
           </TouchableOpacity>
         </View>
         <View style={s.loading}>
-          <Text style={s.loadingText}>Loading card...</Text>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={s.loadingText}>Loading business card...</Text>
         </View>
       </SafeAreaView>
     );
@@ -376,8 +383,18 @@ const s = StyleSheet.create({
     color: "#111827",
   },
   content: { flex: 1, padding: 16 },
-  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { fontSize: 16, color: "#6B7280" },
+  loading: { 
+    flex: 1, 
+    justifyContent: "center", 
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: { 
+    fontSize: 16, 
+    color: "#6B7280",
+    marginTop: 16,
+    fontWeight: "500",
+  },
   errorText: { fontSize: 16, color: "#DC2626" },
   photo: {
     width: "100%",
