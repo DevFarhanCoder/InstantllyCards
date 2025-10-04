@@ -1,6 +1,6 @@
 // app/(main)/card/[id].tsx
-import React, { useState, useEffect, useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator, Animated } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import api from "@/lib/api";
@@ -9,8 +9,11 @@ import { ensureAuth } from "@/lib/auth";
 export default function CardDetail() {
   const { id, cardData } = useLocalSearchParams<{ id: string; cardData: string }>();
   const [card, setCard] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Always start with loading true
   const [error, setError] = useState<string | null>(null);
+  
+  // ⚡ Animated shimmer effect for skeleton
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   // ⚡ OPTIMIZATION: Memoize calculated values - MUST be before any returns (Rules of Hooks)
   const fullPersonal = useMemo(() => {
@@ -28,22 +31,48 @@ export default function CardDetail() {
     return card?.keywords ? card.keywords.split(',').map((k: string) => k.trim()) : [];
   }, [card?.keywords]);
 
-  // ⚡ OPTIMIZATION: Parse card data immediately and synchronously for instant rendering
+  // ⚡ Shimmer animation effect
+  useEffect(() => {
+    if (loading) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerAnim, {
+            toValue: 0,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [loading, shimmerAnim]);
+
+  // ⚡ SMOOTH FLOW: Parse card data asynchronously to avoid UI blocking
   useEffect(() => {
     const initializeCard = async () => {
       try {
         if (cardData) {
           console.log("📄 Parsing cached card data...");
+          
+          // ⚡ Use setTimeout to defer parsing - allows skeleton to render FIRST
+          await new Promise(resolve => setTimeout(resolve, 0));
+          
           const parsedCard = JSON.parse(cardData);
           
-          // ⚡ INSTANT: Set card data immediately - no delay
+          // Small delay to ensure smooth skeleton → content transition
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           setCard(parsedCard);
           setLoading(false);
-          console.log("✅ Card rendered instantly from cache");
+          console.log("✅ Card rendered from cache with smooth transition");
           return;
         }
         
-        // No cached data - fetch from server
+        // No cached data - fetch from server (skeleton will show during fetch)
         if (id) {
           console.log("🔍 No cache - fetching card:", id);
           await fetchCardById(id);
@@ -161,6 +190,15 @@ export default function CardDetail() {
   };
 
   if (loading) {
+    const shimmerOpacity = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.3, 1],
+    });
+
+    const SkeletonBox = ({ style }: any) => (
+      <Animated.View style={[style, { opacity: shimmerOpacity }]} />
+    );
+
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>
@@ -171,36 +209,36 @@ export default function CardDetail() {
           <View style={{ width: 80 }} />
         </View>
         
-        {/* ⚡ ENHANCED Skeleton Loading UI with better UX */}
+        {/* ⚡ SMOOTH Animated Skeleton Loading UI */}
         <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
           {/* Photo skeleton */}
-          <View style={[s.skeletonPhoto, s.shimmer]} />
+          <SkeletonBox style={s.skeletonPhoto} />
           
           {/* Title skeleton */}
-          <View style={[s.skeletonTitle, s.shimmer]} />
+          <SkeletonBox style={s.skeletonTitle} />
           
           {/* Subtitle skeleton */}
-          <View style={[s.skeletonSubtitle, s.shimmer]} />
+          <SkeletonBox style={s.skeletonSubtitle} />
           
           {/* Keywords skeleton */}
           <View style={s.skeletonKeywords}>
-            <View style={[s.skeletonTag, s.shimmer]} />
-            <View style={[s.skeletonTag, s.shimmer]} />
-            <View style={[s.skeletonTag, s.shimmer]} />
+            <SkeletonBox style={s.skeletonTag} />
+            <SkeletonBox style={s.skeletonTag} />
+            <SkeletonBox style={s.skeletonTag} />
           </View>
           
           {/* Contact info skeleton */}
           <View style={s.skeletonSection}>
-            <View style={[s.skeletonSectionTitle, s.shimmer]} />
-            <View style={[s.skeletonContactItem, s.shimmer]} />
-            <View style={[s.skeletonContactItem, s.shimmer]} />
-            <View style={[s.skeletonContactItem, s.shimmer]} />
+            <SkeletonBox style={s.skeletonSectionTitle} />
+            <SkeletonBox style={s.skeletonContactItem} />
+            <SkeletonBox style={s.skeletonContactItem} />
+            <SkeletonBox style={s.skeletonContactItem} />
           </View>
           
           {/* Location skeleton */}
           <View style={s.skeletonSection}>
-            <View style={[s.skeletonSectionTitle, s.shimmer]} />
-            <View style={[s.skeletonLine, s.shimmer]} />
+            <SkeletonBox style={s.skeletonSectionTitle} />
+            <SkeletonBox style={s.skeletonLine} />
           </View>
           
           {/* Loading indicator at bottom */}
@@ -581,7 +619,7 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  // Skeleton loading styles
+  // ⚡ Animated Skeleton loading styles
   skeletonPhoto: {
     width: "100%",
     height: 200,
@@ -639,9 +677,6 @@ const s = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#E5E7EB",
     marginBottom: 12,
-  },
-  shimmer: {
-    opacity: 0.6,
   },
   loadingCenter: {
     alignItems: "center",
