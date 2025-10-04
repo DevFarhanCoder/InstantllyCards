@@ -10,6 +10,10 @@ import { ensureAuth } from './auth';
 /**
  * CRITICAL NOTIFICATION HANDLER CONFIGURATION
  * This controls how notifications behave when received
+ * 
+ * For WhatsApp-style notifications:
+ * - When app is in FOREGROUND: Don't show notification (user is already in the app)
+ * - When app is in BACKGROUND/CLOSED: Show native system notification
  */
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -20,12 +24,13 @@ Notifications.setNotificationHandler({
     });
     
     return {
-      // ALWAYS show notifications, even when app is in foreground
-      shouldShowAlert: true,
-      shouldPlaySound: true,
+      // Don't show in-app alerts when app is in foreground (like WhatsApp)
+      // Notifications will only show when app is backgrounded/closed
+      shouldShowAlert: false,
+      shouldPlaySound: false,
       shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
+      shouldShowBanner: false,
+      shouldShowList: false,
     };
   },
 });
@@ -33,51 +38,90 @@ Notifications.setNotificationHandler({
 /**
  * Setup Android Notification Channels (Required for Android 8.0+)
  * Channels control notification priority, sound, vibration
+ * 
+ * WhatsApp-Style Configuration:
+ * - High priority for instant delivery
+ * - Custom vibration patterns
+ * - LED lights for visual alerts
+ * - Show on lock screen
  */
 async function setupAndroidChannels() {
   if (Platform.OS !== 'android') return;
 
-  console.log('📱 [ANDROID] Setting up notification channels...');
+  console.log('📱 [ANDROID] Setting up WhatsApp-style notification channels...');
 
   try {
-    // Main channel - for all notifications
+    // Main default channel - for all general notifications
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'All Notifications',
-      importance: Notifications.AndroidImportance.MAX,
+      name: 'General Notifications',
+      importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
-      lightColor: '#4CAF50',
+      lightColor: '#00FF00',
       enableLights: true,
       enableVibrate: true,
       showBadge: true,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
 
-    // Messages channel
+    // Messages channel - High priority for instant messages
     await Notifications.setNotificationChannelAsync('messages', {
       name: 'Messages',
+      description: 'Personal message notifications',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
       enableLights: true,
+      lightColor: '#25D366', // WhatsApp green
       enableVibrate: true,
       showBadge: true,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: false,
     });
 
     // Group messages channel
     await Notifications.setNotificationChannelAsync('groups', {
       name: 'Group Messages',
+      description: 'Group chat notifications',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
       enableLights: true,
+      lightColor: '#25D366',
       enableVibrate: true,
       showBadge: true,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
 
-    console.log('✅ [ANDROID] Notification channels configured successfully');
+    // Contacts channel - Medium priority
+    await Notifications.setNotificationChannelAsync('contacts', {
+      name: 'Contacts',
+      description: 'Contact activity notifications',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 200, 200, 200],
+      sound: 'default',
+      enableLights: true,
+      lightColor: '#0F1111',
+      enableVibrate: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
+
+    // Cards channel - Medium priority
+    await Notifications.setNotificationChannelAsync('cards', {
+      name: 'Cards',
+      description: 'Card sharing and creation notifications',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 200, 200, 200],
+      sound: 'default',
+      enableLights: true,
+      lightColor: '#0F1111',
+      enableVibrate: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
+
+    console.log('✅ [ANDROID] WhatsApp-style notification channels configured successfully');
   } catch (error) {
     console.error('❌ [ANDROID] Failed to setup notification channels:', error);
   }
