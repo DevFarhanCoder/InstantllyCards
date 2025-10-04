@@ -293,6 +293,11 @@ function handleNotificationTap(data: any) {
       // router.push('/contacts');
       break;
     
+    case 'card_created':
+      console.log('🆕 [TAP] Opening home feed to see new card');
+      // router.push('/(tabs)/home');
+      break;
+    
     case 'card_shared':
       console.log('💳 [TAP] Opening shared card:', data.cardId);
       // router.push(`/card/${data.cardId}`);

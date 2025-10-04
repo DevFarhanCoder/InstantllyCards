@@ -51,7 +51,8 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#0F1111",
-          "defaultChannel": "default"
+          "defaultChannel": "default",
+          "sounds": ["default"]
         }
       ],
       [
@@ -66,7 +67,8 @@
               "pickFirst": [
                 "META-INF/*"
               ]
-            }
+            },
+            "googleServicesFile": "./google-services.json"
           }
         }
       ]
