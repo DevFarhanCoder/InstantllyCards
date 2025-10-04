@@ -1,0 +1,6 @@
+# .easignore - Files to exclude from EAS builds
+# (This overrides .gitignore for EAS Build uploads)
+
+# Allow google-services.json to be uploaded to EAS
+# even though it's in .gitignore
+!google-services.json
