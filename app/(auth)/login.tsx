@@ -57,18 +57,47 @@ export default function Login() {
       }
 
       setLoading(true);
-      setProgress(10);
+      setProgress(5);
       setLoadingMessage("Preparing...");
 
       // Pre-warm server if not already warm
       if (!serverWarmup.isServerWarm()) {
-        setLoadingMessage("Waking up server...");
-        setProgress(30);
-        await serverWarmup.warmupServer();
+        try {
+          setProgress(10);
+          setLoadingMessage("Waking up server...");
+          console.log('🔥 Server not warm, starting warmup...');
+          
+          await serverWarmup.warmupServer();
+          
+          setProgress(60);
+          setLoadingMessage("Server ready, signing in...");
+          console.log('✅ Server warmup complete');
+        } catch (warmupError: any) {
+          console.error('❌ Server warmup failed:', warmupError);
+          
+          // Show specific error about Render cold start
+          Alert.alert(
+            "Server Starting Up",
+            "The server is waking up from sleep (Render free tier).\n\n" +
+            "This can take 60-90 seconds on first access.\n\n" +
+            "Please wait a moment and try again.",
+            [
+              { text: "Try Again", onPress: () => {
+                // Reset warmup state so user can retry
+                serverWarmup.resetWarmupState();
+              }}
+            ]
+          );
+          return;
+        }
+      } else {
+        setProgress(50);
+        setLoadingMessage("Server ready, signing in...");
+        console.log('✅ Server already warm');
       }
 
-      setProgress(50);
-      setLoadingMessage("Signing in...");
+      setProgress(70);
+      setLoadingMessage("Authenticating...");
       console.log('🚀 Attempting login with phone:', fullPhone);
 
       // Call backend -> POST /api/auth/login
@@ -77,7 +106,7 @@ export default function Login() {
         { phone: fullPhone, password: passwordT }
       );
 
-      setProgress(80);
+      setProgress(85);
 
       const token = res?.token;
       if (!token) {
@@ -103,28 +132,45 @@ export default function Login() {
       });
       
       setProgress(100);
-      console.log('Login successful, redirecting to home');
+      console.log('✅ Login successful, redirecting to home');
       router.replace("/(tabs)/home");
     } catch (e: any) {
-      console.error('Login error:', e);
+      console.error('❌ Login error:', e);
       
-      let msg = "Login failed. Please try again.";
+      let title = "Login Failed";
+      let msg = "Unable to sign in. Please try again.";
       
-      if (e?.message?.includes('timeout')) {
-        msg = "Server is taking longer than usual. Please wait a moment and try again.";
-      } else if (e?.message?.includes('Server may be sleeping')) {
-        msg = "Server is starting up. Please wait 30 seconds and try again.";
-      } else if (e?.message?.includes('Network')) {
-        msg = "Network error. Please check your internet connection.";
+      // Handle different types of errors with specific messages
+      if (e?.message?.includes('Server is starting up')) {
+        title = "Server Waking Up";
+        msg = "The server is starting (Render free tier sleeps after inactivity).\n\n" +
+              "⏱️ This takes 60-90 seconds.\n\n" +
+              "Please wait a moment and try signing in again.";
+      } else if (e?.message?.includes('timeout') || e?.message?.includes('Connection timeout')) {
+        title = "Connection Timeout";
+        msg = "The connection timed out.\n\n" +
+              "The server might be sleeping (Render free tier).\n\n" +
+              "Please wait 30 seconds and try again.";
+      } else if (e?.message?.includes('Network') || e?.message?.includes('network')) {
+        title = "Network Error";
+        msg = "Cannot connect to the internet.\n\n" +
+              "Please check your connection and try again.";
+      } else if (e?.status === 401 || e?.data?.message?.includes('Invalid')) {
+        title = "Invalid Credentials";
+        msg = e?.data?.message || "Phone number or password is incorrect.\n\nPlease check and try again.";
       } else if (e?.status === 404) {
-        msg = "Server connection issue. Please check if you're connected to the internet.";
+        title = "Account Not Found";
+        msg = "No account found with this phone number.\n\nPlease sign up first.";
+      } else if (e?.status >= 500) {
+        title = "Server Error";
+        msg = "The server encountered an error.\n\nPlease try again in a moment.";
       } else if (e?.data?.message) {
         msg = e.data.message;
       } else if (e?.message) {
         msg = e.message;
       }
       
-      Alert.alert("Login Failed", msg);
+      Alert.alert(title, msg);
     } finally {
       setLoading(false);
       setLoadingMessage("Signing in...");
