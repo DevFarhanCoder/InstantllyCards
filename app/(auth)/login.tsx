@@ -131,16 +131,32 @@ export default function Login() {
       // FORCE re-register push token after successful login (non-blocking)
       // This runs AFTER navigation to avoid blocking the UI
       console.log('🔔 Force registering push notification token after login...');
-      setTimeout(() => {
-        if (notificationModule?.registerForPushNotifications) {
-          notificationModule.registerForPushNotifications()
-            .then(() => {
-              console.log('✅ Push token force-registered successfully after login');
-            })
-            .catch((error: any) => {
-              console.error('⚠️ Push token registration failed after login:', error);
-              // Don't block user experience - just log the error
-            });
+      
+      // Send a ping to backend to confirm we're trying to register
+      setTimeout(async () => {
+        try {
+          // Log to backend that we're attempting registration
+          await api.post('/notifications/ping-registration-attempt', {
+            phone: fullPhone,
+            timestamp: new Date().toISOString(),
+            hasModule: !!notificationModule,
+            hasFunction: !!notificationModule?.registerForPushNotifications
+          }).catch(e => console.log('Ping failed but continuing:', e));
+          
+          if (notificationModule?.registerForPushNotifications) {
+            await notificationModule.registerForPushNotifications();
+            console.log('✅ Push token force-registered successfully after login');
+          } else {
+            console.log('⚠️ No notification module or function available');
+          }
+        } catch (error: any) {
+          console.error('⚠️ Push token registration failed after login:', error);
+          // Send error to backend for debugging
+          await api.post('/notifications/registration-error', {
+            phone: fullPhone,
+            error: error?.message || 'Unknown error',
+            stack: error?.stack || 'No stack'
+          }).catch(e => console.log('Error reporting failed:', e));
         }
       }, 2000); // Wait 2 seconds after login to ensure everything is ready
     } catch (e: any) {
