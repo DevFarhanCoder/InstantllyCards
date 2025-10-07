@@ -22,10 +22,8 @@ import CountryCodePicker from "@/components/CountryCodePicker";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
 // Import notification registration
-const isExpoGo = Constants.appOwnership === 'expo';
-const notificationModule = isExpoGo 
-  ? null // Expo Go doesn't need post-login registration
-  : require("@/lib/notifications-production-v2");
+// ALWAYS import the module - let the module itself handle Expo Go detection
+const notificationModule = require("@/lib/notifications-production-v2");
 
 const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 import { COLORS } from "@/lib/theme";

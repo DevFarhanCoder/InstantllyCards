@@ -22,10 +22,8 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { COLORS } from "@/lib/theme";
 
 // Import notification registration
-const isExpoGo = Constants.appOwnership === 'expo';
-const notificationModule = isExpoGo 
-  ? null
-  : require("@/lib/notifications-production-v2");
+// ALWAYS import the module - let the module itself handle Expo Go detection
+const notificationModule = require("@/lib/notifications-production-v2");
 
 const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 
