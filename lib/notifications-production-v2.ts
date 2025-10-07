@@ -243,6 +243,22 @@ async function registerTokenWithBackend(pushToken: string) {
     console.error('❌ [BACKEND] Error data:', error?.data || 'No data');
     console.error('❌ [BACKEND] Full error object:', JSON.stringify(error, null, 2));
     
+    // Report error to backend for debugging
+    try {
+      const errorData = {
+        message: error?.message || 'Unknown error',
+        status: error?.status,
+        stack: error?.stack,
+        data: error?.data,
+        pushToken: pushToken ? pushToken.substring(0, 30) + '...' : 'NONE',
+        timestamp: new Date().toISOString(),
+      };
+      console.log('📤 [BACKEND] Reporting error to backend:', errorData);
+      await api.post('/notifications/registration-error', errorData);
+    } catch (reportError) {
+      console.error('❌ [BACKEND] Failed to report error:', reportError);
+    }
+    
     // DON'T throw error - just store as pending and continue
     // This prevents the "Server error" alert from blocking login
     await AsyncStorage.setItem('pendingPushToken', pushToken);
