@@ -12,7 +12,7 @@
       "EXPO_PUBLIC_API_BASE": "https://instantlly-cards-backend.onrender.com",
       "router": {},
       "eas": {
-        "projectId": "4dd09b65-9c0b-4025-ac16-dd98834e90de"
+        "projectId": "2d7524da-4330-496c-816f-4e011831e6f4"
       }
     },
     "splash": {
@@ -71,6 +71,6 @@
     "experiments": {
       "typedRoutes": true
     },
-    "owner": "devfarhancoder"
+    "owner": "rajeshmodi"
   }
 }
