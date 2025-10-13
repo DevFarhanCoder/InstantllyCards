@@ -128,6 +128,33 @@ async function setupAndroidChannels() {
 }
 
 /**
+ * Report registration errors to backend for diagnosis
+ */
+async function reportRegistrationError(error: Error, context: any) {
+  try {
+    const authToken = await AsyncStorage.getItem('token');
+    const phone = await AsyncStorage.getItem('phone');
+    
+    console.log('📤 [ERROR-REPORT] Sending error to backend...');
+    
+    await api.post('/notifications/registration-error', {
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      },
+      context,
+      phone,
+      timestamp: new Date().toISOString(),
+    });
+    
+    console.log('✅ [ERROR-REPORT] Error reported to backend');
+  } catch (reportErr) {
+    console.error('❌ [ERROR-REPORT] Failed to report error:', reportErr);
+  }
+}
+
+/**
  * Request notification permissions and get push token
  */
 export async function registerForPushNotifications(): Promise<string | null> {
@@ -160,6 +187,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
     if (finalStatus !== 'granted') {
       console.error('❌ [REGISTER] Notification permissions not granted');
+      await reportRegistrationError(
+        new Error('Notification permissions not granted'),
+        { step: 'permissions', status: finalStatus }
+      );
       return null;
     }
 
@@ -172,30 +203,45 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
     if (!projectId) {
       console.error('❌ [REGISTER] No project ID found in config');
+      await reportRegistrationError(
+        new Error('No project ID found in config'),
+        { step: 'project_id_check', config: Constants.expoConfig }
+      );
       return null;
     }
 
+    console.log('📱 [REGISTER] About to call getExpoPushTokenAsync...');
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: projectId,
     });
     
     const token = tokenData.data;
     console.log('🎉 [REGISTER] Push token obtained successfully:', token.substring(0, 20) + '...');
+    console.log('🎉 [REGISTER] Full token length:', token.length);
 
     // Step 4: Store token locally
     await AsyncStorage.setItem('pushToken', token);
     console.log('💾 [REGISTER] Token saved to AsyncStorage');
 
     // Step 5: Register with backend
+    console.log('📱 [REGISTER] About to call registerTokenWithBackend...');
     await registerTokenWithBackend(token);
+    console.log('✅ [REGISTER] registerTokenWithBackend completed');
 
     return token;
   } catch (error: any) {
     console.error('❌ [REGISTER] Error during registration:', error);
-    console.error('❌ [REGISTER] Error details:', {
-      message: error.message,
-      stack: error.stack,
+    console.error('❌ [REGISTER] Error name:', error?.name);
+    console.error('❌ [REGISTER] Error message:', error?.message);
+    console.error('❌ [REGISTER] Error stack:', error?.stack);
+    
+    // Report to backend for diagnosis
+    await reportRegistrationError(error, {
+      step: 'unknown',
+      device: Device.modelName,
+      osVersion: Device.osVersion,
     });
+    
     return null;
   }
 }
