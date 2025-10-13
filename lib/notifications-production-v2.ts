@@ -219,22 +219,60 @@ async function registerTokenWithBackend(pushToken: string) {
 
     console.log('🔄 [BACKEND] User authenticated, sending token to server...');
 
-    const response = await api.post('/notifications/register-token', {
-      pushToken,
-      platform: Platform.OS,
-      deviceInfo: {
-        brand: Device.brand,
-        modelName: Device.modelName,
-        osName: Device.osName,
-        osVersion: Device.osVersion,
-      }
-    });
+    // Retry logic to handle transient failures (network, cold starts)
+    const maxAttempts = 3;
+    let attempt = 0;
+    let registered = false;
+    let lastErr: any = null;
 
-    console.log('✅ [BACKEND] Token registered successfully:', response);
-    
-    // Clear pending token
-    await AsyncStorage.removeItem('pendingPushToken');
-    console.log('🗑️ [BACKEND] Cleared pending token');
+    for (attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`⏳ [BACKEND] Registration attempt ${attempt} for token (truncated): ${pushToken?.substring(0,20)}...`);
+        const response = await api.post('/notifications/register-token', {
+          pushToken,
+          platform: Platform.OS,
+          deviceInfo: {
+            brand: Device.brand,
+            modelName: Device.modelName,
+            osName: Device.osName,
+            osVersion: Device.osVersion,
+          }
+        });
+
+        console.log('✅ [BACKEND] Token registered successfully:', response);
+        await AsyncStorage.removeItem('pendingPushToken');
+        console.log('🗑️ [BACKEND] Cleared pending token');
+        registered = true;
+        break;
+      } catch (err: any) {
+        lastErr = err;
+        console.error(`❌ [BACKEND] Registration attempt ${attempt} failed:`, err?.message || err);
+        // If not last attempt, wait using exponential backoff
+        if (attempt < maxAttempts) {
+          const waitMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s
+          console.log(`⏳ [BACKEND] Waiting ${waitMs}ms before retrying...`);
+          await new Promise(res => setTimeout(res, waitMs));
+        }
+      }
+    }
+
+    if (!registered) {
+      console.error('❌ [BACKEND] All registration attempts failed. Reporting persistent failure.');
+      try {
+        const report = {
+          message: lastErr?.message || String(lastErr),
+          status: lastErr?.status,
+          data: lastErr?.data,
+          pushToken: pushToken ? pushToken.substring(0, 30) + '...' : 'NONE',
+          attempts: maxAttempts,
+          timestamp: new Date().toISOString(),
+        };
+        console.log('� [BACKEND] Reporting registration failure to diagnostics endpoint:', report);
+        await api.post('/notifications/registration-error', report).catch(r => console.error('❌ [BACKEND] Failed to report registration failure:', r));
+      } catch (reportErr) {
+        console.error('❌ [BACKEND] Error while reporting registration failure:', reportErr);
+      }
+    }
 
   } catch (error: any) {
     console.error('❌ [BACKEND] Failed to register token:', error);
