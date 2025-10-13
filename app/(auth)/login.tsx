@@ -123,40 +123,46 @@ export default function Login() {
       }
       
       setProgress(100);
-      console.log('✅ Login successful, redirecting to home');
-      router.replace("/(tabs)/home");
+      console.log('✅ Login successful, now registering push token BEFORE navigation');
       
-      // FORCE re-register push token after successful login (non-blocking)
-      // This runs AFTER navigation to avoid blocking the UI
-      console.log('🔔 Force registering push notification token after login...');
-      
-      // Send a ping to backend to confirm we're trying to register
-      setTimeout(async () => {
-        try {
-          // Log to backend that we're attempting registration
-          await api.post('/notifications/ping-registration-attempt', {
-            phone: fullPhone,
-            timestamp: new Date().toISOString(),
-            hasModule: !!notificationModule,
-            hasFunction: !!notificationModule?.registerForPushNotifications
-          }).catch(e => console.log('Ping failed but continuing:', e));
-          
-          if (notificationModule?.registerForPushNotifications) {
-            await notificationModule.registerForPushNotifications();
-            console.log('✅ Push token force-registered successfully after login');
-          } else {
-            console.log('⚠️ No notification module or function available');
-          }
-        } catch (error: any) {
-          console.error('⚠️ Push token registration failed after login:', error);
-          // Send error to backend for debugging
-          await api.post('/notifications/registration-error', {
-            phone: fullPhone,
-            error: error?.message || 'Unknown error',
-            stack: error?.stack || 'No stack'
-          }).catch(e => console.log('Error reporting failed:', e));
+      // CRITICAL: Register push token BEFORE navigation
+      // This ensures it runs even if user navigates away
+      try {
+        console.log('🔔 [LOGIN] Starting push token registration...');
+        
+        // Send diagnostic ping
+        await api.post('/notifications/ping-registration-attempt', {
+          phone: fullPhone,
+          timestamp: new Date().toISOString(),
+          hasModule: !!notificationModule,
+          hasFunction: !!notificationModule?.registerForPushNotifications
+        }).catch(e => console.log('[LOGIN] Ping failed but continuing:', e));
+        
+        if (notificationModule?.registerForPushNotifications) {
+          console.log('[LOGIN] Calling registerForPushNotifications...');
+          await notificationModule.registerForPushNotifications();
+          console.log('✅ [LOGIN] Push token registered successfully!');
+        } else {
+          console.error('❌ [LOGIN] No notification module or function available');
+          console.error('[LOGIN] notificationModule:', notificationModule);
+          console.error('[LOGIN] registerForPushNotifications:', notificationModule?.registerForPushNotifications);
         }
-      }, 2000); // Wait 2 seconds after login to ensure everything is ready
+      } catch (error: any) {
+        console.error('❌ [LOGIN] Push token registration failed:', error);
+        console.error('[LOGIN] Error message:', error?.message);
+        console.error('[LOGIN] Error stack:', error?.stack);
+        
+        // Send error to backend for debugging
+        await api.post('/notifications/registration-error', {
+          phone: fullPhone,
+          error: error?.message || 'Unknown error',
+          stack: error?.stack || 'No stack',
+          timestamp: new Date().toISOString()
+        }).catch(e => console.error('[LOGIN] Error reporting failed:', e));
+      }
+      
+      console.log('🔀 [LOGIN] Redirecting to home...');
+      router.replace("/(tabs)/home");
     } catch (e: any) {
       console.error('❌ Login error:', e);
       

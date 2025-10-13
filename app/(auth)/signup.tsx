@@ -109,24 +109,41 @@ export default function Signup() {
       }
       
       setProgress(100);
-      console.log('Signup successful, redirecting to home');
-      router.replace("/(tabs)/home");
+      console.log('✅ Signup successful, now registering push token BEFORE navigation');
       
-      // FORCE re-register push token after successful signup (non-blocking)
-      // This runs AFTER navigation to avoid blocking the UI
-      console.log('🔔 Force registering push notification token after signup...');
-      setTimeout(() => {
+      // CRITICAL: Register push token BEFORE navigation
+      try {
+        console.log('🔔 [SIGNUP] Starting push token registration...');
+        
+        // Send diagnostic ping
+        await api.post('/notifications/ping-registration-attempt', {
+          phone: fullPhone,
+          timestamp: new Date().toISOString(),
+          hasModule: !!notificationModule,
+          hasFunction: !!notificationModule?.registerForPushNotifications
+        }).catch(e => console.log('[SIGNUP] Ping failed but continuing:', e));
+        
         if (notificationModule?.registerForPushNotifications) {
-          notificationModule.registerForPushNotifications()
-            .then(() => {
-              console.log('✅ Push token force-registered successfully after signup');
-            })
-            .catch((error: any) => {
-              console.error('⚠️ Push token registration failed after signup:', error);
-              // Don't block user experience - just log the error
-            });
+          console.log('[SIGNUP] Calling registerForPushNotifications...');
+          await notificationModule.registerForPushNotifications();
+          console.log('✅ [SIGNUP] Push token registered successfully!');
+        } else {
+          console.error('❌ [SIGNUP] No notification module or function available');
         }
-      }, 2000); // Wait 2 seconds after signup to ensure everything is ready
+      } catch (error: any) {
+        console.error('❌ [SIGNUP] Push token registration failed:', error);
+        
+        // Send error to backend
+        await api.post('/notifications/registration-error', {
+          phone: fullPhone,
+          error: error?.message || 'Unknown error',
+          stack: error?.stack || 'No stack',
+          timestamp: new Date().toISOString()
+        }).catch(e => console.error('[SIGNUP] Error reporting failed:', e));
+      }
+      
+      console.log('🔀 [SIGNUP] Redirecting to home...');
+      router.replace("/(tabs)/home");
     } catch (e: any) {
       console.error('❌ Signup error:', e);
       
