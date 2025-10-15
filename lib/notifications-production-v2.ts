@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import api from './api';
 import { ensureAuth } from './auth';
 
@@ -11,8 +12,8 @@ import { ensureAuth } from './auth';
  * CRITICAL NOTIFICATION HANDLER CONFIGURATION
  * This controls how notifications behave when received
  * 
- * For WhatsApp-style notifications:
- * - When app is in FOREGROUND: Don't show notification (user is already in the app)
+ * Updated behavior:
+ * - When app is in FOREGROUND: Show system tray notification (like other messaging apps)
  * - When app is in BACKGROUND/CLOSED: Show native system notification
  */
 Notifications.setNotificationHandler({
@@ -24,13 +25,12 @@ Notifications.setNotificationHandler({
     });
     
     return {
-      // Don't show in-app alerts when app is in foreground (like WhatsApp)
-      // Notifications will only show when app is backgrounded/closed
-      shouldShowAlert: false,
-      shouldPlaySound: false,
-      shouldSetBadge: true,
-      shouldShowBanner: false,
-      shouldShowList: false,
+      // Show system tray notifications even when app is in foreground
+      shouldShowAlert: true,       // ✅ Show notification banner
+      shouldPlaySound: true,        // ✅ Play sound
+      shouldSetBadge: true,         // ✅ Update badge count
+      shouldShowBanner: true,       // ✅ Show banner (system tray)
+      shouldShowList: true,         // ✅ Add to notification list
     };
   },
 });
@@ -419,42 +419,45 @@ function handleNotificationTap(data: any) {
 
   console.log('🎯 [TAP] Processing notification type:', data.type);
 
-  // TODO: Add navigation logic based on notification type
-  // This requires router integration
-  switch (data.type) {
-    case 'new_message':
-      console.log('💬 [TAP] Opening chat with user:', data.senderId);
-      // router.push(`/chat/${data.senderId}`);
-      break;
-    
-    case 'group_message':
-      console.log('👥 [TAP] Opening group chat:', data.groupId);
-      // router.push(`/group-chat/${data.groupId}`);
-      break;
-    
-    case 'contact_joined':
-      console.log('👤 [TAP] Opening contacts');
-      // router.push('/contacts');
-      break;
-    
-    case 'card_created':
-      console.log('🆕 [TAP] Opening home feed to see new card');
-      // router.push('/(tabs)/home');
-      break;
-    
-    case 'card_shared':
-      console.log('💳 [TAP] Opening shared card:', data.cardId);
-      // router.push(`/card/${data.cardId}`);
-      break;
-    
-    case 'group_invite':
-      console.log('📨 [TAP] Opening group invite:', data.groupId);
-      // router.push(`/group-details/${data.groupId}`);
-      break;
-    
-    default:
-      console.log('🏠 [TAP] Unknown notification type, staying on current screen');
-      break;
+  // Navigate based on notification type
+  try {
+    switch (data.type) {
+      case 'new_message':
+        console.log('💬 [TAP] Opening chat with user:', data.senderId);
+        router.push(`/chat/${data.senderId}` as any);
+        break;
+      
+      case 'group_message':
+        console.log('👥 [TAP] Opening group chat:', data.groupId);
+        router.push(`/group-chat/${data.groupId}` as any);
+        break;
+      
+      case 'contact_joined':
+        console.log('👤 [TAP] Opening contacts');
+        router.push('/contacts/select' as any);
+        break;
+      
+      case 'card_created':
+        console.log('🆕 [TAP] Opening home feed to see new card');
+        router.push('/(tabs)/home');
+        break;
+      
+      case 'card_shared':
+        console.log('💳 [TAP] Opening shared card:', data.cardId);
+        router.push(`/builder/${data.cardId}` as any);
+        break;
+      
+      case 'group_invite':
+        console.log('📨 [TAP] Opening group invite:', data.groupId);
+        router.push(`/group-details/${data.groupId}` as any);
+        break;
+      
+      default:
+        console.log('🏠 [TAP] Unknown notification type, staying on current screen');
+        break;
+    }
+  } catch (error) {
+    console.error('❌ [TAP] Navigation error:', error);
   }
 }
 

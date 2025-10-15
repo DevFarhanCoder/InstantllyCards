@@ -703,13 +703,15 @@ export default function Chats() {
         // Save sync status to AsyncStorage
         try {
           await AsyncStorage.setItem('contactsSynced', 'true');
+          console.log('✅ Contacts synced successfully - status saved');
         } catch (storageError) {
           console.error('Error saving sync status:', storageError);
           // Continue anyway - the sync still worked, just not persisted
         }
         
         queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
-        Alert.alert('Success', 'Contacts synced successfully!');
+        // Removed success alert - contacts synced silently
+        console.log('✅ Contacts sync complete');
       }
     } catch (error) {
       console.error('Error syncing contacts:', error);

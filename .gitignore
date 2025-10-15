@@ -35,6 +35,8 @@ yarn-error.*
 
 # Firebase config (contains sensitive credentials)
 # google-services.json
+firebase-service-account.json
+google-services.json
 
 # typescript
 *.tsbuildinfo

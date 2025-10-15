@@ -217,27 +217,54 @@ export default function ContactSelectScreen() {
     return () => subscription?.remove();
   }, []);
 
-  // Fetch stored contacts from backend - this contains all the info we need
+  // Fetch stored contacts from backend with pagination - this contains all the info we need
+  const [contactsPage, setContactsPage] = useState(1);
+  const [allContacts, setAllContacts] = useState<any[]>([]);
+  const [hasMoreContacts, setHasMoreContacts] = useState(true);
+  
   const storedContactsQuery = useQuery({
-    queryKey: ["stored-contacts"],
+    queryKey: ["stored-contacts", contactsPage],
     queryFn: async () => {
       try {
         const token = await ensureAuth();
-        if (!token) return [];
+        if (!token) return { data: [], pagination: { hasMore: false } };
 
-        const response = await api.get("/contacts/all");
+        const response = await api.get(`/contacts/all?page=${contactsPage}&limit=1000`);
         console.log("Stored contacts response:", response);
         
-        // The API returns { success: true, data: [...] }
-        return response.data || [];
+        // The API returns { success: true, data: [...], pagination: {...} }
+        return {
+          data: response.data || [],
+          pagination: response.pagination || { hasMore: false }
+        };
       } catch (error) {
         console.error("Error fetching stored contacts:", error);
-        return [];
+        return { data: [], pagination: { hasMore: false } };
       }
     },
     staleTime: 2 * 60 * 1000, // Consider data fresh for 2 minutes
     enabled: contactsSynced, // Only fetch if contacts have been synced
   });
+
+  // Append new contacts when page changes
+  useEffect(() => {
+    if (storedContactsQuery.data) {
+      const { data, pagination } = storedContactsQuery.data;
+      if (contactsPage === 1) {
+        setAllContacts(data);
+      } else {
+        setAllContacts(prev => [...prev, ...data]);
+      }
+      setHasMoreContacts(pagination.hasMore);
+    }
+  }, [storedContactsQuery.data, contactsPage]);
+
+  // Reset to page 1 when contactsSynced changes
+  useEffect(() => {
+    setContactsPage(1);
+    setAllContacts([]);
+    setHasMoreContacts(true);
+  }, [contactsSynced]);
 
   // Fetch groups when in card sharing mode
   const groupsQuery = useQuery({
@@ -261,12 +288,12 @@ export default function ContactSelectScreen() {
   });
 
   // Determine overall loading state
-  const queryLoading = storedContactsQuery.isLoading;
+  const queryLoading = storedContactsQuery.isLoading && contactsPage === 1;
   const groupsLoading = groupsQuery.isLoading && isCardShareMode;
   const isLoading = !!(queryLoading || contactsLoading || groupsLoading);
 
-  // Use stored contacts or empty array if loading
-  const storedContacts = storedContactsQuery.data || [];
+  // Use accumulated contacts or empty array if loading
+  const storedContacts = allContacts;
   const availableGroups = groupsQuery.data || [];
 
   console.log("Stored contacts data:", storedContacts);
@@ -898,12 +925,30 @@ export default function ContactSelectScreen() {
         onRefresh={() => {
           // Manual refresh: re-sync contacts and refresh queries
           syncDeviceContacts();
+          setContactsPage(1);
+          setAllContacts([]);
           storedContactsQuery.refetch();
           if (isCardShareMode) {
             groupsQuery.refetch();
           }
           refreshContactStatus();
         }}
+        onEndReached={() => {
+          // Load more contacts when user scrolls to bottom
+          if (hasMoreContacts && !storedContactsQuery.isFetching && contactsSynced) {
+            console.log(`Loading more contacts - page ${contactsPage + 1}`);
+            setContactsPage(prev => prev + 1);
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          storedContactsQuery.isFetching && contactsPage > 1 ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={{ color: '#888', marginTop: 8 }}>Loading more contacts...</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No contacts found</Text>
