@@ -10,6 +10,8 @@ import {
   Platform,
 } from 'react-native';
 
+const INSTANTLLY_LOGO = require('../assets/images/Instantlly Logo.jpg');
+
 interface ForceUpdateModalProps {
   visible: boolean;
   updateUrl: string;
@@ -45,9 +47,13 @@ export default function ForceUpdateModal({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          {/* Rocket Icon */}
+          {/* Instantlly Logo */}
           <View style={styles.iconContainer}>
-            <Text style={styles.rocketIcon}>🚀</Text>
+            <Image
+              source={INSTANTLLY_LOGO}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Title */}
@@ -109,10 +115,11 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginBottom: 24,
-    transform: [{ rotate: '15deg' }],
   },
-  rocketIcon: {
-    fontSize: 80,
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 20,
   },
   title: {
     fontSize: 24,
