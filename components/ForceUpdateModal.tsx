@@ -5,12 +5,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Linking,
   Platform,
 } from 'react-native';
-
-const INSTANTLLY_LOGO = require('../assets/images/icon.png');
 
 interface ForceUpdateModalProps {
   visible: boolean;
@@ -47,13 +44,9 @@ export default function ForceUpdateModal({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          {/* Instantlly Logo */}
+          {/* App Logo/Icon */}
           <View style={styles.iconContainer}>
-            <Image
-              source={INSTANTLLY_LOGO}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
+            <Text style={styles.logoEmoji}>📱</Text>
           </View>
 
           {/* Title */}
@@ -116,10 +109,9 @@ const styles = StyleSheet.create({
   iconContainer: {
     marginBottom: 24,
   },
-  logoImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 20,
+  logoEmoji: {
+    fontSize: 80,
+    textAlign: 'center',
   },
   title: {
     fontSize: 24,
