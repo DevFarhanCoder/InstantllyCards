@@ -8,20 +8,19 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import FAB from "@/components/FAB";
 import CardRow from "@/components/CardRow";
+import FooterCarousel from "@/components/FooterCarousel";
 
 type Card = any;
 
 const { width: screenWidth } = Dimensions.get('window');
 
-export default function Home() {
-  const tabH = useBottomTabBarHeight();
-  const [searchQuery, setSearchQuery] = React.useState<string>("");
+const handleAdClick = () => {
+  const url = 'https://ldoia.com/';
+  Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
+};
 
-  // Function to handle ad click
-  const handleAdClick = () => {
-    const url = 'https://ldoia.com/'; // Replace with your actual TPL website URL
-    Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
-  };
+export default function Home() {
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
   const feedQ = useQuery({
@@ -137,16 +136,8 @@ export default function Home() {
         />
       )}
 
-      {/* Ad Section - Stuck directly to bottom navigation */}
-      <View style={[s.adContainer, { bottom: 0 }]}>
-        <TouchableOpacity style={s.adTouchable} activeOpacity={0.8} onPress={handleAdClick}>
-          <Image 
-            source={{ uri: 'https://i.ibb.co/BVJzsw4L/tplad-backup.jpg' }} 
-            style={s.adImage}
-            resizeMode="stretch"
-          />
-        </TouchableOpacity>
-      </View>
+      {/* Footer Carousel */}
+      <FooterCarousel />
 
       <FAB />
     </SafeAreaView>
@@ -205,27 +196,4 @@ const s = StyleSheet.create({
   empty: { flex: 1, height: 240, alignItems: "center", justifyContent: "center" },
   emptyTxt: { color: "#6B7280", fontSize: 18, textAlign: "center", fontWeight: "500" },
   emptySubTxt: { color: "#9CA3AF", fontSize: 14, textAlign: "center", marginTop: 8 },
-  adContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    paddingHorizontal: 0, // Remove padding - back to full width
-    paddingVertical: 0, // Remove padding
-    backgroundColor: 'transparent',
-    zIndex: 10,
-  },
-  adTouchable: {
-    borderRadius: 0, // Remove border radius - back to full width
-    overflow: 'hidden',
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 4,
-  },
-  adImage: {
-    width: '100%',
-    height: 100, // Optimal height for the ad
-    borderRadius: 0, // Remove border radius
-  },
 });

@@ -28,6 +28,7 @@ import api from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
 import { showInAppNotification } from "../../lib/notifications-expo-go";
 import { useChatSocket } from '@/hooks/chats';
+import FooterCarousel from "@/components/FooterCarousel";
 
 type SentCard = {
   _id: string;
@@ -1377,6 +1378,9 @@ export default function Chats() {
           </View>
         </View>
       </Modal>
+
+      {/* Footer Carousel */}
+      <FooterCarousel />
     </SafeAreaView>
   );
 }

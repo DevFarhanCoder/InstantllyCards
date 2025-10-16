@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import api from "@/lib/api";
 import CardRow from "@/components/CardRow";
 import { ensureAuth } from "@/lib/auth";
+import FooterCarousel from "@/components/FooterCarousel";
 
 type Card = any;
 
@@ -78,6 +79,9 @@ export default function MyCards() {
         }
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Footer Carousel */}
+      <FooterCarousel />
     </SafeAreaView>
   );
 }

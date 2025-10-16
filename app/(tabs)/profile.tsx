@@ -18,6 +18,7 @@ import { router } from "expo-router";
 import { COLORS } from "@/lib/theme";
 import api from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import FooterCarousel from "@/components/FooterCarousel";
 
 interface UserProfile {
   _id: string;
@@ -426,6 +427,9 @@ export default function Profile() {
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Footer Carousel */}
+      <FooterCarousel />
     </SafeAreaView>
   );
 }

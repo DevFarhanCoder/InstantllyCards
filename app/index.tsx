@@ -34,6 +34,6 @@ export default function Splash() {
   );
 }
 const s = StyleSheet.create({
-  splash: { flex: 1, backgroundColor: "#0F1111", alignItems: "center", justifyContent: "center" },
+  splash: { flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   logo:   { width: 300, height: 110 },
 });
