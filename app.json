@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "InstantllyCards",
+    "name": "Instantlly Cards",
     "slug": "instantllycards",
     "version": "1.0.15",
-  "orientation": "portrait",
-  "icon": "./assets/images/icon.png",
+    "orientation": "portrait",
+    "icon": "./assets/images/favicon.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,13 +16,13 @@
       }
     },
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/favicon.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/images/favicon.png",
       "bundleIdentifier": "com.instantllycards.www.twa"
     },
     "android": {
@@ -36,11 +36,11 @@
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/images/favicon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/favicon.png",
         "backgroundColor": "#FFFFFF",
-        "monochromeImage": "./assets/images/adaptive-icon.png"
+        "monochromeImage": "./assets/images/favicon.png"
       }
     },
     "web": {
