@@ -35,8 +35,6 @@ export default function ChatScreen() {
   const [showMenu, setShowMenu] = useState(false);
   const [contactInfo, setContactInfo] = useState<any>(null);
   const [isAppInBackground, setIsAppInBackground] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [apiFailureCache, setApiFailureCache] = useState<{[key: string]: number}>({});
 
   // Load messages and contact info when component mounts
@@ -44,11 +42,10 @@ export default function ChatScreen() {
     loadMessages();
     loadContactInfo();
     
-    // Set up real-time message checking every 2 seconds for this chat
+    // Set up faster message checking every 500ms for this chat (instant feel)
     const messageCheckInterval = setInterval(() => {
       loadMessages(); // Simply reload messages from AsyncStorage (updated by global polling)
-      checkTypingStatus(); // Check if other user is typing
-    }, 2000);
+    }, 500);
     
     // Listen for app state changes
     const handleAppStateChange = (nextAppState: string) => {
@@ -330,48 +327,6 @@ export default function ChatScreen() {
     }
   };
 
-  // Typing indicator logic
-  const handleTyping = async (text: string) => {
-    setMessage(text);
-    
-    if (text.trim() && !isTyping) {
-      setIsTyping(true);
-      // Send typing indicator to backend
-      try {
-        await api.post(`/messages/typing-status/${userId}`, {
-          isTyping: true
-        });
-        console.log('📝 Typing indicator sent');
-      } catch (error) {
-        console.log('❌ Failed to send typing indicator:', error);
-      }
-    } else if (!text.trim() && isTyping) {
-      setIsTyping(false);
-      // Send stop typing indicator
-      try {
-        await api.post(`/messages/typing-status/${userId}`, {
-          isTyping: false
-        });
-        console.log('📝 Stop typing indicator sent');
-      } catch (error) {
-        console.log('❌ Failed to send stop typing indicator:', error);
-      }
-    }
-  };
-
-  // Check for typing indicators
-  const checkTypingStatus = async () => {
-    try {
-      const response = await api.get(`/messages/typing-status/${userId}`);
-      if (response.isTyping !== otherUserTyping) {
-        setOtherUserTyping(response.isTyping);
-        console.log(`👤 ${name} typing status:`, response.isTyping);
-      }
-    } catch (error) {
-      // Silently handle errors for typing status
-    }
-  };
-
   const receiveMessage = async (messageData: any) => {
     const receivedMessage: Message = {
       id: messageData.id || Date.now().toString(),
@@ -539,15 +494,7 @@ export default function ChatScreen() {
               </Text>
             </View>
           }
-          ListFooterComponent={
-            otherUserTyping ? (
-              <View style={styles.typingIndicator}>
-                <Text style={styles.typingText}>
-                  {name || contactInfo?.name || 'User'} is typing...
-                </Text>
-              </View>
-            ) : null
-          }
+          ListFooterComponent={null}
         />
 
         {/* Input */}
@@ -557,7 +504,7 @@ export default function ChatScreen() {
             placeholder="Type a message..."
             placeholderTextColor="#9CA3AF"
             value={message}
-            onChangeText={handleTyping}
+            onChangeText={setMessage}
             multiline
           />
           <TouchableOpacity 
@@ -758,15 +705,5 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 16,
     marginLeft: 12,
-  },
-  typingIndicator: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'flex-start',
-  },
-  typingText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    fontStyle: 'italic',
   },
 });
