@@ -21,7 +21,9 @@
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "icon": "./assets/images/Instantlly Logo.jpg",
+      "bundleIdentifier": "com.instantllycards.www.twa"
     },
     "android": {
       "package": "com.instantllycards.www.twa",
@@ -37,13 +39,14 @@
       "icon": "./assets/images/Instantlly Logo.jpg",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/Instantlly Logo.jpg",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#FFFFFF",
+        "monochromeImage": "./assets/images/Instantlly Logo.jpg"
       }
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/Instantlly Logo.jpg"
     },
     "plugins": [
       "expo-router",
