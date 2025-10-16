@@ -88,16 +88,45 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
     };
 
     const shareViaApp = async (method: string) => {
+        // Build WhatsApp message with all card details
+        let whatsappMessage = `*This is My Visiting Card*\n\n`;
+        whatsappMessage += `I have created this *Digital Visiting Card FREE From Instantlly Cards From Play Store* & Shared Google Play Store Link so you can also download and Create Your Visiting Card & you can send me your Card also, so I do not have to type all your information and i will get Full Details of your in Instantlly Cards.\n\n`;
+        whatsappMessage += `*Google Play Store Link*\nhttps://play.google.com/store/apps/details?id=com.instantllycards.www.twa\n\n`;
+        
+        // Personal Details
+        whatsappMessage += `*Personal*\n`;
+        if (c.name) whatsappMessage += `*Name*\n${c.name}\n`;
+        if (fullPersonal) whatsappMessage += `*Mob No*\n${fullPersonal}\n`;
+        if (c.email) whatsappMessage += `*Email ID*\n${c.email}\n`;
+        if (c.website) whatsappMessage += `*Website*\n${c.website}\n`;
+        if (c.location) whatsappMessage += `*Address*\n${c.location}\n`;
+        if (c.mapsLink) whatsappMessage += `*Google Map*\n${c.mapsLink}\n`;
+        if (c.facebook) whatsappMessage += `*Facebook*\n${c.facebook}\n`;
+        if (c.instagram) whatsappMessage += `*Instagram*\n${c.instagram}\n`;
+        if (c.linkedin) whatsappMessage += `*LinkedIn*\n${c.linkedin}\n`;
+        if (c.youtube) whatsappMessage += `*YouTube*\n${c.youtube}\n`;
+        if (c.twitter) whatsappMessage += `*Twitter*\n${c.twitter}\n`;
+        if (c.telegram) whatsappMessage += `*Telegram*\n${c.telegram}\n`;
+        
+        // Company Details
+        whatsappMessage += `\n*Company*\n`;
+        if (c.companyName) whatsappMessage += `*Company Name*\n${c.companyName}\n`;
+        if (c.designation) whatsappMessage += `*Designation*\n${c.designation}\n`;
+        if (fullCompany) whatsappMessage += `*Mob No*\n${fullCompany}\n`;
+        if (c.companyEmail) whatsappMessage += `*Email ID*\n${c.companyEmail}\n`;
+        if (c.companyWebsite) whatsappMessage += `*Website*\n${c.companyWebsite}\n`;
+        if (c.companyAddress) whatsappMessage += `*Address*\n${c.companyAddress}\n`;
+        if (c.companyMapsLink) whatsappMessage += `*Google Map*\n${c.companyMapsLink}\n`;
+        if (c.facebook) whatsappMessage += `*Facebook*\n${c.facebook}\n`;
+        if (c.instagram) whatsappMessage += `*Instagram*\n${c.instagram}\n`;
+        if (c.linkedin) whatsappMessage += `*LinkedIn*\n${c.linkedin}\n`;
+        if (c.youtube) whatsappMessage += `*YouTube*\n${c.youtube}\n`;
+        if (c.twitter) whatsappMessage += `*Twitter*\n${c.twitter}\n`;
+        if (c.telegram) whatsappMessage += `*Telegram*\n${c.telegram}\n`;
+
         const shareContent = {
             title: `${companyName}'s Business Card`,
-            message: `Check out ${companyName}'s business card!
-
-Company: ${companyName}
-Owner: ${ownerName}
-Location: ${location}
-Phone: ${fullCompany || fullPersonal}
-
-Contact them now!`,
+            message: whatsappMessage,
             url: `https://instantllycards.com/card/${c._id}`
         };
 
@@ -112,9 +141,6 @@ Contact them now!`,
                 case 'whatsapp':
                     const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(shareContent.message)}`;
                     await Linking.openURL(whatsappUrl);
-                    break;
-                case 'copy':
-                    Alert.alert('Copied!', 'Card details copied to clipboard');
                     break;
                 default:
                     await Share.share({
@@ -179,20 +205,6 @@ Contact them now!`,
         >
             <View style={s.modalOverlay}>
                 <View style={s.modalContent}>
-                    <Text style={s.modalTitle}>Share Card</Text>
-                    
-                    <Pressable onPress={() => shareViaApp('native')} style={s.shareOption}>
-                        <Text style={s.shareOptionText}>Share via...</Text>
-                    </Pressable>
-                    
-                    <Pressable onPress={() => shareViaApp('whatsapp')} style={s.shareOption}>
-                        <Text style={s.shareOptionText}>Share to WhatsApp</Text>
-                    </Pressable>
-                    
-                    <Pressable onPress={() => shareViaApp('copy')} style={s.shareOption}>
-                        <Text style={s.shareOptionText}>Copy Details</Text>
-                    </Pressable>
-
                     <Pressable 
                         onPress={() => {
                             setShareModalVisible(false);
@@ -201,7 +213,15 @@ Contact them now!`,
                         }} 
                         style={[s.shareOption, s.shareWithinAppOption]}
                     >
-                        <Text style={[s.shareOptionText, s.shareWithinAppText]}>📱 Share within App</Text>
+                        <Text style={[s.shareOptionText, s.shareWithinAppText]}>📱 Share Within App</Text>
+                    </Pressable>
+                    
+                    <Pressable onPress={() => shareViaApp('whatsapp')} style={s.shareOption}>
+                        <Text style={s.shareOptionText}>Share to WhatsApp</Text>
+                    </Pressable>
+                    
+                    <Pressable onPress={() => shareViaApp('native')} style={s.shareOption}>
+                        <Text style={s.shareOptionText}>Share Via</Text>
                     </Pressable>
                     
                     <Pressable onPress={() => setShareModalVisible(false)} style={[s.shareOption, s.cancelOption]}>
@@ -219,8 +239,6 @@ Contact them now!`,
         >
             <View style={s.modalOverlay}>
                 <View style={s.modalContent}>
-                    <Text style={s.modalTitle}>Card Options</Text>
-                    
                     <Pressable onPress={handleEditPress} style={s.shareOption}>
                         <Text style={s.shareOptionText}>Edit Card</Text>
                     </Pressable>
