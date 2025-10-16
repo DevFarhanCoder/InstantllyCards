@@ -1,9 +1,11 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query";
 import Constants from 'expo-constants';
 import serverWarmup from "../lib/serverWarmup";
+import ForceUpdateModal from "../components/ForceUpdateModal";
+import { checkAppVersion, getCurrentAppVersion, getAppStoreUrl } from "../lib/versionCheck";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -16,6 +18,31 @@ const notificationModule = isExpoGo
 const { registerForPushNotifications, setupNotificationListeners } = notificationModule;
 
 export default function RootLayout() {
+  const [updateRequired, setUpdateRequired] = useState(false);
+  const [updateUrl, setUpdateUrl] = useState(getAppStoreUrl());
+  const [latestVersion, setLatestVersion] = useState('1.0.0');
+
+  useEffect(() => {
+    // Check for app updates on startup
+    const performVersionCheck = async () => {
+      console.log('🔍 Performing version check...');
+      
+      const versionInfo = await checkAppVersion();
+      
+      if (versionInfo && versionInfo.updateRequired) {
+        console.log('⚠️ Update required! Current:', versionInfo.currentVersion, 'Minimum:', versionInfo.minimumVersion);
+        setUpdateRequired(true);
+        setUpdateUrl(versionInfo.updateUrl);
+        setLatestVersion(versionInfo.latestVersion);
+      } else {
+        console.log('✅ App version is up to date');
+        setUpdateRequired(false);
+      }
+    };
+
+    performVersionCheck();
+  }, []);
+
   useEffect(() => {
     // Initialize notification system and pre-warm server
     const initApp = async () => {
@@ -40,6 +67,12 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ForceUpdateModal
+        visible={updateRequired}
+        updateUrl={updateUrl}
+        currentVersion={getCurrentAppVersion()}
+        latestVersion={latestVersion}
+      />
       <Stack screenOptions={{ headerShown: false }} />
     </QueryClientProvider>
   );

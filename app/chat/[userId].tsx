@@ -29,13 +29,40 @@ type Message = {
 };
 
 export default function ChatScreen() {
-  const { userId, name } = useLocalSearchParams<{ userId: string; name: string }>();
+  const { userId, name, preFillMessage, phone, isPhoneOnly } = useLocalSearchParams<{ 
+    userId: string; 
+    name: string; 
+    preFillMessage?: string;
+    phone?: string;
+    isPhoneOnly?: string;
+  }>();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [showMenu, setShowMenu] = useState(false);
   const [contactInfo, setContactInfo] = useState<any>(null);
   const [isAppInBackground, setIsAppInBackground] = useState(false);
   const [apiFailureCache, setApiFailureCache] = useState<{[key: string]: number}>({});
+
+  // Load pre-filled message if provided
+  useEffect(() => {
+    const loadPreFillMessage = async () => {
+      try {
+        // Check for pre-filled message from AsyncStorage (from carousel)
+        const preFillMsg = await AsyncStorage.getItem('preFillMessage');
+        if (preFillMsg) {
+          setMessage(preFillMsg);
+          await AsyncStorage.removeItem('preFillMessage'); // Clear it after use
+        } else if (preFillMessage) {
+          // Or from route params
+          setMessage(preFillMessage);
+        }
+      } catch (error) {
+        console.error('Error loading pre-fill message:', error);
+      }
+    };
+    
+    loadPreFillMessage();
+  }, [preFillMessage]);
 
   // Load messages and contact info when component mounts
   useEffect(() => {
@@ -455,10 +482,12 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{name || contactInfo?.name || 'Unknown'}</Text>
+        <Text style={styles.headerTitle}>
+          {isPhoneOnly === 'true' ? phone : (name || contactInfo?.name || 'Unknown')}
+        </Text>
         <View style={styles.headerActions}>
           <TouchableOpacity 
             onPress={() => setShowMenu(true)}
@@ -487,7 +516,7 @@ export default function ChatScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>
-                Start your conversation with {name || contactInfo?.name || 'this contact'}
+                Start your conversation with {isPhoneOnly === 'true' ? phone : (name || contactInfo?.name || 'this contact')}
               </Text>
               <Text style={styles.emptySubtext}>
                 Messages are stored locally on your device
