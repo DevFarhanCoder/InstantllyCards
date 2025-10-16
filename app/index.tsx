@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { View, StyleSheet, Animated } from "react-native";
+import { View, StyleSheet, Animated, Image } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -16,8 +16,8 @@ export default function Splash() {
     const go = async () => {
       const token = await AsyncStorage.getItem("token");
       setTimeout(() => {
-        if (token) router.replace("/home");     // ✅ go to a real screen
-        else router.replace("/signup");         // (auth)/signup.tsx -> URL /signup
+        if (token) router.replace("/home");
+        else router.replace("/signup");
       }, 900);
     };
     go();
@@ -25,14 +25,17 @@ export default function Splash() {
 
   return (
     <View style={s.splash}>
-      <Animated.Image
-        source={require("../assets/logo.png")}
-        resizeMode="contain"
-        style={[s.logo, { opacity: fade, transform: [{ scale }] }]}
-      />
+      <Animated.View style={{ opacity: fade, transform: [{ scale }] }}>
+        <Image
+          style={s.logo}
+          source={require("../assets/logo.png")}
+          resizeMode="contain"
+        />
+      </Animated.View>
     </View>
   );
 }
+
 const s = StyleSheet.create({
   splash: { flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   logo:   { width: 300, height: 110 },
