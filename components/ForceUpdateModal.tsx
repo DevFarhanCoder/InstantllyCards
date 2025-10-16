@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 
-const INSTANTLLY_LOGO = require('../assets/images/Instantlly Logo.jpg');
+const INSTANTLLY_LOGO = require('../assets/images/icon.png');
 
 interface ForceUpdateModalProps {
   visible: boolean;
