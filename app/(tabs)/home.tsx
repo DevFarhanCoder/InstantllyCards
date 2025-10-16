@@ -1,9 +1,9 @@
 ﻿import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking } from "react-native";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import api from "@/lib/api";
 import FAB from "@/components/FAB";
@@ -21,22 +21,23 @@ const handleAdClick = () => {
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const queryClient = useQueryClient();
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
   const feedQ = useQuery({
     queryKey: ["contacts-feed"],
     queryFn: async () => {
-      console.log("Home: Fetching contacts feed...");
+      console.log("📱 Home: Fetching contacts feed...");
       try {
         const token = await AsyncStorage.getItem("token");
         if (!token) {
-          console.log("Home: No auth token found");
+          console.log("❌ Home: No auth token found");
           return [];
         }
 
         const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend.onrender.com";
         const url = `${apiBase}/api/cards/feed/contacts`;
-        console.log("Home: Fetching from URL:", url);
+        console.log("🔍 Home: Fetching from URL:", url);
         
         const response = await fetch(url, {
           method: 'GET',
@@ -51,19 +52,27 @@ export default function Home() {
         }
         
         const result = await response.json();
-        console.log("Home: Contacts Feed Response:", result);
-        console.log("Home: Total contacts:", result.meta?.totalContacts);
-        console.log("Home: Cards from contacts:", result.meta?.cardsCount);
+        console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
+        console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
+        console.log("📇 Home: Cards count:", result.meta?.totalCards);
         
         return result.data || [];
       } catch (error) {
-        console.error("Home: Error fetching contacts feed:", error);
+        console.error("❌ Home: Error fetching contacts feed:", error);
         return [];
       }
     },
-    staleTime: 30000, // 30 seconds
+    staleTime: 10000, // Reduced from 30s to 10s - cards become stale faster
     refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30000, // Auto-refetch every 30 seconds for real-time updates
   });
+
+  // Manual refresh handler
+  const handleRefresh = React.useCallback(() => {
+    console.log("🔄 Manual refresh triggered");
+    queryClient.invalidateQueries({ queryKey: ["contacts-feed"] });
+  }, [queryClient]);
 
   // Filter cards based on search query
   const filteredCards = React.useMemo(() => {
@@ -83,10 +92,10 @@ export default function Home() {
     });
   }, [feedQ.data, searchQuery]);
 
-  console.log("Home: Query state:", { 
+  console.log("🎯 Home: Query state:", { 
     isLoading: feedQ.isLoading, 
+    isRefetching: feedQ.isRefetching,
     isError: feedQ.isError, 
-    error: feedQ.error,
     dataLength: feedQ.data?.length,
     filteredLength: filteredCards?.length 
   });
@@ -131,8 +140,14 @@ export default function Home() {
             </View>
           }
           showsVerticalScrollIndicator={false}
-          refreshing={false}
-          onRefresh={() => feedQ.refetch()}
+          refreshControl={
+            <RefreshControl
+              refreshing={feedQ.isRefetching && !feedQ.isLoading}
+              onRefresh={handleRefresh}
+              colors={["#3B82F6"]}
+              tintColor="#3B82F6"
+            />
+          }
         />
       )}
 

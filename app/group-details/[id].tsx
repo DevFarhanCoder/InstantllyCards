@@ -656,9 +656,23 @@ export default function GroupDetailsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Group Cards</Text>
-            {cardsLoading && (
-              <Text style={styles.loadingText}>Loading...</Text>
-            )}
+            <TouchableOpacity 
+              style={styles.refreshButton}
+              onPress={() => {
+                console.log('🔄 Manual refresh of group cards');
+                loadGroupCards();
+              }}
+              disabled={cardsLoading}
+            >
+              <Ionicons 
+                name="refresh" 
+                size={20} 
+                color={cardsLoading ? "#9CA3AF" : "#3B82F6"} 
+              />
+              {cardsLoading && (
+                <Text style={styles.loadingText}>Loading...</Text>
+              )}
+            </TouchableOpacity>
           </View>
           
           {cardsSummary && (
@@ -895,6 +909,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  refreshButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#1F2937",
   },
   addButton: {
     padding: 8,
