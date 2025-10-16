@@ -3,8 +3,8 @@
     "name": "InstantllyCards",
     "slug": "instantllycards",
     "version": "1.0.15",
-    "orientation": "portrait",
-    "icon": "./assets/images/Instantlly Logo.jpg",
+  "orientation": "portrait",
+  "icon": "./assets/images/icon.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,13 +16,13 @@
       }
     },
     "splash": {
-      "image": "./assets/images/Instantlly Logo.jpg",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
-      "icon": "./assets/images/Instantlly Logo.jpg",
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.instantllycards.www.twa"
     },
     "android": {
@@ -36,17 +36,17 @@
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "icon": "./assets/images/Instantlly Logo.jpg",
+      "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/Instantlly Logo.jpg",
+        "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF",
-        "monochromeImage": "./assets/images/Instantlly Logo.jpg"
+        "monochromeImage": "./assets/images/adaptive-icon.png"
       }
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/Instantlly Logo.jpg"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
