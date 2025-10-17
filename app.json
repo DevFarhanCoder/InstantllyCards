@@ -23,7 +23,10 @@
     "ios": {
       "supportsTablet": true,
       "icon": "./assets/logo.png",
-      "bundleIdentifier": "com.instantllycards.www.twa"
+      "bundleIdentifier": "com.instantllycards.www.twa",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.instantllycards.www.twa",

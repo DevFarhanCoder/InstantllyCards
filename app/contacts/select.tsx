@@ -75,14 +75,10 @@ export default function ContactSelectScreen() {
         const syncStatus = await AsyncStorage.getItem('contactsSynced');
         if (syncStatus === 'true') {
           setContactsSynced(true);
-        } else {
-          // Auto-sync contacts when screen loads for the first time
-          await syncDeviceContacts();
         }
+        // Removed auto-sync - users must manually sync from Chats tab
       } catch (error) {
         console.error('Error checking sync status:', error);
-        // If there's an error, try to sync anyway
-        await syncDeviceContacts();
       }
     };
 
@@ -923,8 +919,8 @@ export default function ContactSelectScreen() {
         stickySectionHeadersEnabled={false}
         refreshing={!!(isLoading)}
         onRefresh={() => {
-          // Manual refresh: re-sync contacts and refresh queries
-          syncDeviceContacts();
+          // Manual refresh: only refresh status of existing contacts (no full re-sync)
+          // Full sync is only done manually from Chats tab "Sync Contacts" button
           setContactsPage(1);
           setAllContacts([]);
           storedContactsQuery.refetch();

@@ -22,7 +22,7 @@ import api from "@/lib/api";
 import serverWarmup from "@/lib/serverWarmup";
 import Field from "@/components/Field";
 import PasswordField from "@/components/PasswordField";
-import CountryCodePicker from "@/components/CountryCodePicker";
+import PhoneInput from "@/components/PhoneInput";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { COLORS } from "@/lib/theme";
 
@@ -108,7 +108,7 @@ export default function Signup() {
     try {
       const phoneT = phoneNumber.trim();
       if (!phoneT) {
-        Alert.alert("Error", "Please enter your phone number");
+        showToast("Please enter your phone number", "error");
         return;
       }
 
@@ -116,7 +116,7 @@ export default function Signup() {
       const fullPhone = `${countryCode}${cleanPhone}`;
 
       if (cleanPhone.length < 7) {
-        Alert.alert("Error", "Please enter a valid phone number");
+        showToast("Please enter a valid phone number", "error");
         return;
       }
 
@@ -125,6 +125,22 @@ export default function Signup() {
       // Pre-warm server if not already warm
       if (!serverWarmup.isServerWarm()) {
         await serverWarmup.warmupServer();
+      }
+
+      // First, check if phone number already exists
+      console.log('🔍 Checking if phone exists:', fullPhone);
+      const checkRes = await api.post("/auth/check-phone", {
+        phone: fullPhone
+      });
+
+      if (checkRes.exists) {
+        showToast("This number is already registered. Please login.", "error");
+        setSendingOtp(false);
+        // Navigate to login after 2 seconds
+        setTimeout(() => {
+          router.push("/(auth)/login");
+        }, 2000);
+        return;
       }
 
       console.log('📱 Sending OTP to:', fullPhone);
@@ -372,22 +388,14 @@ export default function Signup() {
             {step === 'phone' && (
               <>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Phone Number</Text>
-                  <View style={styles.phoneInputContainer}>
-                    <CountryCodePicker
-                      selectedCode={countryCode}
-                      onSelect={setCountryCode}
-                      style={styles.countryCodePicker}
-                    />
-                    <Field
-                      label=""
-                      placeholder="Enter your phone number"
-                      keyboardType="phone-pad"
-                      value={phoneNumber}
-                      onChangeText={setPhoneNumber}
-                      style={styles.phoneNumberInput}
-                    />
-                  </View>
+                  <PhoneInput
+                    label="Phone Number"
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    countryCode={countryCode}
+                    onCountryCodeChange={setCountryCode}
+                    placeholder="80012 34567"
+                  />
                 </View>
 
                 <View style={styles.buttonContainer}>
@@ -615,18 +623,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
-  },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'stretch',
-  },
-  countryCodePicker: {
-    width: 100, // Fixed width for country code picker
-  },
-  phoneNumberInput: {
-    flex: 1,
-    minWidth: 0, // Prevent expansion
   },
   buttonContainer: {
     marginTop: 12,

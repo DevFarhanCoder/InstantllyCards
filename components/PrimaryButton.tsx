@@ -24,10 +24,21 @@ export function PrimaryButton({
 }
 
 const s = StyleSheet.create({
-  btn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  white: { backgroundColor: "#FFF", borderColor: "#E9E9E9" },
-  brand: { backgroundColor: COLORS.btn, borderColor: COLORS.btn },
-  text: { fontWeight: "700", fontSize: 16 },
+  btn: { 
+    height: 56, 
+    borderRadius: 14, 
+    alignItems: "center", 
+    justifyContent: "center", 
+    borderWidth: 0,
+    shadowColor: '#F97316',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  white: { backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E9E9E9", shadowOpacity: 0.1, shadowColor: '#000' },
+  brand: { backgroundColor: '#F97316', borderColor: '#F97316' },
+  text: { fontWeight: "700", fontSize: 16, letterSpacing: 0.5 },
   whiteText: { color: "#1A1A1A" },
-  brandText: { color: COLORS.btnText },
+  brandText: { color: '#FFFFFF' },
 });
