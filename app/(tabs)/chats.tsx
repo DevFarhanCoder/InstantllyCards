@@ -1450,16 +1450,6 @@ export default function Chats() {
               renderItem={renderReceivedCard}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingVertical: 4 }}
-              removeClippedSubviews={true}
-              maxToRenderPerBatch={8}
-              updateCellsBatchingPeriod={50}
-              initialNumToRender={6}
-              windowSize={8}
-              getItemLayout={(data, index) => ({
-                length: 240, // Approximate card height
-                offset: 240 * index,
-                index,
-              })}
               ListEmptyComponent={
                 <View style={s.emptyState}>
                   <Text style={s.emptyText}>No cards received yet</Text>
