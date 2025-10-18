@@ -15,28 +15,28 @@ export default function PasswordField({ label, value, onChangeText }: { label: s
                     value={value}
                     onChangeText={onChangeText}
                     secureTextEntry={!show}
-                    placeholderTextColor="#C7CACA"
+                    placeholderTextColor="#9CA3AF"
                 />
                 <Pressable onPress={() => setShow(s => !s)} style={p.eye}>
-                    <Ionicons name={show ? "eye-off" : "eye"} size={20} color="#2B2B2B" />
+                    <Ionicons name={show ? "eye-off" : "eye"} size={22} color="#6B7280" />
                 </Pressable>
             </View>
         </View>
     );
 }
 const p = StyleSheet.create({
-    label: { color: COLORS.muted, letterSpacing: 1.5, fontSize: 14, fontWeight: "600" },
+    label: { color: '#374151', letterSpacing: 1.2, fontSize: 13, fontWeight: "600" },
     row: { position: "relative" },
     input: {
-        backgroundColor: COLORS.inputBg,
-        color: COLORS.inputText,
+        backgroundColor: '#F1F5F9',  // Modern light input
+        color: '#111827',  // Dark text
         borderRadius: 14,
         paddingHorizontal: 16,
-        height: 50,
+        height: 56,  // Match Field height
         fontSize: 16,
-        borderWidth: 1,
-        borderColor: "#5B6161",
+        borderWidth: 1.5,
+        borderColor: '#E6E9EE',  // Subtle border
         paddingRight: 44
     },
-    eye: { position: "absolute", right: 12, top: 14 }
+    eye: { position: "absolute", right: 12, top: 18 }
 });

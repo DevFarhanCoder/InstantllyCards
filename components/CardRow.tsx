@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { router } from "expo-router";
 import api from "@/lib/api";
@@ -88,41 +88,49 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
     };
 
     const shareViaApp = async (method: string) => {
-        // Build WhatsApp message with all card details
+        // Build WhatsApp message with all card details in key-value format
         let whatsappMessage = `*This is My Visiting Card*\n\n`;
-        whatsappMessage += `I have created this *Digital Visiting Card FREE From Instantlly Cards From Play Store* & Shared Google Play Store Link so you can also download and Create Your Visiting Card & you can send me your Card also, so I do not have to type all your information and i will get Full Details of your in Instantlly Cards.\n\n`;
-        whatsappMessage += `*Google Play Store Link*\nhttps://play.google.com/store/apps/details?id=com.instantllycards.www.twa\n\n`;
         
-        // Personal Details
-        whatsappMessage += `*Personal*\n`;
-        if (c.name) whatsappMessage += `*Name*\n${c.name}\n`;
-        if (fullPersonal) whatsappMessage += `*Mob No*\n${fullPersonal}\n`;
-        if (c.email) whatsappMessage += `*Email ID*\n${c.email}\n`;
-        if (c.website) whatsappMessage += `*Website*\n${c.website}\n`;
-        if (c.location) whatsappMessage += `*Address*\n${c.location}\n`;
-        if (c.mapsLink) whatsappMessage += `*Google Map*\n${c.mapsLink}\n`;
-        if (c.facebook) whatsappMessage += `*Facebook*\n${c.facebook}\n`;
-        if (c.instagram) whatsappMessage += `*Instagram*\n${c.instagram}\n`;
-        if (c.linkedin) whatsappMessage += `*LinkedIn*\n${c.linkedin}\n`;
-        if (c.youtube) whatsappMessage += `*YouTube*\n${c.youtube}\n`;
-        if (c.twitter) whatsappMessage += `*Twitter*\n${c.twitter}\n`;
-        if (c.telegram) whatsappMessage += `*Telegram*\n${c.telegram}\n`;
+        // Personal Details Section - Only include if at least one field exists
+        const hasPersonalDetails = c.name || fullPersonal || c.email || c.website || c.location || c.mapsLink;
+        if (hasPersonalDetails) {
+            whatsappMessage += `*Personal*\n`;
+            if (c.name) whatsappMessage += `*Name* - ${c.name}\n`;
+            if (fullPersonal) whatsappMessage += `*Mob No* - ${fullPersonal}\n`;
+            if (c.email) whatsappMessage += `*Email ID* - ${c.email}\n`;
+            if (c.website) whatsappMessage += `*Website* - ${c.website}\n`;
+            if (c.location) whatsappMessage += `*Address* - ${c.location}\n`;
+            if (c.mapsLink) whatsappMessage += `*Google Map* - ${c.mapsLink}\n`;
+        }
         
-        // Company Details
-        whatsappMessage += `\n*Company*\n`;
-        if (c.companyName) whatsappMessage += `*Company Name*\n${c.companyName}\n`;
-        if (c.designation) whatsappMessage += `*Designation*\n${c.designation}\n`;
-        if (fullCompany) whatsappMessage += `*Mob No*\n${fullCompany}\n`;
-        if (c.companyEmail) whatsappMessage += `*Email ID*\n${c.companyEmail}\n`;
-        if (c.companyWebsite) whatsappMessage += `*Website*\n${c.companyWebsite}\n`;
-        if (c.companyAddress) whatsappMessage += `*Address*\n${c.companyAddress}\n`;
-        if (c.companyMapsLink) whatsappMessage += `*Google Map*\n${c.companyMapsLink}\n`;
-        if (c.facebook) whatsappMessage += `*Facebook*\n${c.facebook}\n`;
-        if (c.instagram) whatsappMessage += `*Instagram*\n${c.instagram}\n`;
-        if (c.linkedin) whatsappMessage += `*LinkedIn*\n${c.linkedin}\n`;
-        if (c.youtube) whatsappMessage += `*YouTube*\n${c.youtube}\n`;
-        if (c.twitter) whatsappMessage += `*Twitter*\n${c.twitter}\n`;
-        if (c.telegram) whatsappMessage += `*Telegram*\n${c.telegram}\n`;
+        // Company Details Section - Only include if at least one field exists
+        const hasCompanyDetails = c.companyName || c.designation || fullCompany || c.companyEmail || c.companyWebsite || c.companyAddress || c.companyMapsLink;
+        if (hasCompanyDetails) {
+            whatsappMessage += `\n*Company*\n`;
+            if (c.companyName) whatsappMessage += `*Company Name* - ${c.companyName}\n`;
+            if (c.designation) whatsappMessage += `*Designation* - ${c.designation}\n`;
+            if (fullCompany) whatsappMessage += `*Mob No* - ${fullCompany}\n`;
+            if (c.companyEmail) whatsappMessage += `*Email ID* - ${c.companyEmail}\n`;
+            if (c.companyWebsite) whatsappMessage += `*Website* - ${c.companyWebsite}\n`;
+            if (c.companyAddress) whatsappMessage += `*Address* - ${c.companyAddress}\n`;
+            if (c.companyMapsLink) whatsappMessage += `*Google Map* - ${c.companyMapsLink}\n`;
+        }
+        
+        // Social Media Section - Only include if at least one field exists
+        const hasSocialMedia = c.linkedin || c.facebook || c.instagram || c.twitter || c.youtube || c.telegram;
+        if (hasSocialMedia) {
+            whatsappMessage += `\n*Social Media*\n`;
+            if (c.linkedin) whatsappMessage += `*LinkedIn* - ${c.linkedin}\n`;
+            if (c.facebook) whatsappMessage += `*Facebook* - ${c.facebook}\n`;
+            if (c.instagram) whatsappMessage += `*Instagram* - ${c.instagram}\n`;
+            if (c.twitter) whatsappMessage += `*Twitter* - ${c.twitter}\n`;
+            if (c.youtube) whatsappMessage += `*YouTube* - ${c.youtube}\n`;
+            if (c.telegram) whatsappMessage += `*Telegram* - ${c.telegram}\n`;
+        }
+        
+        // App Promotion
+        whatsappMessage += `\nI have created this *Digital Visiting Card FREE From Instantlly Cards From Play Store* & Shared Google Play Store Link so you can also download and Create Your Visiting Card & you can send me your Card also, so I do not have to type all your information and i will get Full Details of your in Instantlly Cards.\n\n`;
+        whatsappMessage += `*Google Play Store Link*\nhttps://play.google.com/store/apps/details?id=com.instantllycards.www.twa`;
 
         const shareContent = {
             title: `${companyName}'s Business Card`,

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 
 interface ForceUpdateModalProps {
@@ -46,7 +47,11 @@ export default function ForceUpdateModal({
         <View style={styles.container}>
           {/* App Logo/Icon */}
           <View style={styles.iconContainer}>
-            <Text style={styles.logoEmoji}>📱</Text>
+            <Image
+              source={require('../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Title */}
@@ -92,10 +97,10 @@ const styles = StyleSheet.create({
   },
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 32,
+    borderRadius: 20,
+    padding: 24,
     width: '90%',
-    maxWidth: 400,
+    maxWidth: 380,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -107,32 +112,32 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   iconContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  logoEmoji: {
-    fontSize: 80,
-    textAlign: 'center',
+  logo: {
+    width: 64,
+    height: 64,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 16,
+    marginBottom: 12,
     textAlign: 'center',
   },
   description: {
     fontSize: 15,
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
+    lineHeight: 20,
+    marginBottom: 20,
   },
   versionContainer: {
     width: '100%',
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
+    padding: 14,
+    marginBottom: 20,
   },
   versionText: {
     fontSize: 14,
@@ -145,9 +150,9 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     backgroundColor: '#6366F1', // Purple-blue color matching the image
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 14,
     width: '100%',
     shadowColor: '#6366F1',
     shadowOffset: {
