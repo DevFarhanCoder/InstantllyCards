@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { router } from "expo-router";
 import api from "@/lib/api";
