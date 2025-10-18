@@ -194,24 +194,120 @@ export default function ContactSelectScreen() {
     }
   };
 
-  // Refresh contacts when screen becomes focused
+  // Smart sync function that only fetches NEW contacts (not already in MongoDB)
+  const [isSmartRefreshing, setIsSmartRefreshing] = useState(false);
+  
+  const smartRefreshNewContacts = async () => {
+    if (isSmartRefreshing || contactsLoading) return;
+    
+    try {
+      setIsSmartRefreshing(true);
+      console.log('🔍 Smart refresh: Looking for new contacts...');
+      
+      // Show immediate feedback
+      console.log('🔄 Checking for new contacts...');
+
+      // Get device contacts permission
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant contacts permission to check for new contacts.');
+        return;
+      }
+
+      // Get current device contacts
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+      });
+      
+      const devicePhoneNumbers = deviceContacts
+        .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
+        .map((contact: any) => ({
+          name: contact.name || 'Unknown Contact',
+          phoneNumber: contact.phoneNumbers[0]?.number?.replace(/\D/g, '') || ''
+        }))
+        .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
+
+      // Get stored contacts from backend to compare
+      const token = await ensureAuth();
+      if (!token) return;
+
+      const storedResponse = await api.get('/contacts/all?page=1&limit=10000'); // Get all stored contacts
+      const storedPhoneNumbers = new Set(
+        (storedResponse.data || []).map((contact: any) => contact.phoneNumber)
+      );
+
+      // Find NEW contacts (device contacts not in MongoDB)
+      const newContacts = devicePhoneNumbers.filter(
+        contact => !storedPhoneNumbers.has(contact.phoneNumber)
+      );
+
+      console.log(`📊 Smart refresh results:
+        - Total device contacts: ${devicePhoneNumbers.length}
+        - Stored contacts: ${storedPhoneNumbers.size}
+        - New contacts found: ${newContacts.length}`);
+
+      // Use the new smart sync endpoint that handles all the logic
+      console.log(`🔄 Smart syncing contacts (checking for new ones)...`);
+      const syncResponse = await api.post("/contacts/smart-sync", { contacts: devicePhoneNumbers });
+      
+      console.log('📊 Smart sync response:', syncResponse);
+      
+      // Only refresh contact status if new contacts were actually added
+      if (syncResponse.stats && syncResponse.stats.syncedContacts > 0) {
+        await api.post("/contacts/refresh-app-status");
+        
+        // Invalidate queries to show updated data
+        queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
+        queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
+        
+        Alert.alert(
+          '🎉 Contacts Updated', 
+          `Found and synced ${syncResponse.stats.newContacts} new contact${syncResponse.stats.newContacts > 1 ? 's' : ''}.\n\n` +
+          `📱 ${syncResponse.stats.newAppUsers} of them are using the app!`
+        );
+      } else {
+        Alert.alert('✅ Up to date', 'No new contacts found. Your contact list is up to date.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in smart refresh:', error);
+      Alert.alert('Error', 'Failed to refresh contacts. Please try again.');
+    } finally {
+      setIsSmartRefreshing(false);
+    }
+  };
+
+  // Add debouncing to prevent excessive calls
+  const [lastRefresh, setLastRefresh] = useState(0);
+
+  // Refresh contacts when screen becomes focused (debounced)
   useFocusEffect(
     React.useCallback(() => {
-      refreshContactStatus();
-    }, [])
+      const now = Date.now();
+      // Only refresh if more than 30 seconds have passed
+      if (now - lastRefresh > 30000) {
+        refreshContactStatus();
+        setLastRefresh(now);
+      }
+    }, [lastRefresh])
   );
 
-  // Refresh contacts when app becomes active
+  // Refresh contacts when app becomes active (debounced)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
-        refreshContactStatus();
+        const now = Date.now();
+        // Only refresh if more than 30 seconds have passed
+        if (now - lastRefresh > 30000) {
+          refreshContactStatus();
+          setLastRefresh(now);
+        }
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
-  }, []);
+  }, [lastRefresh]);
 
   // Fetch stored contacts from backend with pagination - this contains all the info we need
   const [contactsPage, setContactsPage] = useState(1);
@@ -238,7 +334,8 @@ export default function ContactSelectScreen() {
         return { data: [], pagination: { hasMore: false } };
       }
     },
-    staleTime: 2 * 60 * 1000, // Consider data fresh for 2 minutes
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes (increased from 2)
+    gcTime: 15 * 60 * 1000, // Keep in cache for 15 minutes (gcTime is the new name for cacheTime)
     enabled: contactsSynced, // Only fetch if contacts have been synced
   });
 
@@ -826,6 +923,19 @@ export default function ContactSelectScreen() {
             </Text>
           )}
         </View>
+        
+        {/* Smart Refresh Button - Always visible */}
+        <TouchableOpacity 
+          onPress={smartRefreshNewContacts}
+          style={[styles.smartRefreshButton, isSmartRefreshing && styles.smartRefreshButtonDisabled]}
+          disabled={isSmartRefreshing}
+        >
+          {isSmartRefreshing ? (
+            <ActivityIndicator size="small" color="#22C55E" />
+          ) : (
+            <Ionicons name="refresh-outline" size={22} color="#22C55E" />
+          )}
+        </TouchableOpacity>
         {((isGroupMode || isGroupAddMode || isCardShareMode) && (selectedContacts.length > 0 || selectedGroups.length > 0)) ? (
           <TouchableOpacity 
             onPress={() => {
@@ -847,15 +957,7 @@ export default function ContactSelectScreen() {
               {isCardShareMode ? 'Share' : isGroupAddMode ? 'Add' : 'Next'}
             </Text>
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity onPress={() => {
-            // Manual refresh: re-sync contacts and refresh queries
-            syncDeviceContacts();
-            refreshContactStatus();
-          }} style={styles.refreshButton}>
-            <Ionicons name="refresh" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
+        ) : null}
       </View>
 
       {/* Search */}
@@ -1000,6 +1102,21 @@ const styles = StyleSheet.create({
   refreshButton: {
     padding: 8,
     marginLeft: 8,
+  },
+  smartRefreshButton: {
+    padding: 8,
+    marginLeft: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smartRefreshButtonDisabled: {
+    opacity: 0.6,
+    backgroundColor: 'rgba(34, 197, 94, 0.05)',
   },
   loadingContainer: {
     flex: 1,

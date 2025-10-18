@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { 
   View, 
@@ -14,14 +14,15 @@ import {
   PanResponder,
   Dimensions,
   Animated,
-  Modal
+  Modal,
+  Linking
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser, getCurrentUserId } from '@/lib/useUser';
 import * as Contacts from 'expo-contacts';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import api from "@/lib/api";
@@ -64,6 +65,17 @@ type Conversation = {
 export default function Chats() {
   console.log('🏠 Chats tab component rendered');
   const [activeTab, setActiveTab] = useState<'chats' | 'groups' | 'sent' | 'received'>('chats');
+  // Read incoming deep-link/navigation params from notifications
+  const params = useLocalSearchParams<{ tab?: string; highlightCardId?: string }>();
+  const incomingTab = params?.tab as string | undefined;
+  const incomingHighlightCardId = params?.highlightCardId as string | undefined;
+
+  // Local highlight state (used to briefly highlight an item)
+  const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
+  
+  // Animation refs for highlight effect
+  const highlightAnimation = useRef(new Animated.Value(0)).current;
+  const pulseAnimation = useRef(new Animated.Value(1)).current;
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsSynced, setContactsSynced] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,6 +96,9 @@ export default function Chats() {
   
   // Track currently active chat to prevent notifications
   const [currentActiveChat, setCurrentActiveChat] = useState<string | null>(null);
+  
+  // Track visited tabs for lazy loading performance
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['chats']));
 
   // Function definitions (moved before useEffect for proper hoisting)
   const loadConversations = async () => {
@@ -159,6 +174,58 @@ export default function Chats() {
     
     return () => clearInterval(messageCheckInterval);
   }, []);
+
+  // Handle incoming navigation params from notifications
+  useEffect(() => {
+    if (incomingTab) {
+      setActiveTab(incomingTab as any);
+    }
+    if (incomingHighlightCardId) {
+      setHighlightId(incomingHighlightCardId);
+      
+      // Start highlight animation sequence
+      highlightAnimation.setValue(0);
+      pulseAnimation.setValue(1);
+      
+      Animated.sequence([
+        // Fade in highlight
+        Animated.timing(highlightAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        // Pulse effect (repeat 3 times)
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulseAnimation, {
+              toValue: 1.1,
+              duration: 600,
+              useNativeDriver: false,
+            }),
+            Animated.timing(pulseAnimation, {
+              toValue: 1,
+              duration: 600,
+              useNativeDriver: false,
+            }),
+          ]),
+          { iterations: 3 }
+        ),
+      ]).start();
+      
+      // Clear highlight after animation completes
+      const t = setTimeout(() => {
+        Animated.timing(highlightAnimation, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: false,
+        }).start(() => {
+          setHighlightId(undefined);
+        });
+      }, 4000);
+      
+      return () => clearTimeout(t);
+    }
+  }, [incomingTab, incomingHighlightCardId]);
 
   // Socket.IO connection management
   useEffect(() => {
@@ -470,33 +537,26 @@ export default function Chats() {
 
   // Function to animate tab changes
   const animateTabChange = (newTab: typeof activeTab) => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 0,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setActiveTab(newTab);
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    });
+    // Immediate tab change without complex animations for better performance
+    setActiveTab(newTab);
+    
+    // Track visited tabs for lazy loading
+    setVisitedTabs(prev => new Set([...prev, newTab]));
+    
+    // Simple fade animation only
+    fadeAnim.setValue(0.7);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+    
+    // Reset slide animation
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
   };
   
   // Helper function to format time
@@ -722,6 +782,31 @@ export default function Chats() {
     }
   };
 
+  // Helper function to handle phone calls
+  const handleCall = async (userId: string, fallbackName?: string) => {
+    try {
+      // Try to get user's phone number from backend
+      const response = await api.get(`/users/${userId}`);
+      const phoneNumber = response?.data?.phoneNumber || response?.data?.phone;
+      
+      if (phoneNumber) {
+        const telUrl = `tel:${phoneNumber}`;
+        const canOpen = await Linking.canOpenURL(telUrl);
+        
+        if (canOpen) {
+          await Linking.openURL(telUrl);
+        } else {
+          Alert.alert('Error', 'Unable to open dialer on this device');
+        }
+      } else {
+        Alert.alert('No Phone Number', `Phone number not available for ${fallbackName || 'this contact'}`);
+      }
+    } catch (error) {
+      console.error('Error getting phone number for call:', error);
+      Alert.alert('Error', 'Failed to get phone number. Please try again.');
+    }
+  };
+
   // Optional: Function to reset sync status (useful for debugging)
   const resetSyncStatus = async () => {
     try {
@@ -734,48 +819,69 @@ export default function Chats() {
     }
   };
 
-  const renderSentCard = ({ item }: { item: SentCard }) => (
-    <TouchableOpacity 
-      style={s.cardItem}
+  const renderSentCard = useCallback(({ item }: { item: SentCard }) => (
+    <TouchableOpacity
       onPress={() => {
-        // Navigate to the card detail view
-        router.push({
-          pathname: `/(main)/card/[id]`,
-          params: { id: item.cardId }
-        });
+        router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
       }}
     >
-      <View style={s.cardIcon}>
-        <Text style={s.cardIconText}>📤</Text>
-      </View>
-      
-      <View style={s.cardInfo}>
-        <Text style={s.cardTitle}>{item.cardTitle}</Text>
-        <Text style={s.cardSubtitle}>Sent to {item.recipientName}</Text>
-        <Text style={s.cardMeta}>Status: {item.status}</Text>
-      </View>
-      
-      <View style={s.cardTime}>
-        <Text style={s.timeText}>{new Date(item.sentAt).toLocaleDateString()}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+      <Animated.View
+        style={[
+          s.cardItem, 
+          (incomingHighlightCardId === item._id || incomingHighlightCardId === item.cardId || highlightId === item._id) && {
+            backgroundColor: highlightAnimation.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['#FFFFFF', '#FFE4B5']
+            }),
+            borderColor: '#FF6B35',
+            borderWidth: 2,
+            transform: [{
+              scale: pulseAnimation
+            }],
+            opacity: highlightAnimation.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [1, 0.8, 1]
+            })
+          }
+        ]}
+      >
+      {(item as any).cardPhoto || (item as any).recipientProfilePicture ? (
+        <Image source={{ uri: (item as any).cardPhoto || (item as any).recipientProfilePicture }} style={s.cardLogo} />
+      ) : (
+        <View style={[s.cardLogo, s.avatarPlaceholder]}>
+          <Text style={s.avatarText}>{item.recipientName?.charAt(0).toUpperCase() || 'U'}</Text>
+        </View>
+      )}
 
-  const renderReceivedCard = ({ item }: { item: ReceivedCard }) => (
-    <TouchableOpacity 
-      style={s.cardItem}
+      <View style={s.cardInfo}>
+        <Text style={s.cardTitle} numberOfLines={1} ellipsizeMode="tail">{item.recipientName}</Text>
+        <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
+      </View>
+
+      <View style={s.actionButtons}>
+        <TouchableOpacity style={s.iconButton} onPress={() => {
+          handleCall(item.recipientId, item.recipientName);
+        }}>
+          <Ionicons name="call" size={20} color="#0EA5A4" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.iconButton} onPress={() => {
+          router.push({ pathname: `/chat/[userId]`, params: { userId: item.recipientId, userName: item.recipientName } } as any);
+        }}>
+          <Ionicons name="chatbubbles" size={20} color="#2563EB" />
+        </TouchableOpacity>
+      </View>
+      </Animated.View>
+    </TouchableOpacity>
+  ), [handleCall]);
+
+  const renderReceivedCard = useCallback(({ item }: { item: ReceivedCard }) => (
+    <TouchableOpacity
       onPress={async () => {
-        // Navigate to the card detail view
-        router.push({
-          pathname: `/(main)/card/[id]`,
-          params: { id: item.cardId }
-        });
-        
-        // Mark card as viewed if not already viewed
+        router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
         if (!item.isViewed) {
           try {
             await api.post(`/cards/shared/${item._id}/view`);
-            // Refresh the received cards query to update the UI
             queryClient.invalidateQueries({ queryKey: ["received-cards"] });
           } catch (error) {
             console.error('Failed to mark card as viewed:', error);
@@ -783,21 +889,56 @@ export default function Chats() {
         }
       }}
     >
-      <View style={s.cardIcon}>
-        <Text style={s.cardIconText}>📥</Text>
-      </View>
-      
+      <Animated.View
+        style={[
+          s.cardItem, 
+          (incomingHighlightCardId === item._id || incomingHighlightCardId === item.cardId || highlightId === item._id) && {
+            backgroundColor: highlightAnimation.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['#FFFFFF', '#FFE4B5']
+            }),
+            borderColor: '#FF6B35',
+            borderWidth: 2,
+            transform: [{
+              scale: pulseAnimation
+            }],
+            opacity: highlightAnimation.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [1, 0.8, 1]
+            })
+          }
+        ]}
+      >
+      {(item as any).senderProfilePicture || (item as any).senderAvatar ? (
+        <Image source={{ uri: (item as any).senderProfilePicture || (item as any).senderAvatar }} style={s.cardLogo} />
+      ) : (
+        <View style={[s.cardLogo, s.avatarPlaceholder]}>
+          <Text style={s.avatarText}>{item.senderName?.charAt(0).toUpperCase() || 'U'}</Text>
+        </View>
+      )}
+
       <View style={s.cardInfo}>
-        <Text style={s.cardTitle}>{item.cardTitle}</Text>
-        <Text style={s.cardSubtitle}>From {item.senderName}</Text>
+        <Text style={s.cardTitle} numberOfLines={1} ellipsizeMode="tail">{item.senderName}</Text>
+        <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
         {!item.isViewed && <Text style={s.newBadge}>NEW</Text>}
       </View>
-      
-      <View style={s.cardTime}>
-        <Text style={s.timeText}>{new Date(item.receivedAt).toLocaleDateString()}</Text>
+
+      <View style={s.actionButtons}>
+        <TouchableOpacity style={s.iconButton} onPress={() => {
+          handleCall(item.senderId, item.senderName);
+        }}>
+          <Ionicons name="call" size={20} color="#0EA5A4" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.iconButton} onPress={() => {
+          router.push({ pathname: `/chat/[userId]`, params: { userId: item.senderId, userName: item.senderName } } as any);
+        }}>
+          <Ionicons name="chatbubbles" size={20} color="#2563EB" />
+        </TouchableOpacity>
       </View>
+      </Animated.View>
     </TouchableOpacity>
-  );
+  ), [handleCall]);
 
   // Load groups from backend API instead of AsyncStorage
   const loadGroups = async () => {
@@ -1150,7 +1291,16 @@ export default function Chats() {
     }
   };
 
-  const renderContent = () => {
+  const renderContent = useMemo(() => {
+    // Only render content for visited tabs to improve performance
+    if (!visitedTabs.has(activeTab)) {
+      return (
+        <View style={[s.content, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      );
+    }
+
     switch (activeTab) {
       case 'chats':
         return (
@@ -1194,6 +1344,16 @@ export default function Chats() {
                   contentContainerStyle={s.conversationsList}
                   refreshing={refreshing}
                   onRefresh={onRefresh}
+                  removeClippedSubviews={true}
+                  maxToRenderPerBatch={10}
+                  updateCellsBatchingPeriod={50}
+                  initialNumToRender={8}
+                  windowSize={10}
+                  getItemLayout={(_, index) => ({
+                    length: 80,
+                    offset: 80 * index,
+                    index,
+                  })}
                   ListEmptyComponent={
                     <View style={s.emptyState}>
                       <Text style={s.emptyText}>No conversations yet</Text>
@@ -1227,31 +1387,42 @@ export default function Chats() {
                 showsVerticalScrollIndicator={false}
                 refreshing={refreshing}
                 onRefresh={onRefresh}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={8}
+                updateCellsBatchingPeriod={50}
+                initialNumToRender={6}
+                windowSize={8}
               />
             )}
-            
-            {/* Single Groups FAB */}
-            <GroupsFAB 
-              onCreateGroup={() => {
-                // Navigate to contact selection for group creation
-                router.push("/contacts/select?mode=group" as any);
-              }}
-              onJoinGroup={() => {
-                setShowJoinGroupModal(true);
-              }}
-              onClearAll={clearAllGroups}
-            />
           </View>
         );
       
       case 'sent':
         return (
           <View style={s.content}>
-            <FlatList
-              data={sentCardsQuery.data || []}
+            {(() => {
+              const sent = sentCardsQuery.data || [];
+              // Order sent by status: pending (sent/delivered) first
+              const priorityOrder = { sent: 0, delivered: 1, viewed: 2 } as any;
+              const ordered = [...sent].sort((a: SentCard, b: SentCard) => (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3));
+
+              return (
+                <FlatList
+                  data={ordered}
               keyExtractor={(item) => item._id}
               renderItem={renderSentCard}
               showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 4 }}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={8}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={6}
+              windowSize={8}
+              getItemLayout={(data, index) => ({
+                length: 240, // Approximate card height
+                offset: 240 * index,
+                index,
+              })}
               ListEmptyComponent={
                 <View style={s.emptyState}>
                   <Text style={s.emptyText}>No cards sent yet</Text>
@@ -1259,17 +1430,36 @@ export default function Chats() {
                 </View>
               }
             />
+              );
+            })()}
           </View>
         );
       
       case 'received':
         return (
           <View style={s.content}>
-            <FlatList
-              data={receivedCardsQuery.data || []}
+            {(() => {
+              const received = receivedCardsQuery.data || [];
+              // Unviewed first
+              const ordered = [...received].sort((a: ReceivedCard, b: ReceivedCard) => (a.isViewed === b.isViewed) ? new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime() : (a.isViewed ? 1 : -1));
+
+              return (
+                <FlatList
+                  data={ordered}
               keyExtractor={(item) => item._id}
               renderItem={renderReceivedCard}
               showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 4 }}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={8}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={6}
+              windowSize={8}
+              getItemLayout={(data, index) => ({
+                length: 240, // Approximate card height
+                offset: 240 * index,
+                index,
+              })}
               ListEmptyComponent={
                 <View style={s.emptyState}>
                   <Text style={s.emptyText}>No cards received yet</Text>
@@ -1277,13 +1467,15 @@ export default function Chats() {
                 </View>
               }
             />
+              );
+            })()}
           </View>
         );
       
       default:
         return null;
     }
-  };
+  }, [activeTab, visitedTabs, contactsSynced, contactsLoading, conversations, groups, groupsLoading, sentCardsQuery.data, receivedCardsQuery.data, refreshing]);
 
   return (
     <SafeAreaView style={s.root}>
@@ -1334,11 +1526,25 @@ export default function Chats() {
         }} 
         {...panResponder.panHandlers}
       >
-        {renderContent()}
+        {renderContent}
       </Animated.View>
 
       {/* Floating Action Button for Contact Selection - Only show for chats tab */}
       {contactsSynced && activeTab === 'chats' && <ContactsFAB />}
+      
+      {/* Floating Action Button for Groups - Only show for groups tab */}
+      {activeTab === 'groups' && (
+        <GroupsFAB 
+          onCreateGroup={() => {
+            // Navigate to contact selection for group creation
+            router.push("/contacts/select?mode=group" as any);
+          }}
+          onJoinGroup={() => {
+            setShowJoinGroupModal(true);
+          }}
+          onClearAll={clearAllGroups}
+        />
+      )}
 
       {/* Join Group Modal */}
       <Modal
@@ -1391,8 +1597,10 @@ function ContactsFAB() {
   const insets = useSafeAreaInsets();
   const SIZE = 56;
   const GAP = 10;
+  const FOOTER_CAROUSEL_HEIGHT = 100;
 
-  const bottom = Math.max(insets.bottom + 12, tabH - SIZE + GAP);
+  // Position FAB above footer carousel with consistent spacing
+  const bottom = FOOTER_CAROUSEL_HEIGHT + 16;
 
   return (
     <Pressable
@@ -1420,9 +1628,11 @@ function GroupsFAB({
   const insets = useSafeAreaInsets();
   const SIZE = 56;
   const GAP = 10;
+  const FOOTER_CAROUSEL_HEIGHT = 100;
   const [showMenu, setShowMenu] = useState(false);
 
-  const bottom = Math.max(insets.bottom + 12, tabH - SIZE + GAP);
+  // Position FAB above footer carousel with consistent spacing
+  const bottom = FOOTER_CAROUSEL_HEIGHT + 16;
 
   return (
     <>
@@ -1644,8 +1854,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
+    padding: 12,
+    marginVertical: 3,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -1662,6 +1872,18 @@ const s = StyleSheet.create({
   },
   cardIconText: {
     fontSize: 20,
+  },
+  cardLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    marginRight: 12,
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#6366F1',
   },
   cardInfo: {
     flex: 1,
@@ -1685,6 +1907,28 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: "#EF4444",
     fontWeight: "600",
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    flex: 1,
+    marginLeft: 12,
+    gap: 8,
+  },
+  iconButton: {
+    flex: 1,
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  highlightCard: {
+    borderColor: '#FBBF24',
+    borderWidth: 2,
+    shadowColor: '#FBBF24',
+    shadowOpacity: 0.2,
   },
   cardTime: {
     alignItems: "flex-end",

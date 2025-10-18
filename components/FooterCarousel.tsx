@@ -15,33 +15,93 @@ const ads = [
 ];
 
 const FooterCarousel = () => {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(1); // Start at index 1 (first real ad)
   const [showModal, setShowModal] = useState(false);
   const [selectedAd, setSelectedAd] = useState<typeof ads[0] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
+  
+  // Create infinite scroll data: [last, ...ads, first]
+  const infiniteAds = [ads[ads.length - 1], ...ads, ads[0]];
 
-  // Auto-scroll functionality - changed to 10 seconds
+  // Set initial scroll position after component mounts
+  useEffect(() => {
+    // Start at the first real ad (index 1 in infiniteAds)
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        x: screenWidth, // Position at index 1
+        animated: false,
+      });
+    }, 100);
+  }, []);
+
+  // Auto-scroll functionality - infinite loop
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveIndex((prevIndex) => {
-        const nextIndex = (prevIndex + 1) % 3;
-        scrollViewRef.current?.scrollTo({
-          x: nextIndex * screenWidth,
-          animated: true,
-        });
-        return nextIndex;
+        let nextIndex = prevIndex + 1;
+        
+        // Check if we need to handle boundary
+        if (nextIndex >= infiniteAds.length - 1) {
+          // We're about to go to the duplicate first slide
+          scrollViewRef.current?.scrollTo({
+            x: nextIndex * screenWidth,
+            animated: true,
+          });
+          
+          // After animation, jump to real first slide
+          setTimeout(() => {
+            scrollViewRef.current?.scrollTo({
+              x: screenWidth,
+              animated: false,
+            });
+          }, 300);
+          
+          return 1; // Reset to first real ad
+        } else {
+          scrollViewRef.current?.scrollTo({
+            x: nextIndex * screenWidth,
+            animated: true,
+          });
+          return nextIndex;
+        }
       });
-    }, 10000); // Change slide every 10 seconds
+    }, 3000); // Change slide every 3 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [infiniteAds.length]);
 
   const handleScroll = (event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const currentIndex = Math.round(contentOffsetX / screenWidth);
     setActiveIndex(currentIndex);
+  };
+
+  const handleScrollEnd = (event: any) => {
+    const contentOffsetX = event.nativeEvent.contentOffset.x;
+    const currentIndex = Math.round(contentOffsetX / screenWidth);
+    
+    // Handle infinite scroll wrapping
+    if (currentIndex === 0) {
+      // Scrolled to the duplicate last item, jump to real last item
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          x: (infiniteAds.length - 2) * screenWidth, // Jump to real last ad
+          animated: false,
+        });
+        setActiveIndex(infiniteAds.length - 2);
+      }, 50);
+    } else if (currentIndex === infiniteAds.length - 1) {
+      // Scrolled to the duplicate first item, jump to real first item
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          x: screenWidth, // Jump to real first ad
+          animated: false,
+        });
+        setActiveIndex(1);
+      }, 50);
+    }
   };
 
   const handleAdPress = (ad: typeof ads[0]) => {
@@ -148,12 +208,13 @@ const FooterCarousel = () => {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onScroll={handleScroll}
+        onMomentumScrollEnd={handleScrollEnd}
         scrollEventThrottle={16}
         style={styles.scrollView}
       >
-        {ads.map((ad, index) => (
+        {infiniteAds.map((ad, index) => (
           <TouchableOpacity 
-            key={ad.id} 
+            key={`${ad.id}-${index}`} 
             style={styles.slide}
             activeOpacity={0.9}
             onPress={() => handleAdPress(ad)}
@@ -167,18 +228,7 @@ const FooterCarousel = () => {
         ))}
       </ScrollView>
 
-      {/* Pagination Dots */}
-      <View style={styles.pagination}>
-        {[0, 1, 2].map((index) => (
-          <View
-            key={index}
-            style={[
-              styles.dot,
-              activeIndex === index && styles.activeDot,
-            ]}
-          />
-        ))}
-      </View>
+
 
       {/* Action Modal */}
       <Modal
@@ -252,28 +302,7 @@ const styles = StyleSheet.create({
     width: screenWidth,
     height: 100,
   },
-  pagination: {
-    position: 'absolute',
-    bottom: 8,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: '#FFFFFF',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

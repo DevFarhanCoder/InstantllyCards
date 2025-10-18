@@ -439,12 +439,14 @@ function handleNotificationTap(data: any) {
       
       case 'card_created':
         console.log('🆕 [TAP] Opening home feed to see new card');
-        router.push('/(tabs)/home');
+        // Navigate to home and pass highlightCardId so UI can highlight newly created card
+        router.push({ pathname: '/(tabs)/home', params: { highlightCardId: data.cardId } } as any);
         break;
       
       case 'card_shared':
-        console.log('💳 [TAP] Opening shared card:', data.cardId);
-        router.push(`/builder/${data.cardId}` as any);
+        console.log('💳 [TAP] Opening received cards and highlighting card:', data.cardId);
+        // Navigate to chats tab, received tab and highlight the specific received card
+        router.push({ pathname: '/(tabs)/chats', params: { tab: 'received', highlightCardId: data.cardId } } as any);
         break;
       
       case 'group_invite':
