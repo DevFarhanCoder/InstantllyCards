@@ -1,13 +1,13 @@
 // app/(main)/index.tsx
 import { useEffect, useState } from "react";
 import { View, FlatList, Text, TouchableOpacity } from "react-native";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useRouter } from "expo-router";
 
 export default function Dashboard() {
   const r = useRouter();
   const [cards,setCards]=useState<any[]>([]);
-  useEffect(()=>{ api("/cards").then(setCards).catch(console.warn); },[]);
+  useEffect(()=>{ api.get("/cards").then(setCards).catch(console.warn); },[]);
   return (
     <View style={{ flex:1, padding:16 }}>
       <FlatList

@@ -7,7 +7,6 @@ const getApiBase = () => {
   const sources = [
     process.env.EXPO_PUBLIC_API_BASE,
     Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE,
-    Constants.manifest?.extra?.EXPO_PUBLIC_API_BASE,
     "https://instantlly-cards-backend.onrender.com" // Fallback
   ];
   
@@ -28,7 +27,6 @@ console.log("🌐 API BASE URL:", BASE);
 console.log("🔍 Environment check:", {
   EXPO_PUBLIC_API_BASE: process.env.EXPO_PUBLIC_API_BASE,
   expoConfig: Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE,
-  manifest: Constants.manifest?.extra?.EXPO_PUBLIC_API_BASE,
   NODE_ENV: process.env.NODE_ENV,
   __DEV__: __DEV__
 });

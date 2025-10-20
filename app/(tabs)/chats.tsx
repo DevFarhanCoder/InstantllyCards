@@ -30,6 +30,9 @@ import { ensureAuth } from "@/lib/auth";
 import { showInAppNotification } from "../../lib/notifications-expo-go";
 import { useChatSocket } from '@/hooks/chats';
 import FooterCarousel from "@/components/FooterCarousel";
+import GroupSharingModal from "@/components/GroupSharingModal";
+import GroupConnectionUI from "@/components/GroupConnectionUI";
+import groupSharingService, { GroupSharingSession } from "@/lib/groupSharingService";
 
 type SentCard = {
   _id: string;
@@ -93,6 +96,13 @@ export default function Chats() {
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [showJoinGroupModal, setShowJoinGroupModal] = useState(false);
   const [joinGroupCode, setJoinGroupCode] = useState("");
+  
+  // Group sharing states
+  const [showGroupSharingModal, setShowGroupSharingModal] = useState(false);
+  const [groupSharingMode, setGroupSharingMode] = useState<'create' | 'join'>('create');
+  const [showGroupConnection, setShowGroupConnection] = useState(false);
+  const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
+  const [currentGroupCode, setCurrentGroupCode] = useState<string | null>(null);
   
   // Track currently active chat to prevent notifications
   const [currentActiveChat, setCurrentActiveChat] = useState<string | null>(null);
@@ -226,6 +236,35 @@ export default function Chats() {
       return () => clearTimeout(t);
     }
   }, [incomingTab, incomingHighlightCardId]);
+
+  // Group sharing handlers
+  const handleCreateGroupSharing = () => {
+    setGroupSharingMode('create');
+    setShowGroupSharingModal(true);
+  };
+
+  const handleJoinGroupSharing = () => {
+    setGroupSharingMode('join');
+    setShowGroupSharingModal(true);
+  };
+
+  // Handle group sharing success
+  const handleGroupSharingSuccess = (session: GroupSharingSession, code?: string) => {
+    setCurrentGroupSession(session);
+    setCurrentGroupCode(code || null);
+    setShowGroupSharingModal(false);
+    setShowGroupConnection(true);
+  };
+
+  // Handle group connection completion
+  const handleGroupConnectionComplete = () => {
+    setShowGroupConnection(false);
+    setCurrentGroupSession(null);
+    setCurrentGroupCode(null);
+    
+    // Navigate to My Cards for sharing
+    router.push('/my-cards?mode=group-share' as any);
+  };
 
   // Socket.IO connection management
   useEffect(() => {
@@ -1506,6 +1545,8 @@ export default function Chats() {
             setShowJoinGroupModal(true);
           }}
           onClearAll={clearAllGroups}
+          onCreateGroupSharing={handleCreateGroupSharing}
+          onJoinGroupSharing={handleJoinGroupSharing}
         />
       )}
 
@@ -1548,6 +1589,25 @@ export default function Chats() {
         </View>
       </Modal>
 
+      {/* Group Sharing Modal */}
+      <GroupSharingModal
+        visible={showGroupSharingModal}
+        mode={groupSharingMode}
+        onClose={() => setShowGroupSharingModal(false)}
+        onSuccess={handleGroupSharingSuccess}
+      />
+
+      {/* Group Connection UI */}
+      {showGroupConnection && currentGroupSession && (
+        <GroupConnectionUI
+          visible={showGroupConnection}
+          session={currentGroupSession}
+          isAdmin={currentGroupSession.adminId === 'current_user'} // TODO: Use actual user ID
+          onClose={() => setShowGroupConnection(false)}
+          onConnect={handleGroupConnectionComplete}
+        />
+      )}
+
       {/* Footer Carousel */}
       <FooterCarousel />
     </SafeAreaView>
@@ -1577,15 +1637,19 @@ function ContactsFAB() {
   );
 }
 
-// FAB Component for Groups
+  // FAB Component for Groups
 function GroupsFAB({ 
   onCreateGroup, 
   onJoinGroup, 
-  onClearAll 
+  onClearAll,
+  onCreateGroupSharing,
+  onJoinGroupSharing
 }: { 
   onCreateGroup: () => void; 
   onJoinGroup: () => void; 
-  onClearAll: () => void; 
+  onClearAll: () => void;
+  onCreateGroupSharing: () => void;
+  onJoinGroupSharing: () => void;
 }) {
   const tabH = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
@@ -1606,10 +1670,32 @@ function GroupsFAB({
             style={fabStyles.menuItem}
             onPress={() => {
               setShowMenu(false);
+              onCreateGroupSharing();
+            }}
+          >
+            <Text style={fabStyles.menuText}>Create Group Sharing</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={fabStyles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
+              onJoinGroupSharing();
+            }}
+          >
+            <Text style={fabStyles.menuText}>Join Group Sharing</Text>
+          </TouchableOpacity>
+
+          <View style={fabStyles.menuDivider} />
+          
+          <TouchableOpacity 
+            style={fabStyles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
               onCreateGroup();
             }}
           >
-            <Text style={fabStyles.menuText}>Create Group</Text>
+            <Text style={fabStyles.menuText}>Create Group Chat</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -1619,11 +1705,11 @@ function GroupsFAB({
               onJoinGroup();
             }}
           >
-            <Text style={fabStyles.menuText}>Join Group Via Code</Text>
+            <Text style={fabStyles.menuText}>Join Group Chat Via Code</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[fabStyles.menuItem, { backgroundColor: '#FF4444' }]}
+            style={[fabStyles.menuItem, { backgroundColor: '#FF4444', borderBottomWidth: 0 }]}
             onPress={() => {
               setShowMenu(false);
               onClearAll();
@@ -1653,9 +1739,7 @@ function GroupsFAB({
       </Pressable>
     </>
   );
-}
-
-const s = StyleSheet.create({
+}const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#F4F6FA",
@@ -2137,6 +2221,12 @@ const fabStyles = StyleSheet.create({
   menuItem: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  menuDivider: {
+    height: 8,
+    backgroundColor: "#F3F4F6",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
