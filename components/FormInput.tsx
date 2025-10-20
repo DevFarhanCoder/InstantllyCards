@@ -1,15 +1,18 @@
 import React from "react";
 import { TextInput, StyleSheet, TextInputProps } from "react-native";
 
-export default function FormInput(props: TextInputProps) {
+export default React.memo(function FormInput(props: TextInputProps) {
   return (
     <TextInput
       {...props}
       style={[styles.input, props.style]}
       placeholderTextColor="#9CA3AF"
+      autoCorrect={false}
+      autoComplete="off"
+      blurOnSubmit={false}
     />
   );
-}
+});
 
 const styles = StyleSheet.create({
   input: {

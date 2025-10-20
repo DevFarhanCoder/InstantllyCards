@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, Image, Pressable, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { Card } from "@/hooks/cards";
+import BusinessAvatar from "./BusinessAvatar";
+
+type Card = any;
 
 const cleanPhone = (s?: string) => (s ?? "").replace(/[^\d+]/g, "");
 
@@ -28,7 +30,16 @@ export default function BusinessCard({ item }: { item: Card }) {
 
     return (
         <View style={s.wrap}>
-            <Image source={{ uri: item.imageUrl || "https://picsum.photos/seed/card/300/200" }} style={s.thumb} />
+            {item.companyPhoto || item.business?.companyPhoto ? (
+                <BusinessAvatar 
+                    companyPhoto={item.companyPhoto || item.business?.companyPhoto}
+                    companyName={item.business?.companyName || item.companyName}
+                    size={120}
+                    style={s.thumb}
+                />
+            ) : (
+                <Image source={{ uri: item.imageUrl || "https://picsum.photos/seed/card/300/200" }} style={s.thumb} />
+            )}
             <View style={s.body}>
                 <Text style={s.title} numberOfLines={1}>{title}</Text>
                 {/* you can add chips/ratings if your API returns them */}

@@ -5,6 +5,7 @@ import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import api from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import BusinessAvatar from "@/components/BusinessAvatar";
 
 export default function CardDetail() {
   const { id, cardData } = useLocalSearchParams<{ id: string; cardData: string }>();
@@ -360,16 +361,14 @@ export default function CardDetail() {
       </View>
 
       <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
-        {/* Business Photo with optimized loading */}
-        {card.companyPhoto && (
-          <Image 
-            source={{ uri: card.companyPhoto }} 
-            style={s.photo}
-            resizeMode="cover"
-            progressiveRenderingEnabled={true}
-            fadeDuration={200}
-          />
-        )}
+        {/* Business Photo with fallback avatar */}
+        <BusinessAvatar 
+          companyPhoto={card.companyPhoto}
+          companyName={card.companyName}
+          size={200}
+          style={s.photo}
+          backgroundColor="#3B82F6"
+        />
 
         {/* Company Name */}
         <Text style={s.companyName}>{card.companyName || card.name}</Text>

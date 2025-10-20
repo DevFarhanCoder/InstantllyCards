@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert,
 import { router } from "expo-router";
 import api from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
+import BusinessAvatar from "./BusinessAvatar";
 
 export default function CardRow({ c, showEditButton = false, onRefresh }: { c: any; showEditButton?: boolean; onRefresh?: () => void }) {
     const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -11,7 +12,7 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
     
     const companyName = c.companyName || c.name || "Business";
     const ownerName = c.name && c.name !== c.companyName ? c.name : (c.designation || "Business Owner");
-    const photo = c.companyPhoto || "https://via.placeholder.com/80x80?text=Logo";
+    // Business avatar will handle fallback internally
     const location = c.companyAddress || c.location || "";
 
     const fullPersonal = c.personalCountryCode && c.personalPhone
@@ -104,7 +105,7 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
         }
         
         // Company Details Section - Only include if at least one field exists
-        const hasCompanyDetails = c.companyName || c.designation || fullCompany || c.companyEmail || c.companyWebsite || c.companyAddress || c.companyMapsLink;
+        const hasCompanyDetails = c.companyName || c.designation || fullCompany || c.companyEmail || c.companyWebsite || c.companyAddress || c.companyMapsLink || c.message;
         if (hasCompanyDetails) {
             whatsappMessage += `\n*Company*\n`;
             if (c.companyName) whatsappMessage += `*Company Name* - ${c.companyName}\n`;
@@ -114,6 +115,7 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
             if (c.companyWebsite) whatsappMessage += `*Website* - ${c.companyWebsite}\n`;
             if (c.companyAddress) whatsappMessage += `*Address* - ${c.companyAddress}\n`;
             if (c.companyMapsLink) whatsappMessage += `*Google Map* - ${c.companyMapsLink}\n`;
+            if (c.message) whatsappMessage += `*About Business* - ${c.message}\n`;
         }
         
         // Social Media Section - Only include if at least one field exists
@@ -126,6 +128,12 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
             if (c.twitter) whatsappMessage += `*Twitter* - ${c.twitter}\n`;
             if (c.youtube) whatsappMessage += `*YouTube* - ${c.youtube}\n`;
             if (c.telegram) whatsappMessage += `*Telegram* - ${c.telegram}\n`;
+        }
+        
+        // Keywords section if available
+        if (c.keywords && c.keywords.trim()) {
+            whatsappMessage += `\n*Keywords/Services*\n`;
+            whatsappMessage += `${c.keywords}\n`;
         }
         
         // App Promotion
@@ -170,7 +178,12 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                     onPress={handleCardPress} 
                     activeOpacity={0.7}
                 >
-                    <Image source={{ uri: photo }} style={s.logo} />
+                    <BusinessAvatar 
+                        companyPhoto={c.companyPhoto}
+                        companyName={companyName}
+                        size={80}
+                        style={s.logo}
+                    />
                     
                     <View style={s.info}>
                         <Text style={s.companyName} numberOfLines={1}>{companyName}</Text>

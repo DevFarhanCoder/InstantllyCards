@@ -11,7 +11,7 @@ import {
   TextInput,
   Image,
   Pressable,
-  PanResponder,
+  ScrollView,
   Dimensions,
   Animated,
   Modal,
@@ -178,7 +178,7 @@ export default function Chats() {
   // Handle incoming navigation params from notifications
   useEffect(() => {
     if (incomingTab) {
-      setActiveTab(incomingTab as any);
+      changeTab(incomingTab as any); // Navigate to tab without animation
     }
     if (incomingHighlightCardId) {
       setHighlightId(incomingHighlightCardId);
@@ -528,36 +528,41 @@ export default function Chats() {
   };
   const queryClient = useQueryClient();
 
-  // Animation values for smooth transitions
-  const slideAnim = useState(new Animated.Value(0))[0];
-  const fadeAnim = useState(new Animated.Value(1))[0];
+  // Real horizontal sliding with ScrollView
+  const scrollViewRef = useRef<ScrollView>(null);
+  const screenWidth = Dimensions.get('window').width;
+  const [currentPage, setCurrentPage] = useState(0);
 
-  // Define tab order for swipe navigation
+  // Define tab order for proper page navigation
   const tabs = ['chats', 'groups', 'sent', 'received'] as const;
 
-  // Function to animate tab changes
-  const animateTabChange = (newTab: typeof activeTab) => {
-    // Immediate tab change without complex animations for better performance
+  // Proper tab change with real page scrolling
+  const changeTab = useCallback((newTab: typeof activeTab) => {
+    const newIndex = tabs.indexOf(newTab);
     setActiveTab(newTab);
+    setCurrentPage(newIndex);
     
     // Track visited tabs for lazy loading
     setVisitedTabs(prev => new Set([...prev, newTab]));
     
-    // Simple fade animation only
-    fadeAnim.setValue(0.7);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 100,
-      useNativeDriver: true,
-    }).start();
+    // Scroll to the correct page
+    scrollViewRef.current?.scrollTo({
+      x: newIndex * screenWidth,
+      animated: true
+    });
+  }, [tabs, screenWidth]);
+
+  // Handle scroll events to update active tab
+  const handleScroll = useCallback((event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const page = Math.round(offsetX / screenWidth);
     
-    // Reset slide animation
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 100,
-      useNativeDriver: true,
-    }).start();
-  };
+    if (page !== currentPage && page >= 0 && page < tabs.length) {
+      setCurrentPage(page);
+      setActiveTab(tabs[page]);
+      setVisitedTabs(prev => new Set([...prev, tabs[page]]));
+    }
+  }, [screenWidth, currentPage, tabs]);
   
   // Helper function to format time
   const formatTime = (date: Date) => {
@@ -636,38 +641,6 @@ export default function Chats() {
     conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  // Swipe functionality
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (evt, gestureState) => {
-      return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 20;
-    },
-    onPanResponderMove: (evt, gestureState) => {
-      // Optional: Add visual feedback during swipe
-      const { dx } = gestureState;
-      slideAnim.setValue(dx * 0.5); // Add subtle slide effect during gesture
-    },
-    onPanResponderRelease: (evt, gestureState) => {
-      const { dx } = gestureState;
-      const currentIndex = tabs.indexOf(activeTab);
-      
-      if (dx > 50 && currentIndex > 0) {
-        // Swipe right - go to previous tab
-        animateTabChange(tabs[currentIndex - 1]);
-      } else if (dx < -50 && currentIndex < tabs.length - 1) {
-        // Swipe left - go to next tab
-        animateTabChange(tabs[currentIndex + 1]);
-      } else {
-        // Reset position if swipe was not enough
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }).start();
-      }
-    },
-  });
-
   // Check if contacts were previously synced
   useEffect(() => {
     const checkSyncStatus = async () => {
@@ -1292,180 +1265,176 @@ export default function Chats() {
   };
 
   const renderContent = useMemo(() => {
-    // Only render content for visited tabs to improve performance
-    if (!visitedTabs.has(activeTab)) {
-      return (
-        <View style={[s.content, { justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color="#007AFF" />
+    // Always render all tabs for proper horizontal scrolling
+    return null; // This will be replaced by individual page components
+  }, []);
+
+  // Individual page components for proper horizontal scrolling
+  const renderChatsPage = useMemo(() => (
+    <View style={[s.page, { width: screenWidth }]}>
+      {!contactsSynced ? (
+        <View style={s.syncContainer}>
+          <Text style={s.syncTitle}>Sync Your Contacts</Text>
+          <Text style={s.syncSubtitle}>
+            Find friends and colleagues who are already using InstantllyCards
+          </Text>
+          <TouchableOpacity 
+            style={s.syncButton} 
+            onPress={syncContacts}
+            disabled={contactsLoading}
+          >
+            {contactsLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={s.syncButtonText}>Sync Contacts</Text>
+            )}
+          </TouchableOpacity>
         </View>
-      );
-    }
-
-    switch (activeTab) {
-      case 'chats':
-        return (
-          <View style={s.content}>
-            {!contactsSynced ? (
-              <View style={s.syncContainer}>
-                <Text style={s.syncTitle}>Sync Your Contacts</Text>
-                <Text style={s.syncSubtitle}>
-                  Find friends and colleagues who are already using InstantllyCards
-                </Text>
-                <TouchableOpacity 
-                  style={s.syncButton} 
-                  onPress={syncContacts}
-                  disabled={contactsLoading}
-                >
-                  {contactsLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={s.syncButtonText}>Sync Contacts</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <View style={s.searchContainer}>
-                  <TextInput
-                    style={s.searchInput}
-                    placeholder="Search conversations..."
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                
-                {/* Conversations List */}
-                <FlatList
-                  data={filteredConversations}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderConversationItem}
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={s.conversationsList}
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  removeClippedSubviews={true}
-                  maxToRenderPerBatch={10}
-                  updateCellsBatchingPeriod={50}
-                  initialNumToRender={8}
-                  windowSize={10}
-                  getItemLayout={(_, index) => ({
-                    length: 80,
-                    offset: 80 * index,
-                    index,
-                  })}
-                  ListEmptyComponent={
-                    <View style={s.emptyState}>
-                      <Text style={s.emptyText}>No conversations yet</Text>
-                      <Text style={s.emptySubtext}>Start a conversation by selecting a contact</Text>
-                    </View>
-                  }
-                />
-              </>
-            )}
+      ) : (
+        <>
+          <View style={s.searchContainer}>
+            <TextInput
+              style={s.searchInput}
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#9CA3AF"
+            />
           </View>
-        );
-      
-      case 'groups':
-        return (
-          <View style={s.content}>
-            {groupsLoading ? (
-              <View style={s.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={s.loadingText}>Loading groups...</Text>
-              </View>
-            ) : groups.length === 0 ? (
+          
+          <FlatList
+            data={filteredConversations}
+            keyExtractor={(item) => item.id}
+            renderItem={renderConversationItem}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={s.conversationsList}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={5}
+            updateCellsBatchingPeriod={100}
+            initialNumToRender={5}
+            windowSize={5}
+            disableIntervalMomentum={true}
+            decelerationRate="fast"
+            getItemLayout={(_, index) => ({
+              length: 80,
+              offset: 80 * index,
+              index,
+            })}
+            ListEmptyComponent={
               <View style={s.emptyState}>
-                <Text style={s.emptyText}>No groups yet</Text>
-                <Text style={s.emptySubtext}>Create or join a group to start chatting</Text>
+                <Text style={s.emptyText}>No conversations yet</Text>
+                <Text style={s.emptySubtext}>Start a conversation by selecting a contact</Text>
               </View>
-            ) : (
-              <FlatList
-                data={groups}
-                keyExtractor={(item) => item.id}
-                renderItem={renderGroupItem}
-                showsVerticalScrollIndicator={false}
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={8}
-                updateCellsBatchingPeriod={50}
-                initialNumToRender={6}
-                windowSize={8}
-              />
-            )}
-          </View>
-        );
-      
-      case 'sent':
-        return (
-          <View style={s.content}>
-            {(() => {
-              const sent = sentCardsQuery.data || [];
-              // Order sent by status: pending (sent/delivered) first
-              const priorityOrder = { sent: 0, delivered: 1, viewed: 2 } as any;
-              const ordered = [...sent].sort((a: SentCard, b: SentCard) => (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3));
+            }
+          />
+        </>
+      )}
+    </View>
+  ), [screenWidth, contactsSynced, contactsLoading, searchQuery, filteredConversations, refreshing]);
 
-              return (
-                <FlatList
-                  data={ordered}
-              keyExtractor={(item) => item._id}
-              renderItem={renderSentCard}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 4 }}
-              removeClippedSubviews={true}
-              maxToRenderPerBatch={8}
-              updateCellsBatchingPeriod={50}
-              initialNumToRender={6}
-              windowSize={8}
-              getItemLayout={(data, index) => ({
-                length: 240, // Approximate card height
-                offset: 240 * index,
-                index,
-              })}
-              ListEmptyComponent={
-                <View style={s.emptyState}>
-                  <Text style={s.emptyText}>No cards sent yet</Text>
-                  <Text style={s.emptySubtext}>Share your business cards with contacts</Text>
-                </View>
-              }
-            />
-              );
-            })()}
-          </View>
-        );
-      
-      case 'received':
-        return (
-          <View style={s.content}>
-            {(() => {
-              const received = receivedCardsQuery.data || [];
-              // Unviewed first
-              const ordered = [...received].sort((a: ReceivedCard, b: ReceivedCard) => (a.isViewed === b.isViewed) ? new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime() : (a.isViewed ? 1 : -1));
+  const renderGroupsPage = useMemo(() => (
+    <View style={[s.page, { width: screenWidth }]}>
+      {groupsLoading ? (
+        <View style={s.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={s.loadingText}>Loading groups...</Text>
+        </View>
+      ) : groups.length === 0 ? (
+        <View style={s.emptyState}>
+          <Text style={s.emptyText}>No groups yet</Text>
+          <Text style={s.emptySubtext}>Create or join a group to start chatting</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={groups}
+          keyExtractor={(item) => item.id}
+          renderItem={renderGroupItem}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={5}
+          updateCellsBatchingPeriod={100}
+          initialNumToRender={4}
+          windowSize={5}
+          disableIntervalMomentum={true}
+          decelerationRate="fast"
+        />
+      )}
+    </View>
+  ), [screenWidth, groupsLoading, groups, refreshing]);
 
-              return (
-                <FlatList
-                  data={ordered}
-              keyExtractor={(item) => item._id}
-              renderItem={renderReceivedCard}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 4 }}
-              ListEmptyComponent={
-                <View style={s.emptyState}>
-                  <Text style={s.emptyText}>No cards received yet</Text>
-                  <Text style={s.emptySubtext}>Cards shared with you will appear here</Text>
-                </View>
-              }
-            />
-              );
-            })()}
-          </View>
-        );
-      
-      default:
-        return null;
-    }
-  }, [activeTab, visitedTabs, contactsSynced, contactsLoading, conversations, groups, groupsLoading, sentCardsQuery.data, receivedCardsQuery.data, refreshing]);
+  const renderSentPage = useMemo(() => {
+    const sent = sentCardsQuery.data || [];
+    const priorityOrder = { sent: 0, delivered: 1, viewed: 2 } as any;
+    const ordered = [...sent].sort((a: SentCard, b: SentCard) => (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3));
+
+    return (
+      <View style={[s.page, { width: screenWidth }]}>
+        <FlatList
+          data={ordered}
+          keyExtractor={(item) => item._id}
+          renderItem={renderSentCard}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingVertical: 4 }}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={4}
+          updateCellsBatchingPeriod={100}
+          initialNumToRender={3}
+          windowSize={4}
+          disableIntervalMomentum={true}
+          decelerationRate="fast"
+          getItemLayout={(data, index) => ({
+            length: 240,
+            offset: 240 * index,
+            index,
+          })}
+          ListEmptyComponent={
+            <View style={s.emptyState}>
+              <Text style={s.emptyText}>No cards sent yet</Text>
+              <Text style={s.emptySubtext}>Share your business cards with contacts</Text>
+            </View>
+          }
+        />
+      </View>
+    );
+  }, [screenWidth, sentCardsQuery.data]);
+
+  const renderReceivedPage = useMemo(() => {
+    const received = receivedCardsQuery.data || [];
+    const ordered = [...received].sort((a: ReceivedCard, b: ReceivedCard) => 
+      (a.isViewed === b.isViewed) ? 
+        new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime() : 
+        (a.isViewed ? 1 : -1)
+    );
+
+    return (
+      <View style={[s.page, { width: screenWidth }]}>
+        <FlatList
+          data={ordered}
+          keyExtractor={(item) => item._id}
+          renderItem={renderReceivedCard}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingVertical: 4 }}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={4}
+          updateCellsBatchingPeriod={100}
+          initialNumToRender={3}
+          windowSize={4}
+          disableIntervalMomentum={true}
+          decelerationRate="fast"
+          ListEmptyComponent={
+            <View style={s.emptyState}>
+              <Text style={s.emptyText}>No cards received yet</Text>
+              <Text style={s.emptySubtext}>Cards shared with you will appear here</Text>
+            </View>
+          }
+        />
+      </View>
+    );
+  }, [screenWidth, receivedCardsQuery.data]);
 
   return (
     <SafeAreaView style={s.root}>
@@ -1478,46 +1447,50 @@ export default function Chats() {
       <View style={s.tabContainer}>
         <TouchableOpacity
           style={[s.tab, activeTab === 'chats' && s.activeTab]}
-          onPress={() => animateTabChange('chats')}
+          onPress={() => changeTab('chats')}
         >
           <Text style={[s.tabText, activeTab === 'chats' && s.activeTabText]}>Chats</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
           style={[s.tab, activeTab === 'groups' && s.activeTab]}
-          onPress={() => animateTabChange('groups')}
+          onPress={() => changeTab('groups')}
         >
           <Text style={[s.tabText, activeTab === 'groups' && s.activeTabText]}>Groups</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
           style={[s.tab, activeTab === 'sent' && s.activeTab]}
-          onPress={() => animateTabChange('sent')}
+          onPress={() => changeTab('sent')}
         >
           <Text style={[s.tabText, activeTab === 'sent' && s.activeTabText]}>Sent</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
           style={[s.tab, activeTab === 'received' && s.activeTab]}
-          onPress={() => animateTabChange('received')}
+          onPress={() => changeTab('received')}
         >
           <Text style={[s.tabText, activeTab === 'received' && s.activeTabText]}>Received</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Content with Swipe Gesture */}
-      <Animated.View 
-        style={{ 
-          flex: 1,
-          opacity: fadeAnim,
-          transform: [
-            { translateX: slideAnim }
-          ]
-        }} 
-        {...panResponder.panHandlers}
+      {/* Real Horizontal Sliding Pages */}
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        scrollEventThrottle={16}
+        bounces={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
       >
-        {renderContent}
-      </Animated.View>
+        {renderChatsPage}
+        {renderGroupsPage}
+        {renderSentPage}
+        {renderReceivedPage}
+      </ScrollView>
 
       {/* Floating Action Button for Contact Selection - Only show for chats tab */}
       {contactsSynced && activeTab === 'chats' && <ContactsFAB />}
@@ -1723,6 +1696,10 @@ const s = StyleSheet.create({
   activeTabText: {
     color: "#3B82F6",
     fontWeight: "600",
+  },
+  page: {
+    flex: 1,
+    padding: 16,
   },
   content: {
     flex: 1,
