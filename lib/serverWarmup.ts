@@ -40,7 +40,7 @@ class ServerWarmup {
       
       // Render free tier can take 50-90 seconds to wake up
       // Try the health endpoint with a long timeout
-      const warmupUrl = 'https://instantlly-cards-backend.onrender.com/api/health';
+      const warmupUrl = 'https://instantlly-cards-backend-6ki0.onrender.com/api/health';
       
       console.log(`🌐 Pinging ${warmupUrl} (timeout: 90 seconds)...`);
       

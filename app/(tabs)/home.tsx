@@ -35,7 +35,7 @@ export default function Home() {
           return [];
         }
 
-        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend.onrender.com";
+        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend-6ki0.onrender.com";
         const url = `${apiBase}/api/cards/feed/contacts`;
         console.log("🔍 Home: Fetching from URL:", url);
         
