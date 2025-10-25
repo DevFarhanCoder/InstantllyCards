@@ -28,7 +28,7 @@ class ServerWarmup {
     }
 
     this.isWarming = true;
-    console.log('🔥 Warming up Render server (free tier may take 60-90 seconds)...');
+    console.log('Connecting to server...');
 
     this.warmupPromise = this.performWarmup();
     await this.warmupPromise;
@@ -47,9 +47,9 @@ class ServerWarmup {
       // Create AbortController for manual timeout (more compatible than AbortSignal.timeout)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('⏰ Warmup timeout after 90 seconds');
+        console.log('⏰ Connection timeout after 15 seconds');
         controller.abort();
-      }, 90000); // 90 second timeout for Render cold start
+      }, 15000); // 15 second timeout (Starter plan should respond instantly)
       
       try {
         const response = await fetch(warmupUrl, {
@@ -73,7 +73,7 @@ class ServerWarmup {
         clearTimeout(timeoutId);
         
         if (fetchError.name === 'AbortError') {
-          throw new Error('Server warmup timed out after 90 seconds. Please try again.');
+          throw new Error('Connection timeout. Please check your internet connection and try again.');
         }
         throw fetchError;
       }
@@ -81,14 +81,13 @@ class ServerWarmup {
       this.isWarming = false;
       
     } catch (error: any) {
-      console.log('⚠️ Server warmup failed:', error?.message || error);
+      console.log('⚠️ Server connection failed:', error?.message || error);
       this.isWarming = false;
       this.isWarm = false; // Mark as not warm if failed
       
       // Throw error so login can show appropriate message
       throw new Error(
-        'Server is starting up (Render free tier). This may take 60-90 seconds. ' +
-        'Please wait a moment and try again.'
+        'Unable to connect to server. Please check your internet connection and try again.'
       );
     }
   }
