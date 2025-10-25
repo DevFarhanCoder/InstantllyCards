@@ -49,7 +49,7 @@ export class SocketService {
   private connectionListeners: ((connected: boolean) => void)[] = [];
   private messageStatusListeners: ((data: { messageId: string; status: string; readBy?: string }) => void)[] = [];
 
-  async connect(baseUrl: string = 'https://instantlly-cards-backend.onrender.com'): Promise<boolean> {
+  async connect(baseUrl: string = 'https://instantlly-cards-backend-6ki0.onrender.com'): Promise<boolean> {
     console.log('🔌 SocketService.connect() called with baseUrl:', baseUrl);
     
     if (this.socket?.connected || this.isConnecting) {

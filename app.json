@@ -51,6 +51,9 @@
       "output": "static",
       "favicon": "./assets/logo.png"
     },
+    "notification": {
+      "vapidPublicKey": "BPxDmVKAhbGMGX4Y3P2Qf7UHI8V_N2T6J5K3a9M7ZlQ0E4S8Y9qR1W6D3fG5bC2vL8X7n4oP6I5e9mZ3Y2qS1W4E"
+    },
     "plugins": [
       "expo-router",
       [
