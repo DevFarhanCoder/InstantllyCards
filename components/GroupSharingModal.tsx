@@ -10,11 +10,15 @@ import {
   ActivityIndicator,
   Animated,
   Vibration,
+  Keyboard,
+  Platform,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import groupSharingService, { GroupSharingSession } from '@/lib/groupSharingService';
 
+// Updated: OTP-style input with 4 boxes only
 interface GroupSharingModalProps {
   visible: boolean;
   mode: 'create' | 'join';
@@ -32,10 +36,17 @@ export default function GroupSharingModal({
   const [isLoading, setIsLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   
+  // Refs
+  const hiddenInputRef = useRef<TextInput>(null);
+  
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const codeAnimations = useRef(Array.from({ length: 4 }, () => new Animated.Value(0))).current;
+  
+  // Individual digit animations for typing effect
+  const digitScales = useRef(Array.from({ length: 4 }, () => new Animated.Value(1))).current;
+  const digitOpacities = useRef(Array.from({ length: 4 }, () => new Animated.Value(1))).current;
 
   // Reset state when modal opens
   useEffect(() => {
@@ -58,11 +69,20 @@ export default function GroupSharingModal({
           friction: 8,
         }),
       ]).start();
+      
+      // Auto-focus the hidden input in join mode after animation
+      if (mode === 'join') {
+        console.log('⌨️ Join mode detected, will focus input');
+        setTimeout(() => {
+          console.log('⌨️ Focusing hidden input now');
+          hiddenInputRef.current?.focus();
+        }, 500);
+      }
     } else {
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.9);
     }
-  }, [visible]);
+  }, [visible, mode]);
 
   // Animate code display
   const animateCode = (code: string) => {
@@ -129,20 +149,68 @@ export default function GroupSharingModal({
   };
 
   const handleJoinGroup = async () => {
+    // Validation
     if (joinCode.length !== 4) {
-      Alert.alert('Invalid Code', 'Please enter a 4-digit code');
+      Alert.alert('Invalid Code', 'Please enter a complete 4-digit code');
+      return;
+    }
+    
+    // Additional validation - must be all numeric
+    if (!/^\d{4}$/.test(joinCode)) {
+      Alert.alert('Invalid Code', 'Code must contain only numbers');
       return;
     }
 
+    console.log('🔗 Attempting to join group with code:', joinCode);
     setIsLoading(true);
     
     try {
       const session = await groupSharingService.joinGroupSession(joinCode);
-      Vibration.vibrate(100); // Success vibration
-      onSuccess(session);
+      console.log('✅ Successfully joined group:', session.id);
+      
+      try {
+        Vibration.vibrate(100); // Success vibration
+      } catch (e) {
+        console.log('Vibration not available');
+      }
+      
+      // Show success feedback
+      Alert.alert(
+        'Success!', 
+        `Joined group hosted by ${session.adminName}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => onSuccess(session)
+          }
+        ]
+      );
+      
     } catch (error: any) {
-      Alert.alert('Join Failed', error.message || 'Invalid or expired code');
-      Vibration.vibrate([0, 100, 100, 100]); // Error vibration pattern
+      console.error('❌ Failed to join group:', error);
+      
+      // Determine error type and show appropriate message
+      let errorTitle = 'Join Failed';
+      let errorMessage = 'Unable to join group. Please check the code and try again.';
+      
+      if (error.message.includes('Invalid code')) {
+        errorTitle = 'Invalid Code';
+        errorMessage = 'The code you entered is not valid. Please check and try again.';
+      } else if (error.message.includes('expired')) {
+        errorTitle = 'Code Expired';
+        errorMessage = 'This group code has expired. Please ask for a new code.';
+      } else if (error.message.includes('not found')) {
+        errorTitle = 'Code Not Found';
+        errorMessage = 'No active group found with this code.';
+      }
+      
+      Alert.alert(errorTitle, errorMessage);
+      
+      try {
+        Vibration.vibrate([0, 100, 100, 100]); // Error vibration pattern
+      } catch (e) {
+        console.log('Vibration not available');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -166,8 +234,70 @@ export default function GroupSharingModal({
   };
 
   const handleCodeInputChange = (text: string) => {
+    console.log('✏️ Code input changed:', text);
     // Only allow numeric input and max 4 digits
     const numericText = text.replace(/[^0-9]/g, '').substring(0, 4);
+    console.log('✏️ Setting joinCode to:', numericText);
+    
+    // Animate the newly typed digit
+    if (numericText.length > joinCode.length) {
+      // New digit added
+      const index = numericText.length - 1;
+      digitScales[index].setValue(0);
+      digitOpacities[index].setValue(0);
+      
+      Animated.parallel([
+        Animated.spring(digitScales[index], {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 300,
+          friction: 10,
+        }),
+        Animated.timing(digitOpacities[index], {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Vibrate on each digit entry
+      try {
+        Vibration.vibrate(50);
+      } catch (e) {
+        console.log('Vibration not available');
+      }
+      
+      // Auto-submit when 4 digits are entered
+      if (numericText.length === 4) {
+        console.log('✅ 4 digits entered, preparing to submit');
+        // Small delay to let the last digit animation complete
+        setTimeout(() => {
+          console.log('🚀 Auto-submitting join request');
+          handleJoinGroup();
+        }, 300);
+      }
+      
+    } else if (numericText.length < joinCode.length) {
+      // Digit deleted - animate out
+      const index = joinCode.length - 1;
+      Animated.parallel([
+        Animated.spring(digitScales[index], {
+          toValue: 0.8,
+          useNativeDriver: true,
+          tension: 300,
+          friction: 10,
+        }),
+        Animated.timing(digitOpacities[index], {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        digitScales[index].setValue(1);
+        digitOpacities[index].setValue(1);
+      });
+    }
+    
     setJoinCode(numericText);
   };
 
@@ -211,32 +341,65 @@ export default function GroupSharingModal({
     );
   };
 
-  const renderCodeInput = () => (
-    <View style={styles.codeInputContainer}>
-      <Text style={styles.inputLabel}>Enter Group Code</Text>
-      <View style={styles.codeInputRow}>
-        {Array.from({ length: 4 }).map((_, index) => (
-          <View key={index} style={styles.codeInputDigit}>
-            <Text style={styles.codeInputDigitText}>
-              {joinCode[index] || ''}
-            </Text>
+  const renderCodeInput = () => {
+    console.log('🔍 Rendering code input, joinCode:', joinCode);
+    return (
+      <View style={styles.codeInputContainer}>
+        <Text style={styles.inputLabel}>Enter Group Code</Text>
+        <Pressable 
+          onPress={() => {
+            console.log('📱 Code boxes tapped, focusing input');
+            hiddenInputRef.current?.focus();
+          }}
+        >
+          <View style={styles.codeInputRow}>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Animated.View 
+                key={index} 
+                style={[
+                  styles.codeInputDigit,
+                  joinCode[index] && styles.codeInputDigitFilled,
+                  joinCode.length === index && styles.codeInputDigitActive,  // Only current empty box is active
+                  {
+                    transform: [{ scale: digitScales[index] }],
+                  }
+                ]}
+              >
+                <Animated.Text 
+                  style={[
+                    styles.codeInputDigitText,
+                    { opacity: digitOpacities[index] }
+                  ]}
+                >
+                  {joinCode[index] || ''}
+                </Animated.Text>
+              </Animated.View>
+            ))}
+            
+            {/* Hidden TextInput positioned over the boxes */}
+            <TextInput
+              ref={hiddenInputRef}
+              style={styles.hiddenInput}
+              value={joinCode}
+              onChangeText={handleCodeInputChange}
+              keyboardType="number-pad"
+              maxLength={4}
+              autoFocus={mode === 'join'}
+              caretHidden
+              editable={true}
+              contextMenuHidden
+              onBlur={() => console.log('⌨️ Input lost focus')}
+              onFocus={() => console.log('⌨️ Input gained focus')}
+            />
           </View>
-        ))}
+        </Pressable>
+        
+        <Text style={styles.inputInstruction}>
+          Tap the boxes above to enter code
+        </Text>
       </View>
-      <TextInput
-        style={styles.hiddenInput}
-        value={joinCode}
-        onChangeText={handleCodeInputChange}
-        keyboardType="number-pad"
-        maxLength={4}
-        autoFocus
-        placeholder=""
-      />
-      <Text style={styles.inputInstruction}>
-        Enter the 4-digit code shared by the group admin
-      </Text>
-    </View>
-  );
+    );
+  };
 
   if (!visible) return null;
 
@@ -504,21 +667,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#F9FAFB',
   },
+  codeInputDigitFilled: {
+    backgroundColor: '#F0F4FF',
+    borderColor: '#E5E7EB',  // Filled boxes keep normal border
+  },
   codeInputDigitText: {
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
   },
+  codeInputDigitActive: {
+    borderColor: '#6366F1',  // Only the current typing box gets blue border
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
   hiddenInput: {
     position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     opacity: 0,
-    width: 1,
-    height: 1,
+    color: 'transparent',
+    fontSize: 1,
   },
   inputInstruction: {
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
+    marginTop: 16,
   },
   footer: {
     padding: 20,
