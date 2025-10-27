@@ -152,7 +152,7 @@ export default function Home() {
       )}
 
       {/* Footer Carousel */}
-      <FooterCarousel />
+      <FooterCarousel showTooltipProp={true} />
 
       <FAB />
     </SafeAreaView>

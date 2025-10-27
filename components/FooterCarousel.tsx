@@ -9,11 +9,26 @@ const { width: screenWidth } = Dimensions.get('window');
 
 // Ad data with phone numbers
 const ads = [
-  { id: 1, image: require('../assets/images/Footer Ads-02.jpg'), phone: '+919867477227', name: 'Ad 1' },
-  { id: 2, image: require('../assets/images/Footer Ads-01.jpg'), phone: '+919867477227', name: 'Ad 2' },
-  { id: 3, image: require('../assets/images/Footer Ads-03.jpg'), phone: '+919820329571', name: 'Ad 3' },
-  { id: 4, image: require('../assets/images/Footer Ads_02-35.jpg'), phone: '+919867477227', name: 'Ad 4' },
-  { id: 5, image: require('../assets/images/Footer Ads_02-34.jpg'), phone: '+919867477227', name: 'Ad 5' },
+  // Rajesh Modi - 9867477227 (10 ads)
+  { id: 1, image: require('../assets/images/Footer Ads_02-05.jpg'), phone: '+919867477227', name: 'Rajesh Modi - AI Video' },
+  { id: 2, image: require('../assets/images/Footer Ads_02-06.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Gold Co-operative' },
+  { id: 3, image: require('../assets/images/Footer Ads_02-01.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Bhajan Wani' },
+  { id: 4, image: require('../assets/images/Footer Ads_02-08.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Fixed Deposit' },
+  { id: 5, image: require('../assets/images/Footer Ads_02-02.jpg'), phone: '+919867477227', name: 'Rajesh Modi - NA Plot' },
+  { id: 6, image: require('../assets/images/Footer Ads_02-09.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Kasara Resort' },
+  { id: 7, image: require('../assets/images/Footer Ads_02-11.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Pavitram Jewellery' },
+  { id: 8, image: require('../assets/images/Footer Ads_02-13.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Watch' },
+  { id: 9, image: require('../assets/images/Footer Ads_02-04.jpg'), phone: '+919867477227', name: 'Rajesh Modi - AI Poster' },
+  { id: 10, image: require('../assets/images/Footer Ads_02-21.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Yaadon Ki Baraat' },
+  
+  // Ingit Dave - 8879221111 (1 ad)
+  { id: 11, image: require('../assets/images/Footer Ads_02-07.jpg'), phone: '+918879221111', name: 'Ingit Dave - Plot Mahabaleshwar' },
+  
+  // Arun Kamal - 9833001167 (1 ad)
+  { id: 12, image: require('../assets/images/Footer Ads_02-19.jpg'), phone: '+919833001167', name: 'Arun Kamal - Ghasmanchal' },
+  
+  // Shabbir - 9820329571 (1 ad)
+  { id: 13, image: require('../assets/images/Footer Ads_02-03.jpg'), phone: '+919820329571', name: 'Shabbir - Power Connect' },
 ];
 
 const FooterCarousel = () => {
@@ -21,25 +36,60 @@ const FooterCarousel = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedAd, setSelectedAd] = useState<typeof ads[0] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   
   // Create infinite scroll data: [last, ...ads, first]
   const infiniteAds = [ads[ads.length - 1], ...ads, ads[0]];
 
-  // Set initial scroll position after component mounts
+  // Load last viewed ad position and set initial scroll position
   useEffect(() => {
-    // Start at the first real ad (index 1 in infiniteAds)
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        x: screenWidth, // Position at index 1
-        animated: false,
-      });
-    }, 100);
+    const loadLastAdPosition = async () => {
+      try {
+        const lastAdIndex = await AsyncStorage.getItem('lastFooterAdIndex');
+        let startIndex = 1; // Default to first ad
+        
+        if (lastAdIndex) {
+          const parsedIndex = parseInt(lastAdIndex, 10);
+          // Calculate next ad index (resume from next ad)
+          const nextIndex = (parsedIndex % ads.length) + 1;
+          startIndex = nextIndex;
+          console.log(`📺 Resuming ads from index ${nextIndex} (last viewed: ${parsedIndex})`);
+        } else {
+          console.log('📺 Starting ads from beginning');
+        }
+        
+        setActiveIndex(startIndex);
+        
+        // Scroll to the resumed position
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({
+            x: startIndex * screenWidth,
+            animated: false,
+          });
+          setIsInitialized(true);
+        }, 100);
+      } catch (error) {
+        console.error('Error loading last ad position:', error);
+        // Fallback to first ad
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({
+            x: screenWidth,
+            animated: false,
+          });
+          setIsInitialized(true);
+        }, 100);
+      }
+    };
+    
+    loadLastAdPosition();
   }, []);
 
   // Auto-scroll functionality - infinite loop
   useEffect(() => {
+    if (!isInitialized) return; // Don't start auto-scroll until initialized
+    
     const interval = setInterval(() => {
       setActiveIndex((prevIndex) => {
         let nextIndex = prevIndex + 1;
@@ -69,10 +119,39 @@ const FooterCarousel = () => {
           return nextIndex;
         }
       });
-    }, 3000); // Change slide every 3 seconds
+    }, 5000); // Change slide every 5 seconds (increased from 3 seconds)
 
     return () => clearInterval(interval);
-  }, [infiniteAds.length]);
+  }, [infiniteAds.length, isInitialized]);
+
+  // Save current ad position whenever it changes
+  useEffect(() => {
+    const saveAdPosition = async () => {
+      if (!isInitialized) return;
+      
+      // Calculate the actual ad index (accounting for infinite scroll duplicates)
+      let actualAdIndex = activeIndex;
+      if (actualAdIndex === 0) {
+        actualAdIndex = ads.length;
+      } else if (actualAdIndex === infiniteAds.length - 1) {
+        actualAdIndex = 1;
+      } else {
+        actualAdIndex = activeIndex;
+      }
+      
+      // Normalize to actual ad array index (1-based becomes 0-based, but we store 1-based)
+      const adArrayIndex = actualAdIndex; // Keep as is since infiniteAds uses 1-based for real ads
+      
+      try {
+        await AsyncStorage.setItem('lastFooterAdIndex', adArrayIndex.toString());
+        console.log(`💾 Saved ad position: ${adArrayIndex}`);
+      } catch (error) {
+        console.error('Error saving ad position:', error);
+      }
+    };
+    
+    saveAdPosition();
+  }, [activeIndex, isInitialized]);
 
   const handleScroll = (event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
