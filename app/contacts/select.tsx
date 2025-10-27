@@ -122,7 +122,7 @@ export default function ContactSelectScreen() {
       // Send to backend in batches to handle large contact lists
       const token = await ensureAuth();
       if (token) {
-        const BATCH_SIZE = 500; // Send 500 contacts at a time
+        const BATCH_SIZE = 200; // Send 200 contacts at a time (reduced from 500)
         const totalBatches = Math.ceil(phoneNumbers.length / BATCH_SIZE);
         
         console.log(`Syncing ${phoneNumbers.length} contacts in ${totalBatches} batches...`);
@@ -143,7 +143,7 @@ export default function ContactSelectScreen() {
           
           // Small delay between batches to prevent server overload
           if (i + BATCH_SIZE < phoneNumbers.length) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Increased delay to 1 second
           }
         }
         
@@ -227,13 +227,40 @@ export default function ContactSelectScreen() {
         }))
         .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
 
-      // Get stored contacts from backend to compare
+      // Get stored contacts from backend to compare (fetch in chunks)
       const token = await ensureAuth();
       if (!token) return;
 
-      const storedResponse = await api.get('/contacts/all?page=1&limit=10000'); // Get all stored contacts
+      console.log('📥 Fetching stored contacts in chunks...');
+      let allStoredContacts: any[] = [];
+      let currentPage = 1;
+      let hasMore = true;
+      
+      // Fetch stored contacts in pages of 500
+      while (hasMore) {
+        try {
+          const storedResponse = await api.get(`/contacts/all?page=${currentPage}&limit=500`);
+          const pageContacts = storedResponse.data || [];
+          allStoredContacts = [...allStoredContacts, ...pageContacts];
+          
+          console.log(`📄 Fetched page ${currentPage}: ${pageContacts.length} contacts (total: ${allStoredContacts.length})`);
+          
+          // Check if there are more pages
+          hasMore = storedResponse.pagination?.hasMore || false;
+          currentPage++;
+          
+          // Small delay between page fetches
+          if (hasMore) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        } catch (error) {
+          console.error(`❌ Error fetching contacts page ${currentPage}:`, error);
+          hasMore = false; // Stop on error
+        }
+      }
+      
       const storedPhoneNumbers = new Set(
-        (storedResponse.data || []).map((contact: any) => contact.phoneNumber)
+        allStoredContacts.map((contact: any) => contact.phoneNumber)
       );
 
       // Find NEW contacts (device contacts not in MongoDB)
@@ -246,24 +273,49 @@ export default function ContactSelectScreen() {
         - Stored contacts: ${storedPhoneNumbers.size}
         - New contacts found: ${newContacts.length}`);
 
-      // Use the new smart sync endpoint that handles all the logic
+      // Use the new smart sync endpoint that handles all the logic (send in chunks if many contacts)
       console.log(`🔄 Smart syncing contacts (checking for new ones)...`);
-      const syncResponse = await api.post("/contacts/smart-sync", { contacts: devicePhoneNumbers });
       
-      console.log('📊 Smart sync response:', syncResponse);
+      // Send in batches if there are many contacts
+      const SYNC_BATCH_SIZE = 200;
+      if (devicePhoneNumbers.length > SYNC_BATCH_SIZE) {
+        const totalBatches = Math.ceil(devicePhoneNumbers.length / SYNC_BATCH_SIZE);
+        console.log(`📦 Sending ${devicePhoneNumbers.length} contacts in ${totalBatches} batches...`);
+        
+        for (let i = 0; i < devicePhoneNumbers.length; i += SYNC_BATCH_SIZE) {
+          const batch = devicePhoneNumbers.slice(i, i + SYNC_BATCH_SIZE);
+          const batchNumber = Math.floor(i / SYNC_BATCH_SIZE) + 1;
+          
+          try {
+            await api.post("/contacts/smart-sync", { contacts: batch });
+            console.log(`✅ Smart sync batch ${batchNumber}/${totalBatches} completed`);
+            
+            // Delay between batches
+            if (i + SYNC_BATCH_SIZE < devicePhoneNumbers.length) {
+              await new Promise(resolve => setTimeout(resolve, 800));
+            }
+          } catch (error) {
+            console.error(`❌ Error in smart sync batch ${batchNumber}:`, error);
+          }
+        }
+      } else {
+        // If contacts are few, send all at once
+        await api.post("/contacts/smart-sync", { contacts: devicePhoneNumbers });
+      }
       
-      // Only refresh contact status if new contacts were actually added
-      if (syncResponse.stats && syncResponse.stats.syncedContacts > 0) {
-        await api.post("/contacts/refresh-app-status");
+      console.log('✅ Smart sync completed');
+      
+      // Only refresh contact status if needed
+      await api.post("/contacts/refresh-app-status");
         
-        // Invalidate queries to show updated data
-        queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
-        queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
-        
+      // Invalidate queries to show updated data
+      queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
+      
+      if (newContacts.length > 0) {
         Alert.alert(
           '🎉 Contacts Updated', 
-          `Found and synced ${syncResponse.stats.newContacts} new contact${syncResponse.stats.newContacts > 1 ? 's' : ''}.\n\n` +
-          `📱 ${syncResponse.stats.newAppUsers} of them are using the app!`
+          `Found and synced ${newContacts.length} new contact${newContacts.length > 1 ? 's' : ''}!`
         );
       } else {
         Alert.alert('✅ Up to date', 'No new contacts found. Your contact list is up to date.');
@@ -321,7 +373,7 @@ export default function ContactSelectScreen() {
         const token = await ensureAuth();
         if (!token) return { data: [], pagination: { hasMore: false } };
 
-        const response = await api.get(`/contacts/all?page=${contactsPage}&limit=1000`);
+        const response = await api.get(`/contacts/all?page=${contactsPage}&limit=500`); // Reduced from 1000 to 500
         console.log("Stored contacts response:", response);
         
         // The API returns { success: true, data: [...], pagination: {...} }
@@ -400,7 +452,8 @@ export default function ContactSelectScreen() {
     phoneNumber: contact.phoneNumber,
     isAppUser: contact.isAppUser,
     profilePicture: contact.profilePicture,
-    userId: contact.appUserId, // The populated user ID for app users
+    // Use appUserId._id if it's populated as object, or appUserId if it's a string, fallback to empty string
+    userId: contact.appUserId?._id || contact.appUserId || contact.userId || '',
     about: contact.about || (contact.isAppUser ? "Available" : undefined), // Use API about or default
     itemType: 'contact' as const
   }));
@@ -444,6 +497,30 @@ export default function ContactSelectScreen() {
     if (contact.isAppUser && contact.userId) {
       console.log('💬 Starting chat with:', contact.name, 'userId:', contact.userId);
       
+      // Validate that userId is a MongoDB ObjectId (24 hex characters), not a phone number
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(contact.userId);
+      
+      if (!isValidObjectId) {
+        console.error('❌ Invalid userId format (not MongoDB ObjectId):', contact.userId);
+        console.log('🔍 Attempting to find user by phone number:', contact.phoneNumber);
+        
+        // Try to get the correct user ID from backend using phone number
+        try {
+          const userResponse = await api.get(`/users/${contact.phoneNumber}`);
+          if (userResponse?.user?._id) {
+            contact.userId = userResponse.user._id;
+            console.log('✅ Found correct userId:', contact.userId);
+          } else {
+            Alert.alert('Error', 'Unable to start chat. User ID not found.');
+            return;
+          }
+        } catch (error) {
+          console.error('❌ Failed to get user ID:', error);
+          Alert.alert('Error', 'Unable to start chat with this contact');
+          return;
+        }
+      }
+      
       // Store contact information locally for future reference
       const contactInfo = {
         name: contact.name,
@@ -460,10 +537,17 @@ export default function ContactSelectScreen() {
         console.error('Error storing contact info:', error);
       }
       
+      // Final validation before navigation
+      if (!contact.userId) {
+        console.error('❌ userId is still undefined after all attempts');
+        Alert.alert('Error', 'Unable to start chat. User ID not found.');
+        return;
+      }
+      
       router.push({
         pathname: `/chat/[userId]`,
         params: { 
-          userId: contact.userId,
+          userId: contact.userId as string,
           name: contact.name
         }
       });

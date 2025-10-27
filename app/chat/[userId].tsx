@@ -42,9 +42,12 @@ export default function ChatScreen() {
   const [contactInfo, setContactInfo] = useState<any>(null);
   const [isAppInBackground, setIsAppInBackground] = useState(false);
   const [apiFailureCache, setApiFailureCache] = useState<{[key: string]: number}>({});
+  const [hasLoadedPreFill, setHasLoadedPreFill] = useState(false);
 
-  // Load pre-filled message if provided
+  // Load pre-filled message if provided (only once on mount)
   useEffect(() => {
+    if (hasLoadedPreFill) return; // Prevent re-loading
+    
     const loadPreFillMessage = async () => {
       try {
         // Check for pre-filled message from AsyncStorage (from carousel)
@@ -52,9 +55,11 @@ export default function ChatScreen() {
         if (preFillMsg) {
           setMessage(preFillMsg);
           await AsyncStorage.removeItem('preFillMessage'); // Clear it after use
+          setHasLoadedPreFill(true);
         } else if (preFillMessage) {
           // Or from route params
           setMessage(preFillMessage);
+          setHasLoadedPreFill(true);
         }
       } catch (error) {
         console.error('Error loading pre-fill message:', error);
@@ -62,7 +67,7 @@ export default function ChatScreen() {
     };
     
     loadPreFillMessage();
-  }, [preFillMessage]);
+  }, []); // Empty dependency - only run once on mount
 
   // Load messages and contact info when component mounts
   useEffect(() => {
@@ -156,9 +161,42 @@ export default function ChatScreen() {
     try {
       console.log('👤 Loading contact info for userId:', userId);
       
+      // First, check if userId is a valid MongoDB ObjectId
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(userId);
+      let actualUserId = userId;
+      
+      if (!isValidObjectId) {
+        console.log('⚠️ userId is not a valid ObjectId, treating as phone number:', userId);
+        
+        // Try to find user by phone number
+        try {
+          const phoneNumber = userId.replace(/\D/g, ''); // Remove non-digits
+          const userResponse = await api.get(`/users/search-by-phone/${phoneNumber}`);
+          if (userResponse?.user) {
+            console.log('✅ Found user by phone:', userResponse.user.name, userResponse.user._id);
+            actualUserId = userResponse.user._id;
+            
+            // Set contact info immediately
+            const contactData = {
+              id: userResponse.user._id,
+              name: userResponse.user.name,
+              phoneNumber: userResponse.user.phone || phone,
+              profilePicture: userResponse.user.profilePicture,
+              about: userResponse.user.about,
+              lastUpdated: new Date().toISOString()
+            };
+            setContactInfo(contactData);
+            await AsyncStorage.setItem(`contact_${actualUserId}`, JSON.stringify(contactData));
+            return;
+          }
+        } catch (phoneError) {
+          console.log('❌ Could not find user by phone number');
+        }
+      }
+      
       // Check if we've recently failed to fetch this user's info (cache for 5 minutes)
       const now = Date.now();
-      if (apiFailureCache[userId] && (now - apiFailureCache[userId] < 5 * 60 * 1000)) {
+      if (apiFailureCache[actualUserId] && (now - apiFailureCache[actualUserId] < 5 * 60 * 1000)) {
         console.log('👤 Skipping API call - user not found recently, using cached data');
       } else {
         // Try to fetch fresh data from API first
@@ -166,10 +204,10 @@ export default function ChatScreen() {
           const token = await ensureAuth();
           if (token) {
             console.log('👤 Fetching fresh contact info from API...');
-            const response = await api.get(`/users/${userId}`);
+            const response = await api.get(`/users/${actualUserId}`);
             if (response.data) {
               const contactData = {
-                id: userId,
+                id: actualUserId,
                 name: response.data.name || name,
                 phoneNumber: response.data.phoneNumber,
                 profilePicture: response.data.profilePicture,
@@ -179,11 +217,11 @@ export default function ChatScreen() {
               console.log('👤 Fetched fresh contact info from API:', contactData);
               setContactInfo(contactData);
               // Save to local storage for future use
-              await AsyncStorage.setItem(`contact_${userId}`, JSON.stringify(contactData));
+              await AsyncStorage.setItem(`contact_${actualUserId}`, JSON.stringify(contactData));
               // Clear any failure cache for this user since it succeeded
-              if (apiFailureCache[userId]) {
+              if (apiFailureCache[actualUserId]) {
                 const newCache = { ...apiFailureCache };
-                delete newCache[userId];
+                delete newCache[actualUserId];
                 setApiFailureCache(newCache);
               }
               return; // Exit early if API call was successful
@@ -194,7 +232,7 @@ export default function ChatScreen() {
           // For 404 errors, cache the failure to prevent repeated calls
           if (apiError?.status === 404) {
             console.log('👤 User not found in backend database, caching failure to prevent repeated calls');
-            setApiFailureCache(prev => ({ ...prev, [userId]: now }));
+            setApiFailureCache(prev => ({ ...prev, [actualUserId]: now }));
           } else {
             console.log('❌ API error details:', apiError?.message || apiError);
           }
@@ -202,7 +240,7 @@ export default function ChatScreen() {
       }
       
       // Fallback to stored data if API fails
-      const storedContactInfo = await AsyncStorage.getItem(`contact_${userId}`);
+      const storedContactInfo = await AsyncStorage.getItem(`contact_${actualUserId}`);
       if (storedContactInfo) {
         const contactData = JSON.parse(storedContactInfo);
         console.log('👤 Loaded contact info from storage:', contactData);
@@ -211,7 +249,7 @@ export default function ChatScreen() {
         console.log('👤 No stored contact info found, setting basic info...');
         // Set basic contact info with name from params
         const basicContactData = {
-          id: userId,
+          id: actualUserId,
           name: name || 'Unknown',
           phoneNumber: null,
           lastUpdated: new Date().toISOString()
@@ -288,8 +326,32 @@ export default function ChatScreen() {
         if (token) {
           console.log('🚀 Sending message to backend...');
           
+          // Validate userId is MongoDB ObjectId format, not phone number
+          let validReceiverId = userId;
+          const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(userId);
+          
+          if (!isValidObjectId) {
+            console.warn('⚠️ userId is not a valid ObjectId (possibly phone number):', userId);
+            
+            // Try to get the correct ObjectId from backend
+            try {
+              const phoneNumber = userId.replace(/\D/g, ''); // Remove non-digits
+              const userResponse = await api.get(`/users/search-by-phone/${phoneNumber}`);
+              if (userResponse?.user?._id) {
+                validReceiverId = userResponse.user._id;
+                console.log('✅ Converted phone to ObjectId:', validReceiverId);
+              } else {
+                throw new Error('User not found by phone number');
+              }
+            } catch (lookupError) {
+              console.error('❌ Failed to lookup user by phone:', lookupError);
+              Alert.alert('Error', 'Unable to send message. Invalid recipient.');
+              return;
+            }
+          }
+          
           const payload = {
-            receiverId: userId,
+            receiverId: validReceiverId,
             text: newMessage.text,
             messageId: newMessage.id
           };

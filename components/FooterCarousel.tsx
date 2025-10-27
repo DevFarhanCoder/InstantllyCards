@@ -12,6 +12,8 @@ const ads = [
   { id: 1, image: require('../assets/images/Footer Ads-02.jpg'), phone: '+919867477227', name: 'Ad 1' },
   { id: 2, image: require('../assets/images/Footer Ads-01.jpg'), phone: '+919867477227', name: 'Ad 2' },
   { id: 3, image: require('../assets/images/Footer Ads-03.jpg'), phone: '+919820329571', name: 'Ad 3' },
+  { id: 4, image: require('../assets/images/Footer Ads_02-35.jpg'), phone: '+919867477227', name: 'Ad 4' },
+  { id: 5, image: require('../assets/images/Footer Ads_02-34.jpg'), phone: '+919867477227', name: 'Ad 5' },
 ];
 
 const FooterCarousel = () => {
@@ -222,7 +224,7 @@ const FooterCarousel = () => {
             <Image
               source={ad.image}
               style={styles.image}
-              resizeMode="stretch"
+              resizeMode="cover"
             />
           </TouchableOpacity>
         ))}

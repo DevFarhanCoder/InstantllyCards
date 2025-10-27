@@ -128,15 +128,64 @@ export default function Chats() {
           if (messages.length > 0) {
             const lastMessage = messages[messages.length - 1];
             
-            // Get contact name from stored contact info
-            const contactInfo = await AsyncStorage.getItem(`contact_${userId}`);
+            // Try to get contact name from multiple sources
             let contactName = `User ${userId.slice(0, 8)}`;
             let profilePicture: string | undefined;
             
+            // 1. First check stored contact info in AsyncStorage
+            const contactInfo = await AsyncStorage.getItem(`contact_${userId}`);
             if (contactInfo) {
               const contact = JSON.parse(contactInfo);
               contactName = contact.name || contactName;
               profilePicture = contact.profilePicture;
+              console.log(`📇 Found contact in storage: ${contactName}`);
+            } else {
+              // 2. If not in storage, try to fetch from backend contacts
+              try {
+                console.log(`🔍 Looking up contact name for userId: ${userId}`);
+                const contactsResponse = await api.get('/contacts/all');
+                const contacts = contactsResponse.data || [];
+                
+                // Find contact by appUserId (MongoDB ObjectId)
+                const matchedContact = contacts.find((c: any) => {
+                  // appUserId is the MongoDB ObjectId from backend
+                  const appUserId = c.appUserId?._id || c.appUserId;
+                  return appUserId === userId || c._id === userId;
+                });
+                
+                if (matchedContact) {
+                  contactName = matchedContact.name || contactName;
+                  profilePicture = matchedContact.profilePicture;
+                  console.log(`✅ Found contact in backend: ${contactName} (appUserId: ${matchedContact.appUserId})`);
+                  
+                  // Save to AsyncStorage for future use
+                  await AsyncStorage.setItem(`contact_${userId}`, JSON.stringify({
+                    name: contactName,
+                    profilePicture: profilePicture
+                  }));
+                } else {
+                  console.log(`⚠️ No contact match found. Searched ${contacts.length} contacts`);
+                  // 3. Last resort: fetch user info from backend
+                  try {
+                    const userResponse = await api.get(`/users/${userId}`);
+                    if (userResponse?.user) {
+                      contactName = userResponse.user.name || contactName;
+                      profilePicture = userResponse.user.profilePicture;
+                      console.log(`✅ Found user in backend: ${contactName}`);
+                      
+                      // Save to AsyncStorage for future use
+                      await AsyncStorage.setItem(`contact_${userId}`, JSON.stringify({
+                        name: contactName,
+                        profilePicture: profilePicture
+                      }));
+                    }
+                  } catch (userError) {
+                    console.log(`⚠️ Could not fetch user info for ${userId}`);
+                  }
+                }
+              } catch (error) {
+                console.log(`⚠️ Could not fetch contact info for ${userId}`);
+              }
             }
             
             conversationData.push({
@@ -797,25 +846,44 @@ export default function Chats() {
   // Helper function to handle phone calls
   const handleCall = async (userId: string, fallbackName?: string) => {
     try {
+      console.log(`📞 Attempting to call user: ${userId}`);
+      
       // Try to get user's phone number from backend
       const response = await api.get(`/users/${userId}`);
-      const phoneNumber = response?.data?.phoneNumber || response?.data?.phone;
+      console.log('📱 User API response:', response);
+      
+      // Backend returns: { success: true, user: { phone, name, ... } }
+      const phoneNumber = response?.user?.phone || response?.data?.phone || response?.phone;
+      
+      console.log(`📞 Retrieved phone number: ${phoneNumber ? phoneNumber : 'Not found'}`);
       
       if (phoneNumber) {
         const telUrl = `tel:${phoneNumber}`;
         const canOpen = await Linking.canOpenURL(telUrl);
         
         if (canOpen) {
+          console.log(`✅ Opening dialer with: ${phoneNumber}`);
           await Linking.openURL(telUrl);
         } else {
+          console.error('❌ Cannot open dialer on this device');
           Alert.alert('Error', 'Unable to open dialer on this device');
         }
       } else {
+        console.warn(`⚠️ No phone number found for user: ${userId}`);
         Alert.alert('No Phone Number', `Phone number not available for ${fallbackName || 'this contact'}`);
       }
-    } catch (error) {
-      console.error('Error getting phone number for call:', error);
-      Alert.alert('Error', 'Failed to get phone number. Please try again.');
+    } catch (error: any) {
+      console.error('❌ Error getting phone number for call:', error);
+      console.error('❌ Error details:', error?.response?.data || error?.message);
+      
+      // More specific error messages
+      if (error?.response?.status === 404) {
+        Alert.alert('User Not Found', 'This user could not be found in the system.');
+      } else if (error?.response?.status === 400) {
+        Alert.alert('Invalid Request', 'Invalid user ID provided.');
+      } else {
+        Alert.alert('Error', 'Failed to get phone number. Please try again.');
+      }
     }
   };
 
