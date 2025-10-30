@@ -164,24 +164,9 @@ export default function Chats() {
                     profilePicture: profilePicture
                   }));
                 } else {
-                  console.log(`⚠️ No contact match found. Searched ${contacts.length} contacts`);
-                  // 3. Last resort: fetch user info from backend
-                  try {
-                    const userResponse = await api.get(`/users/${userId}`);
-                    if (userResponse?.user) {
-                      contactName = userResponse.user.name || contactName;
-                      profilePicture = userResponse.user.profilePicture;
-                      console.log(`✅ Found user in backend: ${contactName}`);
-                      
-                      // Save to AsyncStorage for future use
-                      await AsyncStorage.setItem(`contact_${userId}`, JSON.stringify({
-                        name: contactName,
-                        profilePicture: profilePicture
-                      }));
-                    }
-                  } catch (userError) {
-                    console.log(`⚠️ Could not fetch user info for ${userId}`);
-                  }
+                  console.log(`⚠️ No contact match found for userId: ${userId}. Searched ${contacts.length} contacts`);
+                  // ✅ FIXED: Removed unnecessary /users/${userId} API call that always fails with 404
+                  // If contact not found, use default "Unknown" name (already set above)
                 }
               } catch (error) {
                 console.log(`⚠️ Could not fetch contact info for ${userId}`);

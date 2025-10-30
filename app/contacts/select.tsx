@@ -68,21 +68,34 @@ export default function ContactSelectScreen() {
   const [selectedGroups, setSelectedGroups] = useState<any[]>([]);
   const queryClient = useQueryClient();
 
-  // Check if contacts have been synced before
+  // Check if contacts have been synced before and auto-fetch/sync from backend
   useEffect(() => {
-    const checkSyncStatus = async () => {
+    const checkSyncStatusAndAutoLoad = async () => {
       try {
         const syncStatus = await AsyncStorage.getItem('contactsSynced');
         if (syncStatus === 'true') {
+          // Already synced before - just enable fetching
           setContactsSynced(true);
+          console.log('✅ Contacts have been synced before, will auto-fetch from backend');
+        } else {
+          // First time - auto-sync contacts in background
+          console.log('🔄 First time opening contacts - auto-syncing in background...');
+          setContactsSynced(true); // Enable fetching immediately
+          
+          // Auto-sync in background (non-blocking)
+          syncDeviceContacts().catch(error => {
+            console.error('Background sync error:', error);
+            // Don't block the UI, user can still see contacts
+          });
         }
-        // Removed auto-sync - users must manually sync from Chats tab
       } catch (error) {
         console.error('Error checking sync status:', error);
+        // Fallback: enable fetching anyway
+        setContactsSynced(true);
       }
     };
 
-    checkSyncStatus();
+    checkSyncStatusAndAutoLoad();
   }, []);
 
   // Function to sync device contacts with backend
@@ -332,34 +345,44 @@ export default function ContactSelectScreen() {
   // Add debouncing to prevent excessive calls
   const [lastRefresh, setLastRefresh] = useState(0);
 
-  // Refresh contacts when screen becomes focused (debounced)
+  // Auto-refresh contacts EVERY TIME screen becomes focused
   useFocusEffect(
     React.useCallback(() => {
+      console.log('📱 Contact select screen focused - auto-refreshing...');
+      
       const now = Date.now();
-      // Only refresh if more than 30 seconds have passed
-      if (now - lastRefresh > 30000) {
-        refreshContactStatus();
+      const timeSinceLastRefresh = now - lastRefresh;
+      const ONE_SECOND = 1000; // Minimum 1 second between refreshes to prevent spam
+      
+      // Auto-refresh every time, but debounced to prevent rapid repeated calls
+      if (contactsSynced && timeSinceLastRefresh > ONE_SECOND) {
+        console.log('🔄 Auto-refreshing contacts (instant load)...');
         setLastRefresh(now);
+        
+        // Invalidate queries to trigger refetch from backend
+        queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
+        
+        // Also run smart refresh in background to check for new contacts
+        smartRefreshNewContacts().catch(error => {
+          console.error('Auto-refresh error:', error);
+        });
       }
-    }, [lastRefresh])
+    }, [contactsSynced, lastRefresh, queryClient])
   );
 
-  // Refresh contacts when app becomes active (debounced)
+  // Refresh contacts when app becomes active (debounced) - ONLY for smart refresh, not full refetch
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
+      // Don't auto-refresh on app state change - contacts are cached
+      // Users can manually refresh using the smart refresh button
       if (nextAppState === 'active') {
-        const now = Date.now();
-        // Only refresh if more than 30 seconds have passed
-        if (now - lastRefresh > 30000) {
-          refreshContactStatus();
-          setLastRefresh(now);
-        }
+        console.log('📱 App became active - using cached contacts');
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
-  }, [lastRefresh]);
+  }, []);
 
   // Fetch stored contacts from backend with pagination - this contains all the info we need
   const [contactsPage, setContactsPage] = useState(1);
@@ -373,8 +396,9 @@ export default function ContactSelectScreen() {
         const token = await ensureAuth();
         if (!token) return { data: [], pagination: { hasMore: false } };
 
-        const response = await api.get(`/contacts/all?page=${contactsPage}&limit=500`); // Reduced from 1000 to 500
-        console.log("Stored contacts response:", response);
+        console.log(`📱 Fetching contacts from backend (page ${contactsPage})...`);
+        const response = await api.get(`/contacts/all?page=${contactsPage}&limit=500`);
+        console.log(`✅ Stored contacts response: ${response.data?.length || 0} contacts on page ${contactsPage}`);
         
         // The API returns { success: true, data: [...], pagination: {...} }
         return {
@@ -382,12 +406,12 @@ export default function ContactSelectScreen() {
           pagination: response.pagination || { hasMore: false }
         };
       } catch (error) {
-        console.error("Error fetching stored contacts:", error);
+        console.error("❌ Error fetching stored contacts:", error);
         return { data: [], pagination: { hasMore: false } };
       }
     },
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes (increased from 2)
-    gcTime: 15 * 60 * 1000, // Keep in cache for 15 minutes (gcTime is the new name for cacheTime)
+    staleTime: 10 * 60 * 1000, // Consider data fresh for 10 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     enabled: contactsSynced, // Only fetch if contacts have been synced
   });
 
@@ -502,23 +526,8 @@ export default function ContactSelectScreen() {
       
       if (!isValidObjectId) {
         console.error('❌ Invalid userId format (not MongoDB ObjectId):', contact.userId);
-        console.log('🔍 Attempting to find user by phone number:', contact.phoneNumber);
-        
-        // Try to get the correct user ID from backend using phone number
-        try {
-          const userResponse = await api.get(`/users/${contact.phoneNumber}`);
-          if (userResponse?.user?._id) {
-            contact.userId = userResponse.user._id;
-            console.log('✅ Found correct userId:', contact.userId);
-          } else {
-            Alert.alert('Error', 'Unable to start chat. User ID not found.');
-            return;
-          }
-        } catch (error) {
-          console.error('❌ Failed to get user ID:', error);
-          Alert.alert('Error', 'Unable to start chat with this contact');
-          return;
-        }
+        Alert.alert('Error', 'Unable to start chat. Invalid user ID.');
+        return;
       }
       
       // Store contact information locally for future reference
@@ -553,7 +562,7 @@ export default function ContactSelectScreen() {
       });
     } else {
       console.log('❌ Cannot start chat - not an app user or missing userId:', contact);
-      Alert.alert('Error', 'Unable to start chat with this contact');
+      Alert.alert('Error', 'This contact is not on InstantllyCards yet');
     }
   };
 
