@@ -27,15 +27,21 @@ export default function RootLayout() {
     const performVersionCheck = async () => {
       console.log('🔍 Performing version check...');
       
-      const versionInfo = await checkAppVersion();
-      
-      if (versionInfo && versionInfo.updateRequired) {
-        console.log('⚠️ Update required! Current:', versionInfo.currentVersion, 'Minimum:', versionInfo.minimumVersion);
-        setUpdateRequired(true);
-        setUpdateUrl(versionInfo.updateUrl);
-        setLatestVersion(versionInfo.latestVersion);
-      } else {
-        console.log('✅ App version is up to date');
+      try {
+        const versionInfo = await checkAppVersion();
+        
+        if (versionInfo && versionInfo.updateRequired) {
+          console.log('⚠️ Update required! Current:', versionInfo.currentVersion, 'Minimum:', versionInfo.minimumVersion);
+          setUpdateRequired(true);
+          setUpdateUrl(versionInfo.updateUrl);
+          setLatestVersion(versionInfo.latestVersion);
+        } else {
+          console.log('✅ App version is up to date');
+          setUpdateRequired(false);
+        }
+      } catch (error) {
+        console.error('❌ Version check error:', error);
+        // Don't show update modal on error
         setUpdateRequired(false);
       }
     };

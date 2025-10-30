@@ -832,47 +832,124 @@ export default function Chats() {
     }
   };
 
-  // Helper function to handle phone calls
-  const handleCall = async (userId: string, fallbackName?: string) => {
+  // Helper function to handle phone calls - uses local contact data to avoid API calls
+  const handleCall = async (item: SentCard | ReceivedCard, isSentCard: boolean) => {
     try {
-      console.log(`📞 Attempting to call user: ${userId}`);
+      // For sent cards, we need recipient's phone
+      // For received cards, we need sender's phone  
+      const userName = isSentCard ? (item as SentCard).recipientName : (item as ReceivedCard).senderName;
+      const userId = isSentCard ? (item as SentCard).recipientId : (item as ReceivedCard).senderId;
       
-      // Try to get user's phone number from backend
-      const response = await api.get(`/users/${userId}`);
-      console.log('📱 User API response:', response);
+      console.log(`📞 Attempting to call ${isSentCard ? 'recipient' : 'sender'}: ${userName} (${userId})`);
       
-      // Backend returns: { success: true, user: { phone, name, ... } }
-      const phoneNumber = response?.user?.phone || response?.data?.phone || response?.phone;
+      // First, try to find the contact in our local conversations data
+      const contact = conversations.find(conv => conv.userId === userId);
+      
+      let phoneNumber = '';
+      
+      if (contact && (contact as any).phone) {
+        phoneNumber = (contact as any).phone;
+        console.log(`📱 Found phone in conversations: ${phoneNumber}`);
+      } else {
+        // If not in conversations, try to fetch from contacts API
+        try {
+          const response = await api.get(`/contacts/all?limit=1000`);
+          const contacts = response.data || [];
+          
+          // Find contact by userId
+          const foundContact = contacts.find((c: any) => 
+            c.appUserId === userId || 
+            c.appUserId?._id === userId ||
+            c.userId === userId
+          );
+          
+          if (foundContact) {
+            phoneNumber = foundContact.phoneNumber || foundContact.phone;
+            console.log(`📱 Found phone in contacts: ${phoneNumber}`);
+          }
+        } catch (error) {
+          console.error('Error fetching contacts:', error);
+        }
+      }
       
       console.log(`📞 Retrieved phone number: ${phoneNumber ? phoneNumber : 'Not found'}`);
       
       if (phoneNumber) {
-        const telUrl = `tel:${phoneNumber}`;
-        const canOpen = await Linking.canOpenURL(telUrl);
+        // Clean phone number and ensure it has proper format with + prefix
+        let cleanPhone = phoneNumber.replace(/[\s-()]/g, '');
         
-        if (canOpen) {
-          console.log(`✅ Opening dialer with: ${phoneNumber}`);
+        // Add + prefix if not present
+        if (!cleanPhone.startsWith('+')) {
+          cleanPhone = '+' + cleanPhone;
+        }
+        
+        const telUrl = `tel:${cleanPhone}`;
+        console.log(`📞 Trying to open tel URL: ${telUrl}`);
+        
+        try {
+          // Try to open the dialer directly
           await Linking.openURL(telUrl);
-        } else {
-          console.error('❌ Cannot open dialer on this device');
-          Alert.alert('Error', 'Unable to open dialer on this device');
+          console.log(`✅ Opened dialer with: ${cleanPhone}`);
+        } catch (error) {
+          console.error('❌ Error opening dialer:', error);
+          Alert.alert(
+            'Unable to Make Call',
+            'Cannot open the phone dialer. This may be due to device restrictions or emulator limitations.',
+            [
+              { text: 'OK', style: 'cancel' },
+              {
+                text: 'Copy Number',
+                onPress: () => {
+                  // You could use Clipboard API here if needed
+                  Alert.alert('Phone Number', cleanPhone);
+                }
+              }
+            ]
+          );
         }
       } else {
-        console.warn(`⚠️ No phone number found for user: ${userId}`);
-        Alert.alert('No Phone Number', `Phone number not available for ${fallbackName || 'this contact'}`);
+        console.warn(`⚠️ No phone number found for: ${userName}`);
+        Alert.alert(
+          'Phone Number Unavailable', 
+          `Cannot find phone number for ${userName}. Would you like to send a message instead?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Message', 
+              onPress: () => {
+                router.push({ 
+                  pathname: `/chat/[userId]`, 
+                  params: { userId, userName } 
+                } as any);
+              }
+            }
+          ]
+        );
       }
     } catch (error: any) {
       console.error('❌ Error getting phone number for call:', error);
-      console.error('❌ Error details:', error?.response?.data || error?.message);
       
-      // More specific error messages
-      if (error?.response?.status === 404) {
-        Alert.alert('User Not Found', 'This user could not be found in the system.');
-      } else if (error?.response?.status === 400) {
-        Alert.alert('Invalid Request', 'Invalid user ID provided.');
-      } else {
-        Alert.alert('Error', 'Failed to get phone number. Please try again.');
-      }
+      // Fallback: Offer to message instead
+      const item2 = item as any;
+      const userId = item2.recipientId || item2.senderId;
+      const userName = item2.recipientName || item2.senderName;
+      
+      Alert.alert(
+        'Phone Number Unavailable', 
+        'Unable to retrieve phone number. Would you like to send a message instead?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Message', 
+            onPress: () => {
+              router.push({ 
+                pathname: `/chat/[userId]`, 
+                params: { userId, userName } 
+              } as any);
+            }
+          }
+        ]
+      );
     }
   };
 
@@ -923,13 +1000,16 @@ export default function Chats() {
       )}
 
       <View style={s.cardInfo}>
-        <Text style={s.cardTitle} numberOfLines={1} ellipsizeMode="tail">{item.recipientName}</Text>
+        <View style={s.cardTitleRow}>
+          <Text style={s.cardTitlePrefix}>To - </Text>
+          <Text style={s.cardTitleBold} numberOfLines={1} ellipsizeMode="tail">{item.recipientName}</Text>
+        </View>
         <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
       </View>
 
       <View style={s.actionButtons}>
         <TouchableOpacity style={s.iconButton} onPress={() => {
-          handleCall(item.recipientId, item.recipientName);
+          handleCall(item, true); // true = sent card
         }}>
           <Ionicons name="call" size={20} color="#0EA5A4" />
         </TouchableOpacity>
@@ -960,7 +1040,8 @@ export default function Chats() {
     >
       <Animated.View
         style={[
-          s.cardItem, 
+          s.cardItem,
+          !item.isViewed && s.unseenCard,
           (incomingHighlightCardId === item._id || incomingHighlightCardId === item.cardId || highlightId === item._id) && {
             backgroundColor: highlightAnimation.interpolate({
               inputRange: [0, 1],
@@ -987,14 +1068,17 @@ export default function Chats() {
       )}
 
       <View style={s.cardInfo}>
-        <Text style={s.cardTitle} numberOfLines={1} ellipsizeMode="tail">{item.senderName}</Text>
+        <View style={s.cardTitleRow}>
+          <Text style={s.cardTitlePrefix}>From - </Text>
+          <Text style={s.cardTitleBold} numberOfLines={1} ellipsizeMode="tail">{item.senderName}</Text>
+        </View>
         <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
         {!item.isViewed && <Text style={s.newBadge}>NEW</Text>}
       </View>
 
       <View style={s.actionButtons}>
         <TouchableOpacity style={s.iconButton} onPress={() => {
-          handleCall(item.senderId, item.senderName);
+          handleCall(item, false); // false = received card
         }}>
           <Ionicons name="call" size={20} color="#0EA5A4" />
         </TouchableOpacity>
@@ -1969,6 +2053,9 @@ function GroupsFAB({
     shadowRadius: 4,
     elevation: 2,
   },
+  unseenCard: {
+    backgroundColor: "#EFF6FF",
+  },
   cardIcon: {
     width: 48,
     height: 48,
@@ -1994,6 +2081,22 @@ function GroupsFAB({
     backgroundColor: '#6366F1',
   },
   cardInfo: {
+    flex: 1,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  cardTitlePrefix: {
+    fontSize: 16,
+    fontWeight: "400",
+    color: "#6B7280",
+  },
+  cardTitleBold: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
     flex: 1,
   },
   cardTitle: {

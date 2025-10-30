@@ -26,7 +26,13 @@ export async function checkAppVersion(): Promise<VersionCheckResponse | null> {
       `/auth/version-check?version=${appVersion}&platform=${platform}`
     );
 
-    console.log('✅ Version check response:', response);
+    console.log('✅ Version check response:', JSON.stringify(response, null, 2));
+
+    // Extra validation to ensure we don't show modal incorrectly
+    if (response && response.success === true && response.updateRequired === false) {
+      console.log('✅ No update required - current version is fine');
+      return null;
+    }
 
     return response;
   } catch (error) {

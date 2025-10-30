@@ -119,16 +119,16 @@ export default function Builder() {
 
     // Personal
     const [name, setName] = useState("");
-    const [designation, setDesignation] = useState("");
+    const [gender, setGender] = useState(""); // New gender field
     const [personalCountryCode, setPersonalCountryCode] = useState("91");
     const [personalPhone, setPersonalPhone] = useState("");
     const [email, setEmail] = useState("");
-    const [website, setWebsite] = useState("");
     const [location, setLocation] = useState("");
     const [mapsLink, setMapsLink] = useState("");
 
     // Business
     const [companyName, setCompanyName] = useState("");
+    const [designation, setDesignation] = useState(""); // Moved from Personal to Business
     const [companyCountryCode, setCompanyCountryCode] = useState("91");
     const [companyPhone, setCompanyPhone] = useState("");
     const [companyEmail, setCompanyEmail] = useState("");
@@ -217,14 +217,14 @@ export default function Builder() {
         if (existingCard) {
             console.log("Populating form with existing card data");
             setName(existingCard.name || "");
-            setDesignation(existingCard.designation || "");
+            setGender(existingCard.gender || ""); // Load gender
             setPersonalCountryCode(existingCard.personalCountryCode || "91");
             setPersonalPhone(existingCard.personalPhone || "");
             setEmail(existingCard.email || "");
-            setWebsite(existingCard.website || "");
             setLocation(existingCard.location || "");
             setMapsLink(existingCard.mapsLink || "");
             setCompanyName(existingCard.companyName || "");
+            setDesignation(existingCard.designation || ""); // Load designation in Business section
             setCompanyCountryCode(existingCard.companyCountryCode || "91");
             setCompanyPhone(existingCard.companyPhone || "");
             setCompanyEmail(existingCard.companyEmail || "");
@@ -248,7 +248,6 @@ export default function Builder() {
         const e: Record<string, string> = {};
         if (!isNonEmpty(name)) e.name = "Name is required";
         if (email && !isEmail(email)) e.email = "Invalid email";
-        if (website && !isURL(website)) e.website = "Invalid URL";
         if (!isDigits(personalCountryCode)) e.personalCountryCode = "Only digits";
         if (!minDigits(personalPhone, 6)) e.personalPhone = "Min 6 digits";
         if (companyEmail && !isEmail(companyEmail)) e.companyEmail = "Invalid email";
@@ -284,15 +283,15 @@ export default function Builder() {
         () => ({
             // Personal
             name,
-            designation,
+            gender, // Add gender to payload
             personalCountryCode,
             personalPhone,
             email,
-            website,
             location,
             mapsLink,
             // Business
             companyName,
+            designation, // Designation is now in Business section
             companyCountryCode,
             companyPhone,
             companyEmail,
@@ -313,14 +312,14 @@ export default function Builder() {
         }),
         [
             name,
-            designation,
+            gender,
             personalCountryCode,
             personalPhone,
             email,
-            website,
             location,
             mapsLink,
             companyName,
+            designation, // Add designation to dependencies
             companyCountryCode,
             companyPhone,
             companyEmail,
@@ -490,13 +489,47 @@ export default function Builder() {
                                     placeholder="Enter your full name"
                                 />
 
-                                <FormField
-                                    label="Job Title / Designation"
-                                    value={designation}
-                                    onChangeText={setDesignation}
-                                    inputKey="designation-input"
-                                    placeholder="e.g. Marketing Manager"
-                                />
+                                {/* Gender Dropdown */}
+                                <View style={s.formField}>
+                                    <Text style={s.enhancedLabel}>Gender</Text>
+                                    <View style={s.genderContainer}>
+                                        <TouchableOpacity
+                                            style={[
+                                                s.genderButton,
+                                                gender === 'Male' && s.genderButtonSelected
+                                            ]}
+                                            onPress={() => setGender('Male')}
+                                        >
+                                            <Ionicons 
+                                                name="male" 
+                                                size={20} 
+                                                color={gender === 'Male' ? '#FFFFFF' : '#6B7280'} 
+                                            />
+                                            <Text style={[
+                                                s.genderButtonText,
+                                                gender === 'Male' && s.genderButtonTextSelected
+                                            ]}>Male</Text>
+                                        </TouchableOpacity>
+                                        
+                                        <TouchableOpacity
+                                            style={[
+                                                s.genderButton,
+                                                gender === 'Female' && s.genderButtonSelected
+                                            ]}
+                                            onPress={() => setGender('Female')}
+                                        >
+                                            <Ionicons 
+                                                name="female" 
+                                                size={20} 
+                                                color={gender === 'Female' ? '#FFFFFF' : '#6B7280'} 
+                                            />
+                                            <Text style={[
+                                                s.genderButtonText,
+                                                gender === 'Female' && s.genderButtonTextSelected
+                                            ]}>Female</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
 
                                 <View style={s.formField}>
                                     <PhoneInput
@@ -520,16 +553,6 @@ export default function Builder() {
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     placeholder="your.email@example.com"
-                                />
-
-                                <FormField
-                                    label="Personal Website"
-                                    value={website}
-                                    inputKey="website-input"
-                                    onChangeText={setWebsite}
-                                    errorKey="website"
-                                    autoCapitalize="none"
-                                    placeholder="https://yourwebsite.com"
                                 />
 
                                 <FormField
@@ -575,6 +598,14 @@ export default function Builder() {
                                     onChangeText={setCompanyName}
                                     inputKey="company-name-input"
                                     placeholder="Your company or organization"
+                                />
+
+                                <FormField
+                                    label="Job Title / Designation"
+                                    value={designation}
+                                    onChangeText={setDesignation}
+                                    inputKey="designation-input"
+                                    placeholder="e.g. Marketing Manager, CEO, Developer"
                                 />
 
                                 <View style={s.formField}>
@@ -975,6 +1006,38 @@ const s = StyleSheet.create({
         height: "100%", 
         maxWidth: "100%",
         maxHeight: "100%",
+    },
+    
+    // Gender Selection Styles
+    genderContainer: {
+        flexDirection: "row",
+        gap: 12,
+        marginTop: 8,
+    },
+    genderButton: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 10,
+        backgroundColor: "#F3F4F6",
+        borderWidth: 2,
+        borderColor: "#E5E7EB",
+        gap: 8,
+    },
+    genderButtonSelected: {
+        backgroundColor: "#3B82F6",
+        borderColor: "#3B82F6",
+    },
+    genderButtonText: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#6B7280",
+    },
+    genderButtonTextSelected: {
+        color: "#FFFFFF",
     },
     
     // Action Buttons

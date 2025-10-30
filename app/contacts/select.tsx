@@ -350,7 +350,15 @@ export default function ContactSelectScreen() {
       setResetKey(prev => prev + 1);
       
       console.log('✅ Pagination reset complete');
-    }, [])
+      
+      // Also refetch the query immediately if contacts are synced
+      if (contactsSynced) {
+        console.log('🔄 Refetching contacts query on focus...');
+        setTimeout(() => {
+          storedContactsQuery.refetch();
+        }, 100);
+      }
+    }, [contactsSynced])
   );
 
   // No auto-refresh on app state changes - contacts are cached
@@ -396,6 +404,8 @@ export default function ContactSelectScreen() {
     staleTime: 10 * 60 * 1000, // Consider data fresh for 10 minutes
     gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     enabled: contactsSynced, // Only fetch if contacts have been synced
+    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
   // Append new contacts when page changes OR when resetKey changes
@@ -411,16 +421,20 @@ export default function ContactSelectScreen() {
         console.log(`📝 Setting allContacts to ${data.length} contacts (page 1)`);
         setAllContacts(data);
       } else {
-        console.log(`📝 Appending ${data.length} contacts to existing ${allContacts.length}`);
-        setAllContacts(prev => [...prev, ...data]);
+        console.log(`📝 Appending ${data.length} contacts to existing contacts`);
+        setAllContacts(prev => {
+          const newContacts = [...prev, ...data];
+          console.log(`📊 Total contacts after append: ${newContacts.length}`);
+          return newContacts;
+        });
       }
       setHasMoreContacts(pagination.hasMore);
       
-      console.log(`📊 Total contacts should be: ${contactsPage === 1 ? data.length : allContacts.length + data.length}`);
+      console.log(`📊 Page ${contactsPage} processing complete`);
     } else {
       console.log(`⚠️ No data in query yet`);
     }
-  }, [storedContactsQuery.data, contactsPage, storedContactsQuery.status, resetKey]);
+  }, [storedContactsQuery.data, resetKey]); // Remove contactsPage from dependencies to prevent infinite loop
 
   // Reset to page 1 when contactsSynced changes
   useEffect(() => {
@@ -462,10 +476,13 @@ export default function ContactSelectScreen() {
   const storedContacts = allContacts;
   const availableGroups = groupsQuery.data || [];
 
-  console.log("Stored contacts data:", storedContacts);
-  console.log("Stored contacts length:", storedContacts.length);
-  console.log("Contacts synced:", contactsSynced);
-  console.log("Is loading screen shown:", showLoadingScreen);
+  console.log("📊 DEBUG - Contacts State:");
+  console.log("  - allContacts length:", allContacts.length);
+  console.log("  - storedContacts length:", storedContacts.length);
+  console.log("  - contactsSynced:", contactsSynced);
+  console.log("  - showLoadingScreen:", showLoadingScreen);
+  console.log("  - Query status:", storedContactsQuery.status);
+  console.log("  - Query has data:", !!storedContactsQuery.data);
 
   // Create processed contacts from stored contacts (they already have isAppUser info)
   const processedContacts = storedContacts.map((contact: any) => ({
@@ -479,6 +496,8 @@ export default function ContactSelectScreen() {
     about: contact.about || (contact.isAppUser ? "Available" : undefined), // Use API about or default
     itemType: 'contact' as const
   }));
+
+  console.log("  - processedContacts length:", processedContacts.length);
 
   const handleInvite = async (contact: DeviceContact) => {
     try {
@@ -661,6 +680,32 @@ export default function ContactSelectScreen() {
       }
 
       console.log('🔄 Sharing card to contacts and groups...');
+
+      // Check if any selected contacts have already received this card
+      try {
+        const sentCardsResponse = await api.get('/cards/sent');
+        const sentCards = sentCardsResponse.data || [];
+        
+        // Find duplicates - contacts who already received this card
+        const duplicates = selectedContacts.filter(contact => 
+          sentCards.some((sentCard: any) => 
+            sentCard.cardId === cardId && sentCard.recipientId === contact.userId
+          )
+        );
+
+        if (duplicates.length > 0) {
+          const duplicateNames = duplicates.map(c => c.name).join(', ');
+          Alert.alert(
+            'Card Already Sent',
+            `You have already sent this card to: ${duplicateNames}.\n\nYou can only send a card once to each user.`,
+            [{ text: 'OK' }]
+          );
+          return; // Stop the sharing process
+        }
+      } catch (error) {
+        console.error('Error checking for duplicate shares:', error);
+        // Continue anyway if we can't check
+      }
 
       const sharePromises: Promise<any>[] = [];
 
