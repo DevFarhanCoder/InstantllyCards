@@ -718,13 +718,17 @@ export default function Chats() {
   useEffect(() => {
     const checkSyncStatus = async () => {
       try {
-        const syncStatus = await AsyncStorage.getItem('contactsSynced');
-        if (syncStatus === 'true') {
+        const syncTimestamp = await AsyncStorage.getItem('contactsSyncTimestamp');
+        
+        if (syncTimestamp) {
           setContactsSynced(true);
+          const lastSyncDate = new Date(parseInt(syncTimestamp));
+          console.log(`✅ Contacts synced on ${lastSyncDate.toLocaleString()}`);
+        } else {
+          setContactsSynced(false);
         }
       } catch (error) {
         console.error('Error checking sync status:', error);
-        // If AsyncStorage fails, default to not synced (safer approach)
         setContactsSynced(false);
       }
     };
@@ -807,22 +811,22 @@ export default function Chats() {
         await api.post("/contacts/sync-all", { contacts: phoneNumbers });
         setContactsSynced(true);
         
-        // Save sync status to AsyncStorage
+        // Save sync timestamp to AsyncStorage
         try {
-          await AsyncStorage.setItem('contactsSynced', 'true');
-          console.log('✅ Contacts synced successfully - status saved');
+          const timestamp = Date.now().toString();
+          await AsyncStorage.setItem('contactsSyncTimestamp', timestamp);
+          await AsyncStorage.setItem('contactsSynced', 'true'); // Keep for backward compatibility
+          console.log('✅ Contacts synced successfully - timestamp saved');
         } catch (storageError) {
           console.error('Error saving sync status:', storageError);
-          // Continue anyway - the sync still worked, just not persisted
         }
         
         queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
-        // Removed success alert - contacts synced silently
+        queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
         console.log('✅ Contacts sync complete');
       }
     } catch (error) {
       console.error('Error syncing contacts:', error);
-      Alert.alert('Error', 'Failed to sync contacts. Please try again.');
     } finally {
       setContactsLoading(false);
     }

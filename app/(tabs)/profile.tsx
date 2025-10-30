@@ -18,6 +18,7 @@ import { router } from "expo-router";
 import { COLORS } from "@/lib/theme";
 import api from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/useUser";
 import FooterCarousel from "@/components/FooterCarousel";
 
 interface UserProfile {
@@ -87,11 +88,12 @@ export default function Profile() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.5, // Reduced quality to keep Base64 size manageable
+        base64: true, // Get Base64 encoding
       });
 
       if (!result.canceled && result.assets[0]) {
-        await uploadProfilePicture(result.assets[0].uri);
+        await uploadProfilePicture(result.assets[0]);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -99,20 +101,34 @@ export default function Profile() {
     }
   };
 
-  const uploadProfilePicture = async (imageUri: string) => {
+  const uploadProfilePicture = async (asset: any) => {
     setUpdating(true);
     try {
-      const formData = new FormData();
-      formData.append('profilePicture', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'profile.jpg',
-      } as any);
+      // Convert to Base64 with data URI
+      const base64Image = asset.base64;
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const dataUri = `data:${mimeType};base64,${base64Image}`;
 
-      const response = await api.post("/auth/upload-profile-picture", formData);
+      console.log('📤 Uploading profile picture as Base64...');
       
+      const response = await api.put("/auth/update-profile", { 
+        profilePicture: dataUri 
+      });
+      
+      console.log('✅ Profile picture uploaded successfully');
+      
+      // Update local state
       setUserProfile(prev => prev ? {...prev, profilePicture: response.profilePicture} : null);
-      Alert.alert('Success', 'Profile picture updated successfully!');
+      
+      // Update AsyncStorage
+      const userData = await getCurrentUser();
+      if (userData) {
+        userData.profilePicture = response.profilePicture;
+        await AsyncStorage.setItem('user', JSON.stringify(userData));
+      }
+      
+      // Silent update - no alert needed
+      console.log('✅ Profile picture updated successfully');
     } catch (error) {
       console.error('Error uploading profile picture:', error);
       Alert.alert('Error', 'Failed to update profile picture. Please try again.');

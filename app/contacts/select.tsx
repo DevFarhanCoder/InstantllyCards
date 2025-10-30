@@ -68,34 +68,29 @@ export default function ContactSelectScreen() {
   const [selectedGroups, setSelectedGroups] = useState<any[]>([]);
   const queryClient = useQueryClient();
 
-  // Check if contacts have been synced before and auto-fetch/sync from backend
+  // Check if contacts have been synced before - NO AUTO-SYNC
   useEffect(() => {
-    const checkSyncStatusAndAutoLoad = async () => {
+    const checkSyncStatusAndLoad = async () => {
       try {
-        const syncStatus = await AsyncStorage.getItem('contactsSynced');
-        if (syncStatus === 'true') {
-          // Already synced before - just enable fetching
+        const syncTimestamp = await AsyncStorage.getItem('contactsSyncTimestamp');
+        
+        if (syncTimestamp) {
+          // Contacts were synced before - just load from DB
           setContactsSynced(true);
-          console.log('✅ Contacts have been synced before, will auto-fetch from backend');
+          const lastSyncDate = new Date(parseInt(syncTimestamp));
+          console.log(`✅ Contacts synced previously (${lastSyncDate.toLocaleString()}). Loading from database...`);
         } else {
-          // First time - auto-sync contacts in background
-          console.log('🔄 First time opening contacts - auto-syncing in background...');
-          setContactsSynced(true); // Enable fetching immediately
-          
-          // Auto-sync in background (non-blocking)
-          syncDeviceContacts().catch(error => {
-            console.error('Background sync error:', error);
-            // Don't block the UI, user can still see contacts
-          });
+          // Never synced - show prompt
+          console.log('⚠️ Contacts not synced yet. User needs to sync from Chats tab.');
+          setContactsSynced(false);
         }
       } catch (error) {
         console.error('Error checking sync status:', error);
-        // Fallback: enable fetching anyway
-        setContactsSynced(true);
+        setContactsSynced(false);
       }
     };
 
-    checkSyncStatusAndAutoLoad();
+    checkSyncStatusAndLoad();
   }, []);
 
   // Function to sync device contacts with backend
@@ -162,9 +157,11 @@ export default function ContactSelectScreen() {
         
         setContactsSynced(true);
         
-        // Save sync status to AsyncStorage
+        // Save sync timestamp to AsyncStorage
         try {
-          await AsyncStorage.setItem('contactsSynced', 'true');
+          const timestamp = Date.now().toString();
+          await AsyncStorage.setItem('contactsSyncTimestamp', timestamp);
+          await AsyncStorage.setItem('contactsSynced', 'true'); // Keep for backward compatibility
           console.log('✅ All contacts synced successfully');
         } catch (storageError) {
           console.error('Error saving sync status:', storageError);
@@ -325,56 +322,41 @@ export default function ContactSelectScreen() {
       queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
       
+      // Show brief success message without blocking
       if (newContacts.length > 0) {
-        Alert.alert(
-          '🎉 Contacts Updated', 
-          `Found and synced ${newContacts.length} new contact${newContacts.length > 1 ? 's' : ''}!`
-        );
+        console.log(`🎉 Found and synced ${newContacts.length} new contact(s)`);
       } else {
-        Alert.alert('✅ Up to date', 'No new contacts found. Your contact list is up to date.');
+        console.log('✅ No new contacts found');
       }
       
     } catch (error) {
       console.error('❌ Error in smart refresh:', error);
-      Alert.alert('Error', 'Failed to refresh contacts. Please try again.');
     } finally {
       setIsSmartRefreshing(false);
     }
   };
 
-  // Add debouncing to prevent excessive calls
-  const [lastRefresh, setLastRefresh] = useState(0);
-
-  // Auto-refresh contacts EVERY TIME screen becomes focused
+  // Reset pagination when screen is focused
   useFocusEffect(
     React.useCallback(() => {
-      console.log('📱 Contact select screen focused - auto-refreshing...');
+      console.log('📱 Contact select screen focused - resetting to page 1');
       
-      const now = Date.now();
-      const timeSinceLastRefresh = now - lastRefresh;
-      const ONE_SECOND = 1000; // Minimum 1 second between refreshes to prevent spam
+      // Reset pagination to page 1 to avoid loading empty pages
+      setContactsPage(1);
+      setAllContacts([]);
+      setHasMoreContacts(true);
       
-      // Auto-refresh every time, but debounced to prevent rapid repeated calls
-      if (contactsSynced && timeSinceLastRefresh > ONE_SECOND) {
-        console.log('🔄 Auto-refreshing contacts (instant load)...');
-        setLastRefresh(now);
-        
-        // Invalidate queries to trigger refetch from backend
-        queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
-        
-        // Also run smart refresh in background to check for new contacts
-        smartRefreshNewContacts().catch(error => {
-          console.error('Auto-refresh error:', error);
-        });
-      }
-    }, [contactsSynced, lastRefresh, queryClient])
+      // Increment reset key to force new query fetch
+      setResetKey(prev => prev + 1);
+      
+      console.log('✅ Pagination reset complete');
+    }, [])
   );
 
-  // Refresh contacts when app becomes active (debounced) - ONLY for smart refresh, not full refetch
+  // No auto-refresh on app state changes - contacts are cached
+  // Users can manually refresh if needed
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
-      // Don't auto-refresh on app state change - contacts are cached
-      // Users can manually refresh using the smart refresh button
       if (nextAppState === 'active') {
         console.log('📱 App became active - using cached contacts');
       }
@@ -388,15 +370,16 @@ export default function ContactSelectScreen() {
   const [contactsPage, setContactsPage] = useState(1);
   const [allContacts, setAllContacts] = useState<any[]>([]);
   const [hasMoreContacts, setHasMoreContacts] = useState(true);
+  const [resetKey, setResetKey] = useState(0); // Add reset key to force query refetch
   
   const storedContactsQuery = useQuery({
-    queryKey: ["stored-contacts", contactsPage],
+    queryKey: ["stored-contacts", contactsPage, resetKey], // Include resetKey in query key
     queryFn: async () => {
       try {
         const token = await ensureAuth();
         if (!token) return { data: [], pagination: { hasMore: false } };
 
-        console.log(`📱 Fetching contacts from backend (page ${contactsPage})...`);
+        console.log(`📱 Fetching contacts from backend (page ${contactsPage}, resetKey: ${resetKey})...`);
         const response = await api.get(`/contacts/all?page=${contactsPage}&limit=500`);
         console.log(`✅ Stored contacts response: ${response.data?.length || 0} contacts on page ${contactsPage}`);
         
@@ -415,18 +398,29 @@ export default function ContactSelectScreen() {
     enabled: contactsSynced, // Only fetch if contacts have been synced
   });
 
-  // Append new contacts when page changes
+  // Append new contacts when page changes OR when resetKey changes
   useEffect(() => {
+    console.log(`🔍 Effect triggered - resetKey: ${resetKey}, Page: ${contactsPage}, Query status: ${storedContactsQuery.status}, Has data: ${!!storedContactsQuery.data}`);
+    
     if (storedContactsQuery.data) {
       const { data, pagination } = storedContactsQuery.data;
+      
+      console.log(`📄 Page ${contactsPage} loaded: ${data.length} contacts (hasMore: ${pagination.hasMore})`);
+      
       if (contactsPage === 1) {
+        console.log(`📝 Setting allContacts to ${data.length} contacts (page 1)`);
         setAllContacts(data);
       } else {
+        console.log(`📝 Appending ${data.length} contacts to existing ${allContacts.length}`);
         setAllContacts(prev => [...prev, ...data]);
       }
       setHasMoreContacts(pagination.hasMore);
+      
+      console.log(`📊 Total contacts should be: ${contactsPage === 1 ? data.length : allContacts.length + data.length}`);
+    } else {
+      console.log(`⚠️ No data in query yet`);
     }
-  }, [storedContactsQuery.data, contactsPage]);
+  }, [storedContactsQuery.data, contactsPage, storedContactsQuery.status, resetKey]);
 
   // Reset to page 1 when contactsSynced changes
   useEffect(() => {
@@ -460,6 +454,9 @@ export default function ContactSelectScreen() {
   const queryLoading = storedContactsQuery.isLoading && contactsPage === 1;
   const groupsLoading = groupsQuery.isLoading && isCardShareMode;
   const isLoading = !!(queryLoading || contactsLoading || groupsLoading);
+  
+  // Show loading screen ONLY on initial load (page 1) AND when we have no contacts yet
+  const showLoadingScreen = isLoading && allContacts.length === 0;
 
   // Use accumulated contacts or empty array if loading
   const storedContacts = allContacts;
@@ -468,6 +465,7 @@ export default function ContactSelectScreen() {
   console.log("Stored contacts data:", storedContacts);
   console.log("Stored contacts length:", storedContacts.length);
   console.log("Contacts synced:", contactsSynced);
+  console.log("Is loading screen shown:", showLoadingScreen);
 
   // Create processed contacts from stored contacts (they already have isAppUser info)
   const processedContacts = storedContacts.map((contact: any) => ({
@@ -644,23 +642,12 @@ export default function ContactSelectScreen() {
       messages.push(systemMessage);
       await AsyncStorage.setItem(`group_messages_${groupId}`, JSON.stringify(messages));
 
-      console.log('✅ Members added to group successfully');
+      console.log(`✅ ${selectedContacts.length} member(s) added to group successfully`);
       
-      Alert.alert(
-        'Success',
-        `${selectedContacts.length} member${selectedContacts.length === 1 ? '' : 's'} added to the group!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              router.back();
-            }
-          }
-        ]
-      );
+      // Navigate back immediately without popup
+      router.back();
     } catch (error) {
       console.error('Error adding members to group:', error);
-      Alert.alert('Error', 'Failed to add members. Please try again.');
     }
   };
 
@@ -670,12 +657,10 @@ export default function ContactSelectScreen() {
     try {
       const token = await ensureAuth();
       if (!token) {
-        Alert.alert('Error', 'Authentication required');
         return;
       }
 
-      // Show progress
-      Alert.alert('Sharing', 'Sending card to selected contacts and groups...');
+      console.log('🔄 Sharing card to contacts and groups...');
 
       const sharePromises: Promise<any>[] = [];
 
@@ -736,56 +721,28 @@ export default function ContactSelectScreen() {
       queryClient.invalidateQueries({ queryKey: ["sent-cards"] });
       queryClient.invalidateQueries({ queryKey: ["groups"] });
 
-      // Show results
-      let alertMessage = '';
-      if (successful.length > 0) {
-        const successfulContacts = successful.filter(r => r.type === 'contact');
-        const successfulGroups = successful.filter(r => r.type === 'group');
-        
-        if (successfulContacts.length > 0) {
-          alertMessage += `Card successfully shared with ${successfulContacts.length} contact${successfulContacts.length === 1 ? '' : 's'}:\n`;
-          alertMessage += successfulContacts.map(r => `• ${r.target}`).join('\n');
-        }
-        
-        if (successfulGroups.length > 0) {
-          if (alertMessage) alertMessage += '\n\n';
-          alertMessage += `Card successfully shared to ${successfulGroups.length} group${successfulGroups.length === 1 ? '' : 's'}:\n`;
-          alertMessage += successfulGroups.map(r => `• ${r.target}`).join('\n');
-        }
+      // Log results silently
+      const successfulContacts = successful.filter(r => r.type === 'contact');
+      const successfulGroups = successful.filter(r => r.type === 'group');
+      const failedItems = failed.filter(r => !r.success);
+      
+      if (successfulContacts.length > 0) {
+        console.log(`✅ Card shared with ${successfulContacts.length} contact(s):`, successfulContacts.map(r => r.target));
       }
       
-      if (failed.length > 0) {
-        const failedContacts = failed.filter(r => r.type === 'contact');
-        const failedGroups = failed.filter(r => r.type === 'group');
-        
-        if (failedContacts.length > 0) {
-          if (alertMessage) alertMessage += '\n\n';
-          alertMessage += `Failed to share with ${failedContacts.length} contact${failedContacts.length === 1 ? '' : 's'}:\n`;
-          alertMessage += failedContacts.map(r => `• ${r.target} (${r.reason})`).join('\n');
-        }
-        
-        if (failedGroups.length > 0) {
-          if (alertMessage) alertMessage += '\n\n';
-          alertMessage += `Failed to share to ${failedGroups.length} group${failedGroups.length === 1 ? '' : 's'}:\n`;
-          alertMessage += failedGroups.map(r => `• ${r.target} (${r.reason})`).join('\n');
-        }
+      if (successfulGroups.length > 0) {
+        console.log(`✅ Card shared to ${successfulGroups.length} group(s):`, successfulGroups.map(r => r.target));
+      }
+      
+      if (failedItems.length > 0) {
+        console.log(`❌ Failed to share with ${failedItems.length} recipient(s):`, failedItems.map(r => `${r.target} (${r.reason})`));
       }
 
-      const totalSelected = selectedContacts.length + selectedGroups.length;
-      Alert.alert(
-        successful.length === totalSelected ? 'Success!' : 'Partial Success',
-        alertMessage,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back()
-          }
-        ]
-      );
+      // Navigate back immediately without popup
+      router.back();
 
     } catch (error) {
       console.error('Error sharing card:', error);
-      Alert.alert('Error', 'Failed to share card. Please try again.');
     }
   };
 
@@ -964,7 +921,7 @@ export default function ContactSelectScreen() {
     </View>
   );
 
-  if (isLoading) {
+  if (showLoadingScreen) {
     return (
       <SafeAreaView style={styles.root}>
         <View style={styles.header}>
@@ -972,7 +929,7 @@ export default function ContactSelectScreen() {
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Select contact</Text>
-          <Text style={styles.contactCount}>{processedContacts.length} contacts</Text>
+          <Text style={styles.contactCount}>Loading...</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
@@ -1073,23 +1030,6 @@ export default function ContactSelectScreen() {
         </View>
       </View>
 
-
-      {/* Quick Actions */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.quickAction}>
-          <View style={styles.quickActionIcon}>
-            <Text style={styles.quickActionEmoji}>👥</Text>
-          </View>
-          <Text style={styles.quickActionText}>New group</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.quickAction}>
-          <View style={styles.quickActionIcon}>
-            <Text style={styles.quickActionEmoji}>👤</Text>
-          </View>
-          <Text style={styles.quickActionText}>New contact</Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Contacts and Groups List */}
       <SectionList
