@@ -4,36 +4,82 @@ import { router } from 'expo-router';
 import api from '@/lib/api';
 import { ensureAuth } from '@/lib/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 // Ad data with phone numbers
 const ads = [
-  // Rajesh Modi - 9867477227 (10 ads)
-  { id: 1, image: require('../assets/images/Footer Ads_02-05.jpg'), phone: '+919867477227', name: 'Rajesh Modi - AI Video' },
-  { id: 2, image: require('../assets/images/Footer Ads_02-06.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Gold Co-operative' },
-  { id: 3, image: require('../assets/images/Footer Ads_02-01.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Bhajan Wani' },
-  { id: 4, image: require('../assets/images/Footer Ads_02-08.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Fixed Deposit' },
-  { id: 5, image: require('../assets/images/Footer Ads_02-02.jpg'), phone: '+919867477227', name: 'Rajesh Modi - NA Plot' },
-  { id: 6, image: require('../assets/images/Footer Ads_02-09.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Kasara Resort' },
-  { id: 7, image: require('../assets/images/Footer Ads_02-11.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Pavitram Jewellery' },
-  { id: 8, image: require('../assets/images/Footer Ads_02-13.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Watch' },
-  { id: 9, image: require('../assets/images/Footer Ads_02-04.jpg'), phone: '+919867477227', name: 'Rajesh Modi - AI Poster' },
-  { id: 10, image: require('../assets/images/Footer Ads_02-21.jpg'), phone: '+919867477227', name: 'Rajesh Modi - Yaadon Ki Baraat' },
+  // Rajesh Modi - 9867477227
+  { id: 2, image: require('../assets/images/Footer Ads_02-05.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 3, image: require('../assets/images/Footer Ads_02-06.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 4, image: require('../assets/images/Footer Ads_02-11.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 5, image: require('../assets/images/Footer Ads_02-02.jpg'), phone: '+919867477227', name: 'Rajesh Modi', hasFullBanner: true, bannerImage: require('../assets/images/Instantlly Cards_Full Page Ad-01.jpg') },
+  { id: 6, image: require('../assets/images/Footer Ads_02-01.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 7, image: require('../assets/images/Footer Ads_02-08.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 8, image: require('../assets/images/Footer Ads_02-09.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 9, image: require('../assets/images/Footer Ads_02-04.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 10, image: require('../assets/images/Footer Ads_02-21.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 11, image: require('../assets/images/Footer Ads_02-37.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 12, image: require('../assets/images/Footer Ads_02-36.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 13, image: require('../assets/images/Footer Ads_02-12.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 14, image: require('../assets/images/Footer Ads_02-10.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
   
-  // Ingit Dave - 8879221111 (1 ad)
-  { id: 11, image: require('../assets/images/Footer Ads_02-07.jpg'), phone: '+918879221111', name: 'Ingit Dave - Plot Mahabaleshwar' },
+  // Ingit Dave - 8879221111
+  { id: 15, image: require('../assets/images/Footer Ads_02-07.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
+  { id: 16, image: require('../assets/images/Footer Ads_02-31.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
+  { id: 17, image: require('../assets/images/Footer Ads_02-32.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
+  { id: 18, image: require('../assets/images/Footer Ads_02-33.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
   
-  // Arun Kamal - 9833001167 (1 ad)
-  { id: 12, image: require('../assets/images/Footer Ads_02-19.jpg'), phone: '+919833001167', name: 'Arun Kamal - Ghasmanchal' },
+  // Arun Kamal - 9833001167
+  { id: 19, image: require('../assets/images/Footer Ads_02-19.jpg'), phone: '+919833001167', name: 'Arun Kamal' },
   
-  // Shabbir - 9820329571 (1 ad)
-  { id: 13, image: require('../assets/images/Footer Ads_02-03.jpg'), phone: '+919820329571', name: 'Shabbir - Power Connect' },
+  // Shabbir - 9820329571
+  { id: 20, image: require('../assets/images/Footer Ads_02-03.jpg'), phone: '+919820329571', name: 'Shabbir' },
+  
+  // Aakash Jugraj - 9004444476
+  { id: 21, image: require('../assets/images/Footer Ads_02-34.jpg'), phone: '+919004444476', name: 'Aakash Jugraj' },
+  
+  // Ganesh Kandalkar - 9867304372
+  { id: 22, image: require('../assets/images/Footer Ads_02-35.jpg'), phone: '+919867304372', name: 'Ganesh Kandalkar' },
+  
+  // Sengel Dsouza - 8976260702
+  { id: 23, image: require('../assets/images/Footer Ads_02-38.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
+  { id: 24, image: require('../assets/images/Footer Ads_02-39.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
+  { id: 25, image: require('../assets/images/Footer Ads_02-40.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
+  { id: 26, image: require('../assets/images/Footer Ads_02-41.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
+  { id: 27, image: require('../assets/images/Footer Ads_02-42.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
+  
+  // Vibhuti Jain - 9820658293
+  { id: 28, image: require('../assets/images/Footer Ads_02-22.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 29, image: require('../assets/images/Footer Ads_02-20.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 30, image: require('../assets/images/Footer Ads_02-26.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 31, image: require('../assets/images/Footer Ads_02-46.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 32, image: require('../assets/images/Footer Ads_02-47.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 33, image: require('../assets/images/Footer Ads_02-51.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 34, image: require('../assets/images/Footer Ads_02-52.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 35, image: require('../assets/images/Footer Ads_02-58.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 36, image: require('../assets/images/Footer Ads_02-49.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  
+  // Dr. Pooja Shah - 9167379734
+  { id: 37, image: require('../assets/images/Footer Ads_02-53.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
+  { id: 38, image: require('../assets/images/Footer Ads_02-54.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
+  { id: 39, image: require('../assets/images/Footer Ads_02-55.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
+  { id: 40, image: require('../assets/images/Footer Ads_02-56.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
+  { id: 41, image: require('../assets/images/Footer Ads_02-57.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
+  
+  // DevDas Pandit - 8452856993
+  { id: 42, image: require('../assets/images/Footer Ads_02-61.jpg'), phone: '+918452856993', name: 'DevDas Pandit' },
+  
+  // Mohit Gupta - 9820364494
+  { id: 43, image: require('../assets/images/Footer Ads_02-62.jpg'), phone: '+919820364494', name: 'Mohit Gupta' },
 ];
 
 const FooterCarousel = () => {
   const [activeIndex, setActiveIndex] = useState(1); // Start at index 1 (first real ad)
   const [showModal, setShowModal] = useState(false);
+  const [showSimpleModal, setShowSimpleModal] = useState(false);
   const [selectedAd, setSelectedAd] = useState<typeof ads[0] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -187,7 +233,12 @@ const FooterCarousel = () => {
 
   const handleAdPress = (ad: typeof ads[0]) => {
     setSelectedAd(ad);
-    setShowModal(true);
+    // Check if ad has full banner
+    if ((ad as any).hasFullBanner) {
+      setShowModal(true); // Show full-screen modal
+    } else {
+      setShowSimpleModal(true); // Show simple popup
+    }
   };
 
   const handleMessage = async () => {
@@ -195,7 +246,6 @@ const FooterCarousel = () => {
     
     setIsSearching(true);
     try {
-      // Search for user by phone number in the database
       const token = await ensureAuth();
       if (!token) {
         setShowModal(false);
@@ -204,21 +254,17 @@ const FooterCarousel = () => {
         return;
       }
 
-      // Remove the + symbol for the search (backend will match multiple formats)
       const phoneWithoutPlus = selectedAd.phone.replace('+', '');
       
       console.log('🔍 Searching for user with phone:', selectedAd.phone);
-      console.log('🔍 Phone for API:', phoneWithoutPlus);
 
       try {
-        // Try to search for the user in the database
         const response = await api.get(`/users/search-by-phone/${phoneWithoutPlus}`);
         
         if (response && response.user) {
           const user = response.user;
           console.log('✅ Found user in database:', user.name, user._id);
           
-          // User exists - navigate to chat with their name
           setShowModal(false);
           setIsSearching(false);
           
@@ -235,17 +281,16 @@ const FooterCarousel = () => {
       } catch (error) {
         console.log('⚠️ User not found in database, opening chat with phone number');
         
-        // User doesn't exist - navigate to chat with phone number as identifier
         setShowModal(false);
         setIsSearching(false);
         
         router.push({
           pathname: `/chat/[userId]`,
           params: { 
-            userId: phoneWithoutPlus, // Use phone as temporary userId
-            name: selectedAd.phone, // Use phone number as display name
+            userId: phoneWithoutPlus,
+            name: selectedAd.phone,
             phone: selectedAd.phone,
-            isPhoneOnly: 'true', // Flag to indicate this is a non-registered user
+            isPhoneOnly: 'true',
             preFillMessage: 'I am Interested'
           }
         });
@@ -255,7 +300,6 @@ const FooterCarousel = () => {
       setShowModal(false);
       setIsSearching(false);
       
-      // Even if there's an error, try to open chat with phone number
       const phoneWithoutPlus = selectedAd.phone.replace('+', '');
       router.push({
         pathname: `/chat/[userId]`,
@@ -270,15 +314,58 @@ const FooterCarousel = () => {
     }
   };
 
-  const handleCall = () => {
-    setShowModal(false);
-    if (selectedAd) {
-      const phoneNumber = `tel:${selectedAd.phone}`;
-      Linking.openURL(phoneNumber).catch((err) => {
-        Alert.alert('Error', 'Unable to make a call. Please try again.');
-        console.error('Failed to open phone dialer:', err);
-      });
+  const handleCall = async () => {
+    if (!selectedAd) return;
+    
+    try {
+      // First, send a message with the default card
+      const token = await ensureAuth();
+      if (token) {
+        const phoneWithoutPlus = selectedAd.phone.replace('+', '');
+        
+        console.log('📤 Sending default card to advertiser before call:', selectedAd.phone);
+        
+        try {
+          // Search for user by phone number
+          const response = await api.get(`/users/search-by-phone/${phoneWithoutPlus}`);
+          
+          if (response && response.user) {
+            const user = response.user;
+            console.log('✅ Found advertiser in database:', user.name, user._id);
+            
+            // Get user's default card
+            const cardsResponse = await api.get('/cards');
+            const defaultCard = cardsResponse.data?.find((card: any) => card.isDefault) || cardsResponse.data?.[0];
+            
+            if (defaultCard) {
+              // Send the default card as a message
+              await api.post('/messages/send', {
+                recipientId: user._id,
+                content: 'Here is my card',
+                cardId: defaultCard._id
+              });
+              console.log('✅ Default card sent to advertiser');
+            }
+          } else {
+            console.log('⚠️ Advertiser not found in database, skipping card send');
+          }
+        } catch (error) {
+          console.log('⚠️ Error sending card, proceeding to call anyway:', error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in pre-call card send:', error);
     }
+    
+    // Close modal and make the call
+    setShowModal(false);
+    
+    // Make the call
+    const phoneNumber = `tel:${selectedAd.phone}`;
+    Linking.openURL(phoneNumber).catch((err) => {
+      Alert.alert('Error', 'Unable to make a call. Please try again.');
+      console.error('Failed to open phone dialer:', err);
+    });
   };
 
   return (
@@ -309,49 +396,105 @@ const FooterCarousel = () => {
         ))}
       </ScrollView>
 
-
-
-      {/* Action Modal */}
+      {/* Full Screen Ad Modal - Only for Test Ad */}
       <Modal
         visible={showModal}
-        transparent={true}
-        animationType="fade"
+        transparent={false}
+        animationType="slide"
         onRequestClose={() => setShowModal(false)}
       >
+        <View style={styles.fullScreenModal}>
+          {/* Full Screen Ad Image */}
+          <Image
+            source={(selectedAd as any)?.bannerImage || selectedAd?.image}
+            style={styles.fullScreenImage}
+            resizeMode="contain"
+          />
+          
+          {/* Gradient Overlay */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
+            style={styles.gradientOverlay}
+          />
+          
+          {/* Close Button */}
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => setShowModal(false)}
+          >
+            <Ionicons name="close-circle" size={40} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          {/* Buttons at Bottom - Horizontal Row */}
+          <View style={styles.buttonContainer}>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity 
+                style={[styles.fullScreenButton, styles.callButton]}
+                onPress={handleCall}
+                disabled={isSearching}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.fullScreenButtonText}>Call</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.fullScreenButton, styles.messageButton]}
+                onPress={handleMessage}
+                disabled={isSearching}
+                activeOpacity={0.8}
+              >
+                {isSearching ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.fullScreenButtonText}>Message</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Simple Popup Modal - For Regular Ads */}
+      <Modal
+        visible={showSimpleModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSimpleModal(false)}
+      >
         <TouchableOpacity 
-          style={styles.modalOverlay}
+          style={styles.simpleModalOverlay}
           activeOpacity={1}
-          onPress={() => setShowModal(false)}
+          onPress={() => setShowSimpleModal(false)}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Choose an action</Text>
+          <View style={styles.simpleModalContent}>
+            <Text style={styles.simpleModalTitle}>Choose an action</Text>
             
             <TouchableOpacity 
-              style={styles.modalButton}
+              style={styles.simpleModalButton}
+              onPress={handleCall}
+              disabled={isSearching}
+            >
+              <Text style={styles.simpleModalButtonText}>Call</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.simpleModalButton, styles.simpleModalButtonMessage]}
               onPress={handleMessage}
               disabled={isSearching}
             >
               {isSearching ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.modalButtonText}>Message</Text>
+                <Text style={styles.simpleModalButtonText}>Message</Text>
               )}
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.modalButton, styles.modalButtonCall]}
-              onPress={handleCall}
+              style={[styles.simpleModalButton, styles.simpleModalButtonCancel]}
+              onPress={() => setShowSimpleModal(false)}
               disabled={isSearching}
             >
-              <Text style={styles.modalButtonText}>Call</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.modalButton, styles.modalButtonCancel]}
-              onPress={() => setShowModal(false)}
-              disabled={isSearching}
-            >
-              <Text style={[styles.modalButtonText, styles.cancelText]}>Cancel</Text>
+              <Text style={[styles.simpleModalButtonText, styles.simpleCancelText]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -384,14 +527,92 @@ const styles = StyleSheet.create({
     height: 100,
   },
 
-  modalOverlay: {
+  // Full Screen Modal Styles
+  fullScreenModal: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 25,
+    padding: 4,
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 15,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fullScreenButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  callButton: {
+    backgroundColor: '#10B981',
+  },
+  messageButton: {
+    backgroundColor: '#3B82F6',
+  },
+  cancelButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  fullScreenButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  cancelButtonText: {
+    color: '#EF4444',
+  },
+
+  // Simple Modal Styles
+  simpleModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  modalContent: {
+  simpleModalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 24,
@@ -406,33 +627,33 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  modalTitle: {
+  simpleModalTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
     marginBottom: 24,
   },
-  modalButton: {
-    backgroundColor: '#3B82F6',
+  simpleModalButton: {
+    backgroundColor: '#10B981',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
     marginBottom: 12,
     alignItems: 'center',
   },
-  modalButtonCall: {
-    backgroundColor: '#22C55E',
+  simpleModalButtonMessage: {
+    backgroundColor: '#3B82F6',
   },
-  modalButtonCancel: {
+  simpleModalButtonCancel: {
     backgroundColor: '#F3F4F6',
   },
-  modalButtonText: {
+  simpleModalButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  cancelText: {
+  simpleCancelText: {
     color: '#6B7280',
   },
 });
