@@ -8,13 +8,13 @@ import {
   Dimensions,
   Image,
   ActivityIndicator,
-  Alert,
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import groupSharingService, { GroupSharingSession, GroupParticipant } from '@/lib/groupSharingService';
+import CustomToast, { ToastType } from './CustomToast';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,6 +37,18 @@ export default function GroupConnectionUI({
   const [isConnecting, setIsConnecting] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(600); // 10 minutes in seconds
   
+  // Toast state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<ToastType>('info');
+  
+  // Helper to show toast
+  const showToast = (message: string, type: ToastType = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+  };
+  
   // Animations
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   const rippleAnimation = useRef(new Animated.Value(0)).current;
@@ -45,6 +57,7 @@ export default function GroupConnectionUI({
   // Update participants when session changes
   useEffect(() => {
     if (session?.participants) {
+      console.log('👥 GroupConnection: Updating participants, count:', session.participants.length);
       setParticipants(session.participants);
       
       // Animate new participants
@@ -60,7 +73,56 @@ export default function GroupConnectionUI({
         }
       });
     }
-  }, [session]);
+  }, [session, session?.participants?.length]);
+
+  // Real-time monitoring for session status changes
+  useEffect(() => {
+    if (!visible || !session) return;
+
+    const checkSessionStatus = async () => {
+      try {
+        console.log('📊 Fetching session status from backend...');
+        const currentSession = await groupSharingService.getCurrentSession();
+        
+        if (!currentSession) {
+          console.log('⏰ Session expired or not found');
+          showToast('Session expired', 'error');
+          onClose();
+          return;
+        }
+
+        // Update participants from latest session data
+        if (currentSession.participants) {
+          console.log('👥 GroupConnection: Real-time update - participants:', currentSession.participants.length);
+          setParticipants(currentSession.participants);
+        }
+
+        // Auto-open session screen when admin starts sharing
+        if (currentSession.status === 'connected' || currentSession.status === 'sharing') {
+          console.log('✅ Session is now connected/sharing, opening session screen');
+          onConnect();
+        }
+
+        // Close for non-admin if session ends
+        if (!isAdmin && (currentSession.status === 'completed' || currentSession.status === 'expired')) {
+          console.log('⏰ Session completed/expired for participant');
+          showToast('Session ended by admin', 'info');
+          onClose();
+        }
+      } catch (error) {
+        console.error('❌ Failed to get session status:', error);
+      }
+    };
+
+    // Check immediately and then every 2 seconds
+    checkSessionStatus();
+    const statusInterval = setInterval(checkSessionStatus, 2000);
+
+    return () => {
+      clearInterval(statusInterval);
+      console.log('🛑 Stopped group sharing polling');
+    };
+  }, [visible, session, isAdmin]);
 
   // Countdown timer
   useEffect(() => {
@@ -74,7 +136,7 @@ export default function GroupConnectionUI({
       setTimeRemaining(remaining);
       
       if (remaining === 0) {
-        Alert.alert('Session Expired', 'The group sharing session has expired.');
+        showToast('The group sharing session has expired.', 'error');
         onClose();
       }
     }, 1000);
@@ -123,14 +185,13 @@ export default function GroupConnectionUI({
     try {
       const success = await groupSharingService.connectAllParticipants();
       if (success) {
-        // Navigate to My Cards for card selection
+        // Call onConnect to show the session UI
         onConnect();
-        router.push('/(tabs)/mycards?mode=groupSharing');
       } else {
-        Alert.alert('Connection Failed', 'Unable to connect all participants. Please try again.');
+        showToast('Unable to connect all participants. Please try again.', 'error');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to connect participants.');
+      showToast('Failed to connect participants.', 'error');
     } finally {
       setIsConnecting(false);
     }
@@ -144,7 +205,7 @@ export default function GroupConnectionUI({
 
   const renderParticipant = (participant: GroupParticipant, index: number) => {
     const angle = (index / Math.max(participants.length, 1)) * 2 * Math.PI;
-    const radius = width * 0.3;
+    const radius = width * 0.32;
     const x = Math.cos(angle) * radius;
     const y = Math.sin(angle) * radius;
     
@@ -168,9 +229,11 @@ export default function GroupConnectionUI({
           {participant.photo ? (
             <Image source={{ uri: participant.photo }} style={styles.avatarImage} />
           ) : (
-            <Text style={styles.avatarText}>
-              {participant.name.charAt(0).toUpperCase()}
-            </Text>
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>
+                {participant.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
           )}
           {participant.isOnline && (
             <View style={styles.onlineIndicator}>
@@ -188,106 +251,150 @@ export default function GroupConnectionUI({
   if (!visible || !session) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent>
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
+    <Modal visible={visible} animationType="fade" statusBarTranslucent>
+      <View style={styles.container}>
+        {/* Gradient Background */}
+        <View style={styles.gradientBackground}>
+          {/* Animated circles in background */}
+          <Animated.View style={[styles.bgCircle, styles.bgCircle1, { opacity: 0.1 }]} />
+          <Animated.View style={[styles.bgCircle, styles.bgCircle2, { opacity: 0.08 }]} />
+        </View>
+
+        <SafeAreaView style={styles.safeArea}>
+          {/* Modern Header */}
+          <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <View style={styles.closeButtonBg}>
+                <Ionicons name="close" size={22} color="#1F2937" />
+              </View>
             </TouchableOpacity>
-          </View>
-          
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Group Sharing</Text>
-            <Text style={styles.headerSubtitle}>Code: {session.code}</Text>
-          </View>
-          
-          <View style={styles.headerRight}>
-            <View style={styles.timerContainer}>
-              <Ionicons name="time-outline" size={16} color="#EF4444" />
+            
+            <View style={styles.timerBadge}>
+              <Ionicons name="time-outline" size={14} color="#EF4444" />
               <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
             </View>
           </View>
-        </View>
 
-        {/* Connection Area */}
-        <View style={styles.connectionArea}>
-          {/* Center Connect Button */}
-          <View style={styles.centerContainer}>
+          {/* Title Section */}
+          <View style={styles.titleSection}>
+            <Text style={styles.mainTitle}>Group Sharing</Text>
+            <View style={styles.codeContainer}>
+              <Text style={styles.codeLabel}>Code:</Text>
+              <Text style={styles.codeValue}>{session.code}</Text>
+            </View>
+          </View>
+
+          {/* Connection Area */}
+          <View style={styles.connectionArea}>
+            {/* Animated Background Rings */}
             <Animated.View
               style={[
-                styles.rippleContainer,
+                styles.pulseRing,
+                styles.pulseRing1,
                 {
-                  transform: [{ scale: rippleAnimation }],
-                  opacity: rippleAnimation.interpolate({
-                    inputRange: [0, 1],
+                  transform: [{ scale: pulseAnimation }],
+                  opacity: pulseAnimation.interpolate({
+                    inputRange: [1, 1.1],
                     outputRange: [0.3, 0],
                   }),
                 },
               ]}
             />
-            
-            <TouchableOpacity
+            <Animated.View
               style={[
-                styles.connectButton,
-                !isAdmin && styles.connectButtonDisabled,
+                styles.pulseRing,
+                styles.pulseRing2,
+                {
+                  transform: [{ 
+                    scale: pulseAnimation.interpolate({
+                      inputRange: [1, 1.1],
+                      outputRange: [1, 1.15],
+                    })
+                  }],
+                  opacity: pulseAnimation.interpolate({
+                    inputRange: [1, 1.1],
+                    outputRange: [0.2, 0],
+                  }),
+                },
               ]}
-              onPress={handleConnect}
-              disabled={!isAdmin || isConnecting}
-            >
-              <Animated.View
-                style={[
-                  styles.connectButtonInner,
-                  { transform: [{ scale: pulseAnimation }] },
-                ]}
+            />
+
+            {/* Center Logo */}
+            <View style={styles.centerLogoContainer}>
+              <View style={styles.centerLogoCircle}>
+                <Image
+                  source={require('@/assets/images/Instantlly_Logo-removebg.png')}
+                  style={styles.centerLogo}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
+
+            {/* Participants arranged in circle */}
+            <View style={styles.participantsContainer}>
+              {participants.map((participant, index) => 
+                renderParticipant(participant, index)
+              )}
+            </View>
+          </View>
+
+          {/* Start Sharing Button - Now at Bottom */}
+          <View style={styles.bottomButtonContainer}>
+            {isAdmin ? (
+              <TouchableOpacity
+                style={styles.startSharingButton}
+                onPress={handleConnect}
+                disabled={isConnecting}
+                activeOpacity={0.8}
               >
                 {isConnecting ? (
-                  <ActivityIndicator size="large" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <>
-                    <Ionicons name="link" size={32} color="#FFFFFF" />
-                    <Text style={styles.connectButtonText}>
-                      {isAdmin ? 'Tap to Connect' : 'Waiting for Admin'}
-                    </Text>
-                  </>
+                  <Text style={styles.startSharingButtonText}>Start Sharing</Text>
                 )}
-              </Animated.View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Participants arranged in circle */}
-          <View style={styles.participantsContainer}>
-            {participants.map((participant, index) => 
-              renderParticipant(participant, index)
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.waitingContainer}>
+                <ActivityIndicator size="small" color="#6366F1" />
+                <Text style={styles.waitingText}>Waiting for Admin to Start...</Text>
+              </View>
             )}
           </View>
-        </View>
 
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <View style={styles.participantCount}>
-            <Ionicons name="people" size={20} color="#6366F1" />
-            <Text style={styles.participantCountText}>
-              {participants.length} {participants.length === 1 ? 'Participant' : 'Participants'}
-            </Text>
-          </View>
-          
-          {isAdmin && (
-            <View style={styles.adminInfo}>
-              <Ionicons name="star" size={16} color="#F59E0B" />
-              <Text style={styles.adminInfoText}>You are the admin</Text>
+          {/* Modern Info Section */}
+          <View style={styles.infoSection}>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <View style={styles.statIconContainer}>
+                  <Ionicons name="people" size={18} color="#6366F1" />
+                </View>
+                <Text style={styles.statValue}>{participants.length}</Text>
+                <Text style={styles.statLabel}>
+                  {participants.length === 1 ? 'Participant' : 'Participants'}
+                </Text>
+              </View>
+              
+              {isAdmin && (
+                <View style={styles.statItem}>
+                  <View style={[styles.statIconContainer, styles.adminIconContainer]}>
+                    <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
+                  </View>
+                  <Text style={[styles.statValue, styles.adminStatValue]}>Admin</Text>
+                  <Text style={styles.statLabel}>You're the host</Text>
+                </View>
+              )}
             </View>
-          )}
-          
-          <Text style={styles.instructionText}>
-            {isAdmin 
-              ? "Tap the connect button to start card sharing with all participants"
-              : "Wait for the admin to connect everyone to start sharing cards"
-            }
-          </Text>
-        </View>
-      </SafeAreaView>
+          </View>
+        </SafeAreaView>
+        
+        {/* Toast Notification */}
+        <CustomToast
+          visible={toastVisible}
+          message={toastMessage}
+          type={toastType}
+          onHide={() => setToastVisible(false)}
+        />
+      </View>
     </Modal>
   );
 }
@@ -295,100 +402,195 @@ export default function GroupConnectionUI({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
+  },
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#F8F9FF',
+  },
+  bgCircle: {
+    position: 'absolute',
+    borderRadius: 9999,
+    backgroundColor: '#6366F1',
+  },
+  bgCircle1: {
+    width: 400,
+    height: 400,
+    top: -100,
+    right: -100,
+  },
+  bgCircle2: {
+    width: 300,
+    height: 300,
+    bottom: -50,
+    left: -50,
+  },
+  safeArea: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  headerLeft: {
-    flex: 1,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
   closeButton: {
-    padding: 8,
+    zIndex: 10,
   },
-  headerCenter: {
-    flex: 2,
+  closeButtonBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  headerRight: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  timerContainer: {
+  timerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   timerText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#EF4444',
     marginLeft: 4,
+  },
+  titleSection: {
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  mainTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1F2937',
+    letterSpacing: -0.5,
+    marginBottom: 12,
+  },
+  codeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  codeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginRight: 8,
+  },
+  codeValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#6366F1',
+    letterSpacing: 2,
   },
   connectionArea: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    marginBottom: 16,
   },
-  centerContainer: {
+  pulseRing: {
+    position: 'absolute',
+    borderRadius: 9999,
+    backgroundColor: '#6366F1',
+  },
+  pulseRing1: {
+    width: 200,
+    height: 200,
+  },
+  pulseRing2: {
+    width: 240,
+    height: 240,
+  },
+  centerLogoContainer: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rippleContainer: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#6366F1',
-  },
-  connectButton: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#6366F1',
+  centerLogoCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: 12,
   },
-  connectButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-    shadowColor: '#9CA3AF',
+  centerLogo: {
+    width: 90,
+    height: 90,
   },
-  connectButtonInner: {
+  bottomButtonContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  startSharingButton: {
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  connectButtonText: {
+  startSharingButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  waitingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    gap: 12,
+  },
+  waitingText: {
+    color: '#6B7280',
+    fontSize: 16,
     fontWeight: '600',
-    marginTop: 8,
-    textAlign: 'center',
   },
   participantsContainer: {
     width: width,
@@ -401,32 +603,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   participantAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#E5E7EB',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 32,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   onlineAvatar: {
     borderColor: '#10B981',
   },
   avatarImage: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
   },
   avatarText: {
     fontSize: 24,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: '700',
+    color: '#6366F1',
   },
   onlineIndicator: {
     position: 'absolute',
@@ -446,19 +656,72 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   participantName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
     marginTop: 8,
     textAlign: 'center',
-    maxWidth: 80,
+    maxWidth: 90,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   infoSection: {
     paddingHorizontal: 20,
     paddingVertical: 24,
+    backgroundColor: 'transparent',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 20,
+  },
+  statItem: {
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 20,
+    minWidth: 140,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  statIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  adminIconContainer: {
+    backgroundColor: '#FEF3C7',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#6366F1',
+    marginBottom: 2,
+  },
+  adminStatValue: {
+    color: '#F59E0B',
+    fontSize: 16,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
   },
   participantCount: {
     flexDirection: 'row',
@@ -483,11 +746,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#F59E0B',
     marginLeft: 4,
-  },
-  instructionText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
   },
 });

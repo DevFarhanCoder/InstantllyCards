@@ -41,6 +41,22 @@ class GroupSharingService {
   private pollingInterval: any = null;
   private isPolling = false;
   
+  // Helper method to get current user ID
+  private async getUserId(): Promise<string> {
+    try {
+      const userDataStr = await AsyncStorage.getItem('user');
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        return userData._id || userData.id || `user_${Date.now()}`;
+      }
+      const storedUserId = await AsyncStorage.getItem('currentUserId');
+      return storedUserId || `user_${Date.now()}`;
+    } catch (error) {
+      console.error('⚠️ Error getting user ID:', error);
+      return `user_${Date.now()}`;
+    }
+  }
+  
   // Generate 4-digit numeric code
   generateGroupCode(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -122,10 +138,35 @@ class GroupSharingService {
     try {
       console.log('🔗 Joining group session with code:', code);
       
-      const userId = await AsyncStorage.getItem('currentUserId') || '';
-      const userName = await AsyncStorage.getItem('user_name') || 'User';
-      const userPhone = await AsyncStorage.getItem('user_phone') || '';
-      const userPhoto = '';
+      // Get user data with fallbacks (same as createGroupSession)
+      let userId = '';
+      let userName = 'User';
+      let userPhone = '';
+      let userPhoto = '';
+      
+      try {
+        const storedUserId = await AsyncStorage.getItem('currentUserId');
+        const storedUserName = await AsyncStorage.getItem('user_name');
+        const storedUserPhone = await AsyncStorage.getItem('user_phone');
+        
+        const userDataStr = await AsyncStorage.getItem('user');
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          userId = userData._id || userData.id || storedUserId || `user_${Date.now()}`;
+          userName = userData.name || storedUserName || 'User';
+          userPhone = userData.phone || storedUserPhone || '';
+          userPhoto = userData.profilePhoto || '';
+        } else {
+          userId = storedUserId || `user_${Date.now()}`;
+          userName = storedUserName || 'User';
+          userPhone = storedUserPhone || '';
+        }
+        
+        console.log('👤 User data retrieved:', { userId: userId.substring(0, 8), userName, hasPhone: !!userPhone });
+      } catch (userError) {
+        console.error('⚠️ Error getting user data, using defaults:', userError);
+        userId = `user_${Date.now()}`;
+      }
 
       // Call backend API
       console.log('📡 Calling backend API to join session...');
@@ -220,7 +261,7 @@ class GroupSharingService {
     try {
       console.log('🔗 Connecting all participants...');
       
-      const userId = await AsyncStorage.getItem('currentUserId') || '';
+      const userId = await this.getUserId();
       
       const response = await api.post(`/group-sharing/connect/${this.currentSession.id}`, {
         adminId: userId
@@ -249,7 +290,7 @@ class GroupSharingService {
     try {
       console.log('📋 Setting cards to share:', cardIds.length, 'cards');
       
-      const userId = await AsyncStorage.getItem('currentUserId') || '';
+      const userId = await this.getUserId();
       
       const response = await api.post(`/group-sharing/set-cards/${this.currentSession.id}`, {
         userId,
@@ -285,7 +326,7 @@ class GroupSharingService {
     try {
       console.log('🚀 Executing card sharing...');
       
-      const userId = await AsyncStorage.getItem('currentUserId') || '';
+      const userId = await this.getUserId();
       
       const response = await api.post(`/group-sharing/execute/${this.currentSession.id}`, {
         adminId: userId
@@ -317,7 +358,7 @@ class GroupSharingService {
       
       console.log('🛑 Ending session...');
       
-      const userId = await AsyncStorage.getItem('currentUserId') || '';
+      const userId = await this.getUserId();
       
       await api.post(`/group-sharing/end/${this.currentSession.id}`, {
         userId

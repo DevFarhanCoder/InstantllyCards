@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  Alert,
   ActivityIndicator,
   Animated,
   Vibration,
@@ -17,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import groupSharingService, { GroupSharingSession } from '@/lib/groupSharingService';
+import CustomToast, { ToastType } from './CustomToast';
 
 // Updated: OTP-style input with 4 boxes only
 interface GroupSharingModalProps {
@@ -36,6 +36,18 @@ export default function GroupSharingModal({
   const [isLoading, setIsLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   
+  // Toast state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<ToastType>('info');
+  
+  // Helper to show toast
+  const showToast = (message: string, type: ToastType = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+  };
+  
   // Refs
   const hiddenInputRef = useRef<TextInput>(null);
   
@@ -54,6 +66,10 @@ export default function GroupSharingModal({
       setJoinCode('');
       setGeneratedCode(null);
       setIsLoading(false);
+      
+      // Clear any previous session when opening modal
+      console.log('🧹 Clearing previous session state');
+      groupSharingService.clearSession();
       
       // Entrance animation
       Animated.parallel([
@@ -106,7 +122,7 @@ export default function GroupSharingModal({
     const timeoutId = setTimeout(() => {
       console.log('⚠️ Operation timed out after 10 seconds');
       setIsLoading(false);
-      Alert.alert('Timeout', 'Operation took too long. Please try again.');
+      showToast('Operation took too long. Please try again.', 'error');
     }, 10000);
     
     try {
@@ -144,20 +160,27 @@ export default function GroupSharingModal({
       console.error('❌ Error message:', error?.message);
       console.error('❌ Error stack:', error?.stack);
       setIsLoading(false);
-      Alert.alert('Error', error.message || 'Failed to create group. Please try again.');
+      showToast(error.message || 'Failed to create group. Please try again.', 'error');
     }
   };
 
   const handleJoinGroup = async () => {
+    // Prevent duplicate calls if already processing
+    if (isLoading) {
+      console.log('⏳ Already processing join request, skipping...');
+      return;
+    }
+    
     // Validation
     if (joinCode.length !== 4) {
-      Alert.alert('Invalid Code', 'Please enter a complete 4-digit code');
+      console.log('❌ Validation failed: joinCode length is', joinCode.length);
+      showToast('Please enter a complete 4-digit code', 'warning');
       return;
     }
     
     // Additional validation - must be all numeric
     if (!/^\d{4}$/.test(joinCode)) {
-      Alert.alert('Invalid Code', 'Code must contain only numbers');
+      showToast('Code must contain only numbers', 'warning');
       return;
     }
 
@@ -174,37 +197,27 @@ export default function GroupSharingModal({
         console.log('Vibration not available');
       }
       
-      // Show success feedback
-      Alert.alert(
-        'Success!', 
-        `Joined group hosted by ${session.adminName}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => onSuccess(session)
-          }
-        ]
-      );
+      // Show success and proceed
+      showToast(`Joined group hosted by ${session.adminName}`, 'success');
+      setTimeout(() => {
+        onSuccess(session);
+      }, 1000);
       
     } catch (error: any) {
       console.error('❌ Failed to join group:', error);
       
       // Determine error type and show appropriate message
-      let errorTitle = 'Join Failed';
       let errorMessage = 'Unable to join group. Please check the code and try again.';
       
       if (error.message.includes('Invalid code')) {
-        errorTitle = 'Invalid Code';
         errorMessage = 'The code you entered is not valid. Please check and try again.';
       } else if (error.message.includes('expired')) {
-        errorTitle = 'Code Expired';
         errorMessage = 'This group code has expired. Please ask for a new code.';
       } else if (error.message.includes('not found')) {
-        errorTitle = 'Code Not Found';
         errorMessage = 'No active group found with this code.';
       }
       
-      Alert.alert(errorTitle, errorMessage);
+      showToast(errorMessage, 'error');
       
       try {
         Vibration.vibrate([0, 100, 100, 100]); // Error vibration pattern
@@ -267,15 +280,8 @@ export default function GroupSharingModal({
         console.log('Vibration not available');
       }
       
-      // Auto-submit when 4 digits are entered
-      if (numericText.length === 4) {
-        console.log('✅ 4 digits entered, preparing to submit');
-        // Small delay to let the last digit animation complete
-        setTimeout(() => {
-          console.log('🚀 Auto-submitting join request');
-          handleJoinGroup();
-        }, 300);
-      }
+      // Don't auto-submit to prevent duplicate calls
+      // User will press "Join Group" button instead
       
     } else if (numericText.length < joinCode.length) {
       // Digit deleted - animate out
@@ -499,6 +505,14 @@ export default function GroupSharingModal({
             )}
           </SafeAreaView>
         </Animated.View>
+        
+        {/* Toast Notification */}
+        <CustomToast
+          visible={toastVisible}
+          message={toastMessage}
+          type={toastType}
+          onHide={() => setToastVisible(false)}
+        />
       </View>
     </Modal>
   );

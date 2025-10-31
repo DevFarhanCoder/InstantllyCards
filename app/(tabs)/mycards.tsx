@@ -9,9 +9,11 @@ import { ensureAuth } from "@/lib/auth";
 import FooterCarousel from "@/components/FooterCarousel";
 import GroupSharingModal from "@/components/GroupSharingModal";
 import GroupConnectionUI from "@/components/GroupConnectionUI";
+import GroupSharingSessionUI from "@/components/GroupSharingSessionUI";
 import groupSharingService, { GroupSharingSession } from "@/lib/groupSharingService";
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Card = any;
 
@@ -23,7 +25,9 @@ export default function MyCards() {
   const [showGroupSharingModal, setShowGroupSharingModal] = useState(false);
   const [groupSharingMode, setGroupSharingMode] = useState<'create' | 'join'>('create');
   const [showGroupConnection, setShowGroupConnection] = useState(false);
+  const [showGroupSession, setShowGroupSession] = useState(false);
   const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
+  const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [showFABMenu, setShowFABMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   
@@ -76,8 +80,18 @@ export default function MyCards() {
     console.log('🎯 MyCards: Join modal should open now');
   };
 
-  const handleGroupSharingSuccess = (session: GroupSharingSession, code?: string) => {
+  const handleGroupSharingSuccess = async (session: GroupSharingSession, code?: string) => {
     console.log('🎉 MyCards: handleGroupSharingSuccess called', { code, sessionId: session?.id });
+    
+    // Check if current user is admin
+    const userDataStr = await AsyncStorage.getItem('user');
+    let userId = '';
+    if (userDataStr) {
+      const userData = JSON.parse(userDataStr);
+      userId = userData._id || userData.id || '';
+    }
+    
+    setIsGroupAdmin(session.adminId === userId);
     setCurrentGroupSession(session);
     setShowGroupSharingModal(false);
     setShowGroupConnection(true);
@@ -87,9 +101,22 @@ export default function MyCards() {
   const handleGroupConnectionComplete = () => {
     console.log('✅ MyCards: handleGroupConnectionComplete called');
     setShowGroupConnection(false);
+    setShowGroupSession(true);
+    console.log('✅ MyCards: Session UI opened for card selection');
+  };
+  
+  const handleQuitSharing = async () => {
+    setShowGroupSession(false);
     setCurrentGroupSession(null);
-    console.log('✅ MyCards: User can now select cards to share');
-    // User can now select cards to share
+    // The "Thanks for Sharing" message is shown in the GroupSharingSessionUI
+  };
+  
+  const handleCreateGroup = async () => {
+    // TODO: Implement create group in messaging tab
+    console.log('Creating group with participants...');
+    setShowGroupSession(false);
+    setCurrentGroupSession(null);
+    router.push('/(tabs)/chats');
   };
 
   return (
@@ -158,9 +185,21 @@ export default function MyCards() {
         <GroupConnectionUI
           visible={showGroupConnection}
           session={currentGroupSession}
-          isAdmin={currentGroupSession.adminId === 'current_user'}
+          isAdmin={isGroupAdmin}
           onClose={() => setShowGroupConnection(false)}
           onConnect={handleGroupConnectionComplete}
+        />
+      )}
+      
+      {/* Group Sharing Session UI */}
+      {showGroupSession && currentGroupSession && (
+        <GroupSharingSessionUI
+          visible={showGroupSession}
+          session={currentGroupSession}
+          isAdmin={isGroupAdmin}
+          onClose={() => setShowGroupSession(false)}
+          onQuit={handleQuitSharing}
+          onCreateGroup={handleCreateGroup}
         />
       )}
     </SafeAreaView>
