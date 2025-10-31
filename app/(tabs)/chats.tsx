@@ -129,7 +129,7 @@ export default function Chats() {
             const lastMessage = messages[messages.length - 1];
             
             // Try to get contact name from multiple sources
-            let contactName = `User ${userId.slice(0, 8)}`;
+            let contactName = `Unknown`;
             let profilePicture: string | undefined;
             
             // 1. First check stored contact info in AsyncStorage
@@ -146,17 +146,28 @@ export default function Chats() {
                 const contactsResponse = await api.get('/contacts/all');
                 const contacts = contactsResponse.data || [];
                 
-                // Find contact by appUserId (MongoDB ObjectId)
+                // Check if userId is a phone number (all digits)
+                const isPhoneNumber = /^\d+$/.test(userId);
+                
+                // Find contact by appUserId (MongoDB ObjectId) OR phone number
                 const matchedContact = contacts.find((c: any) => {
                   // appUserId is the MongoDB ObjectId from backend
                   const appUserId = c.appUserId?._id || c.appUserId;
-                  return appUserId === userId || c._id === userId;
+                  const contactPhone = c.phoneNumber?.replace(/\D/g, '');
+                  
+                  if (isPhoneNumber) {
+                    // If userId is phone number, match by phone
+                    return contactPhone === userId;
+                  } else {
+                    // If userId is ObjectId, match by appUserId
+                    return appUserId === userId || c._id === userId;
+                  }
                 });
                 
                 if (matchedContact) {
                   contactName = matchedContact.name || contactName;
                   profilePicture = matchedContact.profilePicture;
-                  console.log(`✅ Found contact in backend: ${contactName} (appUserId: ${matchedContact.appUserId})`);
+                  console.log(`✅ Found contact in backend: ${contactName}`);
                   
                   // Save to AsyncStorage for future use
                   await AsyncStorage.setItem(`contact_${userId}`, JSON.stringify({
@@ -165,11 +176,23 @@ export default function Chats() {
                   }));
                 } else {
                   console.log(`⚠️ No contact match found for userId: ${userId}. Searched ${contacts.length} contacts`);
-                  // ✅ FIXED: Removed unnecessary /users/${userId} API call that always fails with 404
-                  // If contact not found, use default "Unknown" name (already set above)
+                  
+                  // If it's a phone number and not found, format it nicely
+                  if (isPhoneNumber && userId.length >= 10) {
+                    // Format phone number: +91 98674 77227
+                    const formatted = `+${userId.slice(0, 2)} ${userId.slice(2, 7)} ${userId.slice(7)}`;
+                    contactName = formatted;
+                  }
                 }
               } catch (error) {
                 console.log(`⚠️ Could not fetch contact info for ${userId}`);
+                
+                // Fallback: if userId looks like phone number, format it
+                const isPhoneNumber = /^\d+$/.test(userId);
+                if (isPhoneNumber && userId.length >= 10) {
+                  const formatted = `+${userId.slice(0, 2)} ${userId.slice(2, 7)} ${userId.slice(7)}`;
+                  contactName = formatted;
+                }
               }
             }
             

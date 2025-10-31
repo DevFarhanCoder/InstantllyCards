@@ -333,19 +333,50 @@ export default function ChatScreen() {
           if (!isValidObjectId) {
             console.warn('⚠️ userId is not a valid ObjectId (possibly phone number):', userId);
             
-            // Try to get the correct ObjectId from backend
+            // Try to get the correct ObjectId from contacts
             try {
               const phoneNumber = userId.replace(/\D/g, ''); // Remove non-digits
-              const userResponse = await api.get(`/users/search-by-phone/${phoneNumber}`);
-              if (userResponse?.user?._id) {
-                validReceiverId = userResponse.user._id;
-                console.log('✅ Converted phone to ObjectId:', validReceiverId);
+              console.log('🔍 Looking up user by phone number:', phoneNumber);
+              
+              // Fetch all contacts and find by phone
+              const contactsResponse = await api.get('/contacts/all');
+              const contacts = contactsResponse.data || [];
+              
+              const matchedContact = contacts.find((c: any) => {
+                const contactPhone = c.phoneNumber?.replace(/\D/g, '');
+                return contactPhone === phoneNumber;
+              });
+              
+              if (matchedContact && matchedContact.appUserId) {
+                const appUserId = matchedContact.appUserId._id || matchedContact.appUserId;
+                validReceiverId = appUserId;
+                console.log('✅ Found user ObjectId from contacts:', validReceiverId);
               } else {
-                throw new Error('User not found by phone number');
+                console.error('❌ Contact not found by phone:', phoneNumber);
+                Alert.alert('Error', 'Unable to send message. Contact not found.');
+                
+                // Update to failed status
+                const failedMessages = updatedMessages.map(msg => 
+                  msg.id === newMessage.id 
+                    ? { ...msg, status: 'failed' as const }
+                    : msg
+                );
+                setMessages(failedMessages);
+                await saveMessages(failedMessages);
+                return;
               }
             } catch (lookupError) {
               console.error('❌ Failed to lookup user by phone:', lookupError);
-              Alert.alert('Error', 'Unable to send message. Invalid recipient.');
+              Alert.alert('Error', 'Unable to send message. Could not find recipient.');
+              
+              // Update to failed status
+              const failedMessages = updatedMessages.map(msg => 
+                msg.id === newMessage.id 
+                  ? { ...msg, status: 'failed' as const }
+                  : msg
+              );
+              setMessages(failedMessages);
+              await saveMessages(failedMessages);
               return;
             }
           }

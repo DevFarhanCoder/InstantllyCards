@@ -64,6 +64,8 @@ export default function ContactSelectScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [contactsSynced, setContactsSynced] = useState(false);
   const [contactsLoading, setContactsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("Loading contacts...");
   const [selectedContacts, setSelectedContacts] = useState<DeviceContact[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<any[]>([]);
   const queryClient = useQueryClient();
@@ -99,9 +101,13 @@ export default function ContactSelectScreen() {
     
     try {
       setContactsLoading(true);
+      setLoadingProgress(5);
+      setLoadingMessage('Starting contact sync...');
       console.log('Starting contact sync...');
 
       // Request contacts permission
+      setLoadingProgress(10);
+      setLoadingMessage('Requesting permissions...');
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         console.log('Contacts permission denied');
@@ -111,12 +117,16 @@ export default function ContactSelectScreen() {
       }
 
       // Get device contacts
+      setLoadingProgress(20);
+      setLoadingMessage('Reading device contacts...');
       console.log('Getting device contacts...');
       const { data: deviceContacts } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
       });
       
       // Extract phone numbers with proper formatting
+      setLoadingProgress(30);
+      setLoadingMessage('Processing contacts...');
       const phoneNumbers = deviceContacts
         .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
         .map((contact: any) => ({
@@ -139,6 +149,11 @@ export default function ContactSelectScreen() {
           const batch = phoneNumbers.slice(i, i + BATCH_SIZE);
           const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
           
+          // Update progress (30% to 90% range for syncing)
+          const syncProgress = 30 + ((batchNumber / totalBatches) * 60);
+          setLoadingProgress(Math.round(syncProgress));
+          setLoadingMessage(`Syncing batch ${batchNumber}/${totalBatches}...`);
+          
           console.log(`Syncing batch ${batchNumber}/${totalBatches} (${batch.length} contacts)...`);
           
           try {
@@ -155,6 +170,8 @@ export default function ContactSelectScreen() {
           }
         }
         
+        setLoadingProgress(95);
+        setLoadingMessage('Finalizing sync...');
         setContactsSynced(true);
         
         // Save sync timestamp to AsyncStorage
@@ -166,6 +183,9 @@ export default function ContactSelectScreen() {
         } catch (storageError) {
           console.error('Error saving sync status:', storageError);
         }
+
+        setLoadingProgress(100);
+        setLoadingMessage('Sync complete!');
 
         // Refresh the contact queries to show updated data
         queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
@@ -420,21 +440,39 @@ export default function ContactSelectScreen() {
       if (contactsPage === 1) {
         console.log(`📝 Setting allContacts to ${data.length} contacts (page 1)`);
         setAllContacts(data);
+        setLoadingProgress(30); // Initial load progress
+        setLoadingMessage(`Loading contacts... ${data.length} loaded`);
       } else {
         console.log(`📝 Appending ${data.length} contacts to existing contacts`);
         setAllContacts(prev => {
           const newContacts = [...prev, ...data];
           console.log(`📊 Total contacts after append: ${newContacts.length}`);
+          
+          // Update progress based on pages loaded
+          const estimatedProgress = Math.min(30 + (contactsPage * 15), 90);
+          setLoadingProgress(estimatedProgress);
+          setLoadingMessage(`Loading contacts... ${newContacts.length} loaded`);
+          
           return newContacts;
         });
       }
       setHasMoreContacts(pagination.hasMore);
       
+      // If no more contacts, set progress to 100%
+      if (!pagination.hasMore) {
+        setLoadingProgress(100);
+        setLoadingMessage("Contacts loaded!");
+      }
+      
       console.log(`📊 Page ${contactsPage} processing complete`);
     } else {
       console.log(`⚠️ No data in query yet`);
+      if (storedContactsQuery.isLoading) {
+        setLoadingProgress(10);
+        setLoadingMessage("Fetching contacts...");
+      }
     }
-  }, [storedContactsQuery.data, resetKey]); // Remove contactsPage from dependencies to prevent infinite loop
+  }, [storedContactsQuery.data, resetKey, storedContactsQuery.isLoading, contactsPage]); // Remove contactsPage from dependencies to prevent infinite loop
 
   // Reset to page 1 when contactsSynced changes
   useEffect(() => {
@@ -978,9 +1016,13 @@ export default function ContactSelectScreen() {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>
-            {contactsLoading ? 'Syncing contacts...' : 'Loading contacts...'}
-          </Text>
+          <Text style={styles.loadingText}>{loadingMessage}</Text>
+          
+          {/* Progress Bar */}
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBarFill, { width: `${loadingProgress}%` }]} />
+          </View>
+          <Text style={styles.progressText}>{Math.round(loadingProgress)}%</Text>
         </View>
       </SafeAreaView>
     );
@@ -1200,11 +1242,32 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 40,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
     color: "#9CA3AF",
+    marginBottom: 24,
+  },
+  progressBarContainer: {
+    width: '80%',
+    height: 8,
+    backgroundColor: '#1F2937',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#3B82F6',
+    borderRadius: 4,
+  },
+  progressText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
   searchContainer: {
     paddingHorizontal: 16,
