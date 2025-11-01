@@ -9,85 +9,143 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// Ad type definition
+type Ad = {
+  id: number | string;
+  image: any;
+  phone: string;
+  name: string;
+  hasFullBanner?: boolean;
+  bannerImage?: any;
+  isFromApi?: boolean;
+};
+
 // Ad data with phone numbers
-const ads = [
+const ads: Ad[] = [
   // Rajesh Modi - 9867477227
-  { id: 2, image: require('../assets/images/Footer Ads_02-05.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 3, image: require('../assets/images/Footer Ads_02-06.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 4, image: require('../assets/images/Footer Ads_02-11.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 5, image: require('../assets/images/Footer Ads_02-02.jpg'), phone: '+919867477227', name: 'Rajesh Modi', hasFullBanner: true, bannerImage: require('../assets/images/Instantlly Cards_Full Page Ad-01.jpg') },
-  { id: 6, image: require('../assets/images/Footer Ads_02-01.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 7, image: require('../assets/images/Footer Ads_02-08.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 8, image: require('../assets/images/Footer Ads_02-09.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 9, image: require('../assets/images/Footer Ads_02-04.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 10, image: require('../assets/images/Footer Ads_02-21.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 11, image: require('../assets/images/Footer Ads_02-37.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 12, image: require('../assets/images/Footer Ads_02-36.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 13, image: require('../assets/images/Footer Ads_02-12.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
-  { id: 14, image: require('../assets/images/Footer Ads_02-10.jpg'), phone: '+919867477227', name: 'Rajesh Modi' },
+  { id: 2, image: require('../assets/images/Footer Ads_02-05.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 3, image: require('../assets/images/Footer Ads_02-06.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 4, image: require('../assets/images/Footer Ads_02-11.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 5, image: require('../assets/images/Footer Ads_02-02.jpg'), phone: '+919867477227', name: 'Rajesh Modi', hasFullBanner: true, bannerImage: require('../assets/images/Instantlly Cards_Full Page Ad-01.jpg'), isFromApi: false },
+  { id: 6, image: require('../assets/images/Footer Ads_02-01.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 7, image: require('../assets/images/Footer Ads_02-08.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 8, image: require('../assets/images/Footer Ads_02-09.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 9, image: require('../assets/images/Footer Ads_02-04.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 10, image: require('../assets/images/Footer Ads_02-21.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 11, image: require('../assets/images/Footer Ads_02-37.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 12, image: require('../assets/images/Footer Ads_02-36.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 13, image: require('../assets/images/Footer Ads_02-12.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
+  { id: 14, image: require('../assets/images/Footer Ads_02-10.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
   
   // Ingit Dave - 8879221111
-  { id: 15, image: require('../assets/images/Footer Ads_02-07.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
-  { id: 16, image: require('../assets/images/Footer Ads_02-31.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
-  { id: 17, image: require('../assets/images/Footer Ads_02-32.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
-  { id: 18, image: require('../assets/images/Footer Ads_02-33.jpg'), phone: '+918879221111', name: 'Ingit Dave' },
+  { id: 15, image: require('../assets/images/Footer Ads_02-07.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
+  { id: 16, image: require('../assets/images/Footer Ads_02-31.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
+  { id: 17, image: require('../assets/images/Footer Ads_02-32.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
+  { id: 18, image: require('../assets/images/Footer Ads_02-33.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
   
   // Arun Kamal - 9833001167
-  { id: 19, image: require('../assets/images/Footer Ads_02-19.jpg'), phone: '+919833001167', name: 'Arun Kamal' },
+  { id: 19, image: require('../assets/images/Footer Ads_02-19.jpg'), phone: '+919833001167', name: 'Arun Kamal', isFromApi: false },
   
   // Shabbir - 9820329571
-  { id: 20, image: require('../assets/images/Footer Ads_02-03.jpg'), phone: '+919820329571', name: 'Shabbir' },
+  { id: 20, image: require('../assets/images/Footer Ads_02-03.jpg'), phone: '+919820329571', name: 'Shabbir', isFromApi: false },
   
   // Aakash Jugraj - 9004444476
-  { id: 21, image: require('../assets/images/Footer Ads_02-34.jpg'), phone: '+919004444476', name: 'Aakash Jugraj' },
+  { id: 21, image: require('../assets/images/Footer Ads_02-34.jpg'), phone: '+919004444476', name: 'Aakash Jugraj', isFromApi: false },
   
   // Ganesh Kandalkar - 9867304372
-  { id: 22, image: require('../assets/images/Footer Ads_02-35.jpg'), phone: '+919867304372', name: 'Ganesh Kandalkar' },
+  { id: 22, image: require('../assets/images/Footer Ads_02-35.jpg'), phone: '+919867304372', name: 'Ganesh Kandalkar', isFromApi: false },
   
   // Sengel Dsouza - 8976260702
-  { id: 23, image: require('../assets/images/Footer Ads_02-38.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
-  { id: 24, image: require('../assets/images/Footer Ads_02-39.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
-  { id: 25, image: require('../assets/images/Footer Ads_02-40.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
-  { id: 26, image: require('../assets/images/Footer Ads_02-41.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
-  { id: 27, image: require('../assets/images/Footer Ads_02-42.jpg'), phone: '+918976260702', name: 'Sengel Dsouza' },
+  { id: 23, image: require('../assets/images/Footer Ads_02-38.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
+  { id: 24, image: require('../assets/images/Footer Ads_02-39.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
+  { id: 25, image: require('../assets/images/Footer Ads_02-40.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
+  { id: 26, image: require('../assets/images/Footer Ads_02-41.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
+  { id: 27, image: require('../assets/images/Footer Ads_02-42.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
   
   // Vibhuti Jain - 9820658293
-  { id: 28, image: require('../assets/images/Footer Ads_02-22.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 29, image: require('../assets/images/Footer Ads_02-20.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 30, image: require('../assets/images/Footer Ads_02-26.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 31, image: require('../assets/images/Footer Ads_02-46.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 32, image: require('../assets/images/Footer Ads_02-47.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 33, image: require('../assets/images/Footer Ads_02-51.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 34, image: require('../assets/images/Footer Ads_02-52.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 35, image: require('../assets/images/Footer Ads_02-58.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
-  { id: 36, image: require('../assets/images/Footer Ads_02-49.jpg'), phone: '+919820658293', name: 'Vibhuti Jain' },
+  { id: 28, image: require('../assets/images/Footer Ads_02-22.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 29, image: require('../assets/images/Footer Ads_02-20.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 30, image: require('../assets/images/Footer Ads_02-26.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 31, image: require('../assets/images/Footer Ads_02-46.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 32, image: require('../assets/images/Footer Ads_02-47.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 33, image: require('../assets/images/Footer Ads_02-51.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 34, image: require('../assets/images/Footer Ads_02-52.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 35, image: require('../assets/images/Footer Ads_02-58.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
+  { id: 36, image: require('../assets/images/Footer Ads_02-49.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
   
   // Dr. Pooja Shah - 9167379734
-  { id: 37, image: require('../assets/images/Footer Ads_02-53.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
-  { id: 38, image: require('../assets/images/Footer Ads_02-54.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
-  { id: 39, image: require('../assets/images/Footer Ads_02-55.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
-  { id: 40, image: require('../assets/images/Footer Ads_02-56.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
-  { id: 41, image: require('../assets/images/Footer Ads_02-57.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah' },
+  { id: 37, image: require('../assets/images/Footer Ads_02-53.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
+  { id: 38, image: require('../assets/images/Footer Ads_02-54.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
+  { id: 39, image: require('../assets/images/Footer Ads_02-55.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
+  { id: 40, image: require('../assets/images/Footer Ads_02-56.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
+  { id: 41, image: require('../assets/images/Footer Ads_02-57.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
   
   // DevDas Pandit - 8452856993
-  { id: 42, image: require('../assets/images/Footer Ads_02-61.jpg'), phone: '+918452856993', name: 'DevDas Pandit' },
+  { id: 42, image: require('../assets/images/Footer Ads_02-61.jpg'), phone: '+918452856993', name: 'DevDas Pandit', isFromApi: false },
   
   // Mohit Gupta - 9820364494
-  { id: 43, image: require('../assets/images/Footer Ads_02-62.jpg'), phone: '+919820364494', name: 'Mohit Gupta' },
+  { id: 43, image: require('../assets/images/Footer Ads_02-62.jpg'), phone: '+919820364494', name: 'Mohit Gupta', isFromApi: false },
 ];
 
 const FooterCarousel = () => {
+  console.log('🔄 FooterCarousel: Component mounting/re-rendering');
   const [activeIndex, setActiveIndex] = useState(1); // Start at index 1 (first real ad)
   const [showModal, setShowModal] = useState(false);
   const [showSimpleModal, setShowSimpleModal] = useState(false);
-  const [selectedAd, setSelectedAd] = useState<typeof ads[0] | null>(null);
+  const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [apiAds, setApiAds] = useState<Ad[]>([]);
+  const [allAds, setAllAds] = useState<Ad[]>(ads); // Combined ads
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   
-  // Create infinite scroll data: [last, ...ads, first]
-  const infiniteAds = [ads[ads.length - 1], ...ads, ads[0]];
+  console.log(`📊 FooterCarousel: Current ad counts - Hardcoded: ${ads.length}, API: ${apiAds.length}, Total: ${allAds.length}`);
+  
+  // Fetch ads from API and combine with hardcoded ads
+  useEffect(() => {
+    console.log('🔍 FooterCarousel: useEffect for API ads is running...');
+    const fetchApiAds = async () => {
+      try {
+        console.log('📡 FooterCarousel: Calling GET /ads/active...');
+        const response = await api.get('/ads/active');
+        console.log('📥 FooterCarousel: API full response:', JSON.stringify(response, null, 2));
+        
+        if (response && response.success && response.data && response.data.length > 0) {
+          console.log(`📦 FooterCarousel: Processing ${response.data.length} ads from API...`);
+          const formattedApiAds = response.data.map((ad: any) => {
+            console.log('🎨 Formatting ad:', ad.title || 'No title', ad._id);
+            return {
+              id: `api-${ad._id}`,
+              image: { uri: ad.bottomImage },
+              phone: ad.phoneNumber,
+              name: ad.title || 'Ad from Dashboard',
+              hasFullBanner: !!ad.fullscreenImage,
+              bannerImage: ad.fullscreenImage ? { uri: ad.fullscreenImage } : undefined,
+              isFromApi: true,
+            };
+          });
+          console.log(`✅ FooterCarousel: Formatted ${formattedApiAds.length} API ads`);
+          setApiAds(formattedApiAds);
+          const combinedAds = [...ads, ...formattedApiAds];
+          setAllAds(combinedAds);
+          console.log(`🎉 FooterCarousel: Successfully combined ads - Hardcoded: ${ads.length}, API: ${formattedApiAds.length}, Total: ${combinedAds.length}`);
+        } else {
+          console.log('ℹ️ FooterCarousel: No API ads available, using hardcoded ads only');
+          setAllAds(ads);
+        }
+      } catch (error) {
+        console.log('❌ FooterCarousel: Error fetching API ads:', error);
+        console.log('ℹ️ FooterCarousel: Using hardcoded ads only');
+        setAllAds(ads);
+      }
+    };
+    
+    fetchApiAds();
+  }, []);
+  
+  // Create infinite scroll data: [last, ...allAds, first]
+  const infiniteAds = [allAds[allAds.length - 1], ...allAds, allAds[0]];
 
   // Load last viewed ad position and set initial scroll position
   useEffect(() => {
@@ -99,7 +157,7 @@ const FooterCarousel = () => {
         if (lastAdIndex) {
           const parsedIndex = parseInt(lastAdIndex, 10);
           // Calculate next ad index (resume from next ad)
-          const nextIndex = (parsedIndex % ads.length) + 1;
+          const nextIndex = (parsedIndex % allAds.length) + 1;
           startIndex = nextIndex;
           console.log(`📺 Resuming ads from index ${nextIndex} (last viewed: ${parsedIndex})`);
         } else {
@@ -178,7 +236,7 @@ const FooterCarousel = () => {
       // Calculate the actual ad index (accounting for infinite scroll duplicates)
       let actualAdIndex = activeIndex;
       if (actualAdIndex === 0) {
-        actualAdIndex = ads.length;
+        actualAdIndex = allAds.length;
       } else if (actualAdIndex === infiniteAds.length - 1) {
         actualAdIndex = 1;
       } else {
@@ -231,10 +289,16 @@ const FooterCarousel = () => {
     }
   };
 
-  const handleAdPress = (ad: typeof ads[0]) => {
+  const handleAdPress = (ad: Ad) => {
+    console.log('👆 Ad pressed:', {
+      id: ad.id,
+      name: ad.name,
+      isFromApi: ad.isFromApi,
+      hasFullBanner: ad.hasFullBanner
+    });
     setSelectedAd(ad);
     // Check if ad has full banner
-    if ((ad as any).hasFullBanner) {
+    if (ad.hasFullBanner) {
       setShowModal(true); // Show full-screen modal
     } else {
       setShowSimpleModal(true); // Show simple popup
@@ -391,6 +455,15 @@ const FooterCarousel = () => {
               source={ad.image}
               style={styles.image}
               resizeMode="cover"
+              onError={(error) => {
+                console.log(`❌ Error loading ad image at index ${index}:`, error.nativeEvent.error);
+                console.log(`   Ad ID: ${ad.id}, Is from API: ${ad.isFromApi}`);
+              }}
+              onLoad={() => {
+                if (ad.isFromApi) {
+                  console.log(`✅ API ad image loaded successfully at index ${index}`);
+                }
+              }}
             />
           </TouchableOpacity>
         ))}
