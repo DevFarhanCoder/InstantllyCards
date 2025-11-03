@@ -9,13 +9,18 @@ import {
   ActivityIndicator,
   Animated,
   Vibration,
+  Keyboard,
+  Platform,
   Pressable,
   Switch,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import groupSharingService, { GroupSharingSession } from '@/lib/groupSharingService';
 import CustomToast, { ToastType } from './CustomToast';
 
+// Updated: OTP-style input with 4 boxes only
 interface GroupSharingModalProps {
   visible: boolean;
   mode: 'create' | 'join';
@@ -32,7 +37,7 @@ export default function GroupSharingModal({
   const [joinCode, setJoinCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [allowParticipantSharing, setAllowParticipantSharing] = useState(false);
+  const [allowParticipantSharing, setAllowParticipantSharing] = useState(false); // Default OFF
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   
   // Toast state
@@ -40,6 +45,7 @@ export default function GroupSharingModal({
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<ToastType>('info');
   
+  // Helper to show toast
   const showToast = (message: string, type: ToastType = 'info') => {
     setToastMessage(message);
     setToastType(type);
@@ -53,19 +59,24 @@ export default function GroupSharingModal({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const codeAnimations = useRef(Array.from({ length: 4 }, () => new Animated.Value(0))).current;
+  
+  // Individual digit animations for typing effect
   const digitScales = useRef(Array.from({ length: 4 }, () => new Animated.Value(1))).current;
   const digitOpacities = useRef(Array.from({ length: 4 }, () => new Animated.Value(1))).current;
 
+  // Reset state when modal opens
   useEffect(() => {
     if (visible) {
       console.log('📱 GroupSharingModal opened - Mode:', mode);
       setJoinCode('');
       setGeneratedCode(null);
       setIsLoading(false);
-      setShowSettingsModal(false);
       
+      // Clear any previous session when opening modal
+      console.log('🧹 Clearing previous session state');
       groupSharingService.clearSession();
       
+      // Entrance animation
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -80,8 +91,11 @@ export default function GroupSharingModal({
         }),
       ]).start();
       
+      // Auto-focus the hidden input in join mode after animation
       if (mode === 'join') {
+        console.log('⌨️ Join mode detected, will focus input');
         setTimeout(() => {
+          console.log('⌨️ Focusing hidden input now');
           hiddenInputRef.current?.focus();
         }, 500);
       }
@@ -91,6 +105,7 @@ export default function GroupSharingModal({
     }
   }, [visible, mode]);
 
+  // Animate code display
   const animateCode = (code: string) => {
     codeAnimations.forEach((anim, index) => {
       anim.setValue(0);
@@ -115,12 +130,15 @@ export default function GroupSharingModal({
     setShowSettingsModal(false);
     setIsLoading(true);
     
+    // Safety timeout - reset loading state after 10 seconds if something goes wrong
     const timeoutId = setTimeout(() => {
+      console.log('⚠️ Operation timed out after 10 seconds');
       setIsLoading(false);
       showToast('Operation took too long. Please try again.', 'error');
     }, 10000);
     
     try {
+      console.log('📞 Calling groupSharingService.createGroupSession...');
       const result = await Promise.race([
         groupSharingService.createGroupSession(allowParticipantSharing),
         new Promise<never>((_, reject) => 
@@ -135,12 +153,15 @@ export default function GroupSharingModal({
       animateCode(result.code);
       
       try {
-        Vibration.vibrate([0, 100, 50, 100]);
+        Vibration.vibrate([0, 100, 50, 100]); // Success vibration pattern
       } catch (vibError) {
-        console.log('⚠️ Vibration not available');
+        console.log('⚠️ Vibration not available:', vibError);
       }
       
+      // Auto-proceed to connection UI after 2 seconds
+      console.log('⏱️ Setting timeout to call onSuccess...');
       setTimeout(() => {
+        console.log('✅ Calling onSuccess with session');
         setIsLoading(false);
         onSuccess(result.session, result.code);
       }, 2000);
@@ -148,19 +169,28 @@ export default function GroupSharingModal({
     } catch (error: any) {
       clearTimeout(timeoutId);
       console.error('❌ Error in handleCreateGroup:', error);
+      console.error('❌ Error message:', error?.message);
+      console.error('❌ Error stack:', error?.stack);
       setIsLoading(false);
       showToast(error.message || 'Failed to create group. Please try again.', 'error');
     }
   };
 
   const handleJoinGroup = async () => {
-    if (isLoading) return;
+    // Prevent duplicate calls if already processing
+    if (isLoading) {
+      console.log('⏳ Already processing join request, skipping...');
+      return;
+    }
     
+    // Validation
     if (joinCode.length !== 4) {
+      console.log('❌ Validation failed: joinCode length is', joinCode.length);
       showToast('Please enter a complete 4-digit code', 'warning');
       return;
     }
     
+    // Additional validation - must be all numeric
     if (!/^\d{4}$/.test(joinCode)) {
       showToast('Code must contain only numbers', 'warning');
       return;
@@ -174,11 +204,12 @@ export default function GroupSharingModal({
       console.log('✅ Successfully joined group:', session.id);
       
       try {
-        Vibration.vibrate(100);
+        Vibration.vibrate(100); // Success vibration
       } catch (e) {
         console.log('Vibration not available');
       }
       
+      // Show success and proceed
       showToast(`Joined group hosted by ${session.adminName}`, 'success');
       setTimeout(() => {
         onSuccess(session);
@@ -187,6 +218,7 @@ export default function GroupSharingModal({
     } catch (error: any) {
       console.error('❌ Failed to join group:', error);
       
+      // Determine error type and show appropriate message
       let errorMessage = 'Unable to join group. Please check the code and try again.';
       
       if (error.message.includes('Invalid code')) {
@@ -200,15 +232,9 @@ export default function GroupSharingModal({
       showToast(errorMessage, 'error');
       
       try {
-        Vibration.vibrate([0, 100, 100, 100]);
+        Vibration.vibrate([0, 100, 100, 100]); // Error vibration pattern
       } catch (e) {
         console.log('Vibration not available');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleClose = () => {
     setShowSettingsModal(false);
     Animated.parallel([
@@ -228,9 +254,14 @@ export default function GroupSharingModal({
   };
 
   const handleCodeInputChange = (text: string) => {
+    console.log('✏️ Code input changed:', text);
+    // Only allow numeric input and max 4 digits
     const numericText = text.replace(/[^0-9]/g, '').substring(0, 4);
+    console.log('✏️ Setting joinCode to:', numericText);
     
+    // Animate the newly typed digit
     if (numericText.length > joinCode.length) {
+      // New digit added
       const index = numericText.length - 1;
       digitScales[index].setValue(0);
       digitOpacities[index].setValue(0);
@@ -249,12 +280,18 @@ export default function GroupSharingModal({
         }),
       ]).start();
       
+      // Vibrate on each digit entry
       try {
         Vibration.vibrate(50);
       } catch (e) {
         console.log('Vibration not available');
       }
+      
+      // Don't auto-submit to prevent duplicate calls
+      // User will press "Join Group" button instead
+      
     } else if (numericText.length < joinCode.length) {
+      // Digit deleted - animate out
       const index = joinCode.length - 1;
       Animated.parallel([
         Animated.spring(digitScales[index], {
@@ -318,11 +355,15 @@ export default function GroupSharingModal({
   };
 
   const renderCodeInput = () => {
+    console.log('🔍 Rendering code input, joinCode:', joinCode);
     return (
       <View style={styles.codeInputContainer}>
         <Text style={styles.inputLabel}>Enter Group Code</Text>
         <Pressable 
-          onPress={() => hiddenInputRef.current?.focus()}
+          onPress={() => {
+            console.log('📱 Code boxes tapped, focusing input');
+            hiddenInputRef.current?.focus();
+          }}
         >
           <View style={styles.codeInputRow}>
             {Array.from({ length: 4 }).map((_, index) => (
@@ -331,7 +372,7 @@ export default function GroupSharingModal({
                 style={[
                   styles.codeInputDigit,
                   joinCode[index] && styles.codeInputDigitFilled,
-                  joinCode.length === index && styles.codeInputDigitActive,
+                  joinCode.length === index && styles.codeInputDigitActive,  // Only current empty box is active
                   {
                     transform: [{ scale: digitScales[index] }],
                   }
@@ -348,6 +389,7 @@ export default function GroupSharingModal({
               </Animated.View>
             ))}
             
+            {/* Hidden TextInput positioned over the boxes */}
             <TextInput
               ref={hiddenInputRef}
               style={styles.hiddenInput}
@@ -359,6 +401,8 @@ export default function GroupSharingModal({
               caretHidden
               editable={true}
               contextMenuHidden
+              onBlur={() => console.log('⌨️ Input lost focus')}
+              onFocus={() => console.log('⌨️ Input gained focus')}
             />
           </View>
         </Pressable>
@@ -369,7 +413,6 @@ export default function GroupSharingModal({
       </View>
     );
   };
-
   return (
     <>
       {/* Main Modal */}
@@ -384,6 +427,7 @@ export default function GroupSharingModal({
               },
             ]}
           >
+            {/* Header */}
             <View style={styles.header}>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color="#6B7280" />
@@ -394,6 +438,7 @@ export default function GroupSharingModal({
               <View style={{ width: 40 }} />
             </View>
 
+            {/* Body */}
             <View style={styles.body}>
               <View style={styles.iconContainer}>
                 <View style={styles.iconBackground}>
@@ -436,6 +481,7 @@ export default function GroupSharingModal({
               )}
             </View>
 
+            {/* Footer */}
             {!generatedCode && (
               <View style={styles.footer}>
                 <TouchableOpacity
@@ -464,6 +510,7 @@ export default function GroupSharingModal({
       <Modal visible={showSettingsModal} transparent animationType="slide" statusBarTranslucent>
         <View style={styles.overlay}>
           <View style={styles.settingsContainer}>
+            {/* Header */}
             <View style={styles.header}>
               <TouchableOpacity onPress={() => setShowSettingsModal(false)} style={styles.closeButton}>
                 <Ionicons name="arrow-back" size={24} color="#6B7280" />
@@ -472,6 +519,7 @@ export default function GroupSharingModal({
               <View style={{ width: 40 }} />
             </View>
 
+            {/* Body */}
             <View style={styles.settingsBody}>
               <View style={styles.sharingControl}>
                 <View style={styles.sharingControlHeader}>
@@ -507,6 +555,7 @@ export default function GroupSharingModal({
               </View>
             </View>
 
+            {/* Footer */}
             <View style={styles.footer}>
               <TouchableOpacity
                 style={styles.actionButton}
@@ -524,6 +573,7 @@ export default function GroupSharingModal({
         </View>
       </Modal>
 
+      {/* Toast Notification */}
       <CustomToast
         visible={toastVisible}
         message={toastMessage}
@@ -578,11 +628,50 @@ const styles = StyleSheet.create({
   },
   settingsBody: {
     padding: 24,
-    minHeight: 200,
+  },flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  container: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  features: {
+    gap: 12,
+    marginTop: 8,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },aderRight: {
+    flex: 1,
+  },
+  body: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  bodyContent: {
+    padding: 24,
+    paddingBottom: 40,
   },
   iconContainer: {
-    alignItems: 'center',
     marginBottom: 24,
+    alignItems: 'center',
   },
   iconBackground: {
     width: 96,
@@ -595,23 +684,28 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     color: '#6B7280',
-    textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
   },
+  createContent: {
+    width: '100%',
+  },
   features: {
-    gap: 12,
-    marginTop: 8,
+    width: '100%',
+    marginBottom: 8,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 8,
   },
   featureText: {
     fontSize: 16,
     color: '#374151',
     marginLeft: 12,
   },
+  // Sharing control styles
   sharingControl: {
     marginTop: 20,
     padding: 16,
@@ -650,8 +744,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
   },
+  // Code display styles
   codeDisplayContainer: {
     alignItems: 'center',
+    width: '100%',
   },
   codeLabel: {
     fontSize: 18,
@@ -702,8 +798,10 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginLeft: 4,
   },
+  // Code input styles
   codeInputContainer: {
     alignItems: 'center',
+    width: '100%',
   },
   inputLabel: {
     fontSize: 18,
@@ -728,7 +826,7 @@ const styles = StyleSheet.create({
   },
   codeInputDigitFilled: {
     backgroundColor: '#F0F4FF',
-    borderColor: '#E5E7EB',
+    borderColor: '#E5E7EB',  // Filled boxes keep normal border
   },
   codeInputDigitText: {
     fontSize: 24,
@@ -736,7 +834,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   codeInputDigitActive: {
-    borderColor: '#6366F1',
+    borderColor: '#6366F1',  // Only the current typing box gets blue border
     borderWidth: 2,
     backgroundColor: '#FFFFFF',
   },

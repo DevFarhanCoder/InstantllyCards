@@ -721,8 +721,8 @@ export default function ContactSelectScreen() {
 
       // Check if any selected contacts have already received this card
       try {
-        const sentCardsResponse = await api.get('/cards/sent');
-        const sentCards = sentCardsResponse.data || [];
+        const sentCardsResponse = await api.get<{ success: boolean; data: any[] }>('/cards/sent');
+        const sentCards = sentCardsResponse?.data || [];
         
         // Find duplicates - contacts who already received this card
         const duplicates = selectedContacts.filter(contact => 

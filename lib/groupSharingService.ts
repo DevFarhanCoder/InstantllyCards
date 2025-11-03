@@ -63,9 +63,10 @@ class GroupSharingService {
   }
 
   // Create a new group sharing session (Admin only)
-  async createGroupSession(): Promise<{ session: GroupSharingSession; code: string }> {
+  async createGroupSession(allowParticipantSharing: boolean = false): Promise<{ session: GroupSharingSession; code: string }> {
     try {
       console.log('🔄 Starting group session creation...');
+      console.log('🔐 allowParticipantSharing:', allowParticipantSharing);
       const code = this.generateGroupCode();
       console.log('📝 Generated code:', code);
       
@@ -107,7 +108,8 @@ class GroupSharingService {
         adminName: userName,
         adminPhone: userPhone,
         adminPhoto: userPhoto,
-        expirationMinutes: 10
+        expirationMinutes: 10,
+        allowParticipantSharing
       });
       
       if (!response.success) {

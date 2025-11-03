@@ -767,8 +767,9 @@ export default function Chats() {
         const token = await ensureAuth();
         if (!token) return [];
         
-        const response = await api.get("/cards/sent");
-        return response.data || [];
+        const response = await api.get<{ success: boolean; data: any[] }>("/cards/sent");
+        console.log("📧 Sent cards response:", response);
+        return response?.data || [];
       } catch (error) {
         console.error("Error fetching sent cards:", error);
         return [];
@@ -784,8 +785,9 @@ export default function Chats() {
         const token = await ensureAuth();
         if (!token) return [];
         
-        const response = await api.get("/cards/received");
-        return response.data || [];
+        const response = await api.get<{ success: boolean; data: any[] }>("/cards/received");
+        console.log("📬 Received cards response:", response);
+        return response?.data || [];
       } catch (error) {
         console.error("Error fetching received cards:", error);
         return [];
@@ -1024,24 +1026,9 @@ export default function Chats() {
 
       <View style={s.cardInfo}>
         <View style={s.cardTitleRow}>
-          <Text style={s.cardTitlePrefix}>To - </Text>
           <Text style={s.cardTitleBold} numberOfLines={1} ellipsizeMode="tail">{item.recipientName}</Text>
         </View>
         <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
-      </View>
-
-      <View style={s.actionButtons}>
-        <TouchableOpacity style={s.iconButton} onPress={() => {
-          handleCall(item, true); // true = sent card
-        }}>
-          <Ionicons name="call" size={20} color="#0EA5A4" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.iconButton} onPress={() => {
-          router.push({ pathname: `/chat/[userId]`, params: { userId: item.recipientId, userName: item.recipientName } } as any);
-        }}>
-          <Ionicons name="chatbubbles" size={20} color="#2563EB" />
-        </TouchableOpacity>
       </View>
       </Animated.View>
     </TouchableOpacity>
@@ -1092,25 +1079,9 @@ export default function Chats() {
 
       <View style={s.cardInfo}>
         <View style={s.cardTitleRow}>
-          <Text style={s.cardTitlePrefix}>From - </Text>
           <Text style={s.cardTitleBold} numberOfLines={1} ellipsizeMode="tail">{item.senderName}</Text>
         </View>
         <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
-        {!item.isViewed && <Text style={s.newBadge}>NEW</Text>}
-      </View>
-
-      <View style={s.actionButtons}>
-        <TouchableOpacity style={s.iconButton} onPress={() => {
-          handleCall(item, false); // false = received card
-        }}>
-          <Ionicons name="call" size={20} color="#0EA5A4" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={s.iconButton} onPress={() => {
-          router.push({ pathname: `/chat/[userId]`, params: { userId: item.senderId, userName: item.senderName } } as any);
-        }}>
-          <Ionicons name="chatbubbles" size={20} color="#2563EB" />
-        </TouchableOpacity>
       </View>
       </Animated.View>
     </TouchableOpacity>
@@ -1674,6 +1645,15 @@ export default function Chats() {
           onPress={() => changeTab('received')}
         >
           <Text style={[s.tabText, activeTab === 'received' && s.activeTabText]}>Received</Text>
+          {/* Red badge for unread received cards */}
+          {(() => {
+            const unreadCount = (receivedCardsQuery.data || []).filter((card: ReceivedCard) => !card.isViewed).length;
+            return unreadCount > 0 ? (
+              <View style={s.badge}>
+                <Text style={s.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            ) : null;
+          })()}
         </TouchableOpacity>
       </View>
 
@@ -1932,9 +1912,27 @@ function GroupsFAB({
     alignItems: "center",
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
+    position: 'relative',
   },
   activeTab: {
     borderBottomColor: "#3B82F6",
+  },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 8,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   tabText: {
     fontSize: 14,

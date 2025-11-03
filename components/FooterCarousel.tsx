@@ -20,73 +20,6 @@ type Ad = {
   isFromApi?: boolean;
 };
 
-// Ad data with phone numbers
-const ads: Ad[] = [
-  // Rajesh Modi - 9867477227
-  { id: 2, image: require('../assets/images/Footer Ads_02-05.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 3, image: require('../assets/images/Footer Ads_02-06.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 4, image: require('../assets/images/Footer Ads_02-11.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 5, image: require('../assets/images/Footer Ads_02-02.jpg'), phone: '+919867477227', name: 'Rajesh Modi', hasFullBanner: true, bannerImage: require('../assets/images/Instantlly Cards_Full Page Ad-01.jpg'), isFromApi: false },
-  { id: 6, image: require('../assets/images/Footer Ads_02-01.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 7, image: require('../assets/images/Footer Ads_02-08.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 8, image: require('../assets/images/Footer Ads_02-09.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 9, image: require('../assets/images/Footer Ads_02-04.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 10, image: require('../assets/images/Footer Ads_02-21.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 11, image: require('../assets/images/Footer Ads_02-37.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 12, image: require('../assets/images/Footer Ads_02-36.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 13, image: require('../assets/images/Footer Ads_02-12.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  { id: 14, image: require('../assets/images/Footer Ads_02-10.jpg'), phone: '+919867477227', name: 'Rajesh Modi', isFromApi: false },
-  
-  // Ingit Dave - 8879221111
-  { id: 15, image: require('../assets/images/Footer Ads_02-07.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
-  { id: 16, image: require('../assets/images/Footer Ads_02-31.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
-  { id: 17, image: require('../assets/images/Footer Ads_02-32.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
-  { id: 18, image: require('../assets/images/Footer Ads_02-33.jpg'), phone: '+918879221111', name: 'Ingit Dave', isFromApi: false },
-  
-  // Arun Kamal - 9833001167
-  { id: 19, image: require('../assets/images/Footer Ads_02-19.jpg'), phone: '+919833001167', name: 'Arun Kamal', isFromApi: false },
-  
-  // Shabbir - 9820329571
-  { id: 20, image: require('../assets/images/Footer Ads_02-03.jpg'), phone: '+919820329571', name: 'Shabbir', isFromApi: false },
-  
-  // Aakash Jugraj - 9004444476
-  { id: 21, image: require('../assets/images/Footer Ads_02-34.jpg'), phone: '+919004444476', name: 'Aakash Jugraj', isFromApi: false },
-  
-  // Ganesh Kandalkar - 9867304372
-  { id: 22, image: require('../assets/images/Footer Ads_02-35.jpg'), phone: '+919867304372', name: 'Ganesh Kandalkar', isFromApi: false },
-  
-  // Sengel Dsouza - 8976260702
-  { id: 23, image: require('../assets/images/Footer Ads_02-38.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
-  { id: 24, image: require('../assets/images/Footer Ads_02-39.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
-  { id: 25, image: require('../assets/images/Footer Ads_02-40.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
-  { id: 26, image: require('../assets/images/Footer Ads_02-41.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
-  { id: 27, image: require('../assets/images/Footer Ads_02-42.jpg'), phone: '+918976260702', name: 'Sengel Dsouza', isFromApi: false },
-  
-  // Vibhuti Jain - 9820658293
-  { id: 28, image: require('../assets/images/Footer Ads_02-22.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 29, image: require('../assets/images/Footer Ads_02-20.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 30, image: require('../assets/images/Footer Ads_02-26.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 31, image: require('../assets/images/Footer Ads_02-46.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 32, image: require('../assets/images/Footer Ads_02-47.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 33, image: require('../assets/images/Footer Ads_02-51.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 34, image: require('../assets/images/Footer Ads_02-52.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 35, image: require('../assets/images/Footer Ads_02-58.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  { id: 36, image: require('../assets/images/Footer Ads_02-49.jpg'), phone: '+919820658293', name: 'Vibhuti Jain', isFromApi: false },
-  
-  // Dr. Pooja Shah - 9167379734
-  { id: 37, image: require('../assets/images/Footer Ads_02-53.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
-  { id: 38, image: require('../assets/images/Footer Ads_02-54.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
-  { id: 39, image: require('../assets/images/Footer Ads_02-55.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
-  { id: 40, image: require('../assets/images/Footer Ads_02-56.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
-  { id: 41, image: require('../assets/images/Footer Ads_02-57.jpg'), phone: '+919167379734', name: 'Dr. Pooja Shah', isFromApi: false },
-  
-  // DevDas Pandit - 8452856993
-  { id: 42, image: require('../assets/images/Footer Ads_02-61.jpg'), phone: '+918452856993', name: 'DevDas Pandit', isFromApi: false },
-  
-  // Mohit Gupta - 9820364494
-  { id: 43, image: require('../assets/images/Footer Ads_02-62.jpg'), phone: '+919820364494', name: 'Mohit Gupta', isFromApi: false },
-];
-
 const FooterCarousel = () => {
   console.log('🔄 FooterCarousel: Component mounting/re-rendering');
   const [activeIndex, setActiveIndex] = useState(1); // Start at index 1 (first real ad)
@@ -95,18 +28,19 @@ const FooterCarousel = () => {
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [apiAds, setApiAds] = useState<Ad[]>([]);
-  const [allAds, setAllAds] = useState<Ad[]>(ads); // Combined ads
+  const [allAds, setAllAds] = useState<Ad[]>([]); // Only API ads
+  const [isLoading, setIsLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   
-  console.log(`📊 FooterCarousel: Current ad counts - Hardcoded: ${ads.length}, API: ${apiAds.length}, Total: ${allAds.length}`);
+  console.log(`📊 FooterCarousel: Current ad count - API Ads: ${allAds.length}`);
   
-  // Fetch ads from API and combine with hardcoded ads
+  // Fetch ads from API only
   useEffect(() => {
     console.log('🔍 FooterCarousel: useEffect for API ads is running...');
     const fetchApiAds = async () => {
       try {
+        setIsLoading(true);
         console.log('📡 FooterCarousel: Calling GET /ads/active...');
         const response = await api.get('/ads/active');
         console.log('📥 FooterCarousel: API full response:', JSON.stringify(response, null, 2));
@@ -126,18 +60,17 @@ const FooterCarousel = () => {
             };
           });
           console.log(`✅ FooterCarousel: Formatted ${formattedApiAds.length} API ads`);
-          setApiAds(formattedApiAds);
-          const combinedAds = [...ads, ...formattedApiAds];
-          setAllAds(combinedAds);
-          console.log(`🎉 FooterCarousel: Successfully combined ads - Hardcoded: ${ads.length}, API: ${formattedApiAds.length}, Total: ${combinedAds.length}`);
+          setAllAds(formattedApiAds);
+          console.log(`🎉 FooterCarousel: Successfully loaded ${formattedApiAds.length} ads from API`);
         } else {
-          console.log('ℹ️ FooterCarousel: No API ads available, using hardcoded ads only');
-          setAllAds(ads);
+          console.log('⚠️ FooterCarousel: No API ads available');
+          setAllAds([]);
         }
       } catch (error) {
         console.log('❌ FooterCarousel: Error fetching API ads:', error);
-        console.log('ℹ️ FooterCarousel: Using hardcoded ads only');
-        setAllAds(ads);
+        setAllAds([]);
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -434,17 +367,35 @@ const FooterCarousel = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        ref={scrollViewRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        onMomentumScrollEnd={handleScrollEnd}
-        scrollEventThrottle={16}
-        style={styles.scrollView}
-      >
-        {infiniteAds.map((ad, index) => (
+      {/* Show loading state */}
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#10B981" />
+          <Text style={styles.loadingText}>Loading ads...</Text>
+        </View>
+      )}
+      
+      {/* Show empty state if no ads */}
+      {!isLoading && allAds.length === 0 && (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="images-outline" size={32} color="#9CA3AF" />
+          <Text style={styles.emptyText}>No ads available</Text>
+        </View>
+      )}
+      
+      {/* Show ads if available */}
+      {!isLoading && allAds.length > 0 && (
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleScroll}
+          onMomentumScrollEnd={handleScrollEnd}
+          scrollEventThrottle={16}
+          style={styles.scrollView}
+        >
+          {infiniteAds.map((ad, index) => (
           <TouchableOpacity 
             key={`${ad.id}-${index}`} 
             style={styles.slide}
@@ -468,6 +419,7 @@ const FooterCarousel = () => {
           </TouchableOpacity>
         ))}
       </ScrollView>
+      )}
 
       {/* Full Screen Ad Modal - Only for Test Ad */}
       <Modal
@@ -585,6 +537,29 @@ const styles = StyleSheet.create({
     height: 100,
     backgroundColor: '#FFFFFF',
     zIndex: 10,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 8,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 4,
   },
   scrollView: {
     flex: 1,
