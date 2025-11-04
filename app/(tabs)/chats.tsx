@@ -256,7 +256,7 @@ export default function Chats() {
   // Load stored contacts from MongoDB (NEVER fetch from device, only load from DB)
   const loadStoredContacts = async () => {
     try {
-      console.log('📋 Loading contacts from MongoDB...');
+      console.log('📋 Loading contacts ...');
       const token = await ensureAuth();
       if (!token) {
         setContactsSynced(false);
@@ -1464,7 +1464,7 @@ export default function Chats() {
         <View style={s.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
           <Text style={s.loadingText}>
-            {contactsLoading ? 'Loading contacts...' : 'Loading from database...'}
+            {contactsLoading ? 'Loading contacts...' : 'Loading ...'}
           </Text>
           {!contactsSynced && (
             <Text style={s.emptySubtext}>
