@@ -62,10 +62,11 @@ export default function Home() {
         return [];
       }
     },
-    staleTime: 10000, // Reduced from 30s to 10s - cards become stale faster
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
-    refetchInterval: 30000, // Auto-refetch every 30 seconds for real-time updates
+    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh for 5 mins
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 mins
+    refetchOnMount: false, // Don't refetch every time component mounts
+    refetchOnWindowFocus: false, // Don't refetch when app comes to foreground
+    refetchInterval: false, // No auto-refetch - only on manual refresh
   });
 
   // Manual refresh handler

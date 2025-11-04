@@ -6,9 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Linking,
-  Platform,
   Image,
+  Dimensions,
+  BackHandler,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
 
 interface ForceUpdateModalProps {
   visible: boolean;
@@ -23,6 +27,18 @@ export default function ForceUpdateModal({
   currentVersion,
   latestVersion,
 }: ForceUpdateModalProps) {
+  // Disable Android back button to prevent dismissal
+  React.useEffect(() => {
+    if (visible) {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        // Return true to prevent default back behavior
+        return true;
+      });
+
+      return () => backHandler.remove();
+    }
+  }, [visible]);
+
   const handleUpdate = async () => {
     try {
       const canOpen = await Linking.canOpenURL(updateUrl);
@@ -40,133 +56,202 @@ export default function ForceUpdateModal({
     <Modal
       visible={visible}
       transparent={true}
-      animationType="fade"
+      animationType="slide"
       statusBarTranslucent={true}
+      hardwareAccelerated={true}
     >
+      {/* Semi-transparent overlay */}
       <View style={styles.overlay}>
-        <View style={styles.container}>
-          {/* App Logo/Icon */}
-          <View style={styles.iconContainer}>
-            <Image
-              source={require('../assets/logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+        {/* Bottom Sheet Container */}
+        <View style={styles.bottomSheet}>
+          {/* Header with close icon (disabled) */}
+          <View style={styles.header}>
+            <View style={styles.handleBar} />
           </View>
 
-          {/* Title */}
-          <Text style={styles.title}>App Update Required!</Text>
+          {/* Content */}
+          <View style={styles.content}>
+            {/* Google Play Icon */}
+            <View style={styles.iconContainer}>
+              <Ionicons name="logo-google-playstore" size={32} color="#01875F" />
+            </View>
 
-          {/* Description */}
-          <Text style={styles.description}>
-            We have added new features and fix some bugs{'\n'}
-            to make your experience seamless.
-          </Text>
+            {/* Title */}
+            <Text style={styles.title}>Update available</Text>
 
-          {/* Version Info */}
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>
-              Current Version: <Text style={styles.versionBold}>{currentVersion}</Text>
+            {/* Description */}
+            <Text style={styles.description}>
+              To use this app, download the latest version.
             </Text>
-            <Text style={styles.versionText}>
-              Latest Version: <Text style={styles.versionBold}>{latestVersion}</Text>
-            </Text>
+
+            {/* App Info Row */}
+            <View style={styles.appInfo}>
+              <View style={styles.appIconContainer}>
+                <Image
+                  source={require('../assets/logo.png')}
+                  style={styles.appIcon}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.appDetails}>
+                <Text style={styles.appName}>Instantlly</Text>
+                <Text style={styles.appSize}>Everyone · {currentVersion}</Text>
+              </View>
+            </View>
+
+            {/* What's New Section */}
+            <View style={styles.whatsNewSection}>
+              <Text style={styles.whatsNewTitle}>What's new</Text>
+              <Text style={styles.whatsNewDate}>Updated on {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.moreInfoButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.moreInfoText}>More info</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.updateButton}
+                onPress={handleUpdate}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.updateButtonText}>Update</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          {/* Update Button */}
-          <TouchableOpacity
-            style={styles.updateButton}
-            onPress={handleUpdate}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.updateButtonText}>Update App</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </Modal>
   );
 }
 
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(139, 148, 219, 0.85)', // Purple-blue gradient effect
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
   },
-  container: {
+  bottomSheet: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    width: '90%',
-    maxWidth: 380,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 20,
+    maxHeight: '80%',
+  },
+  header: {
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 10,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+  },
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
   },
   iconContainer: {
-    marginBottom: 20,
-  },
-  logo: {
-    width: 64,
-    height: 64,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 12,
-    textAlign: 'center',
+    marginBottom: 8,
   },
   description: {
-    fontSize: 15,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  versionContainer: {
-    width: '100%',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
-  },
-  versionText: {
     fontSize: 14,
     color: '#6B7280',
-    marginBottom: 4,
+    lineHeight: 20,
+    marginBottom: 24,
   },
-  versionBold: {
+  appInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  appIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginRight: 12,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  appIcon: {
+    width: 40,
+    height: 40,
+  },
+  appDetails: {
+    flex: 1,
+  },
+  appName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  appSize: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  whatsNewSection: {
+    marginBottom: 24,
+  },
+  whatsNewTitle: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
+    marginBottom: 4,
+  },
+  whatsNewDate: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  moreInfoButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
   },
   updateButton: {
-    backgroundColor: '#6366F1', // Purple-blue color matching the image
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    width: '100%',
-    shadowColor: '#6366F1',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#01875F',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   updateButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    textAlign: 'center',
+    color: '#FFFFFF',
   },
 });

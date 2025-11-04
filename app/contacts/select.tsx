@@ -424,7 +424,7 @@ export default function ContactSelectScreen() {
     staleTime: 10 * 60 * 1000, // Consider data fresh for 10 minutes
     gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     enabled: contactsSynced, // Only fetch if contacts have been synced
-    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnMount: false, // Use cached data, don't refetch on mount
     refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
