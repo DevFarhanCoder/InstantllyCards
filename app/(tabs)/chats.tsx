@@ -227,51 +227,36 @@ export default function Chats() {
     }
   };
 
-  // Auto-sync contacts in background (smart sync only for new contacts)
-  const autoSyncContactsInBackground = async () => {
+  // Smart-sync ONLY NEW contacts in background (doesn't fetch all contacts from device)
+  const smartSyncNewContactsOnly = async () => {
     try {
-      console.log('🔄 Auto-syncing contacts in background...');
+      console.log('🔄 Smart-syncing NEW contacts only in background...');
       
-      // Request contacts permission silently
-      const hasPermission = await requestContactsPermission();
-      if (!hasPermission) {
-        console.log('⚠️ No contacts permission, skipping auto-sync');
+      const token = await ensureAuth();
+      if (!token) {
+        console.log('⚠️ No auth token, skipping smart-sync');
         return;
       }
 
-      // Get device contacts
-      const { data: deviceContacts } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-      });
+      // Use incremental-sync endpoint - only checks if existing contacts became app users
+      // This DOESN'T fetch device contacts, only updates existing records in MongoDB
+      const response = await api.post("/contacts/sync-incremental");
+      console.log(`✅ Smart-sync complete: ${response.stats?.newAppUsers || 0} contacts became app users`);
       
-      // Extract phone numbers
-      const phoneNumbers = deviceContacts
-        .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
-        .map((contact: any) => ({
-          name: contact.name || 'Unknown Contact',
-          phoneNumber: contact.phoneNumbers[0]?.number?.replace(/\D/g, '') || ''
-        }))
-        .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
-
-      // Use smart-sync endpoint to only sync NEW contacts
-      const token = await ensureAuth();
-      if (token) {
-        const response = await api.post("/contacts/smart-sync", { contacts: phoneNumbers });
-        console.log(`✅ Auto-sync complete: ${response.stats?.newContacts || 0} new contacts synced`);
-        
-        // Invalidate queries to refresh contact lists
+      // Invalidate queries to refresh contact lists if there were updates
+      if (response.stats?.newAppUsers > 0) {
         queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
         queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
       }
     } catch (error) {
-      console.error('Error in auto-sync:', error);
+      console.error('Error in smart-sync:', error);
     }
   };
 
-  // Load stored contacts from MongoDB (auto-load on page open)
+  // Load stored contacts from MongoDB (NEVER fetch from device, only load from DB)
   const loadStoredContacts = async () => {
     try {
-      console.log('📋 Loading stored contacts from MongoDB...');
+      console.log('📋 Loading contacts from MongoDB...');
       const token = await ensureAuth();
       if (!token) {
         setContactsSynced(false);
@@ -290,13 +275,12 @@ export default function Chats() {
         await AsyncStorage.setItem('contactsSyncTimestamp', Date.now().toString());
         await AsyncStorage.setItem('contactsSynced', 'true');
         
-        // Auto-sync in background for NEW contacts only
-        autoSyncContactsInBackground();
+        // Smart-sync in background (ONLY checks if existing contacts became app users)
+        // Does NOT fetch device contacts or add new contacts
+        smartSyncNewContactsOnly();
       } else {
-        console.log('⚠️ No contacts in MongoDB, will perform full sync');
+        console.log('⚠️ No contacts in MongoDB - user needs to sync from signup/onboarding');
         setContactsSynced(false);
-        // Auto-sync all contacts in background
-        syncContacts();
       }
     } catch (error) {
       console.error('Error loading stored contacts:', error);
@@ -415,13 +399,13 @@ export default function Chats() {
     }
   }, [isConnected, connect]);
 
-  // Track when this screen becomes focused to refresh conversations and auto-sync contacts
+  // Track when this screen becomes focused - only load from MongoDB, never sync from device
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 Chats screen focused - refreshing conversations and auto-syncing');
+      console.log('🔄 Chats screen focused - loading from MongoDB');
       loadConversations();
       loadGroups(); // Load groups when screen is focused
-      loadStoredContacts(); // Auto-load contacts from MongoDB and smart-sync new ones
+      loadStoredContacts(); // Load contacts from MongoDB + smart-sync existing contacts only
       return () => {
         console.log('🔄 Chats screen unfocused');
       };
@@ -883,57 +867,9 @@ export default function Chats() {
     }
   };
 
-  const syncContacts = async () => {
-    setContactsLoading(true);
-    try {
-      const hasPermission = await requestContactsPermission();
-      if (!hasPermission) {
-        console.log('⚠️ Contacts permission denied, skipping sync');
-        setContactsLoading(false);
-        return;
-      }
-
-      // Get device contacts
-      const { data: deviceContacts } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-      });
-      
-      // Extract phone numbers with proper typing
-      const phoneNumbers = deviceContacts
-        .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
-        .map((contact: any) => ({
-          name: contact.name || 'Unknown Contact',
-          phoneNumber: contact.phoneNumbers[0]?.number?.replace(/\D/g, '') || ''
-        }))
-        .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
-
-      // Send to backend to sync and store all contacts
-      const token = await ensureAuth();
-      if (token) {
-        console.log(`Syncing ${phoneNumbers.length} contacts to backend...`);
-        await api.post("/contacts/sync-all", { contacts: phoneNumbers });
-        setContactsSynced(true);
-        
-        // Save sync timestamp to AsyncStorage
-        try {
-          const timestamp = Date.now().toString();
-          await AsyncStorage.setItem('contactsSyncTimestamp', timestamp);
-          await AsyncStorage.setItem('contactsSynced', 'true');
-          console.log('✅ Contacts synced successfully - timestamp saved');
-        } catch (storageError) {
-          console.error('Error saving sync status:', storageError);
-        }
-        
-        queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
-        queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
-        console.log('✅ Initial contacts sync complete');
-      }
-    } catch (error) {
-      console.error('Error syncing contacts:', error);
-    } finally {
-      setContactsLoading(false);
-    }
-  };
+  // REMOVED syncContacts() - should only sync once during signup/onboarding
+  // Contact sync is handled in signup flow, NOT here
+  // This screen only LOADS contacts from MongoDB
 
   // Helper function to handle phone calls - uses local contact data to avoid API calls
   const handleCall = async (item: SentCard | ReceivedCard, isSentCard: boolean) => {
@@ -1524,15 +1460,17 @@ export default function Chats() {
   // Individual page components for proper horizontal scrolling
   const renderChatsPage = useMemo(() => (
     <View style={[s.page, { width: screenWidth }]}>
-      {contactsLoading ? (
+      {contactsLoading || !contactsSynced ? (
         <View style={s.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={s.loadingText}>Loading contacts...</Text>
-        </View>
-      ) : !contactsSynced ? (
-        <View style={s.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={s.loadingText}>Syncing contacts...</Text>
+          <Text style={s.loadingText}>
+            {contactsLoading ? 'Loading contacts...' : 'Loading from database...'}
+          </Text>
+          {!contactsSynced && (
+            <Text style={s.emptySubtext}>
+              If contacts don't load, please sync from Settings
+            </Text>
+          )}
         </View>
       ) : (
         <>
