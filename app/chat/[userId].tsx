@@ -19,13 +19,16 @@ import { Ionicons } from "@expo/vector-icons";
 import api from "@/lib/api";
 import { ensureAuth } from "@/lib/auth";
 import { scheduleMessageNotification, showInAppNotification, showExpoGoNotification } from "../../lib/notifications-expo-go";
+import { useChatSocket, useSendMessage } from "@/hooks/chats";
 
 type Message = {
   id: string;
   text: string;
   timestamp: Date;
   isFromMe: boolean;
-  status: 'sending' | 'sent' | 'delivered' | 'failed';
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  localMessageId?: string; // For matching optimistic messages
+  backendMessageId?: string; // Real message ID from server
 };
 
 export default function ChatScreen() {
@@ -43,6 +46,10 @@ export default function ChatScreen() {
   const [isAppInBackground, setIsAppInBackground] = useState(false);
   const [apiFailureCache, setApiFailureCache] = useState<{[key: string]: number}>({});
   const [hasLoadedPreFill, setHasLoadedPreFill] = useState(false);
+  
+  // Socket.IO integration for real-time messaging
+  const { isConnected, socketService } = useChatSocket();
+  const { sendMessage: sendMessageViaSocket } = useSendMessage();
 
   // Load pre-filled message if provided (only once on mount)
   useEffect(() => {
@@ -92,6 +99,108 @@ export default function ChatScreen() {
     };
   }, [userId]);
 
+  // Socket.IO real-time message listeners
+  useEffect(() => {
+    if (!isConnected || !userId) return;
+
+    console.log('🎧 Setting up Socket.IO listeners for private chat with:', userId);
+
+    // Listen for incoming messages from this user
+    const unsubscribeMessage = socketService.onMessage((messageData: any) => {
+      // Only process messages from this specific user
+      if (messageData.senderId === userId) {
+        console.log('📨 Received message via Socket.IO from:', userId);
+        
+        const newMessage: Message = {
+          id: messageData._id || messageData.id || Date.now().toString(),
+          text: messageData.content,
+          timestamp: new Date(messageData.timestamp || Date.now()),
+          isFromMe: false,
+          status: 'delivered',
+          backendMessageId: messageData._id || messageData.id
+        };
+
+        setMessages(prevMessages => {
+          // Check for duplicates
+          const exists = prevMessages.some(msg => 
+            msg.id === newMessage.id || 
+            msg.backendMessageId === newMessage.id
+          );
+          if (!exists) {
+            const updated = [...prevMessages, newMessage];
+            // Save to AsyncStorage
+            saveMessages(updated);
+            return updated;
+          }
+          return prevMessages;
+        });
+
+        // Mark as delivered via Socket.IO
+        if (messageData._id || messageData.id) {
+          socketService.markMessageAsRead(messageData._id || messageData.id);
+        }
+      }
+    });
+
+    // Listen for message status updates (delivered, read)
+    const unsubscribeStatus = socketService.onMessageStatus((statusData: any) => {
+      console.log('📊 Message status update:', statusData);
+      
+      setMessages(prevMessages => {
+        const updated = prevMessages.map(msg => {
+          // Match by backend message ID or local ID
+          if (msg.backendMessageId === statusData.messageId || msg.id === statusData.messageId) {
+            return {
+              ...msg,
+              status: statusData.status as Message['status']
+            };
+          }
+          return msg;
+        });
+        
+        // Save updated messages
+        if (JSON.stringify(updated) !== JSON.stringify(prevMessages)) {
+          saveMessages(updated);
+        }
+        
+        return updated;
+      });
+    });
+
+    // Listen for message sent confirmation
+    const unsubscribeMessageSent = socketService.onMessage((messageData: any) => {
+      // Check if this is a confirmation for our sent message
+      if (messageData.senderId !== userId && messageData.localMessageId) {
+        console.log('✅ Message sent confirmation:', messageData);
+        
+        setMessages(prevMessages => {
+          const updated = prevMessages.map(msg => {
+            // Match optimistic message by localMessageId
+            if (msg.localMessageId === messageData.localMessageId) {
+              return {
+                ...msg,
+                id: messageData._id || msg.id,
+                backendMessageId: messageData._id,
+                status: 'sent' as const,
+                timestamp: new Date(messageData.timestamp || msg.timestamp)
+              };
+            }
+            return msg;
+          });
+          
+          saveMessages(updated);
+          return updated;
+        });
+      }
+    });
+
+    return () => {
+      unsubscribeMessage();
+      unsubscribeStatus();
+      unsubscribeMessageSent();
+    };
+  }, [isConnected, userId, socketService]);
+
   // Track when this chat screen is focused/unfocused for notification management
   useFocusEffect(
     useCallback(() => {
@@ -115,41 +224,53 @@ export default function ChatScreen() {
       const storedMessages = await AsyncStorage.getItem(`messages_${userId}`);
       if (storedMessages) {
         const parsedMessages = JSON.parse(storedMessages);
-        const undeliveredMessages = parsedMessages.filter((msg: any) => 
-          !msg.isFromMe && (msg.status === 'received' || msg.status === 'pending') && msg.backendMessageId
+        const unreadMessages = parsedMessages.filter((msg: any) => 
+          !msg.isFromMe && msg.status !== 'read' && (msg.backendMessageId || msg.id)
         );
         
-        if (undeliveredMessages.length > 0) {
-          console.log(`📩 Marking ${undeliveredMessages.length} messages as delivered for ${userId}`);
+        if (unreadMessages.length > 0) {
+          console.log(`📖 Marking ${unreadMessages.length} messages as read for ${userId}`);
           
-          // Extract backend message IDs
-          const backendMessageIds = undeliveredMessages.map((msg: any) => msg.backendMessageId);
-          
-          // Mark as delivered on backend
-          try {
-            await api.post('/messages/mark-delivered', {
-              messageIds: backendMessageIds
-            });
-            console.log(`✅ Successfully marked ${backendMessageIds.length} messages as delivered on backend`);
-            
-            // Update local message status
-            const updatedMessages = parsedMessages.map((msg: any) => {
-              if (!msg.isFromMe && backendMessageIds.includes(msg.backendMessageId)) {
-                return { ...msg, status: 'delivered' };
+          // Mark as read via Socket.IO for real-time updates
+          if (isConnected) {
+            unreadMessages.forEach((msg: any) => {
+              const messageId = msg.backendMessageId || msg.id;
+              if (messageId) {
+                socketService.markMessageAsRead(messageId);
               }
-              return msg;
             });
-            
-            // Save updated messages
-            await AsyncStorage.setItem(`messages_${userId}`, JSON.stringify(updatedMessages));
-            setMessages(updatedMessages.map((msg: any) => ({
-              ...msg,
-              timestamp: new Date(msg.timestamp)
-            })));
-            
-          } catch (error) {
-            console.error('❌ Failed to mark messages as delivered on backend:', error);
           }
+          
+          // Also update via REST API as fallback
+          const messageIds = unreadMessages
+            .map((msg: any) => msg.backendMessageId || msg.id)
+            .filter(Boolean);
+          
+          if (messageIds.length > 0) {
+            try {
+              await api.post('/messages/mark-read', {
+                messageIds: messageIds
+              });
+              console.log(`✅ Marked ${messageIds.length} messages as read on backend`);
+            } catch (error) {
+              console.error('❌ Failed to mark messages as read on backend:', error);
+            }
+          }
+          
+          // Update local message status
+          const updatedMessages = parsedMessages.map((msg: any) => {
+            if (!msg.isFromMe && messageIds.includes(msg.backendMessageId || msg.id)) {
+              return { ...msg, status: 'read' };
+            }
+            return msg;
+          });
+          
+          // Save updated messages
+          await AsyncStorage.setItem(`messages_${userId}`, JSON.stringify(updatedMessages));
+          setMessages(updatedMessages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          })));
         }
       }
     } catch (error) {
@@ -288,7 +409,7 @@ export default function ChatScreen() {
     }
   };
 
-  // Simplified message sending - just send and let global polling handle reception
+  // Optimized message sending with Socket.IO and optimistic updates
   const sendMessage = async () => {
     try {
       console.log('🎯 SEND MESSAGE FUNCTION STARTED');
@@ -298,152 +419,122 @@ export default function ChatScreen() {
         return;
       }
 
-      console.log('📤 DEBUG: Original message state:', `"${message}"`);
-      console.log('📤 DEBUG: Trimmed message:', `"${message.trim()}"`);
-      console.log('📤 Sending message to userId:', userId, 'content:', message.trim());
+      const messageText = message.trim();
+      const localMessageId = `local_${Date.now()}_${Math.random()}`;
+      
+      console.log('📤 Sending message to userId:', userId, 'content:', messageText);
 
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        text: message.trim(),
+      // Create optimistic message (appears instantly in UI)
+      const optimisticMessage: Message = {
+        id: localMessageId,
+        text: messageText,
         timestamp: new Date(),
         isFromMe: true,
-        status: 'sending'
+        status: 'sending',
+        localMessageId: localMessageId
       };
 
-      console.log('📤 DEBUG: Created message object:', JSON.stringify(newMessage, null, 2));
+      console.log('📤 Created optimistic message:', optimisticMessage);
 
-      const updatedMessages = [...messages, newMessage];
+      // Add to UI immediately for instant feedback
+      const updatedMessages = [...messages, optimisticMessage];
       setMessages(updatedMessages);
-      setMessage("");
+      setMessage(""); // Clear input immediately
 
-      // Save messages to local storage immediately for instant UI update
+      // Save to local storage
       await saveMessages(updatedMessages);
-      console.log('💾 Message saved to local storage:', newMessage.text);
+      console.log('💾 Optimistic message saved to local storage');
 
-      // Send message through backend for delivery (optimized - no waiting)
-      try {
-        const token = await ensureAuth();
-        if (token) {
-          console.log('🚀 Sending message to backend...');
-          
-          // Validate userId is MongoDB ObjectId format, not phone number
-          let validReceiverId = userId;
-          const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(userId);
-          
-          if (!isValidObjectId) {
-            console.warn('⚠️ userId is not a valid ObjectId (possibly phone number):', userId);
-            
-            // Try to get the correct ObjectId from contacts
-            try {
-              const phoneNumber = userId.replace(/\D/g, ''); // Remove non-digits
-              console.log('🔍 Looking up user by phone number:', phoneNumber);
-              
-              // Fetch all contacts and find by phone
-              const contactsResponse = await api.get('/contacts/all');
-              const contacts = contactsResponse.data || [];
-              
-              const matchedContact = contacts.find((c: any) => {
-                const contactPhone = c.phoneNumber?.replace(/\D/g, '');
-                return contactPhone === phoneNumber;
-              });
-              
-              if (matchedContact && matchedContact.appUserId) {
-                const appUserId = matchedContact.appUserId._id || matchedContact.appUserId;
-                validReceiverId = appUserId;
-                console.log('✅ Found user ObjectId from contacts:', validReceiverId);
-              } else {
-                console.error('❌ Contact not found by phone:', phoneNumber);
-                Alert.alert('Error', 'Unable to send message. Contact not found.');
-                
-                // Update to failed status
-                const failedMessages = updatedMessages.map(msg => 
-                  msg.id === newMessage.id 
-                    ? { ...msg, status: 'failed' as const }
-                    : msg
-                );
-                setMessages(failedMessages);
-                await saveMessages(failedMessages);
-                return;
-              }
-            } catch (lookupError) {
-              console.error('❌ Failed to lookup user by phone:', lookupError);
-              Alert.alert('Error', 'Unable to send message. Could not find recipient.');
-              
-              // Update to failed status
-              const failedMessages = updatedMessages.map(msg => 
-                msg.id === newMessage.id 
-                  ? { ...msg, status: 'failed' as const }
-                  : msg
-              );
-              setMessages(failedMessages);
-              await saveMessages(failedMessages);
-              return;
-            }
-          }
-          
-          const payload = {
-            receiverId: validReceiverId,
-            text: newMessage.text,
-            messageId: newMessage.id
-          };
-          
-          console.log('📤 DEBUG: Backend payload:', JSON.stringify(payload, null, 2));
-          
-          // Fire and forget - don't wait for response
-          api.post('/messages/send', payload).then((response) => {
-            console.log('✅ Message sent to backend successfully, response:', response);
-            // Update message status to sent
-            const sentMessages = updatedMessages.map(msg => 
-              msg.id === newMessage.id 
-                ? { ...msg, status: 'sent' as const }
-                : msg
-            );
-            setMessages(sentMessages);
-            saveMessages(sentMessages);
-          }).catch((error) => {
-            console.error('❌ Error sending message:', error);
-            console.error('❌ DEBUG: Full error details:', {
-              message: error.message,
-              status: error.status,
-              url: error.url,
-              data: error.data
-            });
-            // Update message status to failed
-            const failedMessages = updatedMessages.map(msg => 
-              msg.id === newMessage.id 
-                ? { ...msg, status: 'failed' as const }
-                : msg
-            );
-            setMessages(failedMessages);
-            saveMessages(failedMessages);
-          });
-          
-          // Immediately mark as sent for better UX (optimistic update)
-          const sentMessages = updatedMessages.map(msg => 
-            msg.id === newMessage.id 
+      // Try Socket.IO first for real-time delivery
+      if (isConnected) {
+        console.log('🔌 Sending via Socket.IO...');
+        
+        const success = await sendMessageViaSocket(userId, messageText, 'text');
+        
+        if (success) {
+          console.log('✅ Message sent via Socket.IO');
+          // Update status to sent
+          setMessages(prev => prev.map(msg => 
+            msg.localMessageId === localMessageId 
               ? { ...msg, status: 'sent' as const }
               : msg
-          );
-          setMessages(sentMessages);
-          await saveMessages(sentMessages);
+          ));
+          return;
         } else {
-          console.log('❌ No token available for backend request');
+          console.log('⚠️ Socket.IO send failed, falling back to REST API');
         }
-      } catch (error) {
-        console.error('❌ Error in backend sending logic:', error);
+      }
+
+      // Fallback to REST API if Socket.IO unavailable
+      console.log('📡 Falling back to REST API...');
+      
+      try {
+        const token = await ensureAuth();
+        if (!token) {
+          throw new Error('No auth token');
+        }
+
+        // Validate userId is MongoDB ObjectId format
+        let validReceiverId = userId;
+        const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(userId);
         
-        // Update message status to failed
+        if (!isValidObjectId) {
+          console.warn('⚠️ userId is not a valid ObjectId:', userId);
+          
+          // Try to get the correct ObjectId from contacts
+          const contactsResponse = await api.get('/contacts/all');
+          const contacts = contactsResponse.data || [];
+          const phoneNumber = userId.replace(/\D/g, '');
+          
+          const matchedContact = contacts.find((c: any) => {
+            const contactPhone = c.phoneNumber?.replace(/\D/g, '');
+            return contactPhone === phoneNumber;
+          });
+          
+          if (matchedContact && matchedContact.appUserId) {
+            validReceiverId = matchedContact.appUserId._id || matchedContact.appUserId;
+            console.log('✅ Found user ObjectId:', validReceiverId);
+          } else {
+            throw new Error('Contact not found');
+          }
+        }
+        
+        const payload = {
+          receiverId: validReceiverId,
+          text: messageText,
+          messageId: localMessageId
+        };
+        
+        console.log('📤 Sending to backend REST API:', payload);
+        
+        const response = await api.post('/messages/send', payload);
+        console.log('✅ Message sent via REST API:', response);
+        
+        // Update to sent status
+        const sentMessages = updatedMessages.map(msg => 
+          msg.localMessageId === localMessageId 
+            ? { ...msg, status: 'sent' as const, backendMessageId: response.messageId }
+            : msg
+        );
+        setMessages(sentMessages);
+        await saveMessages(sentMessages);
+        
+      } catch (error: any) {
+        console.error('❌ Error sending message:', error);
+        
+        // Update to failed status
         const failedMessages = updatedMessages.map(msg => 
-          msg.id === newMessage.id 
+          msg.localMessageId === localMessageId 
             ? { ...msg, status: 'failed' as const }
             : msg
         );
         setMessages(failedMessages);
         await saveMessages(failedMessages);
+        
+        Alert.alert('Error', 'Failed to send message. Please try again.');
       }
     } catch (error) {
       console.error('💥 CRITICAL ERROR IN SEND MESSAGE:', error);
-      console.error('💥 Error stack:', (error as any)?.stack);
     }
   };
 
@@ -531,13 +622,18 @@ export default function ChatScreen() {
   const getMessageStatusIcon = (status: Message['status']) => {
     switch (status) {
       case 'sending':
-        return <Ionicons name="time-outline" size={12} color="rgba(255, 255, 255, 0.5)" />;
+        return <Ionicons name="time-outline" size={14} color="rgba(255, 255, 255, 0.5)" />;
       case 'sent':
-        return <Ionicons name="checkmark" size={12} color="rgba(255, 255, 255, 0.7)" />;
+        // Single tick - sent to server
+        return <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14, marginLeft: 4 }}>✓</Text>;
       case 'delivered':
-        return <Ionicons name="checkmark-done" size={12} color="rgba(255, 255, 255, 0.7)" />;
+        // Double tick - delivered to recipient
+        return <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14, marginLeft: 4 }}>✓✓</Text>;
+      case 'read':
+        // Blue double tick - read by recipient
+        return <Text style={{ color: '#4FC3F7', fontSize: 14, marginLeft: 4 }}>✓✓</Text>;
       case 'failed':
-        return <Ionicons name="alert-circle-outline" size={12} color="#EF4444" />;
+        return <Ionicons name="alert-circle-outline" size={14} color="#EF4444" style={{ marginLeft: 4 }} />;
       default:
         return null;
     }

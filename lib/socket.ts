@@ -253,6 +253,15 @@ export class SocketService {
       console.log('👁️ Message read status via Socket.IO:', data);
       this.notifyMessageStatusListeners({ messageId: data.messageId, status: 'read', readBy: data.readBy });
     });
+    
+    // Handle message delivered status
+    this.socket.on('message_delivered', (data: { messageId: string; localMessageId?: string; status: string; deliveredAt: string }) => {
+      console.log('📬 Message delivered status via Socket.IO:', data);
+      this.notifyMessageStatusListeners({ 
+        messageId: data.localMessageId || data.messageId, 
+        status: 'delivered' 
+      });
+    });
 
     // Handle errors
     this.socket.on('error', (error: any) => {
