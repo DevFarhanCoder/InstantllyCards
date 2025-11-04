@@ -227,10 +227,87 @@ export default function Chats() {
     }
   };
 
+  // Auto-sync contacts in background (smart sync only for new contacts)
+  const autoSyncContactsInBackground = async () => {
+    try {
+      console.log('🔄 Auto-syncing contacts in background...');
+      
+      // Request contacts permission silently
+      const hasPermission = await requestContactsPermission();
+      if (!hasPermission) {
+        console.log('⚠️ No contacts permission, skipping auto-sync');
+        return;
+      }
+
+      // Get device contacts
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+      });
+      
+      // Extract phone numbers
+      const phoneNumbers = deviceContacts
+        .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
+        .map((contact: any) => ({
+          name: contact.name || 'Unknown Contact',
+          phoneNumber: contact.phoneNumbers[0]?.number?.replace(/\D/g, '') || ''
+        }))
+        .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
+
+      // Use smart-sync endpoint to only sync NEW contacts
+      const token = await ensureAuth();
+      if (token) {
+        const response = await api.post("/contacts/smart-sync", { contacts: phoneNumbers });
+        console.log(`✅ Auto-sync complete: ${response.stats?.newContacts || 0} new contacts synced`);
+        
+        // Invalidate queries to refresh contact lists
+        queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
+        queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
+      }
+    } catch (error) {
+      console.error('Error in auto-sync:', error);
+    }
+  };
+
+  // Load stored contacts from MongoDB (auto-load on page open)
+  const loadStoredContacts = async () => {
+    try {
+      console.log('📋 Loading stored contacts from MongoDB...');
+      const token = await ensureAuth();
+      if (!token) {
+        setContactsSynced(false);
+        return;
+      }
+
+      // Fetch contacts from backend (already stored in MongoDB)
+      const response = await api.get('/contacts/all');
+      const contacts = response.data || [];
+      
+      if (contacts.length > 0) {
+        console.log(`✅ Loaded ${contacts.length} contacts from MongoDB`);
+        setContactsSynced(true);
+        
+        // Save sync timestamp
+        await AsyncStorage.setItem('contactsSyncTimestamp', Date.now().toString());
+        await AsyncStorage.setItem('contactsSynced', 'true');
+        
+        // Auto-sync in background for NEW contacts only
+        autoSyncContactsInBackground();
+      } else {
+        console.log('⚠️ No contacts in MongoDB, will perform full sync');
+        setContactsSynced(false);
+        // Auto-sync all contacts in background
+        syncContacts();
+      }
+    } catch (error) {
+      console.error('Error loading stored contacts:', error);
+      setContactsSynced(false);
+    }
+  };
+
   // Load conversations when component mounts
   useEffect(() => {
     loadConversations();
-    checkSyncStatus();
+    loadStoredContacts(); // Auto-load contacts from MongoDB instead of checkSyncStatus
     checkForAllPendingMessages(); // Check for new messages from all contacts
     
     // Set up periodic checking for new messages (every 30 seconds for reasonable performance)
@@ -338,12 +415,13 @@ export default function Chats() {
     }
   }, [isConnected, connect]);
 
-  // Track when this screen becomes focused to refresh conversations
+  // Track when this screen becomes focused to refresh conversations and auto-sync contacts
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 Chats screen focused - refreshing conversations');
+      console.log('🔄 Chats screen focused - refreshing conversations and auto-syncing');
       loadConversations();
       loadGroups(); // Load groups when screen is focused
+      loadStoredContacts(); // Auto-load contacts from MongoDB and smart-sync new ones
       return () => {
         console.log('🔄 Chats screen unfocused');
       };
@@ -810,7 +888,7 @@ export default function Chats() {
     try {
       const hasPermission = await requestContactsPermission();
       if (!hasPermission) {
-        Alert.alert('Permission Required', 'Please grant contacts permission to sync your contacts.');
+        console.log('⚠️ Contacts permission denied, skipping sync');
         setContactsLoading(false);
         return;
       }
@@ -840,7 +918,7 @@ export default function Chats() {
         try {
           const timestamp = Date.now().toString();
           await AsyncStorage.setItem('contactsSyncTimestamp', timestamp);
-          await AsyncStorage.setItem('contactsSynced', 'true'); // Keep for backward compatibility
+          await AsyncStorage.setItem('contactsSynced', 'true');
           console.log('✅ Contacts synced successfully - timestamp saved');
         } catch (storageError) {
           console.error('Error saving sync status:', storageError);
@@ -848,7 +926,7 @@ export default function Chats() {
         
         queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
         queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
-        console.log('✅ Contacts sync complete');
+        console.log('✅ Initial contacts sync complete');
       }
     } catch (error) {
       console.error('Error syncing contacts:', error);
@@ -1446,23 +1524,15 @@ export default function Chats() {
   // Individual page components for proper horizontal scrolling
   const renderChatsPage = useMemo(() => (
     <View style={[s.page, { width: screenWidth }]}>
-      {!contactsSynced ? (
-        <View style={s.syncContainer}>
-          <Text style={s.syncTitle}>Sync Your Contacts</Text>
-          <Text style={s.syncSubtitle}>
-            Find friends and colleagues who are already using InstantllyCards
-          </Text>
-          <TouchableOpacity 
-            style={s.syncButton} 
-            onPress={syncContacts}
-            disabled={contactsLoading}
-          >
-            {contactsLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={s.syncButtonText}>Sync Contacts</Text>
-            )}
-          </TouchableOpacity>
+      {contactsLoading ? (
+        <View style={s.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={s.loadingText}>Loading contacts...</Text>
+        </View>
+      ) : !contactsSynced ? (
+        <View style={s.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={s.loadingText}>Syncing contacts...</Text>
         </View>
       ) : (
         <>
@@ -1506,7 +1576,7 @@ export default function Chats() {
         </>
       )}
     </View>
-  ), [screenWidth, contactsSynced, contactsLoading, searchQuery, filteredConversations, refreshing]);
+  ), [screenWidth, contactsLoading, contactsSynced, searchQuery, filteredConversations, refreshing]);
 
   const renderGroupsPage = useMemo(() => (
     <View style={[s.page, { width: screenWidth }]}>
