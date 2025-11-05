@@ -361,14 +361,26 @@ const FooterCarousel = () => {
               source={ad.image}
               style={styles.image}
               resizeMode="cover"
+              onLoadStart={() => {
+                console.log(`🔄 [IMG LOAD] Starting to load image at index ${index}:`, {
+                  adId: ad.id,
+                  imageUri: ad.image?.uri || 'NO URI',
+                  isFromApi: ad.isFromApi
+                });
+              }}
               onError={(error) => {
-                console.log(`❌ Error loading ad image at index ${index}:`, error.nativeEvent.error);
-                console.log(`   Ad ID: ${ad.id}, Is from API: ${ad.isFromApi}`);
+                console.error(`❌ [IMG LOAD ERROR] Failed to load image at index ${index}:`);
+                console.error(`   Ad ID: ${ad.id}`);
+                console.error(`   Image URI: ${ad.image?.uri || 'NO URI'}`);
+                console.error(`   Is from API: ${ad.isFromApi}`);
+                console.error(`   Error:`, error.nativeEvent.error);
               }}
               onLoad={() => {
-                if (ad.isFromApi) {
-                  console.log(`✅ API ad image loaded successfully at index ${index}`);
-                }
+                console.log(`✅ [IMG LOAD SUCCESS] Image loaded at index ${index}:`, {
+                  adId: ad.id,
+                  imageUri: ad.image?.uri || 'NO URI',
+                  isFromApi: ad.isFromApi
+                });
               }}
             />
           </TouchableOpacity>

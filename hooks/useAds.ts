@@ -32,34 +32,84 @@ export function useAds() {
   return useQuery({
     queryKey: ['footer-ads'],
     queryFn: async () => {
-      console.log('📡 useAds: Fetching ads from API...');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('� [MOBILE STEP 1] useAds: Fetching ads from API...');
+      
       try {
         const response = await api.get('/ads/active');
-        console.log('📥 useAds: API response:', JSON.stringify(response, null, 2));
+        
+        console.log('📥 [MOBILE STEP 2] useAds: API response received');
+        console.log('📊 Response structure:', {
+          success: response?.success,
+          count: response?.count,
+          dataLength: response?.data?.length,
+          imageBaseUrl: response?.imageBaseUrl,
+          timestamp: response?.timestamp
+        });
         
         if (response && response.success && response.data && response.data.length > 0) {
-          console.log(`📦 useAds: Processing ${response.data.length} ads from API...`);
+          const imageBaseUrl = response.imageBaseUrl || 'https://instantlly-cards-backend-6ki0.onrender.com';
+          
+          console.log(`� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
+          console.log('🌐 Image Base URL:', imageBaseUrl);
+          
+          // Check first ad structure
+          if (response.data[0]) {
+            console.log('📸 [MOBILE STEP 4] First ad structure:', {
+              _id: response.data[0]._id,
+              title: response.data[0].title,
+              bottomImageUrl: response.data[0].bottomImageUrl,
+              fullscreenImageUrl: response.data[0].fullscreenImageUrl,
+              hasBottomImage: response.data[0].hasBottomImage,
+              hasFullscreenImage: response.data[0].hasFullscreenImage,
+              hasLegacyBottomImage: !!response.data[0].bottomImage,
+              hasLegacyFullscreenImage: !!response.data[0].fullscreenImage
+            });
+          }
           
           // Format ads for carousel - sorted by priority (backend already sorted)
-          const formattedApiAds: Ad[] = response.data.map((ad: any) => ({
-            id: `api-${ad._id}`,
-            image: { uri: ad.bottomImage },
-            phone: ad.phoneNumber,
-            name: ad.title || 'Ad from Dashboard',
-            hasFullBanner: !!ad.fullscreenImage,
-            bannerImage: ad.fullscreenImage ? { uri: ad.fullscreenImage } : undefined,
-            isFromApi: true,
-            priority: ad.priority || 5,
-          }));
+          // ✅ UPDATED: Now using GridFS URLs instead of base64
+          const formattedApiAds: Ad[] = response.data.map((ad: any, index: number) => {
+            // Build full image URLs using GridFS endpoints
+            const bottomImageUri = ad.bottomImageUrl 
+              ? `${imageBaseUrl}${ad.bottomImageUrl}`
+              : null;
+            
+            const fullscreenImageUri = ad.fullscreenImageUrl 
+              ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
+              : null;
+            
+            if (index === 0) {
+              console.log(`🖼️  [MOBILE STEP 5] Constructing image URLs for first ad:`);
+              console.log(`   Bottom Image: ${bottomImageUri}`);
+              console.log(`   Fullscreen Image: ${fullscreenImageUri || 'N/A'}`);
+            }
+            
+            return {
+              id: `api-${ad._id}`,
+              image: bottomImageUri ? { uri: bottomImageUri } : { uri: '' },
+              phone: ad.phoneNumber,
+              name: ad.title || 'Ad from Dashboard',
+              hasFullBanner: !!ad.fullscreenImageUrl,
+              bannerImage: fullscreenImageUri ? { uri: fullscreenImageUri } : undefined,
+              isFromApi: true,
+              priority: ad.priority || 5,
+            };
+          });
           
-          console.log(`✅ useAds: Formatted ${formattedApiAds.length} API ads`);
+          console.log(`✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`);
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          
           return formattedApiAds;
         } else {
-          console.log('⚠️ useAds: No API ads available in response');
+          console.log('⚠️  [MOBILE WARNING] No API ads available in response');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
           return [];
         }
       } catch (error) {
-        console.error('❌ useAds: Error fetching ads:', error);
+        console.error('❌ [MOBILE ERROR] useAds: Error fetching ads:', error);
+        console.error('Error details:', error instanceof Error ? error.message : String(error));
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         return [];
       }
     },
