@@ -6,82 +6,37 @@ import { ensureAuth } from '@/lib/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAds, type Ad } from '@/hooks/useAds';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Ad type definition
-type Ad = {
-  id: number | string;
-  image: any;
-  phone: string;
-  name: string;
-  hasFullBanner?: boolean;
-  bannerImage?: any;
-  isFromApi?: boolean;
-};
-
 const FooterCarousel = () => {
   console.log('🔄 FooterCarousel: Component mounting/re-rendering');
+  
+  // Use shared hook for cached ads (supports 100+ ads smoothly)
+  const { data: allAds = [], isLoading } = useAds();
+  
   const [activeIndex, setActiveIndex] = useState(1); // Start at index 1 (first real ad)
   const [showModal, setShowModal] = useState(false);
   const [showSimpleModal, setShowSimpleModal] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [allAds, setAllAds] = useState<Ad[]>([]); // Only API ads
-  const [isLoading, setIsLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   
-  console.log(`📊 FooterCarousel: Current ad count - API Ads: ${allAds.length}`);
+  console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads (cached)`);
   
-  // Fetch ads from API only
-  useEffect(() => {
-    console.log('🔍 FooterCarousel: useEffect for API ads is running...');
-    const fetchApiAds = async () => {
-      try {
-        setIsLoading(true);
-        console.log('📡 FooterCarousel: Calling GET /ads/active...');
-        const response = await api.get('/ads/active');
-        console.log('📥 FooterCarousel: API full response:', JSON.stringify(response, null, 2));
-        
-        if (response && response.success && response.data && response.data.length > 0) {
-          console.log(`📦 FooterCarousel: Processing ${response.data.length} ads from API...`);
-          const formattedApiAds = response.data.map((ad: any) => {
-            console.log('🎨 Formatting ad:', ad.title || 'No title', ad._id);
-            return {
-              id: `api-${ad._id}`,
-              image: { uri: ad.bottomImage },
-              phone: ad.phoneNumber,
-              name: ad.title || 'Ad from Dashboard',
-              hasFullBanner: !!ad.fullscreenImage,
-              bannerImage: ad.fullscreenImage ? { uri: ad.fullscreenImage } : undefined,
-              isFromApi: true,
-            };
-          });
-          console.log(`✅ FooterCarousel: Formatted ${formattedApiAds.length} API ads`);
-          setAllAds(formattedApiAds);
-          console.log(`🎉 FooterCarousel: Successfully loaded ${formattedApiAds.length} ads from API`);
-        } else {
-          console.log('⚠️ FooterCarousel: No API ads available');
-          setAllAds([]);
-        }
-      } catch (error) {
-        console.log('❌ FooterCarousel: Error fetching API ads:', error);
-        setAllAds([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchApiAds();
-  }, []);
+  // Remove old API fetching useEffect - now using cached hook
+  // Continuous loop setup happens below
+  // old fetch logic was here; replaced by shared `useAds` hook above
   
-  // Create infinite scroll data: [last, ...allAds, first]
-  const infiniteAds = [allAds[allAds.length - 1], ...allAds, allAds[0]];
+  // Create infinite scroll data safely: [last, ...allAds, first]
+  const infiniteAds = allAds && allAds.length > 0 ? [allAds[allAds.length - 1], ...allAds, allAds[0]] : [];
 
   // Load last viewed ad position and set initial scroll position
   useEffect(() => {
+    if (!allAds || allAds.length === 0) return; // wait until we have ads
     const loadLastAdPosition = async () => {
       try {
         const lastAdIndex = await AsyncStorage.getItem('lastFooterAdIndex');
@@ -119,9 +74,9 @@ const FooterCarousel = () => {
         }, 100);
       }
     };
-    
+
     loadLastAdPosition();
-  }, []);
+  }, [allAds.length]);
 
   // Auto-scroll functionality - infinite loop
   useEffect(() => {

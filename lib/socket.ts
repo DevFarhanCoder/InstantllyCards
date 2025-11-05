@@ -80,15 +80,15 @@ export class SocketService {
         auth: {
           token: token
         },
-        transports: ['polling', 'websocket'], // Start with polling first for React Native
-        timeout: 30000, // Increased timeout
+        transports: ['websocket', 'polling'], // WebSocket first for speed (matches backend)
+        timeout: 20000, // Match backend pingTimeout
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
         reconnectionDelay: this.reconnectDelay,
         autoConnect: true,
-        forceNew: true, // Force new connection
-        upgrade: true, // Allow upgrade from polling to websocket
-        rememberUpgrade: false // Don't remember the upgrade for React Native
+        forceNew: true,
+        upgrade: true,
+        rememberUpgrade: true // Remember successful websocket upgrade
       });
 
       console.log('⚙️ Socket.IO instance created, waiting for connection...');
