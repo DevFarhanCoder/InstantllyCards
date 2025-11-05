@@ -379,6 +379,44 @@ class GroupSharingService {
     }
   }
 
+  // Create a permanent messaging group from the session (Admin only)
+  async createMessagingGroupFromSession(groupName?: string, groupDescription?: string, groupIcon?: string): Promise<any> {
+    try {
+      if (!this.currentSession) {
+        throw new Error('No active session found');
+      }
+      
+      console.log('👥 Creating messaging group from session:', this.currentSession.id);
+      
+      const userId = await this.getUserId();
+      
+      // Call backend to create messaging group
+      const response = await api.post(`/group-sharing/create-messaging-group/${this.currentSession.id}`, {
+        adminId: userId,
+        groupName: groupName || `Group ${this.currentSession.code}`,
+        groupDescription: groupDescription || `Group created from sharing session ${this.currentSession.code}`,
+        groupIcon: groupIcon || ''
+      });
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create messaging group');
+      }
+      
+      console.log('✅ Messaging group created successfully:', response.group);
+      
+      // Clean up the session after creating the group
+      this.stopPolling();
+      this.currentSession = null;
+      await AsyncStorage.removeItem('currentGroupSession');
+      
+      return response.group;
+      
+    } catch (error: any) {
+      console.error('❌ Failed to create messaging group:', error);
+      throw new Error('Failed to create group: ' + (error?.message || 'Unknown error'));
+    }
+  }
+
   // Get current session
   getCurrentSession(): GroupSharingSession | null {
     return this.currentSession;

@@ -112,11 +112,31 @@ export default function MyCards() {
   };
   
   const handleCreateGroup = async () => {
-    // TODO: Implement create group in messaging tab
-    console.log('Creating group with participants...');
-    setShowGroupSession(false);
-    setCurrentGroupSession(null);
-    router.push('/(tabs)/chats');
+    console.log('👥 Creating messaging group from sharing session...');
+    
+    try {
+      if (!currentGroupSession) {
+        console.error('❌ No current session found');
+        return;
+      }
+
+      // Call the service to create messaging group from session
+      const group = await groupSharingService.createMessagingGroupFromSession();
+      
+      console.log('✅ Messaging group created:', group);
+      
+      // Close session UI
+      setShowGroupSession(false);
+      setCurrentGroupSession(null);
+      
+      // Navigate to the chats tab to show the new group
+      router.push('/(tabs)/chats');
+      
+    } catch (error: any) {
+      console.error('❌ Error creating group:', error);
+      // Show error to user (you could add a toast here if available)
+      alert(error?.message || 'Failed to create group. Please try again.');
+    }
   };
 
   return (
