@@ -27,6 +27,20 @@ const FooterCarousel = () => {
   
   console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads (cached)`);
   
+  // Preload banner images for instant display
+  useEffect(() => {
+    if (allAds.length > 0) {
+      allAds.forEach((ad) => {
+        if ((ad as any)?.bannerImage?.uri) {
+          Image.prefetch((ad as any).bannerImage.uri).catch(() => {
+            console.log('Failed to prefetch banner for ad:', ad.id);
+          });
+        }
+      });
+      console.log('🖼️ Preloading banner images for', allAds.length, 'ads');
+    }
+  }, [allAds.length]);
+  
   // Remove old API fetching useEffect - now using cached hook
   // Continuous loop setup happens below
   // old fetch logic was here; replaced by shared `useAds` hook above
@@ -392,7 +406,7 @@ const FooterCarousel = () => {
       <Modal
         visible={showModal}
         transparent={false}
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setShowModal(false)}
       >
         <View style={styles.fullScreenModal}>
@@ -450,7 +464,7 @@ const FooterCarousel = () => {
       <Modal
         visible={showSimpleModal}
         transparent={true}
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => setShowSimpleModal(false)}
       >
         <TouchableOpacity 
