@@ -322,16 +322,17 @@ class GroupSharingService {
   }
 
   // Execute card sharing between all participants
-  async executeCardSharing(): Promise<{ success: boolean; results: CardShare[]; duplicates: CardShare[]; summary?: any }> {
+  async executeCardSharing(groupName?: string): Promise<{ success: boolean; results: CardShare[]; duplicates: CardShare[]; summary?: any; groupId?: string; joinCode?: string }> {
     if (!this.currentSession) return { success: false, results: [], duplicates: [] };
     
     try {
-      console.log('🚀 Executing card sharing...');
+      console.log('🚀 Executing card sharing...', groupName ? `Creating group: ${groupName}` : 'Quit Sharing mode');
       
       const userId = await this.getUserId();
       
       const response = await api.post(`/group-sharing/execute/${this.currentSession.id}`, {
-        adminId: userId
+        adminId: userId,
+        groupName: groupName || undefined // Pass groupName only if provided
       });
       
       if (!response.success) {
@@ -344,7 +345,9 @@ class GroupSharingService {
         success: true,
         results: response.results || [],
         duplicates: response.duplicates || [],
-        summary: response.summary
+        summary: response.summary,
+        groupId: response.groupId,
+        joinCode: response.joinCode
       };
       
     } catch (error) {

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, View, RefreshControl, TouchableOpacity, Pressable, Modal, Animated } from "react-native";
+import { FlatList, StyleSheet, Text, View, RefreshControl, TouchableOpacity, Pressable, Modal, Animated, TextInput, Alert } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import api from "@/lib/api";
@@ -30,6 +30,11 @@ export default function MyCards() {
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [showFABMenu, setShowFABMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
+  
+  // Group name dialog states
+  const [showGroupNameDialog, setShowGroupNameDialog] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   
   const q = useQuery({
     queryKey: ["cards"],
@@ -106,36 +111,74 @@ export default function MyCards() {
   };
   
   const handleQuitSharing = async () => {
+    console.log('🚪 Quit Sharing clicked - closing session');
+    
+    // Just close the UI and clean up
+    // Cards were already shared when admin clicked "Share Now"
     setShowGroupSession(false);
     setCurrentGroupSession(null);
-    // The "Thanks for Sharing" message is shown in the GroupSharingSessionUI
   };
   
   const handleCreateGroup = async () => {
-    console.log('👥 Creating messaging group from sharing session...');
+    console.log('👥 Admin clicked Create Group - showing name dialog...');
+    
+    if (!currentGroupSession) {
+      console.error('❌ No current session found');
+      Alert.alert('Error', 'No active session found');
+      return;
+    }
+    
+    // Generate default group name from session code
+    const defaultName = `Group ${currentGroupSession.code}`;
+    setGroupName(defaultName);
+    
+    // Show dialog for group name input
+    setShowGroupNameDialog(true);
+  };
+  
+  const handleConfirmCreateGroup = async () => {
+    if (!groupName.trim()) {
+      Alert.alert('Error', 'Please enter a group name');
+      return;
+    }
+    
+    setIsCreatingGroup(true);
+    setShowGroupNameDialog(false);
     
     try {
-      if (!currentGroupSession) {
-        console.error('❌ No current session found');
-        return;
+      console.log('👥 Creating group with name:', groupName);
+      
+      // Execute card sharing with group name - this will:
+      // 1. Create the Group document
+      // 2. Store cards in GroupSharedCard (for Group tabs)
+      const result = await groupSharingService.executeCardSharing(groupName.trim());
+      
+      if (!result.success) {
+        throw new Error('Failed to create group and share cards');
       }
-
-      // Call the service to create messaging group from session
-      const group = await groupSharingService.createMessagingGroupFromSession();
       
-      console.log('✅ Messaging group created:', group);
+      console.log('✅ Group created successfully:', {
+        groupId: result.groupId,
+        joinCode: result.joinCode,
+        totalShares: result.summary?.totalShares
+      });
       
-      // Close session UI
+      Alert.alert(
+        'Group Created! 🎉',
+        `Group "${groupName}" has been created successfully.\n\nJoin Code: ${result.joinCode || 'N/A'}\nCards shared: ${result.summary?.totalShares || 0}`,
+        [{ text: 'OK' }]
+      );
+      
+      // Clean up session
       setShowGroupSession(false);
       setCurrentGroupSession(null);
+      setGroupName('');
       
-      // Navigate to the chats tab to show the new group
-      router.push('/(tabs)/chats');
-      
-    } catch (error: any) {
-      console.error('❌ Error creating group:', error);
-      // Show error to user (you could add a toast here if available)
-      alert(error?.message || 'Failed to create group. Please try again.');
+    } catch (error) {
+      console.error('❌ Failed to create group:', error);
+      Alert.alert('Error', 'Failed to create group. Please try again.');
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
@@ -222,6 +265,64 @@ export default function MyCards() {
           onCreateGroup={handleCreateGroup}
         />
       )}
+      
+      {/* Group Name Input Dialog */}
+      <Modal
+        visible={showGroupNameDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGroupNameDialog(false)}
+      >
+        <View style={s.dialogOverlay}>
+          <View style={s.dialogContainer}>
+            <View style={s.dialogHeader}>
+              <Ionicons name="people" size={32} color="#6366F1" />
+              <Text style={s.dialogTitle}>Create Messaging Group</Text>
+              <Text style={s.dialogSubtitle}>Enter a name for your new group</Text>
+            </View>
+            
+            <TextInput
+              style={s.dialogInput}
+              placeholder="Group Name"
+              placeholderTextColor="#9CA3AF"
+              value={groupName}
+              onChangeText={setGroupName}
+              maxLength={50}
+              autoFocus
+              editable={!isCreatingGroup}
+            />
+            
+            <Text style={s.dialogHint}>
+              All participants will be added to this group for ongoing messaging
+            </Text>
+            
+            <View style={s.dialogButtons}>
+              <TouchableOpacity
+                style={[s.dialogButton, s.dialogButtonSecondary]}
+                onPress={() => {
+                  setShowGroupNameDialog(false);
+                  setGroupName('');
+                }}
+                disabled={isCreatingGroup}
+              >
+                <Text style={s.dialogButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[s.dialogButton, s.dialogButtonPrimary, isCreatingGroup && s.dialogButtonDisabled]}
+                onPress={handleConfirmCreateGroup}
+                disabled={isCreatingGroup || !groupName.trim()}
+              >
+                {isCreatingGroup ? (
+                  <Text style={s.dialogButtonTextPrimary}>Creating...</Text>
+                ) : (
+                  <Text style={s.dialogButtonTextPrimary}>Create Group</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -365,6 +466,90 @@ const s = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
+  },
+  // Dialog styles
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  dialogContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  dialogHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  dialogTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  dialogSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  dialogInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+    marginBottom: 12,
+  },
+  dialogHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  dialogButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dialogButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogButtonPrimary: {
+    backgroundColor: '#6366F1',
+  },
+  dialogButtonSecondary: {
+    backgroundColor: '#E5E7EB',
+  },
+  dialogButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+    opacity: 0.6,
+  },
+  dialogButtonTextPrimary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  dialogButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
   },
 });
 

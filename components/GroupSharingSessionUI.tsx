@@ -257,23 +257,11 @@ export default function GroupSharingSessionUI({
         return;
       }
 
-      // Only admin executes the sharing for everyone
-      if (isAdmin) {
-        const result = await groupSharingService.executeCardSharing();
-        
-        if (result.success) {
-          setSharingComplete(true);
-          setSharingResults(result);
-          showToast('Cards shared successfully with all participants!', 'success');
-        } else {
-          showToast('Failed to share cards. Please try again.', 'error');
-        }
-      } else {
-        // Non-admin just shows confirmation
-        showToast('Your cards are ready to share!', 'success');
-        setSharingComplete(true);
-        setSharingResults({ success: true, summary: { totalShares: selectedCards.length } });
-      }
+      // Show completion screen - admin will choose Create Group or Quit Sharing
+      // Cards are NOT shared yet - they will be shared when admin makes a choice
+      setSharingComplete(true);
+      showToast('Cards ready! Choose to create a group or quit sharing.', 'success');
+      
     } catch (error) {
       showToast('Error during card sharing', 'error');
     } finally {
@@ -284,18 +272,31 @@ export default function GroupSharingSessionUI({
   const handleQuitSharing = async () => {
     setIsLoading(true);
     try {
-      // Only admin can end the session completely
       if (isAdmin) {
+        // Admin executes card sharing WITHOUT group name (saves to Messaging tabs)
+        console.log('🚪 Admin chose Quit Sharing - executing peer-to-peer sharing');
+        const result = await groupSharingService.executeCardSharing(); // No groupName
+        
+        if (!result.success) {
+          throw new Error('Failed to save shared cards');
+        }
+        
+        console.log('✅ Cards saved to Messaging tabs:', result.summary);
+        
+        // End the session
         await groupSharingService.endSession();
-        showToast('Session ended', 'success');
+        
+        showToast(`${result.summary?.totalShares || 0} cards saved to Messaging tabs!`, 'success');
       } else {
         // Non-admin just leaves
         showToast('Thanks for participating', 'success');
       }
+      
       setTimeout(() => {
         onQuit();
       }, 1500);
     } catch (error) {
+      console.error('❌ Error in handleQuitSharing:', error);
       showToast('Error ending session', 'error');
     } finally {
       setIsLoading(false);
@@ -350,17 +351,24 @@ export default function GroupSharingSessionUI({
   };
 
   const renderCompletionScreen = () => {
+    const selectedCount = selectedCards.length;
+    
     return (
       <View style={styles.completionContainer}>
         <View style={styles.completionIcon}>
           <Ionicons name="checkmark-circle" size={80} color="#10B981" />
         </View>
         <Text style={styles.completionTitle}>
-          {isAdmin ? 'Cards Shared!' : 'Sharing Complete!'}
+          {isAdmin ? 'Ready to Share!' : 'Cards Selected!'}
         </Text>
         <Text style={styles.completionSubtitle}>
-          {sharingResults?.summary?.totalShares || 0} cards shared successfully
+          {selectedCount} cards ready to be shared
         </Text>
+        {isAdmin && (
+          <Text style={styles.completionSubtitle}>
+            Choose how to save these cards:
+          </Text>
+        )}
         
         <View style={styles.adminActions}>
           {isAdmin && (
@@ -380,7 +388,7 @@ export default function GroupSharingSessionUI({
                 disabled={isLoading}
               >
                 <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.quitButtonText}>End Session for All</Text>
+                <Text style={styles.quitButtonText}>Save to Messaging</Text>
               </TouchableOpacity>
             </>
           )}
