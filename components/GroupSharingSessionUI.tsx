@@ -239,7 +239,7 @@ export default function GroupSharingSessionUI({
     
     setIsLoading(true);
     try {
-      // Each participant shares their own cards immediately
+      // Just set the cards in the session - don't execute yet
       const setSuccess = await groupSharingService.setCardsToShare(
         selectedCards,
         defaultCardId || selectedCards[0]
@@ -251,14 +251,19 @@ export default function GroupSharingSessionUI({
         return;
       }
 
-      console.log(`✅ ${isAdmin ? 'Admin' : 'Participant'} shared ${selectedCards.length} cards`);
+      console.log(`✅ ${isAdmin ? 'Admin' : 'Participant'} set ${selectedCards.length} cards in session`);
       
-      // Show completion screen with different options for admin vs non-admin
+      if (isAdmin) {
+        showToast('Cards ready! Now choose: Create Group or Quit Sharing', 'success');
+      } else {
+        showToast('Cards ready! Waiting for admin to execute.', 'success');
+      }
+      
+      // Show completion screen
       setSharingComplete(true);
-      showToast('Cards shared successfully!', 'success');
       
     } catch (error) {
-      showToast('Error during card sharing', 'error');
+      showToast('Error setting cards', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -267,12 +272,21 @@ export default function GroupSharingSessionUI({
   const handleQuitSharing = async () => {
     setIsLoading(true);
     try {
-      // Cards were already shared when each person clicked "Share My Cards"
-      // Just end the session and close
       if (isAdmin) {
-        console.log('🚪 Admin chose Quit Sharing - ending session');
+        // Admin executes card sharing WITHOUT group name (saves to Messaging tabs - SharedCard)
+        console.log('🚪 Admin chose Quit Sharing - executing peer-to-peer sharing');
+        const result = await groupSharingService.executeCardSharing(); // No groupName
+        
+        if (!result.success) {
+          throw new Error('Failed to save shared cards');
+        }
+        
+        console.log('✅ Cards saved to Messaging tabs:', result.summary);
+        
+        // End the session
         await groupSharingService.endSession();
-        showToast('Session ended. Cards saved to Messaging tabs!', 'success');
+        
+        showToast(`${result.summary?.totalShares || 0} cards saved to Messaging tabs!`, 'success');
       } else {
         // Non-admin just leaves
         showToast('Thanks for participating!', 'success');
@@ -345,14 +359,17 @@ export default function GroupSharingSessionUI({
           <Ionicons name="checkmark-circle" size={80} color="#10B981" />
         </View>
         <Text style={styles.completionTitle}>
-          Cards Shared!
+          {isAdmin ? 'Ready to Share!' : 'Cards Ready!'}
         </Text>
         <Text style={styles.completionSubtitle}>
-          {selectedCount} card{selectedCount !== 1 ? 's' : ''} shared successfully
+          {isAdmin 
+            ? `${selectedCount} card${selectedCount !== 1 ? 's' : ''} from all participants ready to be shared`
+            : `${selectedCount} card${selectedCount !== 1 ? 's' : ''} marked. Waiting for admin.`
+          }
         </Text>
         {isAdmin && (
           <Text style={styles.completionSubtitle}>
-            You can create a group or quit sharing:
+            Choose how to share these cards:
           </Text>
         )}
         
@@ -374,7 +391,7 @@ export default function GroupSharingSessionUI({
                 disabled={isLoading}
               >
                 <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.quitButtonText}>Quit Sharing</Text>
+                <Text style={styles.quitButtonText}>Share to Messaging</Text>
               </TouchableOpacity>
             </>
           ) : (
