@@ -236,16 +236,10 @@ export default function GroupSharingSessionUI({
       showToast('Please select at least one card to share', 'warning');
       return;
     }
-
-    // Admin check - need at least 2 participants (admin + 1 other)
-    if (isAdmin && participants.length <= 1) {
-      showToast('Waiting for participants to join', 'warning');
-      return;
-    }
     
     setIsLoading(true);
     try {
-      // First set the cards
+      // Each participant shares their own cards immediately
       const setSuccess = await groupSharingService.setCardsToShare(
         selectedCards,
         defaultCardId || selectedCards[0]
@@ -257,10 +251,11 @@ export default function GroupSharingSessionUI({
         return;
       }
 
-      // Show completion screen - admin will choose Create Group or Quit Sharing
-      // Cards are NOT shared yet - they will be shared when admin makes a choice
+      console.log(`✅ ${isAdmin ? 'Admin' : 'Participant'} shared ${selectedCards.length} cards`);
+      
+      // Show completion screen with different options for admin vs non-admin
       setSharingComplete(true);
-      showToast('Cards ready! Choose to create a group or quit sharing.', 'success');
+      showToast('Cards shared successfully!', 'success');
       
     } catch (error) {
       showToast('Error during card sharing', 'error');
@@ -272,24 +267,15 @@ export default function GroupSharingSessionUI({
   const handleQuitSharing = async () => {
     setIsLoading(true);
     try {
+      // Cards were already shared when each person clicked "Share My Cards"
+      // Just end the session and close
       if (isAdmin) {
-        // Admin executes card sharing WITHOUT group name (saves to Messaging tabs)
-        console.log('🚪 Admin chose Quit Sharing - executing peer-to-peer sharing');
-        const result = await groupSharingService.executeCardSharing(); // No groupName
-        
-        if (!result.success) {
-          throw new Error('Failed to save shared cards');
-        }
-        
-        console.log('✅ Cards saved to Messaging tabs:', result.summary);
-        
-        // End the session
+        console.log('🚪 Admin chose Quit Sharing - ending session');
         await groupSharingService.endSession();
-        
-        showToast(`${result.summary?.totalShares || 0} cards saved to Messaging tabs!`, 'success');
+        showToast('Session ended. Cards saved to Messaging tabs!', 'success');
       } else {
         // Non-admin just leaves
-        showToast('Thanks for participating', 'success');
+        showToast('Thanks for participating!', 'success');
       }
       
       setTimeout(() => {
@@ -359,19 +345,19 @@ export default function GroupSharingSessionUI({
           <Ionicons name="checkmark-circle" size={80} color="#10B981" />
         </View>
         <Text style={styles.completionTitle}>
-          {isAdmin ? 'Ready to Share!' : 'Cards Selected!'}
+          Cards Shared!
         </Text>
         <Text style={styles.completionSubtitle}>
-          {selectedCount} cards ready to be shared
+          {selectedCount} card{selectedCount !== 1 ? 's' : ''} shared successfully
         </Text>
         {isAdmin && (
           <Text style={styles.completionSubtitle}>
-            Choose how to save these cards:
+            You can create a group or quit sharing:
           </Text>
         )}
         
         <View style={styles.adminActions}>
-          {isAdmin && (
+          {isAdmin ? (
             <>
               <TouchableOpacity
                 style={styles.createGroupButton}
@@ -388,19 +374,17 @@ export default function GroupSharingSessionUI({
                 disabled={isLoading}
               >
                 <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.quitButtonText}>Save to Messaging</Text>
+                <Text style={styles.quitButtonText}>Quit Sharing</Text>
               </TouchableOpacity>
             </>
-          )}
-          
-          {!isAdmin && (
+          ) : (
             <TouchableOpacity
-              style={styles.backButton}
-              onPress={onQuit}
+              style={styles.quitButton}
+              onPress={handleQuitSharing}
               disabled={isLoading}
             >
-              <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-              <Text style={styles.backButtonText}>Back to My Cards</Text>
+              <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.quitButtonText}>Quit Sharing</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -464,43 +448,25 @@ export default function GroupSharingSessionUI({
 
             {/* Actions */}
             <View style={styles.actionsContainer}>
-              {isAdmin ? (
-                <>
-                  <TouchableOpacity
-                    style={[
-                      styles.startSharingButton,
-                      (selectedCards.length === 0 || participants.length <= 1) && styles.startSharingButtonDisabled
-                    ]}
-                    onPress={handleStartSharing}
-                    disabled={isLoading || selectedCards.length === 0 || participants.length <= 1}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Ionicons name="share-social" size={20} color="#FFFFFF" />
-                        <Text style={styles.startSharingButtonText}>Share Now</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                  
-                  {participants.length <= 1 && (
-                    <Text style={styles.warningText}>
-                      ⚠️ Waiting for participants to join...
+              <TouchableOpacity
+                style={[
+                  styles.startSharingButton,
+                  selectedCards.length === 0 && styles.startSharingButtonDisabled
+                ]}
+                onPress={handleStartSharing}
+                disabled={isLoading || selectedCards.length === 0}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="share-social" size={20} color="#FFFFFF" />
+                    <Text style={styles.startSharingButtonText}>
+                      {isAdmin ? 'Share My Cards' : 'Share My Cards'}
                     </Text>
-                  )}
-                </>
-              ) : (
-                <View style={styles.participantWaitingContainer}>
-                  <Ionicons name="time-outline" size={24} color="#6366F1" />
-                  <Text style={styles.participantWaitingText}>
-                    Waiting for admin to share cards...
-                  </Text>
-                  <Text style={styles.participantWaitingSubtext}>
-                    {selectedCards.length} card{selectedCards.length !== 1 ? 's' : ''} selected
-                  </Text>
-                </View>
-              )}
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           </>
         )}
