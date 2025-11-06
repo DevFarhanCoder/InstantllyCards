@@ -464,30 +464,42 @@ export default function GroupSharingSessionUI({
 
             {/* Actions */}
             <View style={styles.actionsContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.startSharingButton,
-                  (selectedCards.length === 0 || (isAdmin && participants.length <= 1)) && styles.startSharingButtonDisabled
-                ]}
-                onPress={handleStartSharing}
-                disabled={isLoading || selectedCards.length === 0 || (isAdmin && participants.length <= 1)}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="share-social" size={20} color="#FFFFFF" />
-                    <Text style={styles.startSharingButtonText}>
-                      {isAdmin ? 'Share Now' : 'Share My Cards'}
+              {isAdmin ? (
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.startSharingButton,
+                      (selectedCards.length === 0 || participants.length <= 1) && styles.startSharingButtonDisabled
+                    ]}
+                    onPress={handleStartSharing}
+                    disabled={isLoading || selectedCards.length === 0 || participants.length <= 1}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="share-social" size={20} color="#FFFFFF" />
+                        <Text style={styles.startSharingButtonText}>Share Now</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  
+                  {participants.length <= 1 && (
+                    <Text style={styles.warningText}>
+                      ⚠️ Waiting for participants to join...
                     </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              
-              {isAdmin && participants.length <= 1 && (
-                <Text style={styles.warningText}>
-                  ⚠️ Waiting for participants to join...
-                </Text>
+                  )}
+                </>
+              ) : (
+                <View style={styles.participantWaitingContainer}>
+                  <Ionicons name="time-outline" size={24} color="#6366F1" />
+                  <Text style={styles.participantWaitingText}>
+                    Waiting for admin to share cards...
+                  </Text>
+                  <Text style={styles.participantWaitingSubtext}>
+                    {selectedCards.length} card{selectedCards.length !== 1 ? 's' : ''} selected
+                  </Text>
+                </View>
               )}
             </View>
           </>
@@ -769,5 +781,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  participantWaitingContainer: {
+    alignItems: 'center',
+    padding: 24,
+    gap: 8,
+  },
+  participantWaitingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6366F1',
+    textAlign: 'center',
+  },
+  participantWaitingSubtext: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
   },
 });
