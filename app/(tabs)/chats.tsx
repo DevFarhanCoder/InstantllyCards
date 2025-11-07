@@ -15,7 +15,8 @@ import {
   Dimensions,
   Animated,
   Modal,
-  Linking
+  Linking,
+  RefreshControl
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -83,6 +84,8 @@ export default function Chats() {
   const [contactsSynced, setContactsSynced] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [sentRefreshing, setSentRefreshing] = useState(false);
+  const [receivedRefreshing, setReceivedRefreshing] = useState(false);
 
   // Socket.IO connection management
   const { isConnected, connect } = useChatSocket();
@@ -881,6 +884,34 @@ export default function Chats() {
     refetchOnWindowFocus: false,
   });
 
+  // Pull-to-refresh handler for Sent tab
+  const handleSentRefresh = useCallback(async () => {
+    console.log("🔄 Refreshing sent cards...");
+    setSentRefreshing(true);
+    try {
+      await sentCardsQuery.refetch();
+      console.log("✅ Sent cards refreshed");
+    } catch (error) {
+      console.error("❌ Error refreshing sent cards:", error);
+    } finally {
+      setSentRefreshing(false);
+    }
+  }, [sentCardsQuery]);
+
+  // Pull-to-refresh handler for Received tab
+  const handleReceivedRefresh = useCallback(async () => {
+    console.log("🔄 Refreshing received cards...");
+    setReceivedRefreshing(true);
+    try {
+      await receivedCardsQuery.refetch();
+      console.log("✅ Received cards refreshed");
+    } catch (error) {
+      console.error("❌ Error refreshing received cards:", error);
+    } finally {
+      setReceivedRefreshing(false);
+    }
+  }, [receivedCardsQuery]);
+
   const requestContactsPermission = async () => {
     try {
       const { status } = await Contacts.requestPermissionsAsync();
@@ -1601,6 +1632,15 @@ export default function Chats() {
           decelerationRate="fast"
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
+          refreshControl={
+            <RefreshControl
+              refreshing={sentRefreshing}
+              onRefresh={handleSentRefresh}
+              tintColor="#007AFF"
+              title="Pull to refresh"
+              titleColor="#999"
+            />
+          }
           ListFooterComponent={
             sentCardsQuery.isFetchingNextPage ? (
               <ActivityIndicator style={{ padding: 20 }} size="small" color="#007AFF" />
@@ -1620,7 +1660,7 @@ export default function Chats() {
         />
       </View>
     );
-  }, [screenWidth, sentCardsQuery.data, sentCardsQuery.hasNextPage, sentCardsQuery.isFetchingNextPage]);
+  }, [screenWidth, sentCardsQuery.data, sentCardsQuery.hasNextPage, sentCardsQuery.isFetchingNextPage, sentRefreshing, handleSentRefresh]);
 
   const renderReceivedPage = useMemo(() => {
     // Flatten infinite query pages into single array
@@ -1654,6 +1694,15 @@ export default function Chats() {
           decelerationRate="fast"
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
+          refreshControl={
+            <RefreshControl
+              refreshing={receivedRefreshing}
+              onRefresh={handleReceivedRefresh}
+              tintColor="#007AFF"
+              title="Pull to refresh"
+              titleColor="#999"
+            />
+          }
           ListFooterComponent={
             receivedCardsQuery.isFetchingNextPage ? (
               <ActivityIndicator style={{ padding: 20 }} size="small" color="#007AFF" />
@@ -1668,7 +1717,7 @@ export default function Chats() {
         />
       </View>
     );
-  }, [screenWidth, receivedCardsQuery.data, receivedCardsQuery.hasNextPage, receivedCardsQuery.isFetchingNextPage]);
+  }, [screenWidth, receivedCardsQuery.data, receivedCardsQuery.hasNextPage, receivedCardsQuery.isFetchingNextPage, receivedRefreshing, handleReceivedRefresh]);
 
   return (
     <SafeAreaView style={s.root}>
