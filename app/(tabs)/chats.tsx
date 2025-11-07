@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser, getCurrentUserId } from '@/lib/useUser';
 import * as Contacts from 'expo-contacts';
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -821,48 +821,64 @@ export default function Chats() {
     checkSyncStatus();
   }, []);
 
-  // Fetch sent cards with caching to reduce API calls
-  const sentCardsQuery = useQuery({
+  // Fetch sent cards with INFINITE SCROLL (cursor-based pagination)
+  const sentCardsQuery = useInfiniteQuery({
     queryKey: ["sent-cards"],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = null }) => {
       try {
         const token = await ensureAuth();
-        if (!token) return [];
+        if (!token) return { data: [], pagination: { nextCursor: null, hasMore: false } };
         
-        const response = await api.get<{ success: boolean; data: any[] }>("/cards/sent");
-        console.log("📧 Sent cards response:", response);
-        return response?.data || [];
+        const url = pageParam 
+          ? `/cards/sent?cursor=${pageParam}&limit=20`
+          : `/cards/sent?limit=20`;
+        
+        const response = await api.get<{ success: boolean; data: any[]; pagination: any }>(url);
+        console.log("📧 Sent cards page:", response.pagination);
+        return response;
       } catch (error) {
         console.error("Error fetching sent cards:", error);
-        return [];
+        return { data: [], pagination: { nextCursor: null, hasMore: false } };
       }
     },
-    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (was cacheTime in v4)
-    refetchOnMount: false, // Don't refetch if data is fresh
-    refetchOnWindowFocus: false, // Don't refetch on window focus
+    getNextPageParam: (lastPage) => {
+      return lastPage.pagination?.nextCursor || undefined;
+    },
+    initialPageParam: null,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
-  // Fetch received cards with caching to reduce API calls
-  const receivedCardsQuery = useQuery({
+  // Fetch received cards with INFINITE SCROLL (cursor-based pagination)
+  const receivedCardsQuery = useInfiniteQuery({
     queryKey: ["received-cards"],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = null }) => {
       try {
         const token = await ensureAuth();
-        if (!token) return [];
+        if (!token) return { data: [], pagination: { nextCursor: null, hasMore: false } };
         
-        const response = await api.get<{ success: boolean; data: any[] }>("/cards/received");
-        console.log("📬 Received cards response:", response);
-        return response?.data || [];
+        const url = pageParam 
+          ? `/cards/received?cursor=${pageParam}&limit=20`
+          : `/cards/received?limit=20`;
+        
+        const response = await api.get<{ success: boolean; data: any[]; pagination: any }>(url);
+        console.log("📬 Received cards page:", response.pagination);
+        return response;
       } catch (error) {
         console.error("Error fetching received cards:", error);
-        return [];
+        return { data: [], pagination: { nextCursor: null, hasMore: false } };
       }
     },
-    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (was cacheTime in v4)
-    refetchOnMount: false, // Don't refetch if data is fresh
-    refetchOnWindowFocus: false, // Don't refetch on window focus
+    getNextPageParam: (lastPage) => {
+      return lastPage.pagination?.nextCursor || undefined;
+    },
+    initialPageParam: null,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const requestContactsPermission = async () => {
@@ -1557,9 +1573,16 @@ export default function Chats() {
   ), [screenWidth, groupsLoading, groups, refreshing]);
 
   const renderSentPage = useMemo(() => {
-    const sent = sentCardsQuery.data || [];
+    // Flatten infinite query pages into single array
+    const sent = sentCardsQuery.data?.pages.flatMap(page => page.data) || [];
     const priorityOrder = { sent: 0, delivered: 1, viewed: 2 } as any;
     const ordered = [...sent].sort((a: SentCard, b: SentCard) => (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3));
+
+    const handleLoadMore = () => {
+      if (sentCardsQuery.hasNextPage && !sentCardsQuery.isFetchingNextPage) {
+        sentCardsQuery.fetchNextPage();
+      }
+    };
 
     return (
       <View style={[s.page, { width: screenWidth }]}>
@@ -1570,12 +1593,19 @@ export default function Chats() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingVertical: 4 }}
           removeClippedSubviews={true}
-          maxToRenderPerBatch={4}
+          maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={100}
-          initialNumToRender={3}
-          windowSize={4}
+          initialNumToRender={10}
+          windowSize={5}
           disableIntervalMomentum={true}
           decelerationRate="fast"
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            sentCardsQuery.isFetchingNextPage ? (
+              <ActivityIndicator style={{ padding: 20 }} size="small" color="#007AFF" />
+            ) : null
+          }
           getItemLayout={(data, index) => ({
             length: 240,
             offset: 240 * index,
@@ -1590,15 +1620,22 @@ export default function Chats() {
         />
       </View>
     );
-  }, [screenWidth, sentCardsQuery.data]);
+  }, [screenWidth, sentCardsQuery.data, sentCardsQuery.hasNextPage, sentCardsQuery.isFetchingNextPage]);
 
   const renderReceivedPage = useMemo(() => {
-    const received = receivedCardsQuery.data || [];
+    // Flatten infinite query pages into single array
+    const received = receivedCardsQuery.data?.pages.flatMap(page => page.data) || [];
     const ordered = [...received].sort((a: ReceivedCard, b: ReceivedCard) => 
       (a.isViewed === b.isViewed) ? 
         new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime() : 
         (a.isViewed ? 1 : -1)
     );
+
+    const handleLoadMore = () => {
+      if (receivedCardsQuery.hasNextPage && !receivedCardsQuery.isFetchingNextPage) {
+        receivedCardsQuery.fetchNextPage();
+      }
+    };
 
     return (
       <View style={[s.page, { width: screenWidth }]}>
@@ -1609,12 +1646,19 @@ export default function Chats() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingVertical: 4 }}
           removeClippedSubviews={true}
-          maxToRenderPerBatch={4}
+          maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={100}
-          initialNumToRender={3}
-          windowSize={4}
+          initialNumToRender={10}
+          windowSize={5}
           disableIntervalMomentum={true}
           decelerationRate="fast"
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            receivedCardsQuery.isFetchingNextPage ? (
+              <ActivityIndicator style={{ padding: 20 }} size="small" color="#007AFF" />
+            ) : null
+          }
           ListEmptyComponent={
             <View style={s.emptyState}>
               <Text style={s.emptyText}>No cards received yet</Text>
@@ -1624,7 +1668,7 @@ export default function Chats() {
         />
       </View>
     );
-  }, [screenWidth, receivedCardsQuery.data]);
+  }, [screenWidth, receivedCardsQuery.data, receivedCardsQuery.hasNextPage, receivedCardsQuery.isFetchingNextPage]);
 
   return (
     <SafeAreaView style={s.root}>
@@ -1663,7 +1707,8 @@ export default function Chats() {
           <Text style={[s.tabText, activeTab === 'received' && s.activeTabText]}>Received</Text>
           {/* Red badge for unread received cards */}
           {(() => {
-            const unreadCount = (receivedCardsQuery.data || []).filter((card: ReceivedCard) => !card.isViewed).length;
+            const allReceived = receivedCardsQuery.data?.pages.flatMap(page => page.data) || [];
+            const unreadCount = allReceived.filter((card: ReceivedCard) => !card.isViewed).length;
             return unreadCount > 0 ? (
               <View style={s.badge}>
                 <Text style={s.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
