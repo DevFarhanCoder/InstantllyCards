@@ -837,7 +837,12 @@ export default function Chats() {
           : `/cards/sent?limit=20`;
         
         const response = await api.get<{ success: boolean; data: any[]; pagination: any }>(url);
-        console.log("📧 Sent cards page:", response.pagination);
+        console.log("📧 Sent cards API response:", {
+          cursor: pageParam || 'first',
+          count: response.data?.length || 0,
+          nextCursor: response.pagination?.nextCursor,
+          hasMore: response.pagination?.hasMore
+        });
         return response;
       } catch (error) {
         console.error("Error fetching sent cards:", error);
@@ -845,7 +850,9 @@ export default function Chats() {
       }
     },
     getNextPageParam: (lastPage) => {
-      return lastPage.pagination?.nextCursor || undefined;
+      const nextCursor = lastPage.pagination?.nextCursor || undefined;
+      console.log("📧 Sent getNextPageParam:", { hasMore: lastPage.pagination?.hasMore, nextCursor });
+      return nextCursor;
     },
     initialPageParam: null,
     staleTime: 30 * 1000,
@@ -867,7 +874,12 @@ export default function Chats() {
           : `/cards/received?limit=20`;
         
         const response = await api.get<{ success: boolean; data: any[]; pagination: any }>(url);
-        console.log("📬 Received cards page:", response.pagination);
+        console.log("📬 Received cards API response:", {
+          cursor: pageParam || 'first',
+          count: response.data?.length || 0,
+          nextCursor: response.pagination?.nextCursor,
+          hasMore: response.pagination?.hasMore
+        });
         return response;
       } catch (error) {
         console.error("Error fetching received cards:", error);
@@ -875,7 +887,9 @@ export default function Chats() {
       }
     },
     getNextPageParam: (lastPage) => {
-      return lastPage.pagination?.nextCursor || undefined;
+      const nextCursor = lastPage.pagination?.nextCursor || undefined;
+      console.log("📬 Received getNextPageParam:", { hasMore: lastPage.pagination?.hasMore, nextCursor });
+      return nextCursor;
     },
     initialPageParam: null,
     staleTime: 30 * 1000,
@@ -1609,8 +1623,12 @@ export default function Chats() {
     const priorityOrder = { sent: 0, delivered: 1, viewed: 2 } as any;
     const ordered = [...sent].sort((a: SentCard, b: SentCard) => (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3));
 
+    console.log(`📤 Sent cards: ${sent.length} total, ${sentCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${sentCardsQuery.hasNextPage}`);
+
     const handleLoadMore = () => {
+      console.log(`📤 Sent LoadMore triggered - hasNextPage: ${sentCardsQuery.hasNextPage}, isFetching: ${sentCardsQuery.isFetchingNextPage}`);
       if (sentCardsQuery.hasNextPage && !sentCardsQuery.isFetchingNextPage) {
+        console.log('📤 Fetching next page of sent cards...');
         sentCardsQuery.fetchNextPage();
       }
     };
@@ -1646,11 +1664,6 @@ export default function Chats() {
               <ActivityIndicator style={{ padding: 20 }} size="small" color="#007AFF" />
             ) : null
           }
-          getItemLayout={(data, index) => ({
-            length: 240,
-            offset: 240 * index,
-            index,
-          })}
           ListEmptyComponent={
             <View style={s.emptyState}>
               <Text style={s.emptyText}>No cards sent yet</Text>
@@ -1671,8 +1684,12 @@ export default function Chats() {
         (a.isViewed ? 1 : -1)
     );
 
+    console.log(`📬 Received cards: ${received.length} total, ${receivedCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${receivedCardsQuery.hasNextPage}`);
+
     const handleLoadMore = () => {
+      console.log(`📬 Received LoadMore triggered - hasNextPage: ${receivedCardsQuery.hasNextPage}, isFetching: ${receivedCardsQuery.isFetchingNextPage}`);
       if (receivedCardsQuery.hasNextPage && !receivedCardsQuery.isFetchingNextPage) {
+        console.log('📬 Fetching next page of received cards...');
         receivedCardsQuery.fetchNextPage();
       }
     };
