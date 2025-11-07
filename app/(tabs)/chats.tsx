@@ -821,7 +821,7 @@ export default function Chats() {
     checkSyncStatus();
   }, []);
 
-  // Fetch sent cards
+  // Fetch sent cards with caching to reduce API calls
   const sentCardsQuery = useQuery({
     queryKey: ["sent-cards"],
     queryFn: async () => {
@@ -837,9 +837,13 @@ export default function Chats() {
         return [];
       }
     },
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (was cacheTime in v4)
+    refetchOnMount: false, // Don't refetch if data is fresh
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
-  // Fetch received cards
+  // Fetch received cards with caching to reduce API calls
   const receivedCardsQuery = useQuery({
     queryKey: ["received-cards"],
     queryFn: async () => {
@@ -855,6 +859,10 @@ export default function Chats() {
         return [];
       }
     },
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (was cacheTime in v4)
+    refetchOnMount: false, // Don't refetch if data is fresh
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
   const requestContactsPermission = async () => {
