@@ -855,9 +855,9 @@ export default function Chats() {
       return nextCursor;
     },
     initialPageParam: null,
-    staleTime: 30 * 1000,
+    staleTime: 0, // Changed from 30s to 0 - always fetch fresh data
     gcTime: 5 * 60 * 1000,
-    refetchOnMount: false,
+    refetchOnMount: true, // Changed from false to true - refetch when component mounts
     refetchOnWindowFocus: false,
   });
 
@@ -892,9 +892,9 @@ export default function Chats() {
       return nextCursor;
     },
     initialPageParam: null,
-    staleTime: 30 * 1000,
+    staleTime: 0, // Changed from 30s to 0 - always fetch fresh data
     gcTime: 5 * 60 * 1000,
-    refetchOnMount: false,
+    refetchOnMount: true, // Changed from false to true - refetch when component mounts
     refetchOnWindowFocus: false,
   });
 
