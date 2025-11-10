@@ -450,15 +450,27 @@ export default function Builder() {
                     contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Header */}
-                    <View style={{ alignItems: "center", marginBottom: 12 }}>
-                        <Text style={s.h1}>{isEditMode ? "Edit Card" : "Create New Card"}</Text>
-                        <Text style={s.subtitle}>
-                            {isEditMode 
-                                ? "Update your professional details" 
-                                : "Build your digital business card in minutes"
-                            }
-                        </Text>
+                    {/* Header with Cancel Button */}
+                    <View style={{ marginBottom: 12 }}>
+                        {/* Cancel Button */}
+                        <TouchableOpacity 
+                            onPress={() => router.back()}
+                            style={s.cancelButton}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Ionicons name="close" size={28} color="#6B7280" />
+                        </TouchableOpacity>
+                        
+                        {/* Title */}
+                        <View style={{ alignItems: "center" }}>
+                            <Text style={s.h1}>{isEditMode ? "Edit Card" : "Create New Card"}</Text>
+                            <Text style={s.subtitle}>
+                                {isEditMode 
+                                    ? "Update your professional details" 
+                                    : "Build your digital business card in minutes"
+                                }
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Personal Information Section */}
@@ -844,6 +856,15 @@ export default function Builder() {
 }
 
 const s = StyleSheet.create({
+    cancelButton: {
+        position: "absolute",
+        top: 0,
+        right: 0,
+        zIndex: 10,
+        padding: 8,
+        borderRadius: 20,
+        backgroundColor: "#F3F4F6",
+    },
     h1: { 
         fontSize: 28, 
         fontWeight: "800", 
