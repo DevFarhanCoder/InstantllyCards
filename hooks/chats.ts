@@ -107,24 +107,34 @@ export const useChatSocket = () => {
           const userData = JSON.parse(currentUser);
           const currentUserId = userData.id || userData._id;
           
+          // Extract sender ID from populated sender object or fallback to senderId field
+          const messageSenderId = typeof message.sender === 'object' 
+            ? message.sender._id
+            : message.sender;
+          
           // Only show notification if:
           // 1. Message is not from current user
           // 2. User is not currently in this private chat
-          if (message.senderId !== currentUserId && activeChat !== message.senderId) {
+          if (messageSenderId !== currentUserId && activeChat !== messageSenderId) {
+            const senderName = typeof message.sender === 'object' 
+              ? (message.sender.name || 'Unknown')
+              : 'Unknown';
+              
             console.log('🔔 Showing private message notification:', {
-              sender: message.sender.name || 'Unknown',
+              sender: senderName,
               content: message.content,
               activeChat,
               currentUserId,
-              senderId: message.senderId
+              messageSenderId
             });
             
             await showInAppNotification(
-              message.sender.name || 'Unknown',
+              senderName,
               message.content,
               () => {
                 // Navigate to the private chat when notification is tapped
-                router.push(`/chat/${message.senderId}` as any);
+                // Pass both userId and name to avoid "Unknown" header
+                router.push(`/chat/${messageSenderId}?name=${encodeURIComponent(senderName)}` as any);
               }
             );
           }
@@ -151,10 +161,15 @@ export const useChatSocket = () => {
           const userData = JSON.parse(currentUser);
           const currentUserId = userData.id || userData._id;
           
+          // Extract sender ID from populated sender object or fallback to senderId field
+          const messageSenderId = typeof message.sender === 'object' 
+            ? message.sender._id
+            : message.sender;
+          
           // Only show notification if:
           // 1. Message is not from current user
           // 2. User is not currently in this group chat
-          if (message.senderId !== currentUserId && activeChat !== `group_${message.groupId}`) {
+          if (messageSenderId !== currentUserId && activeChat !== `group_${message.groupId}`) {
             // Get group name for better notification
             let groupName = 'Group';
             try {
@@ -169,17 +184,21 @@ export const useChatSocket = () => {
               console.log('Could not fetch group name for notification');
             }
             
+            const senderName = typeof message.sender === 'object' 
+              ? (message.sender.name || 'Unknown')
+              : 'Unknown';
+            
             console.log('🔔 Showing group notification:', {
               groupName,
-              sender: message.sender.name || 'Unknown',
+              sender: senderName,
               content: message.content,
               activeChat,
               currentUserId,
-              senderId: message.senderId
+              messageSenderId
             });
             
             await showInAppNotification(
-              `${groupName}: ${message.sender.name || 'Unknown'}`,
+              `${groupName}: ${senderName}`,
               message.content,
               () => {
                 // Navigate to the group chat when notification is tapped

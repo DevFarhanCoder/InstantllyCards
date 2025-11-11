@@ -107,8 +107,13 @@ export default function ChatScreen() {
 
     // Listen for incoming messages from this user
     const unsubscribeMessage = socketService.onMessage((messageData: any) => {
+      // Extract sender ID from populated sender object or senderId field
+      const messageSenderId = messageData.sender && typeof messageData.sender === 'object'
+        ? messageData.sender._id
+        : (messageData.senderId || messageData.sender);
+      
       // Only process messages from this specific user
-      if (messageData.senderId === userId) {
+      if (messageSenderId === userId) {
         console.log('📨 Received message via Socket.IO from:', userId);
         
         const newMessage: Message = {
