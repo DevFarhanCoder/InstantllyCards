@@ -260,12 +260,12 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
         >
             <View style={s.modalOverlay}>
                 <View style={s.modalContent}>
-                    <Pressable onPress={handleEditPress} style={s.shareOption}>
-                        <Text style={s.shareOptionText}>Edit Card</Text>
-                    </Pressable>
-                    
                     <Pressable onPress={() => { setMenuModalVisible(false); setShareModalVisible(true); }} style={s.shareOption}>
                         <Text style={s.shareOptionText}>Share Card</Text>
+                    </Pressable>
+                    
+                    <Pressable onPress={handleEditPress} style={s.shareOption}>
+                        <Text style={s.shareOptionText}>Edit Card</Text>
                     </Pressable>
                     
                     <Pressable onPress={handleDeletePress} style={[s.shareOption, s.deleteOption]}>

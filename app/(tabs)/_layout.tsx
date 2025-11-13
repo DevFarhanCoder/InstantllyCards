@@ -2,7 +2,8 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Platform } from "react-native";
+import { Platform, Image } from "react-native";
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -45,6 +46,27 @@ export default function TabsLayout() {
           ),
         }}
       />
+    
+       {/* ✅ MODIFIED: The name must now be the FOLDER name ("ads").
+        The icon uses a custom Google Ads logo image. 
+      */}
+      <Tabs.Screen
+        name="ads" 
+        options={{
+          title: "Ads",
+          tabBarIcon: ({ color, size }) => (
+            <Image 
+              source={require('../../assets/images/google-ads-icon.png')}
+              style={{ 
+                width: size, 
+                height: size,
+              }}
+              resizeMode="contain"
+            />
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="chats"
         options={{
