@@ -11,7 +11,7 @@ import {
   TextInput,
   Image,
   Pressable,
-  ScrollView,
+  ScrollView,                                             
   Dimensions,
   Animated,
   Modal,
