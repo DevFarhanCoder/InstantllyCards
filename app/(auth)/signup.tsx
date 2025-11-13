@@ -18,6 +18,9 @@ import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// Firebase imports for Phone Authentication
+import { sendOTPViaFirebase, verifyOTPViaFirebase } from '@/lib/firebase';
+
 import api from "@/lib/api";
 import serverWarmup from "@/lib/serverWarmup";
 import Field from "@/components/Field";
@@ -47,6 +50,9 @@ export default function Signup() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
+  
+  // Firebase verification confirmation
+  const [firebaseConfirmation, setFirebaseConfirmation] = useState<any>(null);
   
   // Loading states
   const [loading, setLoading] = useState(false);
@@ -143,23 +149,34 @@ export default function Signup() {
         return;
       }
 
-      console.log('📱 Sending OTP to:', fullPhone);
+      console.log('📱 Sending OTP via Firebase to:', fullPhone);
       
-      const res = await api.post("/auth/send-otp", {
-        phone: fullPhone
-      });
-
-      if (res.success) {
+      // Send OTP using Firebase Phone Authentication
+      const result = await sendOTPViaFirebase(fullPhone);
+      
+      if (result.success && result.confirmation) {
+        // Store confirmation for later verification
+        setFirebaseConfirmation(result.confirmation);
         showToast("OTP sent to your phone number", "success");
         setStep('otp');
         setOtpTimer(60); // 60 second cooldown
         setCanResend(false);
       } else {
-        throw new Error(res.message || "Failed to send OTP");
+        throw new Error("Failed to send OTP");
       }
     } catch (e: any) {
       console.error('❌ Send OTP error:', e);
-      showToast(e?.message || "Failed to send OTP. Please try again.", "error");
+      let errorMessage = "Failed to send OTP. Please try again.";
+      
+      if (e?.code === 'auth/invalid-phone-number') {
+        errorMessage = "Invalid phone number format. Please check and try again.";
+      } else if (e?.code === 'auth/too-many-requests') {
+        errorMessage = "Too many requests. Please try again later.";
+      } else if (e?.message) {
+        errorMessage = e.message;
+      }
+      
+      showToast(errorMessage, "error");
     } finally {
       setSendingOtp(false);
     }
@@ -178,27 +195,33 @@ export default function Signup() {
         return;
       }
 
-      const cleanPhone = phoneNumber.trim().replace(/\D/g, "");
-      const fullPhone = `${countryCode}${cleanPhone}`;
+      if (!firebaseConfirmation) {
+        Alert.alert("Error", "No verification session found. Please resend OTP.");
+        return;
+      }
 
       setVerifyingOtp(true);
 
-      console.log('🔐 Verifying OTP for:', fullPhone);
+      console.log('🔐 Verifying OTP via Firebase...');
       
-      const res = await api.post("/auth/verify-otp", {
-        phone: fullPhone,
-        otp: otpT
-      });
+      // Verify OTP using Firebase
+      const result = await verifyOTPViaFirebase(firebaseConfirmation, otpT);
 
-      if (res.success && res.verified) {
+      if (result.success) {
         showToast("Phone number verified!", "success");
         setStep('details');
       } else {
-        throw new Error(res.message || "Invalid OTP");
+        throw new Error("Failed to verify OTP");
       }
     } catch (e: any) {
       console.error('❌ Verify OTP error:', e);
-      showToast(e?.message || "Invalid or expired OTP. Please try again.", "error");
+      let errorMessage = "Invalid or expired OTP. Please try again.";
+      
+      if (e?.message) {
+        errorMessage = e.message;
+      }
+      
+      showToast(errorMessage, "error");
     } finally {
       setVerifyingOtp(false);
     }

@@ -16,8 +16,8 @@ export default function Splash() {
     const go = async () => {
       const token = await AsyncStorage.getItem("token");
       setTimeout(() => {
-        if (token) router.replace("/home");     // ✅ go to a real screen
-        else router.replace("/signup");         // (auth)/signup.tsx -> URL /signup
+        if (token) router.replace("/(tabs)/home");  // ✅ go to tabs/home screen
+        else router.replace("/(auth)/signup");      // (auth)/signup.tsx -> URL /signup
       }, 900);
     };
     go();

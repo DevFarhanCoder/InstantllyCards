@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "957337381917",
-    "project_id": "instantllycards",
-    "storage_bucket": "instantllycards.firebasestorage.app"
+    "project_number": "612226198137",
+    "project_id": "instantlly-cards-5e4de",
+    "storage_bucket": "instantlly-cards-5e4de.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:957337381917:android:d2a9350851b15fbdb5eaf4",
+        "mobilesdk_app_id": "1:612226198137:android:94c3b7b4b66051244182a8",
         "android_client_info": {
           "package_name": "com.instantllycards.www.twa"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDX7oDQuqII_XxLPLOJuIL0lwTZDNtSD0Y"
+          "current_key": "AIzaSyClTL2sCE5w0Qt6LuccXXAR8gAomSnKs08"
         }
       ],
       "services": {
