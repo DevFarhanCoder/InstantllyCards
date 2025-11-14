@@ -255,8 +255,9 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20, // Reduced padding for better mobile fit
     paddingBottom: 32,
+    minHeight: screenHeight * 0.9, // Ensure proper height on all devices
   },
   header: {
     alignItems: 'center',
@@ -287,8 +288,9 @@ const styles = StyleSheet.create({
   formContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 24,
+    padding: 20, // Reduced padding for mobile
     marginBottom: 24,
+    marginHorizontal: 4, // Add small margin for better mobile display
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -300,6 +302,7 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 20,
+    width: '100%', // Ensure full width
   },
   buttonContainer: {
     marginTop: 8,
