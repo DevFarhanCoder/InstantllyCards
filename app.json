@@ -72,6 +72,7 @@
           }
         }
       ],
+      "@react-native-firebase/auth",
       [
         "expo-build-properties",
         {

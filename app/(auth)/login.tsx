@@ -231,7 +231,7 @@ export default function Login() {
 
             {/* Footer */}
             <View style={styles.footer}>
-              <Pressable onPress={() => router.push("/(auth)/signup")}>
+              <Pressable onPress={() => router.push("/signup")}>
                 <Text style={styles.footerText}>
                   Don't have an account?{" "}
                   <Text style={styles.footerLink}>Create Account</Text>
