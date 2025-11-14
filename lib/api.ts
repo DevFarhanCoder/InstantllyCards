@@ -43,10 +43,12 @@ async function request<T>(
   body?: Json | FormData,
   options?: { headers?: Record<string, string> }
 ): Promise<T> {
-  console.log("🔧 API Request Configuration:");
-  console.log("  - BASE URL:", BASE);
-  console.log("  - Method:", method);
-  console.log("  - Path:", path);
+  if (__DEV__ && !path.includes('/feedback')) {
+    console.log("🔧 API Request Configuration:");
+    console.log("  - BASE URL:", BASE);
+    console.log("  - Method:", method);
+    console.log("  - Path:", path);
+  }
   
   if (!BASE) {
     console.error("❌ No API base URL found!");
@@ -70,7 +72,9 @@ async function request<T>(
     `${BASE}/api${path.startsWith("/") ? path : `/${path}`}`,
   ];
 
-  console.log("🎯 API URL Candidates:", candidates);
+  if (__DEV__ && !path.includes('/feedback')) {
+    console.log("🎯 API URL Candidates:", candidates);
+  }
 
   let lastErr: any;
   for (const url of candidates) {
@@ -78,8 +82,10 @@ async function request<T>(
     
     while (retries > 0) {
       try {
-        console.log(`🚀 Making ${method} request to: ${url} (attempt ${4 - retries}/3)`);
-        console.log('📤 Request body:', body instanceof FormData ? 'FormData' : JSON.stringify(body, null, 2));
+        if (__DEV__ && !path.includes('/feedback')) {
+          console.log(`🚀 Making ${method} request to: ${url} (attempt ${4 - retries}/3)`);
+          console.log('📤 Request body:', body instanceof FormData ? 'FormData' : JSON.stringify(body, null, 2));
+        }
         
         // Create AbortController for timeout
         const controller = new AbortController();
@@ -98,11 +104,16 @@ async function request<T>(
 
         const duration = Date.now() - startTime;
         clearTimeout(timeoutId);
-        console.log(`✅ Response received in ${duration}ms - Status: ${res.status} for ${url}`);
+        if (__DEV__) {
+          console.log(`✅ Response received in ${duration}ms - Status: ${res.status} for ${url}`);
+        }
 
         let data: any = null;
         const text = await res.text();
-        console.log('📥 Response text:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
+        // Only log response in development mode
+        if (__DEV__ && !path.includes('/feedback')) {
+          console.log('📥 Response text:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
+        }
         
         try {
           data = text ? JSON.parse(text) : null;
@@ -111,7 +122,9 @@ async function request<T>(
         }
 
         if (!res.ok) {
-          console.log('❌ Error response data:', data);
+          if (__DEV__) {
+            console.log('❌ Error response data:', data);
+          }
           // bubble up shape { status, url, data }
           const err = new Error(
             typeof data === "object" && data?.message
@@ -124,7 +137,9 @@ async function request<T>(
           throw err;
         }
 
-        console.log('🎉 Request successful!');
+        if (__DEV__ && !path.includes('/feedback')) {
+          console.log('🎉 Request successful!');
+        }
         return data as T;
       } catch (e: any) {
         console.error(`❌ Request failed for ${url} (attempt ${4 - retries}/3):`, e.message);

@@ -49,10 +49,16 @@ export default function FeedbackScreen() {
         rating,
       });
 
-      if (response.data.success) {
+      // API returns data directly, not wrapped in .data
+      if (response?.success) {
+        // Clear form
+        setSubject('');
+        setMessage('');
+        setRating(null);
+        
         Alert.alert(
           'Success',
-          'Thank you for your feedback! We appreciate your input.',
+          'Thank you for your feedback! We appreciate your input and will review it carefully.',
           [
             {
               text: 'OK',
@@ -61,14 +67,17 @@ export default function FeedbackScreen() {
           ]
         );
       } else {
-        Alert.alert('Error', response.data.message || 'Failed to submit feedback');
+        Alert.alert('Error', response?.message || 'Failed to submit feedback');
       }
     } catch (error: any) {
       console.error('Error submitting feedback:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.message || 'Failed to submit feedback. Please try again.'
-      );
+      
+      // Get proper error message from API response
+      const errorMessage = error.data?.message 
+        || error.response?.data?.message 
+        || 'Failed to submit feedback. Please check your connection and try again.';
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setSubmitting(false);
     }
