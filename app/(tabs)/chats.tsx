@@ -86,6 +86,24 @@ export default function Chats() {
   const [refreshing, setRefreshing] = useState(false);
   const [sentRefreshing, setSentRefreshing] = useState(false);
   const [receivedRefreshing, setReceivedRefreshing] = useState(false);
+  const [receivedSearchQuery, setReceivedSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Normalize and debounce search query for better matching
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Normalize search query: lowercase, handle special characters
+      const normalizedQuery = receivedSearchQuery
+        .toLowerCase()
+        .trim()
+        .replace(/[_-]/g, ' ') // Convert snake_case and kebab-case to spaces
+        .replace(/\s+/g, ' '); // Replace multiple spaces with single space
+      
+      setDebouncedSearchQuery(normalizedQuery);
+    }, 150); // 150ms debounce for faster response
+
+    return () => clearTimeout(timer);
+  }, [receivedSearchQuery]);
 
   // Socket.IO connection management
   const { isConnected, connect } = useChatSocket();
@@ -704,7 +722,7 @@ export default function Chats() {
     setCurrentPage(newIndex);
     
     // Track visited tabs for lazy loading
-    setVisitedTabs(prev => new Set([...prev, newTab]));
+    setVisitedTabs(prev => new Set([...Array.from(prev), newTab]));
     
     // Scroll to the correct page
     scrollViewRef.current?.scrollTo({
@@ -721,7 +739,7 @@ export default function Chats() {
     if (page !== currentPage && page >= 0 && page < tabs.length) {
       setCurrentPage(page);
       setActiveTab(tabs[page]);
-      setVisitedTabs(prev => new Set([...prev, tabs[page]]));
+      setVisitedTabs(prev => new Set([...Array.from(prev), tabs[page]]));
     }
   }, [screenWidth, currentPage, tabs]);
   
@@ -863,22 +881,34 @@ export default function Chats() {
 
   // Fetch received cards with INFINITE SCROLL (cursor-based pagination)
   const receivedCardsQuery = useInfiniteQuery({
-    queryKey: ["received-cards"],
+    queryKey: ["received-cards", debouncedSearchQuery],
     queryFn: async ({ pageParam = null }) => {
       try {
         const token = await ensureAuth();
         if (!token) return { data: [], pagination: { nextCursor: null, hasMore: false } };
         
-        const url = pageParam 
+        let url = pageParam 
           ? `/cards/received?cursor=${pageParam}&limit=20`
           : `/cards/received?limit=20`;
+          
+        // Add search query with fuzzy search parameters if provided
+        if (debouncedSearchQuery.trim()) {
+          const searchParams = new URLSearchParams({
+            search: debouncedSearchQuery.trim(),
+            fuzzy: 'true', // Enable fuzzy matching on backend
+            case_sensitive: 'false', // Case-insensitive search
+            sort_by: 'relevance' // Sort by relevance score
+          });
+          url += url.includes('?') ? `&${searchParams.toString()}` : `?${searchParams.toString()}`;
+        }
         
         const response = await api.get<{ success: boolean; data: any[]; pagination: any }>(url);
         console.log("📬 Received cards API response:", {
           cursor: pageParam || 'first',
           count: response.data?.length || 0,
           nextCursor: response.pagination?.nextCursor,
-          hasMore: response.pagination?.hasMore
+          hasMore: response.pagination?.hasMore,
+          searchQuery: debouncedSearchQuery
         });
         return response;
       } catch (error) {
@@ -1678,11 +1708,15 @@ export default function Chats() {
   const renderReceivedPage = useMemo(() => {
     // Flatten infinite query pages into single array
     const received = receivedCardsQuery.data?.pages.flatMap(page => page.data) || [];
-    const ordered = [...received].sort((a: ReceivedCard, b: ReceivedCard) => 
-      (a.isViewed === b.isViewed) ? 
-        new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime() : 
-        (a.isViewed ? 1 : -1)
-    );
+    
+    // Sort logic: If searching, trust backend relevance sorting; otherwise sort by viewed status and date
+    const ordered = debouncedSearchQuery.trim() 
+      ? received // Keep backend relevance sorting when searching
+      : [...received].sort((a: ReceivedCard, b: ReceivedCard) => 
+          (a.isViewed === b.isViewed) ? 
+            new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime() : 
+            (a.isViewed ? 1 : -1)
+        );
 
     console.log(`📬 Received cards: ${received.length} total, ${receivedCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${receivedCardsQuery.hasNextPage}`);
 
@@ -1696,6 +1730,45 @@ export default function Chats() {
 
     return (
       <View style={[s.page, { width: screenWidth }]}>
+        {/* Search Bar */}
+        <View style={s.searchContainer}>
+          <View style={s.searchInputContainer}>
+            <Ionicons name="search" size={20} color="#9CA3AF" style={s.searchIcon} />
+            <TextInput
+              style={s.searchInput}
+              placeholder="Search cards (fuzzy matching: hello, Hello, business_card)..."
+              placeholderTextColor="#9CA3AF"
+              value={receivedSearchQuery}
+              onChangeText={setReceivedSearchQuery}
+              autoCapitalize="none"
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {receivedSearchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setReceivedSearchQuery('');
+                  setDebouncedSearchQuery('');
+                }}
+                style={s.clearSearchButton}
+              >
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
+            {receivedSearchQuery !== debouncedSearchQuery && (
+              <ActivityIndicator size="small" color="#9CA3AF" style={{ marginLeft: 8 }} />
+            )}
+          </View>
+          {debouncedSearchQuery.trim() && received.length > 0 && (
+            <View style={s.searchResultsInfo}>
+              <Text style={s.searchResultsText}>
+                {received.length} card{received.length !== 1 ? 's' : ''} found for "{debouncedSearchQuery}"
+              </Text>
+              <Text style={s.searchResultsSubtext}>Sorted by relevance</Text>
+            </View>
+          )}
+        </View>
+        
         <FlatList
           data={ordered}
           keyExtractor={(item) => item._id}
@@ -1727,8 +1800,15 @@ export default function Chats() {
           }
           ListEmptyComponent={
             <View style={s.emptyState}>
-              <Text style={s.emptyText}>No cards received yet</Text>
-              <Text style={s.emptySubtext}>Cards shared with you will appear here</Text>
+              <Text style={s.emptyText}>
+                {debouncedSearchQuery.trim() ? `No cards found for "${debouncedSearchQuery}"` : 'No cards received yet'}
+              </Text>
+              <Text style={s.emptySubtext}>
+                {debouncedSearchQuery.trim() 
+                  ? 'Try: partial words ("bus" for "business"), different cases ("CARD" or "card"), or related terms' 
+                  : 'Cards shared with you will appear here'
+                }
+              </Text>
             </View>
           }
         />
@@ -2111,18 +2191,6 @@ function GroupsFAB({
     fontSize: 16,
     fontWeight: "600",
   },
-  searchContainer: {
-    marginBottom: 16,
-  },
-  searchInput: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
   contactItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -2492,6 +2560,52 @@ function GroupsFAB({
     fontSize: 16,
     fontWeight: "500",
     color: "#FFFFFF",
+  },
+  
+  // Search bar styles
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#111827",
+    paddingVertical: 4,
+  },
+  clearSearchButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  searchResultsInfo: {
+    paddingTop: 8,
+    paddingHorizontal: 4,
+  },
+  searchResultsText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  searchResultsSubtext: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    marginTop: 2,
   },
 });
 

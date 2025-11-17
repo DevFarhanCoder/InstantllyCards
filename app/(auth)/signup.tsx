@@ -151,11 +151,10 @@ export default function Signup() {
 
       console.log('📱 Sending OTP via Firebase to:', fullPhone);
       
-      // Send OTP using Firebase Phone Authentication
+      // Send OTP using Firebase
       const result = await sendOTPViaFirebase(fullPhone);
       
-      if (result.success && result.confirmation) {
-        // Store confirmation for later verification
+      if (result.success) {
         setFirebaseConfirmation(result.confirmation);
         showToast("OTP sent to your phone number", "success");
         setStep('otp');

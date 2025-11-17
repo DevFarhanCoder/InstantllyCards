@@ -508,10 +508,11 @@ export default function ContactSelectScreen() {
   const isLoading = !!(queryLoading || contactsLoading || groupsLoading);
   
   // Show loading screen ONLY on initial load (page 1) AND when we have no contacts yet
-  const showLoadingScreen = isLoading && allContacts.length === 0;
+  // Skip loading screen in card share mode - show contacts immediately even if refetching
+  const showLoadingScreen = !isCardShareMode && isLoading && allContacts.length === 0 && !storedContactsQuery.data;
 
-  // Use accumulated contacts or empty array if loading
-  const storedContacts = allContacts;
+  // Use accumulated contacts or cached query data in card share mode
+  const storedContacts = allContacts.length > 0 ? allContacts : (isCardShareMode && storedContactsQuery.data?.data ? storedContactsQuery.data.data : allContacts);
   const availableGroups = groupsQuery.data || [];
 
   console.log("📊 DEBUG - Contacts State:");
@@ -1061,18 +1062,20 @@ export default function ContactSelectScreen() {
           )}
         </View>
         
-        {/* Smart Refresh Button - Always visible */}
-        <TouchableOpacity 
-          onPress={smartRefreshNewContacts}
-          style={[styles.smartRefreshButton, isSmartRefreshing && styles.smartRefreshButtonDisabled]}
-          disabled={isSmartRefreshing}
-        >
-          {isSmartRefreshing ? (
-            <ActivityIndicator size="small" color="#22C55E" />
-          ) : (
-            <Ionicons name="refresh-outline" size={22} color="#22C55E" />
-          )}
-        </TouchableOpacity>
+        {/* Smart Refresh Button - Hide in card share mode */}
+        {!isCardShareMode && (
+          <TouchableOpacity 
+            onPress={smartRefreshNewContacts}
+            style={[styles.smartRefreshButton, isSmartRefreshing && styles.smartRefreshButtonDisabled]}
+            disabled={isSmartRefreshing}
+          >
+            {isSmartRefreshing ? (
+              <ActivityIndicator size="small" color="#22C55E" />
+            ) : (
+              <Ionicons name="refresh-outline" size={22} color="#22C55E" />
+            )}
+          </TouchableOpacity>
+        )}
         {((isGroupMode || isGroupAddMode || isCardShareMode) && (selectedContacts.length > 0 || selectedGroups.length > 0)) ? (
           <TouchableOpacity 
             onPress={() => {

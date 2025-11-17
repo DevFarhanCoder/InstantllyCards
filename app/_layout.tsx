@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import serverWarmup from "../lib/serverWarmup";
 import ForceUpdateModal from "../components/ForceUpdateModal";
 import { checkAppVersion, getCurrentAppVersion, getAppStoreUrl } from "../lib/versionCheck";
+import { chatNotificationService } from "@/lib/chat-notifications";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -53,6 +54,9 @@ export default function RootLayout() {
     // Initialize notification system and pre-warm server
     const initApp = async () => {
       console.log('🚀 Initializing app systems...');
+      
+      // Initialize chat notification service with QueryClient
+      chatNotificationService.initialize(queryClient);
       
       // Start server warmup in background (non-blocking)
       serverWarmup.preWarmOnAppStart();

@@ -86,132 +86,10 @@ export const useChatSocket = () => {
   }, []);
 
   useEffect(() => {
-    // Set up socket event listeners
+    // Only set up connection and online users listeners (not message listeners to avoid duplicates)
     const unsubscribeConnection = socketService.onConnection(setIsConnected);
     const unsubscribeOnlineUsers = socketService.onOnlineUsers(setOnlineUsers);
     
-    const unsubscribeMessage = socketService.onMessage(async (message) => {
-      console.log('🎯 Global private message handler:', message);
-      
-      // Invalidate conversations query to refresh the list
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['conversation', message.senderId] });
-      queryClient.invalidateQueries({ queryKey: ['unreadCount'] });
-      
-      // Show notification if user is not in the current private chat
-      try {
-        const currentUser = await AsyncStorage.getItem('user');
-        const activeChat = await AsyncStorage.getItem('currentActiveChat');
-        
-        if (currentUser && message.sender) {
-          const userData = JSON.parse(currentUser);
-          const currentUserId = userData.id || userData._id;
-          
-          // Extract sender ID from populated sender object or fallback to senderId field
-          const messageSenderId = typeof message.sender === 'object' 
-            ? message.sender._id
-            : message.sender;
-          
-          // Only show notification if:
-          // 1. Message is not from current user
-          // 2. User is not currently in this private chat
-          if (messageSenderId !== currentUserId && activeChat !== messageSenderId) {
-            const senderName = typeof message.sender === 'object' 
-              ? (message.sender.name || 'Unknown')
-              : 'Unknown';
-              
-            console.log('🔔 Showing private message notification:', {
-              sender: senderName,
-              content: message.content,
-              activeChat,
-              currentUserId,
-              messageSenderId
-            });
-            
-            await showInAppNotification(
-              senderName,
-              message.content,
-              () => {
-                // Navigate to the private chat when notification is tapped
-                // Pass both userId and name to avoid "Unknown" header
-                router.push(`/chat/${messageSenderId}?name=${encodeURIComponent(senderName)}` as any);
-              }
-            );
-          }
-        }
-      } catch (error) {
-        console.error('Error showing private message notification:', error);
-      }
-    });
-
-    const unsubscribeGroupMessage = socketService.onGroupMessage(async (message) => {
-      console.log('🎯 Global group message handler:', message);
-      
-      // Invalidate groups query to refresh the list
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
-      queryClient.invalidateQueries({ queryKey: ['group', message.groupId] });
-      queryClient.invalidateQueries({ queryKey: ['unreadCount'] });
-      
-      // Show notification if user is not in the current group chat
-      try {
-        const currentUser = await AsyncStorage.getItem('user');
-        const activeChat = await AsyncStorage.getItem('currentActiveChat');
-        
-        if (currentUser && message.sender) {
-          const userData = JSON.parse(currentUser);
-          const currentUserId = userData.id || userData._id;
-          
-          // Extract sender ID from populated sender object or fallback to senderId field
-          const messageSenderId = typeof message.sender === 'object' 
-            ? message.sender._id
-            : message.sender;
-          
-          // Only show notification if:
-          // 1. Message is not from current user
-          // 2. User is not currently in this group chat
-          if (messageSenderId !== currentUserId && activeChat !== `group_${message.groupId}`) {
-            // Get group name for better notification
-            let groupName = 'Group';
-            try {
-              const groupsResponse = await api.get('/groups');
-              if (groupsResponse?.success && groupsResponse.groups) {
-                const group = groupsResponse.groups.find((g: any) => g._id === message.groupId);
-                if (group) {
-                  groupName = group.name;
-                }
-              }
-            } catch (error) {
-              console.log('Could not fetch group name for notification');
-            }
-            
-            const senderName = typeof message.sender === 'object' 
-              ? (message.sender.name || 'Unknown')
-              : 'Unknown';
-            
-            console.log('🔔 Showing group notification:', {
-              groupName,
-              sender: senderName,
-              content: message.content,
-              activeChat,
-              currentUserId,
-              messageSenderId
-            });
-            
-            await showInAppNotification(
-              `${groupName}: ${senderName}`,
-              message.content,
-              () => {
-                // Navigate to the group chat when notification is tapped
-                router.push(`/group-chat/${message.groupId}?name=${encodeURIComponent(groupName)}` as any);
-              }
-            );
-          }
-        }
-      } catch (error) {
-        console.error('Error showing group message notification:', error);
-      }
-    });
-
     const unsubscribeTyping = socketService.onTyping((data) => {
       setTypingUsers(prev => ({
         ...prev,
@@ -235,11 +113,9 @@ export const useChatSocket = () => {
     return () => {
       unsubscribeConnection();
       unsubscribeOnlineUsers();
-      unsubscribeMessage();
-      unsubscribeGroupMessage();
       unsubscribeTyping();
     };
-  }, [connect, queryClient]);
+  }, [connect]);
 
   return {
     isConnected,

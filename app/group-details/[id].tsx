@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,12 @@ import {
   ScrollView,
   Alert,
   Modal,
+  TextInput,
+  ActivityIndicator,
+  FlatList,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser, getCurrentUserId } from '@/lib/useUser';
@@ -47,6 +51,8 @@ interface GroupCard {
   cardTitle: string;
   cardPhoto?: string;
   sentAt: string;
+  sharedAt?: string;
+  createdAt?: string;
   message?: string;
   isFromMe?: boolean;
 }
@@ -73,11 +79,20 @@ export default function GroupDetailsScreen() {
   const [cardsSummary, setCardsSummary] = useState<GroupCardsSummary | null>(null);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [activeCardsTab, setActiveCardsTab] = useState<'sent' | 'received'>('sent');
+  const [showImagePicker, setShowImagePicker] = useState(false);
 
   useEffect(() => {
     loadGroupDetails();
     loadGroupCards();
   }, [id]);
+
+  // Reload group details when returning to screen
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Group details screen focused - reloading data');
+      loadGroupDetails();
+    }, [id])
+  );
 
   const loadGroupDetails = async () => {
     if (!id) return;
@@ -496,6 +511,164 @@ export default function GroupDetailsScreen() {
     }
   };
 
+
+
+  const selectGroupImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant photo library access to change the group image');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        
+        if (!groupInfo) return;
+        
+        // Update group info with new image
+        const updatedGroup = {
+          ...groupInfo,
+          icon: imageUri,
+          updatedAt: new Date().toISOString(),
+        };
+        
+        await AsyncStorage.setItem(`group_${id}`, JSON.stringify(updatedGroup));
+        
+        // Update groups list for other screens
+        try {
+          const groupsListData = await AsyncStorage.getItem('groups_list');
+          if (groupsListData) {
+            const groupsList = JSON.parse(groupsListData);
+            const updatedGroupsList = groupsList.map((group: any) => {
+              if (group.id === id || group._id === id) {
+                return { ...group, icon: imageUri };
+              }
+              return group;
+            });
+            await AsyncStorage.setItem('groups_list', JSON.stringify(updatedGroupsList));
+          }
+        } catch (error) {
+          console.error('Error updating groups list:', error);
+        }
+
+        // Try to update via API (optional)
+        try {
+          await api.put(`/groups/${id}`, {
+            icon: imageUri
+          });
+          console.log('✅ Group photo updated on server');
+        } catch (apiError) {
+          console.error('❌ Failed to update group photo on server:', apiError);
+        }
+        
+        // Add system message about image change
+        const messagesData = await AsyncStorage.getItem(`group_messages_${id}`);
+        const messages = messagesData ? JSON.parse(messagesData) : [];
+        
+        const currentUser = await getCurrentUser();
+        const memberName = currentUser?.name || 'A member';
+        
+        const systemMessage = {
+          id: `msg_system_${Date.now()}`,
+          senderId: 'system',
+          senderName: 'System',
+          text: `${memberName} updated the group photo`,
+          timestamp: new Date().toISOString(),
+          type: 'system',
+        };
+        
+        messages.push(systemMessage);
+        await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(messages));
+        
+        // Update local state
+        setGroupInfo(updatedGroup);
+        setShowImagePicker(false);
+        
+        Alert.alert('Success', 'Group photo updated successfully');
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'Failed to update group photo');
+    }
+  };
+
+  const removeGroupImage = async () => {
+    try {
+      if (!groupInfo) return;
+      
+      const updatedGroup = {
+        ...groupInfo,
+        icon: '',
+        updatedAt: new Date().toISOString(),
+      };
+      
+      await AsyncStorage.setItem(`group_${id}`, JSON.stringify(updatedGroup));
+      
+      // Update groups list for other screens
+      try {
+        const groupsListData = await AsyncStorage.getItem('groups_list');
+        if (groupsListData) {
+          const groupsList = JSON.parse(groupsListData);
+          const updatedGroupsList = groupsList.map((group: any) => {
+            if (group.id === id || group._id === id) {
+              return { ...group, icon: '' };
+            }
+            return group;
+          });
+          await AsyncStorage.setItem('groups_list', JSON.stringify(updatedGroupsList));
+        }
+      } catch (error) {
+        console.error('Error updating groups list:', error);
+      }
+
+      // Try to update via API (optional)
+      try {
+        await api.put(`/groups/${id}`, {
+          icon: ''
+        });
+        console.log('✅ Group photo removed on server');
+      } catch (apiError) {
+        console.error('❌ Failed to remove group photo on server:', apiError);
+      }
+      
+      // Add system message
+      const messagesData = await AsyncStorage.getItem(`group_messages_${id}`);
+      const messages = messagesData ? JSON.parse(messagesData) : [];
+      
+      const currentUser = await getCurrentUser();
+      const memberName = currentUser?.name || 'A member';
+      
+      const systemMessage = {
+        id: `msg_system_${Date.now()}`,
+        senderId: 'system',
+        senderName: 'System',
+        text: `${memberName} removed the group photo`,
+        timestamp: new Date().toISOString(),
+        type: 'system',
+      };
+      
+      messages.push(systemMessage);
+      await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(messages));
+      
+      setGroupInfo(updatedGroup);
+      setShowImagePicker(false);
+      
+      Alert.alert('Success', 'Group photo removed successfully');
+    } catch (error) {
+      console.error('Error removing image:', error);
+      Alert.alert('Error', 'Failed to remove group photo');
+    }
+  };
+
   const renderMemberItem = (member: GroupMember) => (
     <TouchableOpacity
       key={member.id}
@@ -596,9 +769,6 @@ export default function GroupDetailsScreen() {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Group Info</Text>
         </View>
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -609,14 +779,26 @@ export default function GroupDetailsScreen() {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Group Info Section */}
         <View style={styles.groupInfoSection}>
-          <View style={styles.groupIcon}>
+          <TouchableOpacity 
+            style={styles.groupIcon}
+            onPress={() => {
+              setShowImagePicker(true);
+            }}
+          >
             {groupInfo?.icon ? (
               <Image source={{ uri: groupInfo.icon }} style={styles.groupIconImage} />
             ) : (
               <Ionicons name="people" size={48} color="#FFFFFF" />
             )}
+            <View style={styles.editIconOverlay}>
+              <Ionicons name="camera" size={20} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+          
+          <View style={styles.groupNameContainer}>
+            <Text style={styles.groupName}>{groupInfo?.name || name}</Text>
           </View>
-          <Text style={styles.groupName}>{groupInfo?.name || name}</Text>
+          
           {groupInfo?.description && (
             <Text style={styles.groupDescription}>{groupInfo.description}</Text>
           )}
@@ -637,22 +819,7 @@ export default function GroupDetailsScreen() {
           )}
         </View>
 
-        {/* Members Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>
-              Members ({groupMembers.length})
-            </Text>
-            {isAdmin && (
-              <TouchableOpacity onPress={addMembers} style={styles.addButton}>
-                <Ionicons name="person-add" size={20} color="#3B82F6" />
-              </TouchableOpacity>
-            )}
-          </View>
-          {groupMembers.map(renderMemberItem)}
-        </View>
-
-        {/* Cards Section */}
+        {/* Group Cards Interface Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Group Cards</Text>
@@ -669,65 +836,141 @@ export default function GroupDetailsScreen() {
                 size={20} 
                 color={cardsLoading ? "#9CA3AF" : "#3B82F6"} 
               />
-              {cardsLoading && (
-                <Text style={styles.loadingText}>Loading...</Text>
-              )}
             </TouchableOpacity>
           </View>
           
-          {cardsSummary && (
-            <>
-              {/* Cards Tab Navigation */}
-              <View style={styles.tabContainer}>
+          {cardsLoading ? (
+            <View style={styles.cardsLoadingContainer}>
+              <ActivityIndicator size="small" color="#3B82F6" />
+              <Text style={styles.loadingTextSmall}>Loading group cards...</Text>
+            </View>
+          ) : cardsSummary ? (
+            <View style={styles.groupCardsInterface}>
+              {/* Tab Buttons */}
+              <View style={styles.cardsTabContainer}>
                 <TouchableOpacity
-                  style={[
-                    styles.tabButton,
-                    activeCardsTab === 'sent' && styles.tabButtonActive
-                  ]}
+                  style={[styles.cardsTab, activeCardsTab === 'sent' && styles.cardsActiveTab]}
                   onPress={() => setActiveCardsTab('sent')}
                 >
-                  <Text style={[
-                    styles.tabButtonText,
-                    activeCardsTab === 'sent' && styles.tabButtonTextActive
-                  ]}>
+                  <Text style={[styles.cardsTabText, activeCardsTab === 'sent' && styles.cardsActiveTabText]}>
                     Cards Sent ({cardsSummary.sent.count})
                   </Text>
                 </TouchableOpacity>
+                
                 <TouchableOpacity
-                  style={[
-                    styles.tabButton,
-                    activeCardsTab === 'received' && styles.tabButtonActive
-                  ]}
+                  style={[styles.cardsTab, activeCardsTab === 'received' && styles.cardsActiveTab]}
                   onPress={() => setActiveCardsTab('received')}
                 >
-                  <Text style={[
-                    styles.tabButtonText,
-                    activeCardsTab === 'received' && styles.tabButtonTextActive
-                  ]}>
+                  <Text style={[styles.cardsTabText, activeCardsTab === 'received' && styles.cardsActiveTabText]}>
                     Cards Received ({cardsSummary.received.count})
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {/* Cards List */}
-              <View style={styles.cardsContainer}>
-                {activeCardsTab === 'sent' ? (
-                  cardsSummary.sent.cards.length > 0 ? (
-                    cardsSummary.sent.cards.map(renderCardItem)
-                  ) : (
-                    <Text style={styles.emptyText}>No cards sent in this group yet</Text>
-                  )
+              {activeCardsTab === 'sent' ? (
+                cardsSummary.sent.cards.length > 0 ? (
+                  <FlatList
+                    data={cardsSummary.sent.cards}
+                    keyExtractor={(item) => item._id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={styles.cardItem}
+                        onPress={() => navigateToCard(item.cardId)}
+                      >
+                        <View style={styles.cardImageContainer}>
+                          {item.cardPhoto ? (
+                            <Image source={{ uri: item.cardPhoto }} style={styles.cardImage} />
+                          ) : (
+                            <View style={styles.cardPlaceholder}>
+                              <Ionicons name="card" size={24} color="#9CA3AF" />
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.cardInfo}>
+                          <Text style={styles.cardTitle}>{item.cardTitle}</Text>
+                          {item.message && (
+                            <Text style={styles.cardMessage} numberOfLines={1}>
+                              {item.message}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={styles.cardDate}>
+                          {new Date(item.sharedAt || item.createdAt || item.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={false}
+                  />
                 ) : (
-                  cardsSummary.received.cards.length > 0 ? (
-                    cardsSummary.received.cards.map(renderCardItem)
-                  ) : (
-                    <Text style={styles.emptyText}>No cards received in this group yet</Text>
-                  )
-                )}
-              </View>
-            </>
+                  <Text style={styles.emptyText}>No cards sent yet</Text>
+                )
+              ) : (
+                cardsSummary.received.cards.length > 0 ? (
+                  <FlatList
+                    data={cardsSummary.received.cards}
+                    keyExtractor={(item) => item._id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={styles.cardItem}
+                        onPress={() => navigateToCard(item.cardId)}
+                      >
+                        <View style={styles.cardImageContainer}>
+                          {item.cardPhoto ? (
+                            <Image source={{ uri: item.cardPhoto }} style={styles.cardImage} />
+                          ) : (
+                            <View style={styles.cardPlaceholder}>
+                              <Ionicons name="card" size={24} color="#9CA3AF" />
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.cardInfo}>
+                          <Text style={styles.cardTitle}>{item.cardTitle}</Text>
+                          {item.message && (
+                            <Text style={styles.cardMessage} numberOfLines={1}>
+                              {item.message}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={styles.cardDate}>
+                          {new Date(item.sharedAt || item.createdAt || item.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={false}
+                  />
+                ) : (
+                  <Text style={styles.emptyText}>No cards received yet</Text>
+                )
+              )}
+            </View>
+          ) : (
+            <View style={styles.cardsEmptyState}>
+              <Ionicons name="card-outline" size={48} color="#6B7280" />
+              <Text style={styles.cardsEmptyTitle}>Cards Not Available</Text>
+              <Text style={styles.cardsEmptySubtitle}>
+                Unable to load group cards at this time
+              </Text>
+            </View>
           )}
         </View>
+
+        {/* Members Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>
+              Members ({groupMembers.length})
+            </Text>
+            {isAdmin && (
+              <TouchableOpacity onPress={addMembers} style={styles.addButton}>
+                <Ionicons name="person-add" size={20} color="#3B82F6" />
+              </TouchableOpacity>
+            )}
+          </View>
+          {groupMembers.map(renderMemberItem)}
+        </View>
+
+
 
         {/* Actions Section */}
         <View style={styles.section}>
@@ -738,6 +981,42 @@ export default function GroupDetailsScreen() {
         </View>
       </ScrollView>
       )}
+
+      {/* Image Picker Modal */}
+      <Modal
+        visible={showImagePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImagePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.imagePickerContainer}>
+            <Text style={styles.imagePickerTitle}>Group Photo</Text>
+            <TouchableOpacity
+              style={styles.imagePickerOption}
+              onPress={selectGroupImage}
+            >
+              <Ionicons name="camera" size={24} color="#3B82F6" />
+              <Text style={styles.imagePickerOptionText}>Select Photo</Text>
+            </TouchableOpacity>
+            {groupInfo?.icon && (
+              <TouchableOpacity
+                style={styles.imagePickerOption}
+                onPress={removeGroupImage}
+              >
+                <Ionicons name="trash" size={24} color="#EF4444" />
+                <Text style={[styles.imagePickerOptionText, { color: '#EF4444' }]}>Remove Photo</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.imagePickerCancel}
+              onPress={() => setShowImagePicker(false)}
+            >
+              <Text style={styles.imagePickerCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Leave Group Confirmation Modal */}
       <Modal
@@ -1070,6 +1349,31 @@ const styles = StyleSheet.create({
   tabButtonTextActive: {
     color: "#FFFFFF",
   },
+  cardsTabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#1F2937",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  cardsTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  cardsActiveTab: {
+    backgroundColor: "#3B82F6",
+  },
+  cardsTabText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#9CA3AF",
+  },
+  cardsActiveTabText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
   cardsContainer: {
     marginTop: 8,
   },
@@ -1126,5 +1430,265 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 32,
     fontStyle: "italic",
+  },
+  
+  // Group Cards Interface Styles
+  groupCardsInterface: {
+    backgroundColor: "#1F2937",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 8,
+  },
+  cardsLoadingContainer: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  loadingTextSmall: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  cardsSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  cardsSummaryItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  cardsSummaryIconContainer: {
+    marginBottom: 8,
+  },
+  cardsSummaryNumber: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  cardsSummaryLabel: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  cardsSummaryDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: "#374151",
+    marginHorizontal: 16,
+  },
+  recentCardsContainer: {
+    marginTop: 8,
+  },
+  recentCardsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginBottom: 12,
+  },
+  recentCardsScroll: {
+    marginBottom: 16,
+  },
+  recentCardsContent: {
+    paddingHorizontal: 0,
+  },
+  recentCardItem: {
+    width: 120,
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 12,
+    marginRight: 12,
+  },
+  recentCardImageContainer: {
+    position: "relative",
+    marginBottom: 8,
+  },
+  recentCardImage: {
+    width: 96,
+    height: 60,
+    borderRadius: 8,
+  },
+  recentCardPlaceholder: {
+    width: 96,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: "#374151",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardTypeIndicator: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#1F2937",
+  },
+  cardTypeIndicatorReceived: {
+    backgroundColor: "#3B82F6",
+  },
+  recentCardTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#FFFFFF",
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  recentCardSender: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    marginBottom: 4,
+  },
+  recentCardDate: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  viewAllCardsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#111827",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#374151",
+  },
+  viewAllCardsText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#3B82F6",
+    marginRight: 4,
+  },
+  cardsEmptyState: {
+    alignItems: "center",
+    paddingVertical: 32,
+  },
+  cardsEmptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  cardsEmptySubtitle: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  
+  // Admin Edit Styles
+  editIconOverlay: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#3B82F6",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#000000",
+  },
+  groupNameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editNameIcon: {
+    marginLeft: 8,
+  },
+  nameEditContainer: {
+    width: "100%",
+    alignItems: "center",
+  },
+  nameEditInput: {
+    backgroundColor: "#1F2937",
+    borderWidth: 1,
+    borderColor: "#374151",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
+    width: "80%",
+    marginBottom: 16,
+  },
+  nameEditButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  nameEditButtonCancel: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#374151",
+  },
+  nameEditButtonTextCancel: {
+    color: "#D1D5DB",
+    fontWeight: "500",
+  },
+  nameEditButtonSave: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#3B82F6",
+  },
+  nameEditButtonTextSave: {
+    color: "#FFFFFF",
+    fontWeight: "500",
+  },
+  
+  // Image Picker Modal Styles
+  imagePickerContainer: {
+    backgroundColor: "#1F2937",
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    maxWidth: 300,
+    width: "100%",
+  },
+  imagePickerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  imagePickerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: "#111827",
+  },
+  imagePickerOptionText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#FFFFFF",
+    marginLeft: 12,
+  },
+  imagePickerCancel: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  imagePickerCancelText: {
+    fontSize: 16,
+    color: "#9CA3AF",
   },
 });

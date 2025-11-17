@@ -510,18 +510,11 @@ export default function CardDetail() {
         <TouchableOpacity 
           style={s.secondaryButton} 
           onPress={() => {
-            const shareContent = {
-              title: `${card.companyName || card.name}'s Business Card`,
-              message: `Check out ${card.companyName || card.name}'s business profile!\n\nCompany: ${card.companyName || card.name}\nLocation: ${card.companyAddress || card.location || 'N/A'}\nPhone: ${fullCompany || fullPersonal || 'N/A'}\n\nConnect with them today!`,
-            };
-            
-            Share.share({
-              message: shareContent.message,
-              title: shareContent.title,
-            }).catch((error) => console.error('Error sharing:', error));
+            const companyName = card.companyName || card.name || 'Business Card';
+            router.push(`/contacts/select?cardId=${card._id}&cardTitle=${encodeURIComponent(companyName)}` as any);
           }}
         >
-          <Text style={s.secondaryButtonText}>🔗 Share</Text>
+          <Text style={s.secondaryButtonText}>🔗 Share Card</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
