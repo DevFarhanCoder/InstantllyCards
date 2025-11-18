@@ -13,13 +13,15 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUser, getCurrentUserId } from '@/lib/useUser';
 import api from '@/lib/api';
 import { showInAppNotification } from '@/lib/notifications-expo-go';
 import { useChatSocket, useSendMessage } from '@/hooks/chats';
+import { socketService } from '@/lib/socket';
 
 interface GroupMessage {
   id: string;
@@ -56,6 +58,8 @@ export default function GroupChatScreen() {
   const [newMessage, setNewMessage] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [displayName, setDisplayName] = useState<string>('Group');
   const flatListRef = useRef<FlatList>(null);
   
   // Add Socket.IO integration
@@ -63,10 +67,13 @@ export default function GroupChatScreen() {
   const { sendGroupMessage: sendGroupMessageViaSocket } = useSendMessage();
 
   useEffect(() => {
-    initializeChat();
+    if (!isInitialized) {
+      initializeChat();
+      setIsInitialized(true);
+    }
     setActiveChat();
     
-    // Set up Socket.IO listeners for real-time group messages
+    // Join the group room for real-time messaging (but don't set up duplicate listeners)
     if (isConnected && id) {
       console.log('🎧 Setting up Socket.IO listeners for group:', id);
       
@@ -74,54 +81,16 @@ export default function GroupChatScreen() {
       socketService.joinConversation(undefined, id);
       console.log('🏠 Joined group room:', id);
       
-      const unsubscribeGroupMessage = socketService.onGroupMessage((message: any) => {
-        console.log('📨 Received new group message via Socket.IO:', message);
-        
-        // Only process messages for this group
-        if (message.groupId === id) {
-          // Safe timestamp handling
-          let timestamp: string;
-          try {
-            if (message.timestamp) {
-              timestamp = new Date(message.timestamp).toISOString();
-            } else {
-              timestamp = new Date().toISOString();
-            }
-          } catch (dateError) {
-            console.warn('Invalid timestamp in message, using current time:', message.timestamp);
-            timestamp = new Date().toISOString();
-          }
-          
-          const newGroupMessage: GroupMessage = {
-            id: message._id || Date.now().toString(),
-            senderId: message.sender._id || message.senderId,
-            senderName: message.sender.name || 'Unknown',
-            text: message.content,
-            timestamp: timestamp,
-            type: 'text'
-          };
-          
-          setMessages(prevMessages => {
-            // Check if message already exists to avoid duplicates
-            const exists = prevMessages.some(msg => msg.id === newGroupMessage.id);
-            if (!exists) {
-              return [...prevMessages, newGroupMessage];
-            }
-            return prevMessages;
-          });
-          
-          // Scroll to bottom
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        }
-      });
+      // Set up a message refresh interval to check for new messages
+      const messageRefreshInterval = setInterval(() => {
+        checkForNewMessages();
+      }, 2000); // Check every 2 seconds for new messages
       
       return () => {
         clearActiveChat();
         socketService.leaveConversation(undefined, id);
         console.log('🚪 Left group room:', id);
-        unsubscribeGroupMessage();
+        clearInterval(messageRefreshInterval);
       };
     } else {
       // Fallback to polling if Socket.IO is not connected
@@ -134,7 +103,45 @@ export default function GroupChatScreen() {
         clearInterval(messageInterval);
       };
     }
-  }, [id, isConnected, socketService]);
+  }, [id, isConnected, socketService, isInitialized]);
+
+  // Update display name whenever groupInfo changes
+  useEffect(() => {
+    if (groupInfo?.name) {
+      console.log('📝 Updating display name to:', groupInfo.name);
+      setDisplayName(groupInfo.name);
+    } else if (name && displayName === 'Group') {
+      // Only use URL parameter as fallback on first load
+      console.log('📝 Using fallback name:', name);
+      setDisplayName(name);
+    }
+  }, [groupInfo?.name, name, displayName]);
+
+  // Reload group info when screen comes back into focus
+  useFocusEffect(
+    useCallback(() => {
+      const reloadGroupInfo = async () => {
+        if (!id) return;
+        
+        console.log('🔄 Focus effect: Reloading group info...');
+        
+        try {
+          // Reload from storage first (fastest and most reliable)
+          const groupData = await AsyncStorage.getItem(`group_${id}`);
+          if (groupData) {
+            const group = JSON.parse(groupData);
+            console.log('🔄 Loaded group from storage:', group.name);
+            setGroupInfo(group);
+            // Display name will be updated by the useEffect above
+          }
+        } catch (error) {
+          console.error('Error reloading group info:', error);
+        }
+      };
+      
+      reloadGroupInfo();
+    }, [id])
+  );
 
   const setActiveChat = async () => {
     if (id) {
@@ -512,6 +519,44 @@ export default function GroupChatScreen() {
     router.push(`/group-details/${id}?name=${encodeURIComponent(groupInfo?.name || '')}` as any);
   };
 
+  const initiateGroupCall = async (type: 'audio' | 'video') => {
+    try {
+      console.log(`🎥 Initiating ${type} call for group:`, id);
+      
+      // Check if user has necessary permissions
+      const user = await getCurrentUser();
+      if (!user) {
+        Alert.alert('Error', 'Please log in to start a call');
+        return;
+      }
+
+      // Navigate to group call screen
+      router.push(`/group-call/${id}?type=${type}&groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
+      
+      // Send call invitation to all group members via Socket.IO
+      if (socketService.isConnected()) {
+        // For now, send as a system message. We'll enhance this with proper call signaling later
+        const callMessage = {
+          id: `call_${Date.now()}`,
+          senderId: user.id,
+          senderName: user.name,
+          text: `📞 ${user.name} started a ${type} call`,
+          timestamp: new Date().toISOString(),
+          type: 'system' as const
+        };
+        
+        // Add the call message to local state
+        setMessages(prev => [...prev, callMessage]);
+        
+        console.log(`📞 Group ${type} call invitation sent`);
+      }
+      
+    } catch (error) {
+      console.error('Error initiating group call:', error);
+      Alert.alert('Error', 'Failed to start group call');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <KeyboardAvoidingView 
@@ -538,16 +583,33 @@ export default function GroupChatScreen() {
           </View>
           
           <View style={styles.groupHeaderInfo}>
-            <Text style={styles.groupName}>{groupInfo?.name || name}</Text>
+            <Text style={styles.groupName}>{displayName}</Text>
             <View style={styles.statusRow}>
+              {/* Socket.IO connection indicator */}
+              <View style={[styles.connectionDot, isConnected ? styles.connectedDot : styles.disconnectedDot]} />
               <Text style={styles.memberCount}>
                 {groupMembers.length} member{groupMembers.length !== 1 ? 's' : ''}
               </Text>
-              {/* Socket.IO connection indicator */}
-              <View style={[styles.connectionDot, isConnected ? styles.connectedDot : styles.disconnectedDot]} />
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* Call Buttons */}
+        <View style={styles.callButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.callButton}
+            onPress={() => initiateGroupCall('audio')}
+          >
+            <Ionicons name="call" size={20} color="#059669" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.callButton}
+            onPress={() => initiateGroupCall('video')}
+          >
+            <Ionicons name="videocam" size={20} color="#7C3AED" />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity 
           style={styles.moreButton}
@@ -572,6 +634,16 @@ export default function GroupChatScreen() {
       {/* Message Input */}
       <View style={styles.inputContainer}>
         <View style={styles.inputWrapper}>
+          <TouchableOpacity
+            style={styles.cardShareButton}
+            onPress={() => {
+              // Navigate to card selection for sharing
+              router.push(`/share-card-to-group/${id}?groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
+            }}
+          >
+            <Ionicons name="card" size={20} color="#3B82F6" />
+          </TouchableOpacity>
+          
           <TextInput
             style={styles.messageInput}
             placeholder="Type a message..."
@@ -580,6 +652,7 @@ export default function GroupChatScreen() {
             onChangeText={setNewMessage}
             multiline
           />
+          
           <TouchableOpacity
             style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
             onPress={sendMessage}
@@ -607,36 +680,24 @@ export default function GroupChatScreen() {
               style={styles.menuItem}
               onPress={() => {
                 setShowGroupMenu(false);
-                // Navigate to group info
-                router.push(`/group-details/${id}?name=${encodeURIComponent(groupInfo?.name || '')}` as any);
+                // Navigate to see all group cards
+                router.push(`/group-cards/${id}?groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
               }}
             >
-              <Ionicons name="information-circle-outline" size={24} color="#111827" />
-              <Text style={styles.menuItemText}>Group Info</Text>
+              <Ionicons name="albums-outline" size={24} color="#111827" />
+              <Text style={styles.menuItemText}>See all cards</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.menuItem}
               onPress={() => {
                 setShowGroupMenu(false);
-                // Copy group join code
-                Alert.prompt(
-                  'Group Join Code',
-                  'Share this code with others to let them join the group:',
-                  [
-                    { text: 'Copy', onPress: () => {
-                      // Copy to clipboard functionality would go here
-                      Alert.alert('Copied', 'Join code copied to clipboard');
-                    }},
-                    { text: 'Cancel', style: 'cancel' }
-                  ],
-                  'plain-text',
-                  '123456' // This should be the actual group join code
-                );
+                // Navigate to group info
+                router.push(`/group-details/${id}?name=${encodeURIComponent(groupInfo?.name || '')}` as any);
               }}
             >
-              <Ionicons name="share-outline" size={24} color="#111827" />
-              <Text style={styles.menuItemText}>Share Group Code</Text>
+              <Ionicons name="information-circle-outline" size={24} color="#111827" />
+              <Text style={styles.menuItemText}>Group Info</Text>
             </TouchableOpacity>
             
             {/* Admin Transfer - Only show for group admin */}
@@ -753,6 +814,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#9CA3AF",
   },
+  callButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  callButton: {
+    padding: 8,
+    marginHorizontal: 4,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+  },
   moreButton: {
     padding: 8,
     marginLeft: 8,
@@ -842,6 +914,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
+  cardShareButton: {
+    padding: 8,
+    marginRight: 8,
+  },
   messageInput: {
     flex: 1,
     fontSize: 16,
@@ -892,13 +968,12 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   connectionDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginLeft: 8,
+    marginRight: 8,
   },
   connectedDot: {
     backgroundColor: '#10B981', // Green for connected

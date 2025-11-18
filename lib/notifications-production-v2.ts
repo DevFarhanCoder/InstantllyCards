@@ -8,6 +8,12 @@ import { router } from 'expo-router';
 import api from './api';
 import { ensureAuth } from './auth';
 
+// Check if we're running in Expo Go or development environment
+const isExpoGo = Constants.appOwnership === 'expo';
+const isDevelopment = __DEV__;
+
+console.log(`🔧 [NOTIFICATIONS] Environment: ${isExpoGo ? 'Expo Go' : 'Development Build'}, Dev: ${isDevelopment}`);
+
 /**
  * CRITICAL NOTIFICATION HANDLER CONFIGURATION
  * This controls how notifications behave when received
@@ -160,16 +166,26 @@ async function reportRegistrationError(error: Error, context: any) {
 export async function registerForPushNotifications(): Promise<string | null> {
   console.log('📱 [REGISTER] Starting push notification registration...');
 
-  // Setup Android channels first
-  await setupAndroidChannels();
-
-  // Check if we're on a physical device
-  if (!Device.isDevice) {
-    console.warn('⚠️ [REGISTER] Push notifications require a physical device');
-    return null;
+  // Check if Firebase is causing issues
+  if (isExpoGo && isDevelopment) {
+    console.log('⚠️ [REGISTER] Running in Expo Go - Firebase features may not work');
+    console.log('✅ [REGISTER] Skipping push notification registration for Expo Go compatibility');
+    return 'expo-go-mock-token';
   }
 
   try {
+    // Setup Android channels first (with error handling)
+    try {
+      await setupAndroidChannels();
+    } catch (channelError) {
+      console.warn('⚠️ [REGISTER] Could not setup Android channels, continuing...', channelError);
+    }
+
+    // Check if we're on a physical device
+    if (!Device.isDevice) {
+      console.warn('⚠️ [REGISTER] Push notifications require a physical device');
+      return null;
+    }
     // Step 1: Check current permissions
     console.log('📱 [REGISTER] Checking notification permissions...');
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -235,12 +251,25 @@ export async function registerForPushNotifications(): Promise<string | null> {
     console.error('❌ [REGISTER] Error message:', error?.message);
     console.error('❌ [REGISTER] Error stack:', error?.stack);
     
-    // Report to backend for diagnosis
-    await reportRegistrationError(error, {
-      step: 'unknown',
-      device: Device.modelName,
-      osVersion: Device.osVersion,
-    });
+    // Handle Firebase-specific errors
+    if (error?.message?.includes('FirebaseApp is not initialized') || 
+        error?.message?.includes('Default FirebaseApp') ||
+        error?.code === 'ERR_FIREBASE_NOT_INITIALIZED') {
+      console.warn('⚠️ [REGISTER] Firebase not initialized - likely running in Expo Go or development build without proper setup');
+      console.log('✅ [REGISTER] This is expected in development - notification registration will be skipped');
+      return 'development-mock-token';
+    }
+    
+    // Report to backend for diagnosis (but don't let this fail the registration)
+    try {
+      await reportRegistrationError(error, {
+        step: 'unknown',
+        device: Device.modelName || 'unknown',
+        osVersion: Device.osVersion || 'unknown',
+      });
+    } catch (reportError) {
+      console.warn('⚠️ [REGISTER] Could not report error to backend:', reportError);
+    }
     
     return null;
   }

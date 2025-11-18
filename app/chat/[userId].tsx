@@ -81,11 +81,6 @@ export default function ChatScreen() {
     loadMessages();
     loadContactInfo();
     
-    // Set up faster message checking every 500ms for this chat (instant feel)
-    const messageCheckInterval = setInterval(() => {
-      loadMessages(); // Simply reload messages from AsyncStorage (updated by global polling)
-    }, 500);
-    
     // Listen for app state changes
     const handleAppStateChange = (nextAppState: string) => {
       setIsAppInBackground(nextAppState === 'background' || nextAppState === 'inactive');
@@ -94,60 +89,20 @@ export default function ChatScreen() {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     
     return () => {
-      clearInterval(messageCheckInterval);
       subscription?.remove();
     };
   }, [userId]);
 
-  // Socket.IO real-time message listeners
+  // Socket.IO connection and message refresh (without duplicate listeners)
   useEffect(() => {
     if (!isConnected || !userId) return;
 
-    console.log('🎧 Setting up Socket.IO listeners for private chat with:', userId);
+    console.log('🎧 Setting up Socket.IO connection for private chat with:', userId);
 
-    // Listen for incoming messages from this user
-    const unsubscribeMessage = socketService.onMessage((messageData: any) => {
-      // Extract sender ID from populated sender object or senderId field
-      const messageSenderId = messageData.sender && typeof messageData.sender === 'object'
-        ? messageData.sender._id
-        : (messageData.senderId || messageData.sender);
-      
-      // Only process messages from this specific user
-      if (messageSenderId === userId) {
-        console.log('📨 Received message via Socket.IO from:', userId);
-        
-        const newMessage: Message = {
-          id: messageData._id || messageData.id || Date.now().toString(),
-          text: messageData.content,
-          timestamp: new Date(messageData.timestamp || Date.now()),
-          isFromMe: false,
-          status: 'delivered',
-          backendMessageId: messageData._id || messageData.id
-        };
+    // Join the conversation room for real-time messaging
+    socketService.joinConversation(userId);
 
-        setMessages(prevMessages => {
-          // Check for duplicates
-          const exists = prevMessages.some(msg => 
-            msg.id === newMessage.id || 
-            msg.backendMessageId === newMessage.id
-          );
-          if (!exists) {
-            const updated = [...prevMessages, newMessage];
-            // Save to AsyncStorage
-            saveMessages(updated);
-            return updated;
-          }
-          return prevMessages;
-        });
-
-        // Mark as delivered via Socket.IO
-        if (messageData._id || messageData.id) {
-          socketService.markMessageAsRead(messageData._id || messageData.id);
-        }
-      }
-    });
-
-    // Listen for message status updates (delivered, read)
+    // Listen for message status updates only (not new messages to avoid duplicates)
     const unsubscribeStatus = socketService.onMessageStatus((statusData: any) => {
       console.log('📊 Message status update:', statusData);
       
@@ -172,37 +127,15 @@ export default function ChatScreen() {
       });
     });
 
-    // Listen for message sent confirmation
-    const unsubscribeMessageSent = socketService.onMessage((messageData: any) => {
-      // Check if this is a confirmation for our sent message
-      if (messageData.senderId !== userId && messageData.localMessageId) {
-        console.log('✅ Message sent confirmation:', messageData);
-        
-        setMessages(prevMessages => {
-          const updated = prevMessages.map(msg => {
-            // Match optimistic message by localMessageId
-            if (msg.localMessageId === messageData.localMessageId) {
-              return {
-                ...msg,
-                id: messageData._id || msg.id,
-                backendMessageId: messageData._id,
-                status: 'sent' as const,
-                timestamp: new Date(messageData.timestamp || msg.timestamp)
-              };
-            }
-            return msg;
-          });
-          
-          saveMessages(updated);
-          return updated;
-        });
-      }
-    });
+    // Set up message refresh polling to get new messages
+    const messageRefreshInterval = setInterval(() => {
+      checkForNewMessages();
+    }, 2000); // Check every 2 seconds for new messages
 
     return () => {
-      unsubscribeMessage();
+      socketService.leaveConversation(userId);
       unsubscribeStatus();
-      unsubscribeMessageSent();
+      clearInterval(messageRefreshInterval);
     };
   }, [isConnected, userId, socketService]);
 
@@ -280,6 +213,73 @@ export default function ChatScreen() {
       }
     } catch (error) {
       console.error('❌ Error in markMessagesAsDelivered:', error);
+    }
+  };
+
+  const checkForNewMessages = async () => {
+    if (!userId) return;
+
+    try {
+      // Use the private chat endpoint to check for new messages
+      const response = await api.get(`/messages/check-pending/${userId}`);
+      
+      if (response?.success && response.messages && response.messages.length > 0) {
+        console.log(`📬 Received ${response.messages.length} new private messages from ${userId}`);
+        
+        const newMessages: Message[] = response.messages.map((msg: any) => ({
+          id: msg.messageId || msg._id,
+          text: msg.text || msg.content,
+          timestamp: new Date(msg.timestamp),
+          isFromMe: false,
+          status: 'delivered',
+          backendMessageId: msg.messageId || msg._id
+        }));
+
+        // Get current messages
+        const currentMessagesData = await AsyncStorage.getItem(`messages_${userId}`);
+        const currentMessages: Message[] = currentMessagesData 
+          ? JSON.parse(currentMessagesData).map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            }))
+          : [];
+
+        // Merge new messages with existing ones (avoid duplicates)
+        const existingMessageIds = new Set(currentMessages.map(m => m.id || m.backendMessageId));
+        const uniqueNewMessages = newMessages.filter(msg => 
+          !existingMessageIds.has(msg.id) && !existingMessageIds.has(msg.backendMessageId || '')
+        );
+
+        if (uniqueNewMessages.length > 0) {
+          const updatedMessages = [...currentMessages, ...uniqueNewMessages].sort((a, b) => 
+            a.timestamp.getTime() - b.timestamp.getTime()
+          );
+
+          // Update state and storage
+          setMessages(updatedMessages);
+          await saveMessages(updatedMessages);
+
+          console.log(`✅ Added ${uniqueNewMessages.length} new messages from ${userId}`);
+
+          // Mark messages as delivered
+          const messageIds = uniqueNewMessages
+            .map(m => m.backendMessageId || m.id)
+            .filter(Boolean);
+          
+          if (messageIds.length > 0) {
+            try {
+              await api.post('/messages/mark-delivered', {
+                messageIds: messageIds
+              });
+              console.log(`✅ Marked ${messageIds.length} private messages as delivered`);
+            } catch (error) {
+              console.error('❌ Failed to mark messages as delivered:', error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for new private messages:', error);
     }
   };
 
@@ -440,6 +440,20 @@ export default function ChatScreen() {
       };
 
       console.log('📤 Created optimistic message:', optimisticMessage);
+
+      // Check if we already have a similar message being sent (prevent double-tap issues)
+      const recentSimilarMessage = messages.find(msg => 
+        msg.text === messageText && 
+        msg.isFromMe && 
+        (msg.status === 'sending' || msg.status === 'sent') &&
+        Math.abs(new Date().getTime() - msg.timestamp.getTime()) < 3000 // Within 3 seconds
+      );
+      
+      if (recentSimilarMessage) {
+        console.log('🚫 Preventing duplicate send - similar message already being processed');
+        setMessage(""); // Clear input anyway
+        return;
+      }
 
       // Add to UI immediately for instant feedback
       const updatedMessages = [...messages, optimisticMessage];
@@ -702,7 +716,7 @@ export default function ChatScreen() {
         {/* Messages */}
         <FlatList
           data={messages}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: Message) => item.id}
           renderItem={renderMessage}
           style={styles.messagesList}
           contentContainerStyle={styles.messagesContent}
