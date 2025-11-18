@@ -2,7 +2,7 @@
   "expo": {
     "name": "Instantlly Cards",
     "slug": "instantllycards",
-    "version": "1.0.33",
+    "version": "1.0.34",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 32,
+      "versionCode": 33,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
