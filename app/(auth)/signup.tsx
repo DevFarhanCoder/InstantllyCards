@@ -51,6 +51,9 @@ export default function Signup() {
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   
+  // Store the verified phone number with country code
+  const [verifiedPhone, setVerifiedPhone] = useState("");
+  
   // Firebase verification confirmation
   const [firebaseConfirmation, setFirebaseConfirmation] = useState<any>(null);
   
@@ -151,6 +154,9 @@ export default function Signup() {
 
       console.log('📱 Sending OTP via Firebase to:', fullPhone);
       
+      // Store the verified phone for later use
+      setVerifiedPhone(fullPhone);
+      
       // Send OTP using Firebase
       const result = await sendOTPViaFirebase(fullPhone);
       
@@ -236,9 +242,14 @@ export default function Signup() {
         return;
       }
 
-      // Phone is already verified at this point
-      const cleanPhone = phoneNumber.trim().replace(/\D/g, "");
-      const fullPhone = `${countryCode}${cleanPhone}`;
+      // Use the verified phone number (stored when OTP was sent)
+      const fullPhone = verifiedPhone;
+      
+      if (!fullPhone) {
+        Alert.alert("Error", "Phone verification failed. Please try again.");
+        setStep('phone');
+        return;
+      }
 
       setLoading(true);
       setProgress(10);
@@ -748,3 +759,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default Signup;
