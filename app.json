@@ -2,14 +2,14 @@
   "expo": {
     "name": "Instantlly Cards",
     "slug": "instantllycards",
-    "version": "1.0.31",
+    "version": "1.0.33",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "extra": {
-      "EXPO_PUBLIC_API_BASE": "http://10.96.31.84:8080",
+      "EXPO_PUBLIC_API_BASE": "https://instantlly-cards-backend-6ki0.onrender.com",
       "router": {},
       "eas": {
         "projectId": "2d7524da-4330-496c-816f-4e011831e6f4"
@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 29,
+      "versionCode": 30,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",

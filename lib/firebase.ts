@@ -1,7 +1,14 @@
 // Firebase Phone Authentication for React Native
 // Uses @react-native-firebase/auth for native phone verification
 
-import auth from '@react-native-firebase/auth';
+let auth: any = null;
+
+// Try to import Firebase, but gracefully handle dev builds where it's not available
+try {
+  auth = require('@react-native-firebase/auth').default;
+} catch (e) {
+  console.log('⚠️ Firebase not available in this build - using mock for development');
+}
 
 // Firebase auth instance
 export { auth };
@@ -12,6 +19,10 @@ export { auth };
  * @returns Promise with confirmation result containing verificationId
  */
 export const sendOTPViaFirebase = async (phoneNumber: string) => {
+  if (!auth) {
+    throw new Error('Firebase is not available in development builds. Please use production build for phone verification.');
+  }
+  
   try {
     console.log('📱 Sending Firebase OTP to:', phoneNumber);
     
@@ -37,6 +48,10 @@ export const sendOTPViaFirebase = async (phoneNumber: string) => {
  * @returns Promise with verification result
  */
 export const verifyOTPViaFirebase = async (confirmation: any, code: string) => {
+  if (!auth) {
+    throw new Error('Firebase is not available in development builds. Please use production build for phone verification.');
+  }
+  
   try {
     console.log('🔐 Verifying Firebase OTP...');
     
@@ -63,4 +78,3 @@ export const verifyOTPViaFirebase = async (confirmation: any, code: string) => {
 };
 
 export default auth;
-
