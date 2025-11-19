@@ -209,7 +209,7 @@ export default function Signup() {
 
       console.log('🔐 Verifying OTP via Firebase...');
       
-      // Verify OTP using Firebase
+      // Verify OTP using Firebase (just for phone verification)
       const result = await verifyOTPViaFirebase(firebaseConfirmation, otpT);
 
       if (result.success) {

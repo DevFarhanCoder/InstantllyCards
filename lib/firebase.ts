@@ -59,6 +59,7 @@ export const verifyOTPViaFirebase = async (confirmation: any, code: string) => {
     const result = await confirmation.confirm(code);
     
     console.log('✅ Firebase OTP verified successfully');
+    
     return {
       success: true,
       user: result.user,
