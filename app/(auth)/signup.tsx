@@ -114,9 +114,17 @@ export default function Signup() {
   }, [otpTimer]);
 
   const sendOtp = async () => {
+    const requestId = Math.random().toString(36).substring(7);
+    const startTime = Date.now();
+    
     try {
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`📤 [SIGNUP-SEND-OTP] REQUEST START - ID: ${requestId}`);
+      console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+      
       const phoneT = phoneNumber.trim();
       if (!phoneT) {
+        console.log(`❌ [SIGNUP-SEND-OTP] ERROR: Empty phone number - ID: ${requestId}`);
         showToast("Please enter your phone number", "error");
         return;
       }
@@ -124,12 +132,17 @@ export default function Signup() {
       const cleanPhone = phoneT.replace(/\D/g, "");
       const fullPhone = `${countryCode}${cleanPhone}`;
 
+      console.log(`📱 Phone entered: ${phoneT}`);
+      console.log(`📱 Full phone: ${fullPhone}`);
+
       if (cleanPhone.length < 7) {
+        console.log(`❌ [SIGNUP-SEND-OTP] ERROR: Invalid phone length (${cleanPhone.length}) - ID: ${requestId}`);
         showToast("Please enter a valid phone number", "error");
         return;
       }
 
       setSendingOtp(true);
+      console.log(`⏳ [SIGNUP-SEND-OTP] Pre-warming server...`);
 
       // Pre-warm server if not already warm
       if (!serverWarmup.isServerWarm()) {
@@ -137,12 +150,15 @@ export default function Signup() {
       }
 
       // First, check if phone number already exists
-      console.log('🔍 Checking if phone exists:', fullPhone);
+      console.log(`🔍 [SIGNUP-SEND-OTP] Checking if phone exists: ${fullPhone}`);
       const checkRes = await api.post("/auth/check-phone", {
         phone: fullPhone
       });
+      
+      console.log(`✅ [SIGNUP-SEND-OTP] Check phone response - EXISTS: ${checkRes.exists}`);
 
       if (checkRes.exists) {
+        console.log(`❌ [SIGNUP-SEND-OTP] ERROR: Phone already registered - ID: ${requestId}`);
         showToast("This number is already registered. Please login.", "error");
         setSendingOtp(false);
         // Navigate to login after 2 seconds
@@ -152,15 +168,26 @@ export default function Signup() {
         return;
       }
 
-      console.log('📱 Sending OTP via Firebase to:', fullPhone);
+      console.log(`✓ [SIGNUP-SEND-OTP] Phone is available for signup`);
+      console.log(`⏳ [SIGNUP-SEND-OTP] Storing verified phone...`);
       
       // Store the verified phone for later use
       setVerifiedPhone(fullPhone);
       
+      console.log(`⏳ [SIGNUP-SEND-OTP] Calling sendOTPViaFirebase()...`);
+      console.log(`   This will trigger Firebase SMS sending`);
+      
       // Send OTP using Firebase
       const result = await sendOTPViaFirebase(fullPhone);
       
+      const duration = Date.now() - startTime;
       if (result.success) {
+        console.log(`✅ [SIGNUP-SEND-OTP] SUCCESS - Firebase accepted request - ID: ${requestId}`);
+        console.log(`   Duration: ${duration}ms`);
+        console.log(`   Verification ID: ${result.verificationId}`);
+        console.log(`   Next: Wait for SMS on ${fullPhone}`);
+        console.log(`${'='.repeat(70)}\n`);
+        
         setFirebaseConfirmation(result.confirmation);
         showToast("OTP sent to your phone number", "success");
         setStep('otp');
@@ -170,13 +197,24 @@ export default function Signup() {
         throw new Error("Failed to send OTP");
       }
     } catch (e: any) {
-      console.error('❌ Send OTP error:', e);
+      const duration = Date.now() - startTime;
+      console.error(`\n❌ [SIGNUP-SEND-OTP] EXCEPTION ERROR - ID: ${requestId}`);
+      console.error(`📋 Error Code: ${e?.code}`);
+      console.error(`📝 Error Message: ${e?.message}`);
+      console.error(`⏱️  Duration: ${duration}ms`);
+      console.error(`${'='.repeat(70)}\n`);
+      
       let errorMessage = "Failed to send OTP. Please try again.";
       
       if (e?.code === 'auth/invalid-phone-number') {
         errorMessage = "Invalid phone number format. Please check and try again.";
+        console.error('   ⚠️  Phone format issue. Should be: +{country_code}{number}');
       } else if (e?.code === 'auth/too-many-requests') {
         errorMessage = "Too many requests. Please try again later.";
+        console.error('   ⚠️  Rate limited by Firebase');
+      } else if (e?.code === '[CONFIGURATION_NOT_FOUND]') {
+        errorMessage = "Firebase Phone Auth not configured. Contact support.";
+        console.error('   ⚠️  Firebase Phone Auth not configured');
       } else if (e?.message) {
         errorMessage = e.message;
       }
@@ -193,36 +231,67 @@ export default function Signup() {
   };
 
   const verifyOtp = async () => {
+    const requestId = Math.random().toString(36).substring(7);
+    const startTime = Date.now();
+    
     try {
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`🔐 [SIGNUP-VERIFY-OTP] REQUEST START - ID: ${requestId}`);
+      console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+      
       const otpT = otp.trim();
       if (!otpT || otpT.length !== 6) {
+        console.log(`❌ [SIGNUP-VERIFY-OTP] ERROR: Invalid OTP length (${otpT.length}) - ID: ${requestId}`);
         Alert.alert("Error", "Please enter the 6-digit OTP");
         return;
       }
 
+      console.log(`🔑 OTP Entered: ***${otpT.slice(-2)}`);
+
       if (!firebaseConfirmation) {
+        console.log(`❌ [SIGNUP-VERIFY-OTP] ERROR: No Firebase confirmation - ID: ${requestId}`);
         Alert.alert("Error", "No verification session found. Please resend OTP.");
         return;
       }
 
-      setVerifyingOtp(true);
+      console.log(`📋 Firebase Confirmation ID: ${firebaseConfirmation.verificationId}`);
 
-      console.log('🔐 Verifying OTP via Firebase...');
+      setVerifyingOtp(true);
+      console.log(`⏳ [SIGNUP-VERIFY-OTP] Calling verifyOTPViaFirebase()...`);
       
       // Verify OTP using Firebase (just for phone verification)
       const result = await verifyOTPViaFirebase(firebaseConfirmation, otpT);
 
+      const duration = Date.now() - startTime;
       if (result.success) {
+        console.log(`✅ [SIGNUP-VERIFY-OTP] SUCCESS - Phone verified - ID: ${requestId}`);
+        console.log(`   Duration: ${duration}ms`);
+        console.log(`   User Phone: ${result.phoneNumber}`);
+        console.log(`   Next Step: Account details (name & password)`);
+        console.log(`${'='.repeat(70)}\n`);
+        
         showToast("Phone number verified!", "success");
         setStep('details');
       } else {
         throw new Error("Failed to verify OTP");
       }
     } catch (e: any) {
-      console.error('❌ Verify OTP error:', e);
+      const duration = Date.now() - startTime;
+      console.error(`\n❌ [SIGNUP-VERIFY-OTP] EXCEPTION ERROR - ID: ${requestId}`);
+      console.error(`📋 Error Code: ${e?.code}`);
+      console.error(`📝 Error Message: ${e?.message}`);
+      console.error(`⏱️  Duration: ${duration}ms`);
+      console.error(`${'='.repeat(70)}\n`);
+      
       let errorMessage = "Invalid or expired OTP. Please try again.";
       
-      if (e?.message) {
+      if (e?.code === 'auth/invalid-verification-code') {
+        errorMessage = "Invalid OTP. Please check the code and try again.";
+        console.error('   ⚠️  Wrong OTP code entered');
+      } else if (e?.code === 'auth/code-expired') {
+        errorMessage = "OTP has expired. Please request a new code.";
+        console.error('   ⚠️  OTP expired - took too long to enter');
+      } else if (e?.message) {
         errorMessage = e.message;
       }
       
@@ -233,28 +302,43 @@ export default function Signup() {
   };
 
   const doSignup = async () => {
+    const requestId = Math.random().toString(36).substring(7);
+    const startTime = Date.now();
+    
     try {
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`📝 [SIGNUP-CREATE] REQUEST START - ID: ${requestId}`);
+      console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+      
       const nameT = name.trim();
       const passwordT = password.trim();
       
       if (!nameT || !passwordT) {
+        console.log(`❌ [SIGNUP-CREATE] ERROR: Missing name or password - ID: ${requestId}`);
         Alert.alert("Signup failed", "Name and password are required");
         return;
       }
+
+      console.log(`👤 Name: ${nameT}`);
+      console.log(`🔐 Password: ***${passwordT.slice(-2)}`);
 
       // Use the verified phone number (stored when OTP was sent)
       const fullPhone = verifiedPhone;
       
       if (!fullPhone) {
+        console.log(`❌ [SIGNUP-CREATE] ERROR: No verified phone - ID: ${requestId}`);
         Alert.alert("Error", "Phone verification failed. Please try again.");
         setStep('phone');
         return;
       }
 
+      console.log(`📱 Phone: ${fullPhone}`);
+
       setLoading(true);
       setProgress(10);
       setLoadingMessage("Preparing...");
 
+      console.log(`⏳ [SIGNUP-CREATE] Pre-warming server...`);
       // Pre-warm server if not already warm
       if (!serverWarmup.isServerWarm()) {
         setLoadingMessage("Waking up server...");
@@ -264,7 +348,8 @@ export default function Signup() {
 
       setProgress(50);
       setLoadingMessage("Creating account...");
-      console.log('🚀 Attempting signup with:', { name: nameT, phone: fullPhone });
+      console.log(`⏳ [SIGNUP-CREATE] Calling backend /auth/signup endpoint...`);
+      console.log(`   Payload: { name, phone, password }`);
 
       const res = await api.post("/auth/signup", {
         name: nameT,
@@ -273,28 +358,39 @@ export default function Signup() {
       });
 
       setProgress(80);
-
-      console.log('✅ Signup response received:', res);
+      
+      const duration = Date.now() - startTime;
+      console.log(`✅ [SIGNUP-CREATE] Backend response received - ID: ${requestId}`);
+      console.log(`   Duration: ${duration}ms`);
+      console.log(`   Response: ${JSON.stringify(res, null, 2)}`);
 
       let token = res?.token;
       
       if (!token) {
+        console.log(`⚠️  [SIGNUP-CREATE] No token in signup response, attempting login...`);
         try {
-          console.log('No token in signup response, attempting login...');
+          console.log(`⏳ [SIGNUP-CREATE] Calling backend /auth/login endpoint...`);
           setProgress(85);
           setLoadingMessage("Signing in...");
           const loginRes = await api.post("/auth/login", { phone: fullPhone, password: passwordT });
           token = loginRes?.token;
-        } catch {}
+          console.log(`✅ [SIGNUP-CREATE] Login response received`);
+        } catch (loginError: any) {
+          console.error(`❌ [SIGNUP-CREATE] Login attempt failed:`, loginError?.message);
+        }
       }
 
       if (!token) {
+        console.log(`❌ [SIGNUP-CREATE] ERROR: No token received - ID: ${requestId}`);
         throw new Error(res?.message || "Signup failed. Please try again.");
       }
+
+      console.log(`✅ [SIGNUP-CREATE] Token acquired successfully`);
 
       setProgress(95);
       setLoadingMessage("Finalizing...");
 
+      console.log(`💾 [SIGNUP-CREATE] Saving token to storage...`);
       await AsyncStorage.setItem("token", token);
       if (res?.user?.name) {
         await AsyncStorage.setItem("user_name", res.user.name);
@@ -303,51 +399,67 @@ export default function Signup() {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
       
+      console.log(`✅ [SIGNUP-CREATE] Token and user data saved`);
+      
       setProgress(100);
-      console.log('✅ Signup successful, now registering push token BEFORE navigation');
+      console.log(`✅ [SIGNUP-CREATE] Signup successful!`);
+      console.log(`   Total Duration: ${Date.now() - startTime}ms`);
+      console.log(`   User Phone: ${fullPhone}`);
+      console.log(`${'='.repeat(70)}\n`);
       
       // CRITICAL: Register push token BEFORE navigation
       try {
-        console.log('🔔 [SIGNUP] Starting push token registration...');
+        console.log(`\n🔔 [PUSH-TOKEN] REGISTRATION START`);
         
         // Send diagnostic ping
+        console.log(`🔔 [PUSH-TOKEN] Sending registration ping to backend...`);
         await api.post('/notifications/ping-registration-attempt', {
           phone: fullPhone,
           timestamp: new Date().toISOString(),
           hasModule: !!notificationModule,
           hasFunction: !!notificationModule?.registerForPushNotifications
-        }).catch(e => console.log('[SIGNUP] Ping failed but continuing:', e));
+        }).catch(e => console.log('🔔 [PUSH-TOKEN] Ping failed but continuing:', e?.message));
         
         if (notificationModule?.registerForPushNotifications) {
-          console.log('[SIGNUP] Calling registerForPushNotifications...');
+          console.log(`🔔 [PUSH-TOKEN] Calling registerForPushNotifications...`);
           await notificationModule.registerForPushNotifications();
-          console.log('✅ [SIGNUP] Push token registered successfully!');
+          console.log(`✅ [PUSH-TOKEN] Push token registered successfully!`);
+          console.log(`${'='.repeat(70)}\n`);
         } else {
-          console.error('❌ [SIGNUP] No notification module or function available');
+          console.error(`❌ [PUSH-TOKEN] No notification module or function available`);
         }
       } catch (error: any) {
-        console.error('❌ [SIGNUP] Push token registration failed:', error);
+        console.error(`❌ [PUSH-TOKEN] Registration failed:`, error?.message);
         
         // Send error to backend
+        console.log(`🔔 [PUSH-TOKEN] Reporting error to backend...`);
         await api.post('/notifications/registration-error', {
           phone: fullPhone,
           error: error?.message || 'Unknown error',
           stack: error?.stack || 'No stack',
           timestamp: new Date().toISOString()
-        }).catch(e => console.error('[SIGNUP] Error reporting failed:', e));
+        }).catch(e => console.error('🔔 [PUSH-TOKEN] Error reporting failed:', e?.message));
       }
       
-      console.log('🔀 [SIGNUP] Redirecting to home...');
+      console.log(`🔀 [SIGNUP] Navigation: Redirecting to home...`);
+      console.log(`${'='.repeat(70)}\n`);
       router.replace("/(tabs)/home");
     } catch (e: any) {
-      console.error('❌ Signup error:', e);
+      const duration = Date.now() - startTime;
+      console.error(`\n❌ [SIGNUP-CREATE] EXCEPTION ERROR - ID: ${requestId}`);
+      console.error(`📋 Error Code: ${e?.code}`);
+      console.error(`📝 Error Message: ${e?.message}`);
+      console.error(`⏱️  Duration: ${duration}ms`);
+      console.error(`${'='.repeat(70)}\n`);
       
       let msg = "Signup failed. Please try again.";
       
       if (e?.message?.includes('timeout')) {
         msg = "Server is taking longer than usual. Please wait a moment and try again.";
+        console.error('   ⚠️  Request timeout');
       } else if (e?.message?.includes('Server may be sleeping')) {
         msg = "Server is starting up. Please wait 30 seconds and try again.";
+        console.error('   ⚠️  Backend server is waking up');
       } else if (e?.message?.includes('Network')) {
         msg = "Network error. Please check your internet connection.";
       } else if (e?.message?.includes('Phone number already exists') || e?.message?.includes('already exists')) {
