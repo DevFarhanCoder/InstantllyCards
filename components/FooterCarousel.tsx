@@ -350,8 +350,7 @@ const FooterCarousel = () => {
       {/* Show empty state if no ads */}
       {!isLoading && allAds.length === 0 && (
         <View style={styles.emptyContainer}>
-          <Ionicons name="images-outline" size={32} color="#9CA3AF" />
-          <Text style={styles.emptyText}>No ads available</Text>
+          <Text style={styles.emptyText}>No promotions available</Text>
         </View>
       )}
       
@@ -540,12 +539,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 4,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B7280',
   },
   scrollView: {
     flex: 1,
