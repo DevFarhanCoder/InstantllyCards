@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 34,
+      "versionCode": 36,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
