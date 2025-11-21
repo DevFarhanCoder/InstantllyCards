@@ -12,11 +12,11 @@ export async function ensureAuth(): Promise<string | null> {
     return preset;
   }
 
-  const email = process.env.EXPO_PUBLIC_DEV_EMAIL;
+  const phone = process.env.EXPO_PUBLIC_DEV_PHONE;
   const password = process.env.EXPO_PUBLIC_DEV_PASSWORD;
 
-  if (email && password) {
-    const data = await api.post("/auth/login", { email, password });
+  if (phone && password) {
+    const data = await api.post("/auth/login", { phone, password });
     if (data?.token) {
       await AsyncStorage.setItem("token", String(data.token));
       return String(data.token);
