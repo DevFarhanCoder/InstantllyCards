@@ -62,11 +62,14 @@ export default function Profile() {
       const response = await api.get("/auth/profile");
       console.log('Profile response:', response);
       
-      if (response && response.name) {
-        setUserProfile(response);
-        setTempName(response.name || "");
-        setTempPhone(response.phone || "");
-        setTempAbout(response.about || "Available");
+      // Handle both response formats: direct object or wrapped in 'user'
+      const profileData = response.user || response;
+      
+      if (profileData && profileData.name) {
+        setUserProfile(profileData);
+        setTempName(profileData.name || "");
+        setTempPhone(profileData.phone || "");
+        setTempAbout(profileData.about || "Available");
       } else {
         throw new Error('Invalid profile data received');
       }

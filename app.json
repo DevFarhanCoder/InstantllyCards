@@ -2,7 +2,7 @@
   "expo": {
     "name": "Instantlly Cards",
     "slug": "instantllycards",
-    "version": "1.0.35",
+    "version": "1.0.37",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
@@ -30,8 +30,7 @@
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 33,
-      "googleServicesFile": "./google-services.json",
+      "versionCode": 36,
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
@@ -64,15 +63,6 @@
           "defaultChannel": "default"
         }
       ],
-      [
-        "@react-native-firebase/app",
-        {
-          "android": {
-            "googleServicesFile": "./google-services.json"
-          }
-        }
-      ],
-      "@react-native-firebase/auth",
       [
         "expo-build-properties",
         {
