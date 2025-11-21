@@ -18,6 +18,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/lib/api';
 import { getCurrentUserId } from '@/lib/useUser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 const cardWidth = (screenWidth - 48) / 2; // 2 cards per row with margins
@@ -50,8 +51,27 @@ export default function GroupCardsScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
 
+
   useEffect(() => {
-    initializeScreen();
+    const checkAuthAndInit = async () => {
+      try {
+        const userId = await getCurrentUserId();
+        if (!userId) {
+          // No user found, clear token and redirect to login
+          await AsyncStorage.removeItem('token');
+          Alert.alert('User not found', 'Please login again.', [
+            { text: 'OK', onPress: () => router.replace('/(auth)/login') }
+          ]);
+          return;
+        }
+        setCurrentUserId(userId);
+        await loadGroupCards();
+      } catch (error) {
+        console.error('Error initializing group cards screen:', error);
+        Alert.alert('Error', 'Failed to load group cards');
+      }
+    };
+    checkAuthAndInit();
   }, [groupId]);
 
   const initializeScreen = async () => {

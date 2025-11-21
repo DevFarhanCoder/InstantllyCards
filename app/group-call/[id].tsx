@@ -1,348 +1,333 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  Image,
-  Alert,
-  Dimensions,
-  Modal,
-  ScrollView,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Image, Alert, Dimensions, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getCurrentUser } from '@/lib/useUser';
 import { socketService } from '@/lib/socket';
 import api from '@/lib/api';
+import { mediaDevices, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, MediaStream, MediaStreamTrack } from 'react-native-webrtc';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-interface CallParticipant {
-  id: string;
-  name: string;
-  profilePicture?: string;
-  isAudioMuted: boolean;
-  isVideoEnabled: boolean;
-  isHost: boolean;
-  joinedAt: string;
-}
+  const SIGNALING_EVENTS = {
+    OFFER: 'webrtc-offer',
+    ANSWER: 'webrtc-answer',
+    ICE: 'webrtc-ice',
+    JOIN: 'webrtc-join',
+    LEAVE: 'webrtc-leave',
+  };
 
-export default function GroupCallScreen() {
-  const { id: groupId, type: callType, groupName } = useLocalSearchParams<{ 
-    id: string; 
-    type: 'audio' | 'video'; 
-    groupName: string; 
-  }>();
-  
-  const [participants, setParticipants] = useState<CallParticipant[]>([]);
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [isVideoEnabled, setIsVideoEnabled] = useState(callType === 'video');
-  const [callDuration, setCallDuration] = useState(0);
-  const [isCallActive, setIsCallActive] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [showParticipants, setShowParticipants] = useState(false);
-  const callStartTime = useRef<Date>(new Date());
+  const ICE_SERVERS = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+    ],
+  };
 
-  useEffect(() => {
-    initializeCall();
-    
-    // Update call duration every second
-    const durationInterval = setInterval(() => {
-      const now = new Date();
-      const duration = Math.floor((now.getTime() - callStartTime.current.getTime()) / 1000);
-      setCallDuration(duration);
-    }, 1000);
+  export default function GroupCallScreen() {
+    const { id: groupId, type: callType, groupName } = useLocalSearchParams();
+    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    const [remoteStreams, setRemoteStreams] = useState<{ [userId: string]: MediaStream }>({});
+    const [peerConnections, setPeerConnections] = useState<{ [userId: string]: RTCPeerConnection }>({});
+    const [participants, setParticipants] = useState<Array<{ id: string; name: string; profilePicture?: string; isAudioMuted: boolean; isVideoEnabled: boolean; isHost: boolean; joinedAt: string }>>([]);
+    const [isAudioMuted, setIsAudioMuted] = useState(false);
+    // Only audio for now
+    const [isVideoEnabled] = useState(false);
+    const [callDuration, setCallDuration] = useState(0);
+    const [isCallActive, setIsCallActive] = useState(true);
+    const [currentUser, setCurrentUser] = useState<{ id: string; name: string; profilePicture?: string } | null>(null);
+    const [showParticipants, setShowParticipants] = useState(false);
+    const callStartTime = useRef(new Date());
 
-    return () => {
-      clearInterval(durationInterval);
-      // Clean up call resources
-      endCall();
+    // Helper: Add/Remove participant
+    const addParticipant = (user: { id: string; name: string; profilePicture?: string; isAudioMuted: boolean; isVideoEnabled: boolean; isHost: boolean; joinedAt: string }) => {
+      setParticipants((prev) => {
+        if (prev.find((p) => p.id === user.id)) return prev;
+        return [...prev, user];
+      });
     };
-  }, []);
+    const removeParticipant = (userId: string) => {
+      setParticipants((prev) => prev.filter((p) => p.id !== userId));
+      setRemoteStreams((prev) => {
+        const copy = { ...prev };
+        delete copy[userId];
+        return copy;
+      });
+      setPeerConnections((prev) => {
+        const copy = { ...prev };
+        if (copy[userId]) copy[userId].close();
+        delete copy[userId];
+        return copy;
+      });
+    };
 
-  const initializeCall = async () => {
-    try {
-      const user = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Error', 'Please log in to join the call');
-        router.back();
-        return;
-      }
-
-      setCurrentUser(user);
-      
-      // Add current user as first participant (host)
-      const hostParticipant: CallParticipant = {
-        id: user.id,
-        name: user.name,
-        profilePicture: user.profilePicture,
-        isAudioMuted: false,
-        isVideoEnabled: callType === 'video',
-        isHost: true,
-        joinedAt: new Date().toISOString(),
+    // 1. Get local media
+    useEffect(() => {
+      (async () => {
+        const user = await getCurrentUser();
+        if (!user) {
+          Alert.alert('Error', 'Please log in to join the call');
+          router.back();
+          return;
+        }
+        setCurrentUser(user);
+        // Get local media
+        let stream = null;
+        try {
+          stream = await mediaDevices.getUserMedia({
+            audio: true,
+            video: false, // Only audio
+          });
+          setLocalStream(stream);
+        } catch (err) {
+          Alert.alert('Error', 'Could not access microphone');
+          router.back();
+          return;
+        }
+        // Join signaling room
+        socketService.emitSignal(SIGNALING_EVENTS.JOIN, { groupId, userId: user.id, name: user.name });
+        addParticipant({ id: user.id, name: user.name, profilePicture: user.profilePicture, isAudioMuted: false, isVideoEnabled: false, isHost: true, joinedAt: new Date().toISOString() });
+      })();
+      return () => {
+        // Leave signaling room
+        if (currentUser) socketService.emitSignal(SIGNALING_EVENTS.LEAVE, { groupId, userId: currentUser.id });
+        // Close all peer connections
+        Object.values(peerConnections).forEach((pc) => pc.close());
+        setPeerConnections({});
+        setRemoteStreams({});
+        setParticipants([]);
+        if (localStream) localStream.release?.();
       };
-      
-      setParticipants([hostParticipant]);
+      // eslint-disable-next-line
+    }, []);
 
-      // Set up Socket.IO listeners for call events
-      // In a real implementation, you'd set up WebRTC connections here
-      console.log(`🎥 ${callType} call initialized for group:`, groupId);
-      
-    } catch (error) {
-      console.error('Error initializing call:', error);
-      Alert.alert('Error', 'Failed to initialize call');
+    // 2. Handle signaling events
+    useEffect(() => {
+      // When a new user joins, create a peer connection and send offer
+      const onUserJoin = async ({ userId, name, profilePicture }: { userId: string, name: string, profilePicture?: string }) => {
+        if (!currentUser || userId === currentUser.id) return;
+        addParticipant({ id: userId, name, profilePicture, isAudioMuted: false, isVideoEnabled: false, isHost: false, joinedAt: new Date().toISOString() });
+        // Create peer connection
+        const pc = createPeerConnection(userId);
+        peerConnections[userId] = pc;
+        setPeerConnections({ ...peerConnections });
+        // Add local tracks
+        if (localStream) {
+          localStream.getAudioTracks().forEach((track: MediaStreamTrack) => pc.addTrack(track, localStream));
+        }
+        // Create offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socketService.emitSignal(SIGNALING_EVENTS.OFFER, { groupId, to: userId, from: currentUser.id, offer });
+      };
+      // When receiving an offer
+      const onOffer = async ({ from, offer }: { from: string, offer: any }) => {
+        if (!currentUser || from === currentUser.id) return;
+        // Create peer connection
+        const pc = createPeerConnection(from);
+        peerConnections[from] = pc;
+        setPeerConnections({ ...peerConnections });
+        // Add local tracks
+        if (localStream) {
+          localStream.getAudioTracks().forEach((track: MediaStreamTrack) => pc.addTrack(track, localStream));
+        }
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socketService.emitSignal(SIGNALING_EVENTS.ANSWER, { groupId, to: from, from: currentUser.id, answer });
+      };
+      // When receiving an answer
+      const onAnswer = async ({ from, answer }: { from: string, answer: any }) => {
+        if (!currentUser || from === currentUser.id) return;
+        const pc = peerConnections[from];
+        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      };
+      // When receiving ICE candidate
+      const onIce = async ({ from, candidate }: { from: string, candidate: any }) => {
+        if (!currentUser || from === currentUser.id) return;
+        const pc = peerConnections[from];
+        if (pc && candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      };
+      // When a user leaves
+      const onLeave = ({ userId }: { userId: string }) => {
+        removeParticipant(userId);
+      };
+      socketService.onSignal(SIGNALING_EVENTS.JOIN, onUserJoin);
+      socketService.onSignal(SIGNALING_EVENTS.OFFER, onOffer);
+      socketService.onSignal(SIGNALING_EVENTS.ANSWER, onAnswer);
+      socketService.onSignal(SIGNALING_EVENTS.ICE, onIce);
+      socketService.onSignal(SIGNALING_EVENTS.LEAVE, onLeave);
+      return () => {
+        socketService.offSignal(SIGNALING_EVENTS.JOIN, onUserJoin);
+        socketService.offSignal(SIGNALING_EVENTS.OFFER, onOffer);
+        socketService.offSignal(SIGNALING_EVENTS.ANSWER, onAnswer);
+        socketService.offSignal(SIGNALING_EVENTS.ICE, onIce);
+        socketService.offSignal(SIGNALING_EVENTS.LEAVE, onLeave);
+      };
+      // eslint-disable-next-line
+    }, [localStream, peerConnections, currentUser]);
+
+    // 3. Peer connection factory
+    function createPeerConnection(userId: string) {
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      // @ts-ignore: React Native WebRTC supports these event handlers
+      (pc as any).onicecandidate = (event: any) => {
+        if (event.candidate && currentUser) {
+          socketService.emitSignal(SIGNALING_EVENTS.ICE, { groupId, to: userId, from: currentUser!.id, candidate: event.candidate });
+        }
+      };
+      // @ts-ignore: React Native WebRTC supports these event handlers
+      (pc as any).ontrack = (event: any) => {
+        setRemoteStreams((prev) => ({ ...prev, [userId]: event.streams[0] }));
+      };
+      // @ts-ignore: React Native WebRTC supports these event handlers
+      (pc as any).onconnectionstatechange = () => {
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          removeParticipant(userId);
+        }
+      };
+      return pc;
+    }
+
+    // 4. Call duration timer
+    useEffect(() => {
+      const durationInterval = setInterval(() => {
+        const now = new Date();
+        const duration = Math.floor((now.getTime() - callStartTime.current.getTime()) / 1000);
+        setCallDuration(duration);
+      }, 1000);
+      return () => clearInterval(durationInterval);
+    }, []);
+
+    // 5. Mute/unmute local audio
+    const toggleAudio = () => {
+      if (localStream) {
+        localStream.getAudioTracks().forEach((track: MediaStreamTrack) => (track.enabled = !isAudioMuted));
+      }
+      setIsAudioMuted((prev) => !prev);
+    };
+    // 6. Enable/disable local video
+    // Video toggle is disabled for audio-only
+    const toggleVideo = () => {};
+    // 7. End call
+    const endCall = () => {
+      setIsCallActive(false);
+      if (currentUser) socketService.emitSignal(SIGNALING_EVENTS.LEAVE, { groupId, userId: currentUser.id });
+      Object.values(peerConnections).forEach((pc) => pc.close());
+      setPeerConnections({});
+      setRemoteStreams({});
+      setParticipants([]);
+      if (localStream) localStream.release?.();
       router.back();
-    }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const toggleAudio = () => {
-    setIsAudioMuted(!isAudioMuted);
-    // In real implementation, this would control the microphone
-    console.log(`🎤 Audio ${isAudioMuted ? 'unmuted' : 'muted'}`);
-  };
-
-  const toggleVideo = () => {
-    if (callType === 'video') {
-      setIsVideoEnabled(!isVideoEnabled);
-      // In real implementation, this would control the camera
-      console.log(`📹 Video ${isVideoEnabled ? 'disabled' : 'enabled'}`);
-    }
-  };
-
-  const endCall = () => {
-    setIsCallActive(false);
-    
-    // Notify other participants via Socket.IO
-    if (socketService.isConnected()) {
-      // Send call end notification
-      console.log('📞 Call ended by user');
-    }
-    
-    router.back();
-  };
-
-  const inviteMoreParticipants = () => {
-    Alert.alert(
-      'Invite Participants',
-      'All group members have been invited to join this call.',
-      [{ text: 'OK' }]
-    );
-  };
-
-  const renderParticipant = ({ item }: { item: CallParticipant }) => {
-    const isCurrentUser = item.id === currentUser?.id;
-    
-    return (
-      <View style={styles.participantContainer}>
-        <View style={styles.participantVideo}>
-          {item.isVideoEnabled && callType === 'video' ? (
-            // In real implementation, this would show video stream
-            <View style={styles.videoPlaceholder}>
-              <Text style={styles.videoPlaceholderText}>📹 Video Stream</Text>
-            </View>
-          ) : (
+    };
+    // 8. Invite (dummy)
+    const inviteMoreParticipants = () => {
+      Alert.alert('Invite Participants', 'All group members have been invited to join this call.', [{ text: 'OK' }]);
+    };
+    // 9. Render participant (local/remote)
+    const renderParticipant = ({ item }: { item: { id: string; name: string; profilePicture?: string; isAudioMuted: boolean; isVideoEnabled: boolean; isHost: boolean; joinedAt: string } }) => {
+      const isCurrentUser = item.id === currentUser?.id;
+      const stream = isCurrentUser ? localStream : remoteStreams[item.id];
+      return (
+        <View style={styles.participantContainer}>
+          <View style={styles.participantVideo}>
             <View style={styles.audioOnlyContainer}>
               {item.profilePicture ? (
-                <Image 
-                  source={{ uri: item.profilePicture }} 
-                  style={styles.participantAvatar}
-                />
+                <Image source={{ uri: item.profilePicture }} style={styles.participantAvatar} />
               ) : (
                 <View style={styles.participantAvatarPlaceholder}>
-                  <Text style={styles.participantInitial}>
-                    {item.name.charAt(0).toUpperCase()}
-                  </Text>
+                  <Text style={styles.participantInitial}>{item.name.charAt(0).toUpperCase()}</Text>
                 </View>
               )}
             </View>
-          )}
-          
-          {/* Participant controls overlay */}
-          <View style={styles.participantOverlay}>
-            <View style={styles.participantInfo}>
-              <Text style={styles.participantName} numberOfLines={1}>
-                {isCurrentUser ? 'You' : item.name}
-                {item.isHost && ' (Host)'}
-              </Text>
-              
-              <View style={styles.participantStatus}>
-                {item.isAudioMuted && (
-                  <Ionicons name="mic-off" size={12} color="#EF4444" />
-                )}
-                {!item.isVideoEnabled && callType === 'video' && (
-                  <Ionicons name="videocam-off" size={12} color="#EF4444" />
-                )}
+            <View style={styles.participantOverlay}>
+              <View style={styles.participantInfo}>
+                <Text style={styles.participantName} numberOfLines={1}>{isCurrentUser ? 'You' : item.name}{item.isHost && ' (Host)'}</Text>
+                <View style={styles.participantStatus}>
+                  {item.isAudioMuted && (<Ionicons name="mic-off" size={12} color="#EF4444" />)}
+                </View>
               </View>
             </View>
           </View>
         </View>
-      </View>
-    );
-  };
-
-  if (!isCallActive) {
-    return null;
-  }
-
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.callInfo}>
-          <Text style={styles.groupName}>{groupName}</Text>
-          <Text style={styles.callDuration}>
-            {callType === 'video' ? '📹' : '📞'} {formatDuration(callDuration)}
-          </Text>
-        </View>
-        
-        <TouchableOpacity 
-          style={styles.headerButton}
-          onPress={() => setShowParticipants(true)}
-        >
-          <Ionicons name="people" size={20} color="#FFFFFF" />
-          <Text style={styles.participantCount}>{participants.length}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Participants Grid */}
-      <View style={styles.participantsContainer}>
-        {participants.length === 1 ? (
-          // Single participant (full screen)
-          <View style={styles.singleParticipantContainer}>
-            {renderParticipant({ item: participants[0] })}
+      );
+    };
+    if (!isCallActive) return null;
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.callInfo}>
+            <Text style={styles.groupName}>{groupName}</Text>
+            <Text style={styles.callDuration}>{callType === 'video' ? '📹' : '📞'} {`${Math.floor(callDuration/60).toString().padStart(2,'0')}:${(callDuration%60).toString().padStart(2,'0')}`}</Text>
           </View>
-        ) : (
-          // Multiple participants (grid)
-          <FlatList
-            data={participants}
-            renderItem={renderParticipant}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            contentContainerStyle={styles.participantsGrid}
-          />
-        )}
-      </View>
-
-      {/* Call Controls */}
-      <View style={styles.controlsContainer}>
-        <View style={styles.controls}>
-          {/* Audio toggle */}
-          <TouchableOpacity 
-            style={[styles.controlButton, isAudioMuted && styles.controlButtonMuted]}
-            onPress={toggleAudio}
-          >
-            <Ionicons 
-              name={isAudioMuted ? "mic-off" : "mic"} 
-              size={24} 
-              color={isAudioMuted ? "#EF4444" : "#FFFFFF"} 
-            />
-          </TouchableOpacity>
-
-          {/* Video toggle (only for video calls) */}
-          {callType === 'video' && (
-            <TouchableOpacity 
-              style={[styles.controlButton, !isVideoEnabled && styles.controlButtonMuted]}
-              onPress={toggleVideo}
-            >
-              <Ionicons 
-                name={isVideoEnabled ? "videocam" : "videocam-off"} 
-                size={24} 
-                color={!isVideoEnabled ? "#EF4444" : "#FFFFFF"} 
-              />
-            </TouchableOpacity>
-          )}
-
-          {/* Invite button */}
-          <TouchableOpacity 
-            style={styles.controlButton}
-            onPress={inviteMoreParticipants}
-          >
-            <Ionicons name="person-add" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          {/* End call */}
-          <TouchableOpacity 
-            style={[styles.controlButton, styles.endCallButton]}
-            onPress={endCall}
-          >
-            <Ionicons name="call" size={24} color="#FFFFFF" />
+          <TouchableOpacity style={styles.headerButton} onPress={() => setShowParticipants(true)}>
+            <Ionicons name="people" size={20} color="#FFFFFF" />
+            <Text style={styles.participantCount}>{participants.length}</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-      {/* Participants Modal */}
-      <Modal
-        visible={showParticipants}
-        animationType="slide"
-        transparent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.participantsModal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Participants ({participants.length})
-              </Text>
-              <TouchableOpacity onPress={() => setShowParticipants(false)}>
-                <Ionicons name="close" size={24} color="#111827" />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView style={styles.participantsList}>
-              {participants.map((participant) => (
-                <View key={participant.id} style={styles.participantListItem}>
-                  <View style={styles.participantListAvatar}>
-                    {participant.profilePicture ? (
-                      <Image 
-                        source={{ uri: participant.profilePicture }} 
-                        style={styles.participantListAvatarImage}
-                      />
-                    ) : (
-                      <View style={styles.participantListAvatarPlaceholder}>
-                        <Text style={styles.participantListInitial}>
-                          {participant.name.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  
-                  <View style={styles.participantListInfo}>
-                    <Text style={styles.participantListName}>
-                      {participant.id === currentUser?.id ? 'You' : participant.name}
-                      {participant.isHost && ' (Host)'}
-                    </Text>
-                    <View style={styles.participantListStatus}>
-                      {participant.isAudioMuted && (
-                        <View style={styles.statusBadge}>
-                          <Ionicons name="mic-off" size={12} color="#EF4444" />
-                          <Text style={styles.statusText}>Muted</Text>
-                        </View>
-                      )}
-                      {!participant.isVideoEnabled && callType === 'video' && (
-                        <View style={styles.statusBadge}>
-                          <Ionicons name="videocam-off" size={12} color="#EF4444" />
-                          <Text style={styles.statusText}>Video Off</Text>
+        {/* Participants Grid */}
+        <View style={styles.participantsContainer}>
+          {participants.length === 1 ? (
+            <View style={styles.singleParticipantContainer}>{renderParticipant({ item: participants[0] })}</View>
+          ) : (
+            <FlatList data={participants} renderItem={renderParticipant} keyExtractor={(item) => item.id} numColumns={2} contentContainerStyle={styles.participantsGrid} />
+          )}
+        </View>
+        {/* Call Controls */}
+        <View style={styles.controlsContainer}>
+          <View style={styles.controls}>
+            <TouchableOpacity style={[styles.controlButton, isAudioMuted && styles.controlButtonMuted]} onPress={toggleAudio}>
+              <Ionicons name={isAudioMuted ? "mic-off" : "mic"} size={24} color={isAudioMuted ? "#EF4444" : "#FFFFFF"} />
+            </TouchableOpacity>
+            {/* Video toggle removed for audio-only */}
+            <TouchableOpacity style={styles.controlButton} onPress={inviteMoreParticipants}>
+              <Ionicons name="person-add" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.controlButton, styles.endCallButton]} onPress={endCall}>
+              <Ionicons name="call" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        {/* Participants Modal */}
+        <Modal visible={showParticipants} animationType="slide" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.participantsModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Participants ({participants.length})</Text>
+                <TouchableOpacity onPress={() => setShowParticipants(false)}>
+                  <Ionicons name="close" size={24} color="#111827" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.participantsList}>
+                {participants.map((participant) => (
+                  <View key={participant.id} style={styles.participantListItem}>
+                    <View style={styles.participantListAvatar}>
+                      {participant.profilePicture ? (
+                        <Image source={{ uri: participant.profilePicture }} style={styles.participantListAvatarImage} />
+                      ) : (
+                        <View style={styles.participantListAvatarPlaceholder}>
+                          <Text style={styles.participantListInitial}>{participant.name.charAt(0).toUpperCase()}</Text>
                         </View>
                       )}
                     </View>
+                    <View style={styles.participantListInfo}>
+                      <Text style={styles.participantListName}>{participant.id === currentUser?.id ? 'You' : participant.name}{participant.isHost && ' (Host)'}</Text>
+                      <View style={styles.participantListStatus}>
+                        {participant.isAudioMuted && (<View style={styles.statusBadge}><Ionicons name="mic-off" size={12} color="#EF4444" /><Text style={styles.statusText}>Muted</Text></View>)}
+                        {!participant.isVideoEnabled && callType === 'video' && (<View style={styles.statusBadge}><Ionicons name="videocam-off" size={12} color="#EF4444" /><Text style={styles.statusText}>Video Off</Text></View>)}
+                      </View>
+                    </View>
                   </View>
-                </View>
-              ))}
-            </ScrollView>
+                ))}
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-}
+        </Modal>
+      </SafeAreaView>
+    );
+  }
 
 const styles = StyleSheet.create({
   container: {

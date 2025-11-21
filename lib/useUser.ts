@@ -15,35 +15,28 @@ export interface User {
 export async function fetchAndStoreUserProfile(): Promise<User | null> {
   try {
     console.log('🔄 Fetching user profile from backend...');
-    
     // Fetch user profile from backend
-    const response = await api.get<{
-      _id: string;
-      name: string;
-      phone: string;
-      email?: string;
-      profilePicture?: string;
-      about?: string;
-    }>('/auth/profile');
-    
-    if (response && response._id) {
+    const response = await api.get<any>('/auth/profile');
+
+    // Handle both { user: {...} } and { _id: ... } responses
+    const userObj = response?.user ? response.user : response;
+
+    if (userObj && userObj._id) {
       const userData: User = {
-        id: response._id,
-        _id: response._id,
-        name: response.name,
-        phone: response.phone,
-        email: response.email,
-        profilePicture: response.profilePicture,
-        about: response.about || 'Available'
+        id: userObj._id,
+        _id: userObj._id,
+        name: userObj.name,
+        phone: userObj.phone,
+        email: userObj.email,
+        profilePicture: userObj.profilePicture,
+        about: userObj.about || 'Available',
       };
-      
       // Store in AsyncStorage
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       console.log('✅ User profile fetched and stored:', userData.name);
-      
       return userData;
     } else {
-      console.log('❌ Invalid response from profile endpoint');
+      console.log('❌ Invalid response from profile endpoint', response);
       return null;
     }
   } catch (error) {
