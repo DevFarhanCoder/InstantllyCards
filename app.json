@@ -31,7 +31,6 @@
     "android": {
       "package": "com.instantllycards.www.twa",
       "versionCode": 36,
-      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
@@ -64,15 +63,6 @@
           "defaultChannel": "default"
         }
       ],
-      [
-        "@react-native-firebase/app",
-        {
-          "android": {
-            "googleServicesFile": "./google-services.json"
-          }
-        }
-      ],
-      "@react-native-firebase/auth",
       [
         "expo-build-properties",
         {

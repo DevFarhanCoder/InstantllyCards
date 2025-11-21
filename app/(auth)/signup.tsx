@@ -18,8 +18,8 @@ import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Firebase imports for Phone Authentication
-import { sendOTPViaFirebase, verifyOTPViaFirebase } from '@/lib/firebase';
+// Fast2SMS imports for Phone Authentication
+import { sendOTPViaFast2SMS, verifyOTPViaBackend } from '@/lib/fast2sms';
 
 import api from "@/lib/api";
 import serverWarmup from "@/lib/serverWarmup";
@@ -53,9 +53,6 @@ export default function Signup() {
   
   // Store the verified phone number with country code
   const [verifiedPhone, setVerifiedPhone] = useState("");
-  
-  // Firebase verification confirmation
-  const [firebaseConfirmation, setFirebaseConfirmation] = useState<any>(null);
   
   // Loading states
   const [loading, setLoading] = useState(false);
@@ -174,21 +171,20 @@ export default function Signup() {
       // Store the verified phone for later use
       setVerifiedPhone(fullPhone);
       
-      console.log(`⏳ [SIGNUP-SEND-OTP] Calling sendOTPViaFirebase()...`);
-      console.log(`   This will trigger Firebase SMS sending`);
+      console.log(`⏳ [SIGNUP-SEND-OTP] Calling sendOTPViaFast2SMS()...`);
+      console.log(`   This will trigger Fast2SMS SMS sending`);
       
-      // Send OTP using Firebase
-      const result = await sendOTPViaFirebase(fullPhone);
+      // Send OTP using Fast2SMS
+      const result = await sendOTPViaFast2SMS(fullPhone);
       
       const duration = Date.now() - startTime;
       if (result.success) {
-        console.log(`✅ [SIGNUP-SEND-OTP] SUCCESS - Firebase accepted request - ID: ${requestId}`);
+        console.log(`✅ [SIGNUP-SEND-OTP] SUCCESS - Fast2SMS accepted request - ID: ${requestId}`);
         console.log(`   Duration: ${duration}ms`);
-        console.log(`   Verification ID: ${result.verificationId}`);
+        console.log(`   Session ID: ${result.sessionId}`);
         console.log(`   Next: Wait for SMS on ${fullPhone}`);
         console.log(`${'='.repeat(70)}\n`);
         
-        setFirebaseConfirmation(result.confirmation);
         showToast("OTP sent to your phone number", "success");
         setStep('otp');
         setOtpTimer(60); // 60 second cooldown
@@ -206,15 +202,12 @@ export default function Signup() {
       
       let errorMessage = "Failed to send OTP. Please try again.";
       
-      if (e?.code === 'auth/invalid-phone-number') {
-        errorMessage = "Invalid phone number format. Please check and try again.";
-        console.error('   ⚠️  Phone format issue. Should be: +{country_code}{number}');
-      } else if (e?.code === 'auth/too-many-requests') {
+      if (e?.message?.includes('10 digits')) {
+        errorMessage = "Please enter a valid 10-digit Indian phone number.";
+        console.error('   ⚠️  Phone format issue. Should be 10 digits for India');
+      } else if (e?.message?.includes('rate limit')) {
         errorMessage = "Too many requests. Please try again later.";
-        console.error('   ⚠️  Rate limited by Firebase');
-      } else if (e?.code === '[CONFIGURATION_NOT_FOUND]') {
-        errorMessage = "Firebase Phone Auth not configured. Contact support.";
-        console.error('   ⚠️  Firebase Phone Auth not configured');
+        console.error('   ⚠️  Rate limited by Fast2SMS');
       } else if (e?.message) {
         errorMessage = e.message;
       }
@@ -248,25 +241,25 @@ export default function Signup() {
 
       console.log(`🔑 OTP Entered: ***${otpT.slice(-2)}`);
 
-      if (!firebaseConfirmation) {
-        console.log(`❌ [SIGNUP-VERIFY-OTP] ERROR: No Firebase confirmation - ID: ${requestId}`);
-        Alert.alert("Error", "No verification session found. Please resend OTP.");
+      if (!verifiedPhone) {
+        console.log(`❌ [SIGNUP-VERIFY-OTP] ERROR: No verified phone - ID: ${requestId}`);
+        Alert.alert("Error", "No phone number found. Please resend OTP.");
         return;
       }
 
-      console.log(`📋 Firebase Confirmation ID: ${firebaseConfirmation.verificationId}`);
+      console.log(`📋 Phone to verify: ${verifiedPhone}`);
 
       setVerifyingOtp(true);
-      console.log(`⏳ [SIGNUP-VERIFY-OTP] Calling verifyOTPViaFirebase()...`);
+      console.log(`⏳ [SIGNUP-VERIFY-OTP] Calling verifyOTPViaBackend()...`);
       
-      // Verify OTP using Firebase (just for phone verification)
-      const result = await verifyOTPViaFirebase(firebaseConfirmation, otpT);
+      // Verify OTP using backend API
+      const result = await verifyOTPViaBackend(verifiedPhone, otpT);
 
       const duration = Date.now() - startTime;
       if (result.success) {
         console.log(`✅ [SIGNUP-VERIFY-OTP] SUCCESS - Phone verified - ID: ${requestId}`);
         console.log(`   Duration: ${duration}ms`);
-        console.log(`   User Phone: ${result.phoneNumber}`);
+        console.log(`   User Phone: ${result.phone}`);
         console.log(`   Next Step: Account details (name & password)`);
         console.log(`${'='.repeat(70)}\n`);
         
@@ -285,10 +278,10 @@ export default function Signup() {
       
       let errorMessage = "Invalid or expired OTP. Please try again.";
       
-      if (e?.code === 'auth/invalid-verification-code') {
+      if (e?.message?.includes('Invalid') || e?.message?.includes('incorrect')) {
         errorMessage = "Invalid OTP. Please check the code and try again.";
         console.error('   ⚠️  Wrong OTP code entered');
-      } else if (e?.code === 'auth/code-expired') {
+      } else if (e?.message?.includes('expired')) {
         errorMessage = "OTP has expired. Please request a new code.";
         console.error('   ⚠️  OTP expired - took too long to enter');
       } else if (e?.message) {
