@@ -1,8 +1,12 @@
 // lib/auth.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import api from "./api";
+import api, { getAuthToken } from "./api";
 
 export async function ensureAuth(): Promise<string | null> {
+  // Prefer in-memory cached token to avoid race with AsyncStorage writes
+  const cached = getAuthToken();
+  if (cached) return cached;
+
   const existing = await AsyncStorage.getItem("token");
   if (existing) return existing;
 

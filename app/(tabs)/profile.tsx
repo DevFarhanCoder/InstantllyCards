@@ -91,7 +91,7 @@ export default function Profile() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images ?? (ImagePicker as any).MediaType?.Images ?? ['Images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.5, // Reduced quality to keep Base64 size manageable

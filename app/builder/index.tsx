@@ -267,7 +267,7 @@ export default function Builder() {
             return;
         }
         const res = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images, // fixed property name
+            mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images ?? (ImagePicker as any).MediaType?.Images ?? ['Images'], // fixed property name
             base64: true,
             quality: 0.8,
         });

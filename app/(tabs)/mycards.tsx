@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FlatList, StyleSheet, Text, View, RefreshControl, TouchableOpacity, Pressable, Modal, Animated, TextInput, Alert } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import api from "@/lib/api";
+import { getCurrentUser } from '@/lib/useUser';
 import CardRow from "@/components/CardRow";
 import { ensureAuth } from "@/lib/auth";
 import FooterCarousel from "@/components/FooterCarousel";
@@ -29,6 +30,7 @@ export default function MyCards() {
   const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [showFABMenu, setShowFABMenu] = useState(false);
+  const [signupDefaultCard, setSignupDefaultCard] = useState<Card | null>(null);
   const [showTooltip, setShowTooltip] = useState(true);
   
   // Group name dialog states
@@ -39,18 +41,25 @@ export default function MyCards() {
   const q = useQuery({
     queryKey: ["cards"],
     queryFn: async () => {
-      console.log("MyCards: Fetching user cards...");
+      console.log("MyCards: Fetching user cards... (queryFn start)");
       try {
         const token = await ensureAuth();
-        console.log("MyCards: Auth token:", token ? "Present" : "Missing");
-        
+        console.log("MyCards: Auth token:", token ? `Present (len=${String(token).length})` : "Missing");
         if (!token) {
           return [];
         }
-        
         const response = await api.get("/cards");
-        console.log("MyCards: API Response:", response);
-        
+        console.log("MyCards: API Response (raw):", response);
+        try {
+          const dataArr = response?.data;
+          console.log("MyCards: API Response - data length:", Array.isArray(dataArr) ? dataArr.length : typeof dataArr);
+          if (Array.isArray(dataArr) && dataArr.length > 0) {
+            console.log('MyCards: First card preview:', JSON.stringify(dataArr[0]).slice(0, 400));
+          }
+        } catch (peekErr) {
+          console.error('MyCards: Failed to inspect API response data', peekErr);
+        }
+
         if (response && typeof response === 'object' && 'data' in response) {
           return response.data || [];
         }
@@ -61,6 +70,69 @@ export default function MyCards() {
       }
     },
   });
+
+  // Log query state changes for easier debugging
+  useEffect(() => {
+    console.log('MyCards: Query state update', {
+      dataLength: Array.isArray(q.data) ? q.data.length : undefined,
+      isLoading: q.isLoading,
+      isRefetching: q.isRefetching,
+      isError: q.isError,
+      error: q.error?.message || undefined
+    });
+  }, [q.data, q.isLoading, q.isRefetching, q.isError, q.error]);
+
+  // Read any default card saved at signup (so we can show it immediately)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const d = await AsyncStorage.getItem('default_card');
+        if (!mounted) return;
+        if (d) {
+          let parsed = null;
+          try {
+            parsed = JSON.parse(d);
+          } catch (parseErr) {
+            console.error('MyCards: Failed to JSON.parse default_card value:', parseErr, 'raw:', d);
+            parsed = d;
+          }
+          // Ensure default card has name and phone for display
+          const userName = await AsyncStorage.getItem('user_name');
+          const userPhone = await AsyncStorage.getItem('user_phone');
+          if (parsed && typeof parsed === 'object') {
+            if (!parsed.name && userName) parsed.name = userName;
+            // Normalize phone fields used by CardRow (personal/company)
+            if ((!parsed.personalPhone && !parsed.companyPhone) && userPhone) {
+              // store as personalPhone for simplicity
+              parsed.personalPhone = userPhone.replace(/^\+/, '');
+              parsed.personalCountryCode = parsed.personalPhone.startsWith('91') ? '91' : parsed.personalCountryCode || '';
+            }
+          }
+          setSignupDefaultCard(parsed);
+          console.log('MyCards: Found signup default card in storage (preview):', parsed && typeof parsed === 'object' ? (parsed._id || parsed.id || parsed.name || '<no-id-or-name>') : String(parsed));
+        } else {
+          setSignupDefaultCard(null);
+        }
+      } catch (e) {
+        console.error('MyCards: Failed reading default_card from storage', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // Debug: log when ListEmptyComponent will render
+  useEffect(() => {
+    if (q.data && Array.isArray(q.data) && q.data.length === 0) {
+      console.warn('MyCards: Query returned zero cards. signupDefaultCard?', !!signupDefaultCard);
+    }
+  }, [q.data, signupDefaultCard]);
+
+  // Fallback: If user has no cards, create a default card automatically
+  // NOTE: frontend auto-creation of a default card on empty results
+  // was removed to avoid generating cards on plain login. Default
+  // cards are created server-side during signup in the backend
+  // `POST /api/auth/signup` handler. Keep client-side logic minimal.
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["cards"] });
@@ -211,10 +283,17 @@ export default function MyCards() {
           />
         }
         ListEmptyComponent={
-          <View style={s.empty}>
-            <Text style={s.emptyTxt}>You haven't created any cards yet.</Text>
-            <Text style={s.emptySubTxt}>Tap the + button to create your first card</Text>
-          </View>
+          signupDefaultCard ? (
+            <View style={s.empty}>
+              <Text style={s.emptyTxt}>A default card was created for you at signup.</Text>
+              <Text style={s.emptySubTxt}>If it's not visible yet, pull to refresh.</Text>
+            </View>
+          ) : (
+            <View style={s.empty}>
+              <Text style={s.emptyTxt}>No cards available.</Text>
+              <Text style={s.emptySubTxt}>Unable to create default card at signup. Please try creating one manually.</Text>
+            </View>
+          )
         }
         showsVerticalScrollIndicator={false}
       />

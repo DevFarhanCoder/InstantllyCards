@@ -522,7 +522,7 @@ export default function GroupDetailsScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images ?? (ImagePicker as any).MediaType?.Images ?? ['Images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,

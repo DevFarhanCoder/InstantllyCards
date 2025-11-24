@@ -3,7 +3,7 @@ import { useState } from "react";
 import { View, TextInput, Button, Text, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from 'expo-constants';
-import api from "@/lib/api";
+import api, { setAuthToken } from "@/lib/api";
 import { Link, useRouter } from "expo-router";
 
 // Import notification registration
@@ -25,6 +25,8 @@ export default function SignIn() {
       setLoading(true);
       const data = await api.post("/auth/login", { phone, password });
       await AsyncStorage.setItem("token", data.token);
+      // Set in-memory token cache immediately so API calls use the token
+      try { setAuthToken(data.token); } catch (e) { /* ignore */ }
       if (data.user?.name) {
         await AsyncStorage.setItem("user_name", data.user.name);
       }
