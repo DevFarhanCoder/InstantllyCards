@@ -131,6 +131,10 @@ export default function Builder() {
     const [designation, setDesignation] = useState(""); // Moved from Personal to Business
     const [companyCountryCode, setCompanyCountryCode] = useState("91");
     const [companyPhone, setCompanyPhone] = useState("");
+    // Support multiple company phone numbers
+    const [companyPhones, setCompanyPhones] = useState<Array<{ countryCode: string; phone: string }>>([
+        { countryCode: '91', phone: '' }
+    ]);
     const [companyEmail, setCompanyEmail] = useState("");
     const [companyWebsite, setCompanyWebsite] = useState("");
     const [companyAddress, setCompanyAddress] = useState("");
@@ -227,6 +231,12 @@ export default function Builder() {
             setDesignation(existingCard.designation || ""); // Load designation in Business section
             setCompanyCountryCode(existingCard.companyCountryCode || "91");
             setCompanyPhone(existingCard.companyPhone || "");
+            // populate multiple phones if available, else fallback to single
+            if (existingCard.companyPhones && Array.isArray(existingCard.companyPhones) && existingCard.companyPhones.length > 0) {
+                setCompanyPhones(existingCard.companyPhones.map((p: any) => ({ countryCode: p.countryCode || '91', phone: p.phone || '' })));
+            } else {
+                setCompanyPhones([{ countryCode: existingCard.companyCountryCode || '91', phone: existingCard.companyPhone || '' }]);
+            }
             setCompanyEmail(existingCard.companyEmail || "");
             setCompanyWebsite(existingCard.companyWebsite || "");
             setCompanyAddress(existingCard.companyAddress || "");
@@ -254,6 +264,12 @@ export default function Builder() {
         if (companyWebsite && !isURL(companyWebsite)) e.companyWebsite = "Invalid URL";
         if (!isDigits(companyCountryCode)) e.companyCountryCode = "Only digits";
         if (companyPhone && !minDigits(companyPhone, 6)) e.companyPhone = "Min 6 digits";
+        // Validate multiple company phones
+        companyPhones.forEach((p, idx) => {
+            if (p.phone && !minDigits(p.phone, 6)) {
+                e[`companyPhone_${idx}`] = 'Min 6 digits';
+            }
+        });
         if (mapsLink && !isURL(mapsLink)) e.mapsLink = "Invalid link";
         if (companyMapsLink && !isURL(companyMapsLink)) e.companyMapsLink = "Invalid link";
         setErrors(e);
@@ -293,7 +309,9 @@ export default function Builder() {
             companyName,
             designation, // Designation is now in Business section
             companyCountryCode,
-            companyPhone,
+            // Use first company phone as backward-compatible single field
+            companyPhone: (companyPhones && companyPhones[0]?.phone) || companyPhone,
+            companyPhones,
             companyEmail,
             companyWebsite,
             companyAddress,
@@ -322,6 +340,7 @@ export default function Builder() {
             designation, // Add designation to dependencies
             companyCountryCode,
             companyPhone,
+            companyPhones,
             companyEmail,
             companyWebsite,
             companyAddress,
@@ -621,14 +640,55 @@ export default function Builder() {
                                 />
 
                                 <View style={s.formField}>
-                                    <PhoneInput
-                                        label="Company Phone"
-                                        value={companyPhone}
-                                        onChangeText={setCompanyPhone}
-                                        countryCode={`+${companyCountryCode}`}
-                                        onCountryCodeChange={(code) => setCompanyCountryCode(code.replace('+', ''))}
-                                        placeholder="Company number"
-                                    />
+                                
+                                    {companyPhones.map((p, idx) => (
+                                        <View key={`company-phone-${idx}`} style={{ marginBottom: 12 }}>
+                                            <View style={s.phoneRow}>
+                                                <View style={s.phoneWrapper}>
+                                                    <PhoneInput
+                                                        label={idx === 0 ? "Company Phone" : `Company Phone ${idx + 1}`}
+                                                        value={p.phone}
+                                                        onChangeText={(text: string) => {
+                                                            const copy = [...companyPhones];
+                                                            copy[idx] = { ...copy[idx], phone: text };
+                                                            setCompanyPhones(copy);
+                                                        }}
+                                                        countryCode={`+${p.countryCode || '91'}`}
+                                                        onCountryCodeChange={(code) => {
+                                                            const copy = [...companyPhones];
+                                                            copy[idx] = { ...copy[idx], countryCode: code.replace('+', '') };
+                                                            setCompanyPhones(copy);
+                                                        }}
+                                                        placeholder="Company number"
+                                                    />
+                                                    <Err k={`companyPhone_${idx}`} />
+
+                                                    {idx !== 0 && (
+                                                        <TouchableOpacity
+                                                            style={s.deletePhoneBtn}
+                                                            onPress={() => {
+                                                                if (companyPhones.length <= 1) {
+                                                                    setCompanyPhones([{ countryCode: '91', phone: '' }]);
+                                                                    return;
+                                                                }
+                                                                setCompanyPhones(prev => prev.filter((_, i) => i !== idx));
+                                                            }}
+                                                            accessibilityLabel="Remove phone"
+                                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                        >
+                                                            <Ionicons name="trash-outline" size={20} color="#DC2626" style={s.deletePhoneIcon} />
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        </View>
+                                    ))}
+
+                                    <TouchableOpacity style={s.addPhoneBtn} onPress={() => setCompanyPhones(prev => [...prev, { countryCode: '91', phone: '' }])}>
+                                        <Ionicons name="add" size={18} color="#3B82F6" />
+                                        <Text style={s.addPhoneTxt}>Add phone</Text>
+                                    </TouchableOpacity>
+
                                     <Err k="companyCountryCode" />
                                     <Err k="companyPhone" />
                                 </View>
@@ -1027,6 +1087,43 @@ const s = StyleSheet.create({
         height: "100%", 
         maxWidth: "100%",
         maxHeight: "100%",
+    },
+
+    addPhoneBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 8,
+    },
+    addPhoneTxt: {
+        color: '#3B82F6',
+        fontWeight: '600',
+        marginLeft: 6,
+    },
+    phoneRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start', // keep top alignment so label sits above input
+        gap: 8,
+    },
+    phoneWrapper: {
+        flex: 1,
+        position: 'relative',
+    },
+    deletePhoneBtn: {
+        // absolutely position the button so it doesn't reduce the input width
+        position: 'absolute',
+        right: 0,
+        top: '50%',
+        transform: [{ translateY: -6 }],
+        width: 40,
+        height: 40,
+        padding: 6,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    deletePhoneIcon: {
+        // center the icon within the touch area
+        alignSelf: 'center',
     },
     
     // Gender Selection Styles

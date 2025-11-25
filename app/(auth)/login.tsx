@@ -1,5 +1,5 @@
 // app/(auth)/login.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -11,6 +11,7 @@ import {
   View,
   ScrollView,
   Dimensions,
+  Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -36,10 +37,71 @@ const { height: screenHeight } = Dimensions.get('window');
 export default function Login() {
   const [countryCode, setCountryCode] = useState("+91"); // Default to India
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [forgotPhoneError, setForgotPhoneError] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Signing in...");
   const [progress, setProgress] = useState(0);
+  const [passwordError, setPasswordError] = useState("");
+
+  // Toast notification state (same UX as signup)
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const toastOpacity = useState(new Animated.Value(0))[0];
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2200),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setToastVisible(false);
+    });
+  };
+
+  // On mount, check if there's a prefill phone (e.g., after password reset)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem('login_prefill_phone');
+        if (!mounted || !stored) return;
+        // Parse stored phone into country code and local 10-digit number
+        const raw = stored.toString().trim();
+        const digits = raw.replace(/\D/g, '');
+        if (raw.startsWith('+')) {
+          const m = raw.match(/^\+(\d{1,3})/);
+          const cc = m ? `+${m[1]}` : '+91';
+          const local = digits.slice(-10);
+          setCountryCode(cc);
+          setPhoneNumber(local);
+        } else {
+          // assume India local number if no plus
+          const local = digits.slice(-10);
+          setCountryCode('+91');
+          setPhoneNumber(local);
+        }
+        // remove the prefill after using it
+        try { await AsyncStorage.removeItem('login_prefill_phone'); } catch {}
+      } catch (e) {
+        console.warn('Failed to read login_prefill_phone', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const doLogin = async () => {
     try {
@@ -54,8 +116,9 @@ export default function Login() {
       const cleanPhone = phoneT.replace(/\D/g, "");
       const fullPhone = `${countryCode}${cleanPhone}`;
 
-      if (cleanPhone.length < 7) {
-        Alert.alert("Login failed", "Please enter a valid phone number");
+      // Require exactly 10 digits (local format) like signup
+      if (cleanPhone.length !== 10) {
+        showToast("Please enter a valid 10-digit phone number", "error");
         return;
       }
 
@@ -140,10 +203,10 @@ export default function Login() {
       router.replace("/(tabs)/home");
     } catch (e: any) {
       console.error('❌ Login error:', e);
-      
+
       let title = "Login Failed";
       let msg = "Please check your credentials and try again.";
-      
+
       if (e?.message?.includes('timeout')) {
         msg = "Server is taking longer than usual. Please wait a moment and try again.";
       } else if (e?.message?.includes('Server may be sleeping')) {
@@ -151,8 +214,6 @@ export default function Login() {
       } else if (e?.message?.includes('Network')) {
         msg = "Network error. Please check your internet connection.";
       } else if (e?.message?.includes('Invalid credentials') || e?.message?.includes('not found')) {
-        msg = "Invalid phone number or password. Please check your credentials.";
-      } else if (e?.status === 401) {
         msg = "Invalid phone number or password. Please check your credentials.";
       } else if (e?.status === 500) {
         title = "Server Error";
@@ -162,7 +223,22 @@ export default function Login() {
       } else if (e?.message) {
         msg = e.message;
       }
-      
+
+      // Show inline error for authentication failures (401 or common invalid-credentials message)
+      const authMsg = (msg || '').toLowerCase();
+      const errMsg = (e?.message || '').toLowerCase();
+      const looksLikeAuthFailure =
+        e?.status === 401 ||
+        authMsg.includes('invalid phone') ||
+        authMsg.includes('invalid credentials') ||
+        authMsg.includes('authentication') ||
+        errMsg.includes('authentication') ||
+        errMsg.includes('invalid credentials');
+      if (looksLikeAuthFailure) {
+        setPasswordError('Incorrect password');
+        return;
+      }
+
       Alert.alert(title, msg);
     } finally {
       setLoading(false);
@@ -205,19 +281,34 @@ export default function Login() {
               <PhoneInput
                 label="Phone Number"
                 value={phoneNumber}
-                onChangeText={setPhoneNumber}
+                onChangeText={(text: string) => {
+                  const raw = text.replace(/\D/g, '');
+                  // clear any forgot-password inline error when user types
+                  if (forgotPhoneError) setForgotPhoneError('');
+                  if (raw.length > 10) {
+                    showToast('Only 10 digits allowed', 'error');
+                    setPhoneNumber(raw.slice(0, 10));
+                  } else {
+                    setPhoneNumber(raw);
+                  }
+                }}
                 countryCode={countryCode}
                 onCountryCodeChange={setCountryCode}
-                placeholder="80012 34567"
+                placeholder="8001234567"
               />
+              {forgotPhoneError ? <Text style={styles.inlineError}>{forgotPhoneError}</Text> : null}
             </View>
 
             <View style={styles.inputGroup}>
               <PasswordField
                 label="Password"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(t: string) => {
+                  if (passwordError) setPasswordError('');
+                  setPassword(t);
+                }}
               />
+              {passwordError ? <Text style={styles.inlineError}>{passwordError}</Text> : null}
             </View>
 
             <View style={styles.buttonContainer}>
@@ -227,6 +318,31 @@ export default function Login() {
                 disabled={loading}
                 variant="brand"
               />
+            </View>
+
+            {/* Forget Password link (navigates to signup for phone->OTP->new password flow) */}
+            <View style={styles.forgotContainer}>
+              <Pressable onPress={async () => {
+                const raw = (phoneNumber || '').replace(/\D/g, '');
+                if (!raw) {
+                  // show inline error below phone field
+                  setForgotPhoneError('Please enter your registered phone no.');
+                  return;
+                }
+                const fullPhone = `${countryCode}${raw}`;
+                try {
+                  if (raw && raw.length === 10) {
+                    await AsyncStorage.setItem('reset_phone', fullPhone);
+                  } else {
+                    await AsyncStorage.removeItem('reset_phone');
+                  }
+                } catch (e) {
+                  console.warn('Failed to persist reset phone', e);
+                }
+                router.push('/(auth)/reset-password');
+              }}>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </Pressable>
             </View>
 
             {/* Footer */}
@@ -241,6 +357,21 @@ export default function Login() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {/* Toast Notification */}
+      {toastVisible && (
+        <Animated.View
+          style={[
+            styles.toast,
+            { opacity: toastOpacity },
+            toastType === 'success' ? styles.toastSuccess : styles.toastError,
+          ]}
+        >
+          <Text style={styles.toastText}>
+            {toastType === 'success' ? '✓ ' : '✗ '}
+            {toastMessage}
+          </Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -306,11 +437,21 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   footer: {
     alignItems: 'center',
     paddingTop: 16,
+  },
+  forgotContainer: {
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 0,
+  },
+  forgotText: {
+    color: '#F97316',
+    fontWeight: '600',
+    fontSize: 14,
   },
   footerText: {
     fontSize: 14,
@@ -319,5 +460,41 @@ const styles = StyleSheet.create({
   footerLink: {
     color: '#F97316',
     fontWeight: '600',
+  },
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 24,
+    right: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 9999,
+  },
+  toastSuccess: {
+    backgroundColor: '#10B981',
+  },
+  toastError: {
+    backgroundColor: '#EF4444',
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  inlineError: {
+    color: '#EF4444',
+    marginTop: 8,
+    fontSize: 13,
+    textAlign: 'left',
   },
 });

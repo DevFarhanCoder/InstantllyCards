@@ -175,9 +175,10 @@ export default function Signup() {
       console.log(`📱 Phone entered: ${phoneT}`);
       console.log(`📱 Full phone: ${fullPhone}`);
 
-      if (cleanPhone.length < 7) {
+      // Require exactly 10 digits for local phone number (India)
+      if (cleanPhone.length !== 10) {
         console.log(`❌ [SIGNUP-SEND-OTP] ERROR: Invalid phone length (${cleanPhone.length}) - ID: ${requestId}`);
-        showToast("Please enter a valid phone number", "error");
+        showToast("Please enter a valid 10-digit phone number", "error");
         return;
       }
 
@@ -630,10 +631,20 @@ export default function Signup() {
                   <PhoneInput
                     label="Phone Number"
                     value={phoneNumber}
-                    onChangeText={setPhoneNumber}
+                    onChangeText={(text: string) => {
+                      // Allow only digits
+                      const raw = text.replace(/\D/g, '');
+                      if (raw.length > 10) {
+                        // Inform user they can't enter more than 10 digits
+                        showToast('Only 10 digits allowed', 'error');
+                        setPhoneNumber(raw.slice(0, 10));
+                      } else {
+                        setPhoneNumber(raw);
+                      }
+                    }}
                     countryCode={countryCode}
                     onCountryCodeChange={setCountryCode}
-                    placeholder="80012 34567"
+                    placeholder="8001234567"
                   />
                 </View>
 

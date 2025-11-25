@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { COLORS } from "@/lib/theme";
@@ -34,6 +35,97 @@ interface UserProfile {
 }
 
 export default function Profile() {
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [oldPassword, setOldPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [showOldPassword, setShowOldPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [currentPasswordError, setCurrentPasswordError] = useState("");
+    const [changingPassword, setChangingPassword] = useState(false);
+    const deleteProfilePicture = async () => {
+      Alert.alert(
+        'Delete Photo',
+        'Are you sure you want to delete your profile photo?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              setUpdating(true);
+              try {
+                const response = await api.put("/auth/update-profile", { profilePicture: "" });
+                setUserProfile(prev => prev ? { ...prev, profilePicture: "" } : null);
+                // Update AsyncStorage
+                const userData = await getCurrentUser();
+                if (userData) {
+                  userData.profilePicture = "";
+                  await AsyncStorage.setItem('user', JSON.stringify(userData));
+                }
+                Alert.alert('Success', 'Profile photo deleted.');
+              } catch (error) {
+                console.error('Error deleting profile picture:', error);
+                Alert.alert('Error', 'Failed to delete profile photo.');
+              } finally {
+                setUpdating(false);
+              }
+            }
+          }
+        ]
+      );
+    };
+
+    const handleChangePassword = async () => {
+        // Clear previous inline errors
+        setCurrentPasswordError("");
+
+        // Basic validations
+        if (!oldPassword || !newPassword || !confirmPassword) {
+          Alert.alert('Error', 'Please fill all password fields.');
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          Alert.alert('Error', 'New passwords do not match.');
+          return;
+        }
+        if (newPassword.length < 6) {
+          Alert.alert('Error', 'New password must be at least 6 characters long.');
+          return;
+        }
+
+        setChangingPassword(true);
+        try {
+          await api.post('/auth/change-password', {
+            oldPassword,
+            newPassword
+          });
+          setShowPasswordModal(false);
+          setOldPassword("");
+          setNewPassword("");
+          setConfirmPassword("");
+          Alert.alert('Success', 'Password changed successfully!');
+        } catch (err) {
+          console.error('Change password error:', err);
+          // Try to extract server message if available
+          const anyErr = err as any;
+          const serverMsg = anyErr?.response?.data?.message || anyErr?.message;
+          if (serverMsg) {
+            const msgStr = String(serverMsg);
+            // If server indicates incorrect current password, show inline error
+            if (/incorrect|old password|current password/i.test(msgStr)) {
+              setCurrentPasswordError(msgStr);
+            } else {
+              Alert.alert('Error', msgStr);
+            }
+          } else {
+            Alert.alert('Error', 'Failed to change password. Please try again.');
+          }
+        } finally {
+          setChangingPassword(false);
+        }
+    };
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -82,37 +174,109 @@ export default function Profile() {
   };
 
   const pickImage = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (permissionResult.granted === false) {
-        Alert.alert('Permission Required', 'Please grant permission to access your photo library.');
-        return;
-      }
+    // Present options to user: Take Photo or Choose from Library
+    const pickFromLibrary = async () => {
+      try {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.granted === false) {
+          Alert.alert('Permission Required', 'Please grant permission to access your photo library.');
+          return;
+        }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images ?? (ImagePicker as any).MediaType?.Images ?? ['Images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5, // Reduced quality to keep Base64 size manageable
-        base64: true, // Get Base64 encoding
-      });
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images ?? (ImagePicker as any).MediaType?.Images ?? ['Images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.5,
+          base64: true,
+        });
 
-      if (!result.canceled && result.assets[0]) {
-        await uploadProfilePicture(result.assets[0]);
+        if (!result.canceled && result.assets[0]) {
+          await handlePickedAsset(result.assets[0]);
+        }
+      } catch (error) {
+        console.error('Error picking image from library:', error);
+        Alert.alert('Error', 'Failed to select image. Please try again.');
       }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to select image. Please try again.');
+    };
+
+    const takePhoto = async () => {
+      try {
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+        if (permissionResult.granted === false) {
+          Alert.alert('Permission Required', 'Please grant camera permission to take a photo.');
+          return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.5,
+          base64: true,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+          await handlePickedAsset(result.assets[0]);
+        }
+      } catch (error) {
+        console.error('Error taking photo:', error);
+        Alert.alert('Error', 'Failed to take photo. Please try again.');
+      }
+    };
+
+    // Build options dynamically so we can include 'Remove Photo' when a photo exists
+    const alertOptions: any[] = [
+      { text: 'Take Photo', onPress: takePhoto },
+      { text: 'Choose from Library', onPress: pickFromLibrary }
+    ];
+
+    if (userProfile?.profilePicture) {
+      alertOptions.push({ text: 'Remove Photo', style: 'destructive', onPress: () => deleteProfilePicture() });
     }
+
+    alertOptions.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert('Upload Photo', 'Choose an option', alertOptions);
+  };
+
+  const handlePickedAsset = async (asset: any) => {
+    // Some platforms may not return base64; convert URI to base64 when needed
+    if (asset.base64) {
+      await uploadProfilePicture(asset);
+      return;
+    }
+
+    if (asset.uri) {
+      try {
+        const enc = (FileSystem as any).EncodingType?.Base64 || (FileSystem as any).EncodingType?.base64 || 'base64';
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: enc });
+        const augmented = { ...asset, base64 };
+        await uploadProfilePicture(augmented);
+      } catch (err) {
+        console.error('Error converting image URI to base64:', err);
+        Alert.alert('Error', 'Failed to process selected image.');
+      }
+      return;
+    }
+
+    Alert.alert('Error', 'Unsupported image result.');
   };
 
   const uploadProfilePicture = async (asset: any) => {
     setUpdating(true);
     try {
       // Convert to Base64 with data URI
-      const base64Image = asset.base64;
-      const mimeType = asset.mimeType || 'image/jpeg';
+      let base64Image = asset.base64;
+      if (!base64Image && asset.uri) {
+        try {
+          const enc = (FileSystem as any).EncodingType?.Base64 || (FileSystem as any).EncodingType?.base64 || 'base64';
+          base64Image = await FileSystem.readAsStringAsync(asset.uri, { encoding: enc });
+        } catch (err) {
+          console.error('Failed to read file as base64:', err);
+        }
+      }
+
+      const mimeType = asset.mimeType || asset.type === 'image' ? 'image/jpeg' : 'application/octet-stream';
       const dataUri = `data:${mimeType};base64,${base64Image}`;
 
       console.log('📤 Uploading profile picture as Base64...');
@@ -304,7 +468,12 @@ export default function Profile() {
               >
                 <Ionicons name="camera" size={16} color="white" />
               </TouchableOpacity>
+              {/* Delete Photo Button */}
+              {userProfile.profilePicture ? (
+                null
+              ) : null}
             </View>
+                    
             <Text style={styles.userName}>{userProfile.name}</Text>
             <Text style={styles.userPhone}>{userProfile.phone}</Text>
           </View>
@@ -468,6 +637,122 @@ export default function Profile() {
                 )}
               </View>
             </View>
+            {/* Change Password Link (replaced boxed input with inline link) */}
+            <View style={{ marginTop: 0 }}>
+              <TouchableOpacity
+                onPress={() => setShowPasswordModal(true)}
+                style={styles.changePasswordLink}
+                accessibilityRole="button"
+              >
+                <Ionicons name="lock-closed" size={16} color="#4F6AF3" style={styles.changePasswordIcon} />
+                <Text style={styles.changePasswordText}>Change Password</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Change Password Modal (moved) */}
+            {showPasswordModal && (
+              <View style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'transparent',
+                justifyContent: 'center', alignItems: 'center',
+                zIndex: 1000
+              }}>
+                <View style={{ backgroundColor: COLORS.white, borderRadius: 16, padding: 24, width: '85%', maxWidth: 350 }}>
+                  <Text style={{ fontWeight: '700', fontSize: 18, marginBottom: 16 }}>Change Password</Text>
+                  <View style={{ marginBottom: 6 }}>
+                    <View style={styles.passwordInputContainer}>
+                      <TextInput
+                        style={[styles.textInput, styles.textInputInside, { marginBottom: 0, flex: 1 }]}
+                        placeholder="Current Password"
+                        placeholderTextColor="#999"
+                        secureTextEntry={!showOldPassword}
+                        value={oldPassword}
+                        onChangeText={setOldPassword}
+                        autoFocus
+                      />
+                      <TouchableOpacity
+                        style={styles.visibilityButton}
+                        onPress={() => setShowOldPassword(s => !s)}
+                      >
+                        <Ionicons name={showOldPassword ? 'eye' : 'eye-off'} size={20} color="#666" />
+                      </TouchableOpacity>
+                    </View>
+                    {currentPasswordError ? (
+                      <Text style={styles.passwordError}>{currentPasswordError}</Text>
+                    ) : null}
+                  </View>
+
+                  <View style={{ marginBottom: 6 }}>
+                    <View style={styles.passwordInputContainer}>
+                      <TextInput
+                        style={[styles.textInput, styles.textInputInside, { marginBottom: 0, flex: 1 }]}
+                        placeholder="New Password"
+                        placeholderTextColor="#999"
+                        secureTextEntry={!showNewPassword}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                      />
+                      <TouchableOpacity
+                        style={styles.visibilityButton}
+                        onPress={() => setShowNewPassword(s => !s)}
+                      >
+                        <Ionicons name={showNewPassword ? 'eye' : 'eye-off'} size={20} color="#666" />
+                      </TouchableOpacity>
+                    </View>
+                    {newPassword.length > 0 && newPassword.length < 6 && (
+                      <Text style={styles.passwordError}>
+                        Password must be at least 6 characters
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={{ marginBottom: 18 }}>
+                    <View style={styles.passwordInputContainer}>
+                      <TextInput
+                        style={[styles.textInput, styles.textInputInside, { marginBottom: 0, flex: 1 }]}
+                        placeholder="Confirm New Password"
+                        placeholderTextColor="#999"
+                        secureTextEntry={!showConfirmPassword}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                      />
+                      <TouchableOpacity
+                        style={styles.visibilityButton}
+                        onPress={() => setShowConfirmPassword(s => !s)}
+                      >
+                        <Ionicons name={showConfirmPassword ? 'eye' : 'eye-off'} size={20} color="#666" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.cancelButton]}
+                      onPress={() => {
+                        setShowPasswordModal(false);
+                        setOldPassword("");
+                        setNewPassword("");
+                        setConfirmPassword("");
+                      }}
+                      disabled={changingPassword}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.saveButton]}
+                      onPress={handleChangePassword}
+                      disabled={changingPassword || newPassword.length < 6}
+                    >
+                      {changingPassword ? (
+                        <ActivityIndicator size="small" color={COLORS.white} />
+                      ) : (
+                        <Text style={styles.saveButtonText}>Change</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
@@ -490,14 +775,16 @@ export default function Profile() {
         </TouchableOpacity>
         
         {/* Bottom spacing for footer carousel */}
-        <View style={{ height: 100 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Footer Carousel */}
       <FooterCarousel />
     </SafeAreaView>
   );
-}const styles = StyleSheet.create({
+}
+
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F7FA',
@@ -550,22 +837,22 @@ export default function Profile() {
   headerGradient: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 45,
+    paddingBottom: 30,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
   headerTitle: {
     color: COLORS.white,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   profileCard: {
-    marginTop: -30,
-    marginHorizontal: 16,
+    marginTop: -20,
+    marginHorizontal: 12,
     backgroundColor: COLORS.white,
-    borderRadius: 20,
-    paddingBottom: 10,
+    borderRadius: 18,
+    paddingBottom: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
@@ -582,9 +869,9 @@ export default function Profile() {
     marginBottom: 8,
   },
   profilePicture: {
-    width: 85,
-    height: 85,
-    borderRadius: 42.5,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     borderWidth: 3,
     borderColor: COLORS.white,
     shadowColor: '#000',
@@ -594,9 +881,9 @@ export default function Profile() {
     elevation: 6,
   },
   profilePicturePlaceholder: {
-    width: 85,
-    height: 85,
-    borderRadius: 42.5,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     borderWidth: 3,
     borderColor: COLORS.white,
     justifyContent: 'center',
@@ -609,7 +896,7 @@ export default function Profile() {
   },
   profilePicturePlaceholderText: {
     color: COLORS.white,
-    fontSize: 34,
+    fontSize: 28,
     fontWeight: '800',
   },
   uploadingOverlay: {
@@ -619,7 +906,7 @@ export default function Profile() {
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 42.5,
+    borderRadius: 36,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -643,7 +930,7 @@ export default function Profile() {
   },
   userName: {
     color: '#1A1A1A',
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '800',
     marginBottom: 2,
   },
@@ -653,15 +940,15 @@ export default function Profile() {
     fontWeight: '500',
   },
   profileInfo: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     marginTop: 6,
   },
   infoCard: {
     flexDirection: 'row',
     backgroundColor: '#F8F9FA',
-    borderRadius: 14,
-    padding: 10,
-    marginBottom: 8,
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: '#E8ECEF',
   },
@@ -715,13 +1002,20 @@ export default function Profile() {
     backgroundColor: COLORS.white,
     color: '#1A1A1A',
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 10,
     fontSize: 14,
     fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: 6,
     borderWidth: 2,
     borderColor: '#4F6AF3',
+  },
+  textInputInside: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
+    paddingVertical: 8,
+    borderWidth: 0,
+    color: '#1A1A1A',
   },
   textInputMultiline: {
     height: 50,
@@ -759,14 +1053,34 @@ export default function Profile() {
     fontWeight: '700',
     fontSize: 13,
   },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#4F6AF3',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 8,
+  },
+  visibilityButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  passwordError: {
+    color: '#EF4444',
+    marginTop: 6,
+    marginBottom: 6,
+    fontSize: 12,
+  },
   feedbackButton: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    marginHorizontal: 16,
-    marginTop: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    marginHorizontal: 12,
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E8ECEF',
@@ -802,13 +1116,13 @@ export default function Profile() {
   logoutButton: {
     flexDirection: 'row',
     backgroundColor: '#EF4444',
-    paddingVertical: 11,
-    borderRadius: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 14,
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 10,
     shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -820,5 +1134,23 @@ export default function Profile() {
     color: COLORS.white,
     fontSize: 15,
     fontWeight: '700',
+  },
+  changePasswordLink: {
+    // place the link at the right edge and keep it compact
+    alignSelf: 'flex-end',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  changePasswordText: {
+    color: '#2563EB',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  changePasswordIcon: {
+    marginRight: 6,
   },
 });

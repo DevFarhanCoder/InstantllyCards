@@ -212,15 +212,26 @@ async function request<T>(
         // Handle timeout and network errors with better messages
         if (e.name === 'AbortError') {
           lastErr = new Error('Connection timeout. The server might be starting up, please wait a moment and try again.');
+          (lastErr as any).status = e.status ?? 0;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.message?.includes('Network request failed') || e.message?.includes('Failed to fetch')) {
           lastErr = new Error('Network error - Please check your internet connection and try again.');
+          (lastErr as any).status = e.status ?? 0;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.status === 404) {
           lastErr = new Error('Service temporarily unavailable. Please try again in a moment.');
+          (lastErr as any).status = 404;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.status >= 500) {
           lastErr = new Error('Server error. Please try again later.');
+          (lastErr as any).status = e.status ?? 500;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.status === 401) {
           lastErr = new Error('Authentication required. Please log in again.');
+          (lastErr as any).status = 401;
+          (lastErr as any).data = e.data ?? null;
         } else {
+          // Preserve original error object when possible
           lastErr = e;
         }
         
