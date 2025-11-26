@@ -1,7 +1,7 @@
 {
   "name": "instantllycards",
   "main": "expo-router/entry",
-  "version": "1.0.36",
+  "version": "1.0.37",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -12,8 +12,6 @@
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-native-firebase/app": "^21.14.0",
-    "@react-native-firebase/auth": "^21.14.0",
     "@react-navigation/material-top-tabs": "^7.4.2",
     "@react-navigation/native": "^7.1.8",
     "@tanstack/react-query": "^5.87.4",
