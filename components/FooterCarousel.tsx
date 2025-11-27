@@ -10,7 +10,10 @@ import { useAds, type Ad } from '@/hooks/useAds';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// const SHOW_ADS = false; // Set to false to disable ads, true to enable
+
 const FooterCarousel = () => {
+  // if (!SHOW_ADS) return null;  // add this for a while remove before push code 
   console.log('🔄 FooterCarousel: Component mounting/re-rendering');
   
   // Use shared hook for cached ads (supports 100+ ads smoothly)
@@ -506,6 +509,8 @@ const FooterCarousel = () => {
         </TouchableOpacity>
       </Modal>
     </View>
+    // <></>
+
   );
 };
 

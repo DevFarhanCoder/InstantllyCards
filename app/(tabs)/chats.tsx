@@ -34,6 +34,7 @@ import FooterCarousel from "@/components/FooterCarousel";
 import GroupSharingModal from "@/components/GroupSharingModal";
 import GroupConnectionUI from "@/components/GroupConnectionUI";
 import groupSharingService, { GroupSharingSession } from "@/lib/groupSharingService";
+import GroupSharingSessionUI from "@/components/GroupSharingSessionUI";
 
 type SentCard = {
   _id: string;
@@ -67,6 +68,10 @@ type Conversation = {
 };
 
 export default function Chats() {
+  const [userData, setUserData] = useState<any>(null);
+  useEffect(() => {
+      getCurrentUser().then(setUserData);
+    }, []);
   console.log('🏠 Chats tab component rendered');
   const [activeTab, setActiveTab] = useState<'chats' | 'groups' | 'sent' | 'received'>('chats');
   // Read incoming deep-link/navigation params from notifications
@@ -122,8 +127,9 @@ export default function Chats() {
   const [showGroupSharingModal, setShowGroupSharingModal] = useState(false);
   const [groupSharingMode, setGroupSharingMode] = useState<'create' | 'join'>('create');
   const [showGroupConnection, setShowGroupConnection] = useState(false);
+  const [showGroupSession, setShowGroupSession] = useState(false);
   const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
-  const [currentGroupCode, setCurrentGroupCode] = useState<string | null>(null);
+  const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   
   // Track currently active chat to prevent notifications
   const [currentActiveChat, setCurrentActiveChat] = useState<string | null>(null);
@@ -388,9 +394,20 @@ export default function Chats() {
   };
 
   // Handle group sharing success
-  const handleGroupSharingSuccess = (session: GroupSharingSession, code?: string) => {
+  const handleGroupSharingSuccess = async (session: GroupSharingSession, code?: string) => {
+    // Check if current user is admin
+    let userId = '';
+    if (userData) {
+      userId = userData._id || userData.id || '';
+    } else {
+      const userDataStr = await AsyncStorage.getItem('user');
+      if (userDataStr) {
+        const parsed = JSON.parse(userDataStr);
+        userId = parsed._id || parsed.id || '';
+      }
+    }
+    setIsGroupAdmin(session.adminId === userId);
     setCurrentGroupSession(session);
-    setCurrentGroupCode(code || null);
     setShowGroupSharingModal(false);
     setShowGroupConnection(true);
   };
@@ -398,11 +415,35 @@ export default function Chats() {
   // Handle group connection completion
   const handleGroupConnectionComplete = () => {
     setShowGroupConnection(false);
+    setShowGroupSession(true);
+  };
+
+  // Handle quitting group sharing session
+  const handleQuitSharing = () => {
+    setShowGroupSession(false);
     setCurrentGroupSession(null);
-    setCurrentGroupCode(null);
-    
-    // Navigate to My Cards for sharing
-    router.push('/my-cards?mode=group-share' as any);
+  };
+
+  // Handle creating group from session (admin only)
+  const handleCreateGroup = async () => {
+    if (!currentGroupSession) {
+      Alert.alert('Error', 'No active session found');
+      return;
+    }
+    try {
+      const groupName = `Group ${currentGroupSession.code}`;
+      const result = await groupSharingService.executeCardSharing(groupName);
+      if (!result.success) throw new Error('Failed to create group and share cards');
+      Alert.alert(
+        'Group Created! 🎉',
+        `Group "${groupName}" has been created successfully.\n\nJoin Code: ${result.joinCode || 'N/A'}\nCards shared: ${result.summary?.totalShares || 0}`,
+        [{ text: 'OK' }]
+      );
+      setShowGroupSession(false);
+      setCurrentGroupSession(null);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create group. Please try again.');
+    }
   };
 
   // Socket.IO connection management
@@ -1953,9 +1994,21 @@ export default function Chats() {
         <GroupConnectionUI
           visible={showGroupConnection}
           session={currentGroupSession}
-          isAdmin={currentGroupSession.adminId === 'current_user'} // TODO: Use actual user ID
+          isAdmin={currentGroupSession.adminId === (userData?.id || userData?._id)}
           onClose={() => setShowGroupConnection(false)}
           onConnect={handleGroupConnectionComplete}
+        />
+      )}
+
+      {/* Group Sharing Session UI */}
+      {showGroupSession && currentGroupSession && (
+        <GroupSharingSessionUI
+          visible={showGroupSession}
+          session={currentGroupSession}
+          isAdmin={isGroupAdmin}
+          onClose={() => setShowGroupSession(false)}
+          onQuit={handleQuitSharing}
+          onCreateGroup={handleCreateGroup}
         />
       )}
 

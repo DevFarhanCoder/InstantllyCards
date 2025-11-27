@@ -269,7 +269,7 @@ export default function ContactSelectScreen() {
       // Fetch stored contacts in pages of 500
       while (hasMore) {
         try {
-          const storedResponse = await api.get(`/contacts/all?page=${currentPage}&limit=500`);
+          const storedResponse = await api.get(`/contacts/all`);
           const pageContacts = storedResponse.data || [];
           allStoredContacts = [...allStoredContacts, ...pageContacts];
           
@@ -408,7 +408,7 @@ export default function ContactSelectScreen() {
         if (!token) return { data: [], pagination: { hasMore: false } };
 
         console.log(`📱 Fetching contacts from backend (page ${contactsPage}, resetKey: ${resetKey})...`);
-        const response = await api.get(`/contacts/all?page=${contactsPage}&limit=500`);
+        const response = await api.get(`/contacts/all`);
         console.log(`✅ Stored contacts response: ${response.data?.length || 0} contacts on page ${contactsPage}`);
         
         // The API returns { success: true, data: [...], pagination: {...} }
