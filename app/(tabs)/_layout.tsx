@@ -15,7 +15,8 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#4F6AF3",
+        tabBarActiveTintColor: "#000000",
+        tabBarInactiveTintColor: "#9CA3AF",
         tabBarStyle: {
           // <-- critical: include the device bottom inset so it never overlaps the system bar
           height: BASE + insets.bottom,
@@ -32,8 +33,8 @@ export default function TabsLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="home" color={focused ? "#D84315" : "#9CA3AF"} size={size} />
           ),
         }}
       />
@@ -41,8 +42,8 @@ export default function TabsLayout() {
         name="mycards"
         options={{
           title: "My Cards",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="albums" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="albums" color={focused ? "#4F6AF3" : "#9CA3AF"} size={size} />
           ),
         }}
       />
@@ -54,15 +55,26 @@ export default function TabsLayout() {
         name="ads" 
         options={{
           title: "Ads",
-          tabBarIcon: ({ color, size }) => (
-            <Image 
-              source={require('../../assets/images/google-ads-icon.png')}
-              style={{ 
-                width: size, 
-                height: size,
-              }}
-              resizeMode="contain"
-            />
+          tabBarIcon: ({ color, size, focused }) => (
+            focused ? (
+              <Image 
+                source={require('../../assets/images/google-ads-icon.png')}
+                style={{ 
+                  width: size, 
+                  height: size,
+                }}
+                resizeMode="contain"
+              />
+            ) : (
+              <Image 
+                source={require('../../assets/images/Google Ads.png')}
+                style={{ 
+                  width: size, 
+                  height: size,
+                }}
+                resizeMode="contain"
+              />
+            )
           ),
         }}
       />
@@ -71,18 +83,24 @@ export default function TabsLayout() {
         name="chats"
         options={{
           title: "Messaging",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="chatbubbles" color={focused ? "#047857" : "#9CA3AF"} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="vouchers"
+        options={{
+          title: "Vouchers",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="gift" color={focused ? "#cc7a00" : "#9CA3AF"} size={size} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" color={color} size={size} />
-          ),
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>

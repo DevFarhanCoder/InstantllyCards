@@ -4,6 +4,8 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, Activity
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 import api from "@/lib/api";
 import FAB from "@/components/FAB";
@@ -21,7 +23,21 @@ const handleAdClick = () => {
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const [userName, setUserName] = React.useState<string>("");
   const queryClient = useQueryClient();
+
+  // Fetch user name for profile initial
+  React.useEffect(() => {
+    const fetchUserName = async () => {
+      try {
+        const name = await AsyncStorage.getItem("user_name");
+        if (name) setUserName(name);
+      } catch (error) {
+        console.error("Error fetching user name:", error);
+      }
+    };
+    fetchUserName();
+  }, []);
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
   const feedQ = useQuery({
@@ -119,6 +135,18 @@ export default function Home() {
             <Text style={s.searchIcon}></Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity 
+          style={s.profileButton}
+          onPress={() => router.push('/(tabs)/profile')}
+        >
+          <View style={s.profileGradientBorder}>
+            <View style={s.profileInner}>
+              <Text style={s.profileInitial}>
+                {userName ? userName.charAt(0).toUpperCase() : "U"}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Main Content */}
@@ -163,11 +191,15 @@ export default function Home() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F4F6FA" },
   searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 16,
+    gap: 12,
   },
   searchWrapper: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#3B82F6",
@@ -183,7 +215,7 @@ const s = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 26,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 10,
     marginRight: 2,
   },
   searchInput: {
@@ -193,14 +225,43 @@ const s = StyleSheet.create({
   },
   searchButton: {
     backgroundColor: "#3B82F6",
-    borderRadius: 22,
-    width: 44,
-    height: 44,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
   searchIcon: {
     fontSize: 20,
+    color: "#FFFFFF",
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileGradientBorder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: "#2196F3",
+    backgroundColor: "#D84315",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  profileInner: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#D84315",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  profileInitial: {
+    fontSize: 22,
+    fontWeight: "bold",
     color: "#FFFFFF",
   },
   loadingContainer: {
