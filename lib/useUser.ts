@@ -16,20 +16,25 @@ export async function fetchAndStoreUserProfile(): Promise<User | null> {
   try {
     console.log('🔄 Fetching user profile from backend...');
     
-    // Fetch user profile from backend. Backend may return either
-    // { user: { ... } } or the profile object directly, handle both.
-    const response = await api.get<any>('/auth/profile');
-    const payload = response?.user ?? response;
-
-    if (payload && payload._id) {
+    // Fetch user profile from backend
+    const response = await api.get<{
+      _id: string;
+      name: string;
+      phone: string;
+      email?: string;
+      profilePicture?: string;
+      about?: string;
+    }>('/auth/profile');
+    
+    if (response && response._id) {
       const userData: User = {
-        id: payload._id,
-        _id: payload._id,
-        name: payload.name,
-        phone: payload.phone,
-        email: payload.email,
-        profilePicture: payload.profilePicture,
-        about: payload.about || 'Available'
+        id: response._id,
+        _id: response._id,
+        name: response.name,
+        phone: response.phone,
+        email: response.email,
+        profilePicture: response.profilePicture,
+        about: response.about || 'Available'
       };
       
       // Store in AsyncStorage
@@ -38,7 +43,7 @@ export async function fetchAndStoreUserProfile(): Promise<User | null> {
       
       return userData;
     } else {
-      console.log('❌ Invalid response from profile endpoint', response);
+      console.log('❌ Invalid response from profile endpoint');
       return null;
     }
   } catch (error) {

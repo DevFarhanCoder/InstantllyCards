@@ -18,6 +18,7 @@ import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
 
+<<<<<<< HEAD
 // Firebase imports for Phone Authentication - with fallback for Expo
 let sendOTPViaFirebase: any = null;
 let verifyOTPViaFirebase: any = null;
@@ -60,11 +61,12 @@ try {
     };
   }
 }
-
+=======
 // Fast2SMS imports for Phone Authentication
 import { sendOTPViaFast2SMS, verifyOTPViaBackend } from '@/lib/fast2sms';
+>>>>>>> 85770bd68a8957dafd86139af5e4ab0dc0c0004a
 
-import api, { setAuthToken } from "@/lib/api";
+import api from "@/lib/api";
 import serverWarmup from "@/lib/serverWarmup";
 import Field from "@/components/Field";
 import PasswordField from "@/components/PasswordField";
@@ -429,69 +431,11 @@ export default function Signup() {
 
       console.log(`💾 [SIGNUP-CREATE] Saving token to storage...`);
       await AsyncStorage.setItem("token", token);
-      // Also set in-memory token cache immediately to avoid race where
-      // subsequent API calls happen before AsyncStorage is read.
-      try { setAuthToken(token); } catch (e) { /* non-fatal */ }
       if (res?.user?.name) {
         await AsyncStorage.setItem("user_name", res.user.name);
       }
       if (res?.user?.phone) {
         await AsyncStorage.setItem("user_phone", res.user.phone);
-      }
-      // If backend returned the created defaultCard, persist it so
-      // MyCards can display it immediately after navigation. If backend
-      // didn't return a defaultCard, attempt a defensive refetch of /cards
-      // (using the freshly-set auth token) and persist the first card found.
-      try {
-        console.log(`🔎 [SIGNUP] Checking for defaultCard in signup response - ID: ${requestId}`);
-        if (res?.defaultCard) {
-          console.log(`🔖 [SIGNUP] defaultCard present in response (preview): ${JSON.stringify(res.defaultCard).slice(0,400)} - ID: ${requestId}`);
-          try {
-            await AsyncStorage.setItem('default_card', JSON.stringify(res.defaultCard));
-            console.log(`✅ [SIGNUP] defaultCard saved to AsyncStorage - ID: ${requestId}`);
-            showToast('Default card created for you', 'success');
-          } catch (setErr) {
-            console.error(`❌ [SIGNUP] Failed to save defaultCard to AsyncStorage - ID: ${requestId}`, setErr);
-          }
-        } else {
-          console.log(`🔖 [SIGNUP] no defaultCard in response — attempting defensive /cards fetch - ID: ${requestId}`);
-          try {
-            const cardsRes = await api.get('/cards');
-            console.log(`🔁 [SIGNUP] Defensive /cards fetch response (raw) - ID: ${requestId}:`, cardsRes);
-            const cards = cardsRes?.data;
-            console.log(`🔁 [SIGNUP] Defensive /cards data length: ${Array.isArray(cards) ? cards.length : typeof cards} - ID: ${requestId}`);
-            if (Array.isArray(cards) && cards.length > 0) {
-              const firstCard = cards[0];
-              try {
-                await AsyncStorage.setItem('default_card', JSON.stringify(firstCard));
-                console.log(`✅ [SIGNUP] Saved first card from /cards to AsyncStorage (preview): ${JSON.stringify(firstCard).slice(0,400)} - ID: ${requestId}`);
-                showToast('Default card created for you', 'success');
-              } catch (setErr) {
-                console.error(`❌ [SIGNUP] Failed to save first card to AsyncStorage - ID: ${requestId}`, setErr);
-              }
-            } else {
-              // No cards exist for user — ensure we don't leave stale data
-              console.log(`⚠️ [SIGNUP] /cards returned no cards for user - removing any stale default_card - ID: ${requestId}`);
-              try {
-                await AsyncStorage.removeItem('default_card');
-                console.log(`✅ [SIGNUP] Removed stale default_card from AsyncStorage - ID: ${requestId}`);
-              } catch (rmErr) {
-                console.error(`❌ [SIGNUP] Failed to remove stale default_card - ID: ${requestId}`, rmErr);
-              }
-            }
-          } catch (fetchErr:any) {
-            console.error('❌ [SIGNUP] Defensive /cards fetch failed:', fetchErr?.message || fetchErr, ' - ID:', requestId);
-            // Remove any stale default_card so MyCards doesn't show incorrect data
-            try {
-              await AsyncStorage.removeItem('default_card');
-              console.log(`✅ [SIGNUP] Removed stale default_card after fetch error - ID: ${requestId}`);
-            } catch (rmErr) {
-              console.error(`❌ [SIGNUP] Failed to remove stale default_card after fetch error - ID: ${requestId}`, rmErr);
-            }
-          }
-        }
-      } catch (e) {
-        console.error('❌ [SIGNUP] Failed saving defaultCard or performing defensive fetch:', e, ' - ID:', requestId);
       }
       
       console.log(`✅ [SIGNUP-CREATE] Token and user data saved`);

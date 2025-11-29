@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FlatList, StyleSheet, Text, View, RefreshControl, TouchableOpacity, Pressable, Modal, Animated, TextInput, Alert } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import api from "@/lib/api";
-import { getCurrentUser } from '@/lib/useUser';
 import CardRow from "@/components/CardRow";
 import { ensureAuth } from "@/lib/auth";
 import FooterCarousel from "@/components/FooterCarousel";
@@ -14,8 +13,7 @@ import GroupSharingSessionUI from "@/components/GroupSharingSessionUI";
 import groupSharingService, { GroupSharingSession } from "@/lib/groupSharingService";
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// AsyncStorage removed - no longer reading a signup default card here
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Card = any;
 
@@ -41,25 +39,18 @@ export default function MyCards() {
   const q = useQuery({
     queryKey: ["cards"],
     queryFn: async () => {
-      console.log("MyCards: Fetching user cards... (queryFn start)");
+      console.log("MyCards: Fetching user cards...");
       try {
         const token = await ensureAuth();
-        console.log("MyCards: Auth token:", token ? `Present (len=${String(token).length})` : "Missing");
+        console.log("MyCards: Auth token:", token ? "Present" : "Missing");
+        
         if (!token) {
           return [];
         }
+        
         const response = await api.get("/cards");
-        console.log("MyCards: API Response (raw):", response);
-        try {
-          const dataArr = response?.data;
-          console.log("MyCards: API Response - data length:", Array.isArray(dataArr) ? dataArr.length : typeof dataArr);
-          if (Array.isArray(dataArr) && dataArr.length > 0) {
-            console.log('MyCards: First card preview:', JSON.stringify(dataArr[0]).slice(0, 400));
-          }
-        } catch (peekErr) {
-          console.error('MyCards: Failed to inspect API response data', peekErr);
-        }
-
+        console.log("MyCards: API Response:", response);
+        
         if (response && typeof response === 'object' && 'data' in response) {
           return response.data || [];
         }
@@ -70,32 +61,6 @@ export default function MyCards() {
       }
     },
   });
-
-  // Log query state changes for easier debugging
-  useEffect(() => {
-    console.log('MyCards: Query state update', {
-      dataLength: Array.isArray(q.data) ? q.data.length : undefined,
-      isLoading: q.isLoading,
-      isRefetching: q.isRefetching,
-      isError: q.isError,
-      error: q.error?.message || undefined
-    });
-  }, [q.data, q.isLoading, q.isRefetching, q.isError, q.error]);
-
-  // No signup default_card logic here — show normal empty state and let server/backend handle any defaults
-
-  // Debug: log when ListEmptyComponent will render
-  useEffect(() => {
-    if (q.data && Array.isArray(q.data) && q.data.length === 0) {
-      console.warn('MyCards: Query returned zero cards.');
-    }
-  }, [q.data]);
-
-  // Fallback: If user has no cards, create a default card automatically
-  // NOTE: frontend auto-creation of a default card on empty results
-  // was removed to avoid generating cards on plain login. Default
-  // cards are created server-side during signup in the backend
-  // `POST /api/auth/signup` handler. Keep client-side logic minimal.
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["cards"] });
@@ -247,8 +212,8 @@ export default function MyCards() {
         }
         ListEmptyComponent={
           <View style={s.empty}>
-            <Text style={s.emptyTxt}>You haven't created any cards yet</Text>
-            <Text style={s.emptySubTxt}>Tap the + button to create your first card.</Text>
+            <Text style={s.emptyTxt}>You haven't created any cards yet.</Text>
+            <Text style={s.emptySubTxt}>Tap the + button to create your first card</Text>
           </View>
         }
         showsVerticalScrollIndicator={false}

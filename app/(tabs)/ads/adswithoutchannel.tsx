@@ -11,9 +11,6 @@ import { getCurrentUser } from '@/lib/useUser';
 
 const { width } = Dimensions.get("window");
 
-// API base (use environment variable when available). Fallback set to remote render URL.
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://instantllychannelpatner.onrender.com';
-
 // Format number with Indian number system (lakhs, crores)
 const formatIndianNumber = (num: number): string => {
   const numStr = num.toString();
@@ -146,37 +143,42 @@ export default function AdsWithoutChannel() {
   };
 
   const fetchAds = async () => {
+    if (!userPhoneNumber) {
+      console.log('⏳ Waiting for phone number to load...');
+      return;
+    }
+
     setLoadingAds(true);
     try {
-      const apiBase = process.env.EXPO_PUBLIC_API_BASE || API_BASE;
-
-      // If we have a phone number, prefer using it (backwards compatible).
-      // Otherwise, try an authenticated request using stored token so user doesn't need to enter phone.
-      let url = `${apiBase}/api/ads/my-ads`;
-      if (userPhoneNumber) {
-        url += `?phoneNumber=${encodeURIComponent(userPhoneNumber)}`;
-        console.log(`📱 Fetching ads for phone: ${userPhoneNumber}`);
-      } else {
-        console.log('ℹ️ No phone cached — attempting authenticated fetch for my-ads');
+      console.log(`📱 Fetching ads for phone: ${userPhoneNumber}`);
+      
+      // Try the new my-ads endpoint first
+      let response = await fetch(
+        `http://103.72.75.235:3000/api/ads/my-ads?phoneNumber=${encodeURIComponent(userPhoneNumber)}`
+      );
+      
+      // If my-ads endpoint not available yet (400/404), fallback to fetching all and filtering
+      if (!response.ok) {
+        console.log('⚠️ my-ads endpoint not ready, using fallback method');
+        
+        // Fetch all ads with admin token and filter client-side
+        response = await fetch('http://103.72.75.235:3000/api/ads?approvalStatus=all', {
+          headers: {
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
+          },
+        });
       }
-
-      const headers: any = { 'Content-Type': 'application/json' };
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-          console.log('🔐 Using auth token to fetch /api/ads/my-ads');
-        }
-      } catch (e) {
-        console.log('⚠️ Failed reading token from storage:', e);
-      }
-
-      console.log('🔗 Fetch URL:', url, 'Has Authorization:', !!headers.Authorization);
-      const response = await fetch(url, { headers });
+      
       const data = await response.json();
-
       if (response.ok) {
-        const allAds = data.data || [];
+        let allAds = data.data || [];
+        
+        // Filter to show only this user's ads if we used the fallback method
+        if (data.pagination) {
+          // This means we got all ads, need to filter
+          allAds = allAds.filter((ad: any) => ad.phoneNumber === userPhoneNumber);
+        }
+        
         setAds(allAds);
         console.log(`✅ Loaded ${allAds.length} ads for status tab`);
       } else {
@@ -201,39 +203,23 @@ export default function AdsWithoutChannel() {
     
     setIsDeleting(true);
     try {
-      // Prefer using stored auth token so we don't rely on a hard-coded admin token
-      const headers: any = { 'Content-Type': 'application/json' };
-      try {
-        const tok = await AsyncStorage.getItem('token');
-        if (tok) {
-          headers.Authorization = `Bearer ${tok}`;
-        }
-      } catch (e) {
-        console.warn('Failed to read token from storage before delete:', e);
-      }
-
-      const response = await fetch(`${API_BASE}/api/ads/${adToDelete}`, {
+      const response = await fetch(`http://103.72.75.235:3000/api/ads/${adToDelete}`, {
         method: 'DELETE',
-        headers,
+        headers: {
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
+        },
       });
-
-      const respText = await response.text();
-      let respBody: any = null;
-      try { respBody = respText ? JSON.parse(respText) : null; } catch { respBody = respText; }
-      console.log('🗑️ DELETE /api/ads response:', { status: response.status, body: respBody });
 
       if (response.ok) {
         // Refresh ads list
-        await fetchAds();
+        fetchAds();
         setShowDeleteModal(false);
         setAdToDelete(null);
         Alert.alert('Success', 'Advertisement deleted successfully');
       } else {
-        const errMsg = (respBody && respBody.message) ? respBody.message : 'Failed to delete advertisement';
-        Alert.alert('Error', errMsg);
+        Alert.alert('Error', 'Failed to delete advertisement');
       }
     } catch (error) {
-      console.error('Delete error:', error);
       Alert.alert('Error', 'Failed to delete advertisement');
     } finally {
       setIsDeleting(false);
@@ -249,8 +235,8 @@ export default function AdsWithoutChannel() {
     // Populate form with ad data
     setFormData({
       title: ad.title,
-      bottomImage: ad.bottomImage ? ad.bottomImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '',
-      fullscreenImage: ad.fullscreenImage ? ad.fullscreenImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '',
+      bottomImage: ad.bottomImage || '',
+      fullscreenImage: ad.fullscreenImage || '',
       phoneNumber: ad.phoneNumber,
       pinCode: ad.pinCode || '',
       startDate: ad.startDate,
@@ -318,20 +304,17 @@ export default function AdsWithoutChannel() {
           phoneNumber,
         };
 
-        // Use stored token for admin/authorized updates (do not keep hard-coded tokens)
-        const headers: any = { 'Content-Type': 'application/json' };
-        try {
-          const tok = await AsyncStorage.getItem('token');
-          if (tok) headers.Authorization = `Bearer ${tok}`;
-        } catch (e) {
-          console.warn('Failed to read token from storage before edit:', e);
-        }
-
-        const response = await fetch(`${API_BASE}/api/ads/${editingAdId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(submitData),
-        });
+        const response = await fetch(
+          `http://103.72.75.235:3000/api/ads/${editingAdId}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
+            },
+            body: JSON.stringify(submitData),
+          }
+        );
 
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -371,12 +354,17 @@ export default function AdsWithoutChannel() {
           uploaderName: 'Mobile User',
         };
 
-        // POST new ad as mobile user (no Authorization header) so it arrives as 'pending'
-        const response = await fetch(`${API_BASE}/api/ads`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(submitData),
-        });
+        const response = await fetch(
+          'http://103.72.75.235:3000/api/ads',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // NO Authorization header - this makes it a mobile user upload (pending status)
+            },
+            body: JSON.stringify(submitData),
+          }
+        );
 
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -765,7 +753,7 @@ export default function AdsWithoutChannel() {
            <Text style={styles.coinIcon}>🪙</Text>
             <Text style={styles.creditAmount}>{formatIndianNumber(500000)}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push("../src/routes/credits")}>
+          <TouchableOpacity onPress={() => router.push("/credits")}>
             <Text style={styles.noSpendingLimit}>See Transaction  &gt;</Text>
           </TouchableOpacity>
         </View>
@@ -1146,13 +1134,6 @@ export default function AdsWithoutChannel() {
                               <TouchableOpacity 
                                 style={styles.viewImageButton}
                                 onPress={() => {
-                                  console.log('Previewing Ad:', ad);
-                                  if (ad.bottomImage) {
-                                    console.log('Bottom Image Source:', ad.bottomImage);
-                                  }
-                                  if (ad.fullscreenImage) {
-                                    console.log('Fullscreen Image Source:', ad.fullscreenImage);
-                                  }
                                   setPreviewAd(ad);
                                   setShowImagePreview(true);
                                 }}
@@ -1287,7 +1268,7 @@ export default function AdsWithoutChannel() {
                 <View style={styles.imageSection}>
                   <Text style={styles.imageSectionLabel}>Bottom Banner (624×174)</Text>
                   <Image 
-                    source={{ uri: previewAd.bottomImage ? previewAd.bottomImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '' }} 
+                    source={{ uri: previewAd.bottomImage }} 
                     style={styles.previewBottomImage}
                     resizeMode="contain"
                   />
@@ -1297,7 +1278,7 @@ export default function AdsWithoutChannel() {
                 <View style={styles.imageSection}>
                   <Text style={styles.imageSectionLabel}>Fullscreen Image (624×1000)</Text>
                   <Image 
-                    source={{ uri: previewAd.fullscreenImage ? previewAd.fullscreenImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '' }} 
+                    source={{ uri: previewAd.fullscreenImage }} 
                     style={styles.previewFullscreenImage}
                     resizeMode="contain"
                   />
