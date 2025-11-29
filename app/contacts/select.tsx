@@ -68,6 +68,7 @@ export default function ContactSelectScreen() {
   const [loadingMessage, setLoadingMessage] = useState("Loading contacts...");
   const [selectedContacts, setSelectedContacts] = useState<DeviceContact[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<any[]>([]);
+  const [totalContacts, setTotalContacts] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   // Check if contacts have been synced before - NO AUTO-SYNC
@@ -847,6 +848,23 @@ export default function ContactSelectScreen() {
     }
   };
 
+  // Fetch total contacts count from /contacts/count API
+  useEffect(() => {
+    const fetchTotalContacts = async () => {
+      try {
+        const token = await ensureAuth();
+        if (!token) return;
+        const response = await api.get('/contacts/count');
+        if (response && typeof response.total === 'number') {
+          setTotalContacts(response.total);
+        }
+      } catch (error) {
+        setTotalContacts(null);
+      }
+    };
+    fetchTotalContacts();
+  }, []);
+
   const filteredContacts = processedContacts.filter((contact: DeviceContact) =>
     contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     contact.phoneNumber.includes(searchQuery)
@@ -1048,11 +1066,13 @@ export default function ContactSelectScreen() {
             }
           </Text>
           <Text style={styles.contactCount}>
-            {(isGroupMode || isGroupAddMode || isCardShareMode) && (selectedContacts.length > 0 || selectedGroups.length > 0)
-              ? `${selectedContacts.length + selectedGroups.length} selected`
-              : isCardShareMode 
-                ? `${processedContacts.length} contacts • ${availableGroups.length} groups`
-                : `${processedContacts.length} contacts`
+            {typeof totalContacts === 'number'
+              ? `${totalContacts} total contact${totalContacts === 1 ? '' : 's'}`
+              : (isGroupMode || isGroupAddMode || isCardShareMode) && (selectedContacts.length > 0 || selectedGroups.length > 0)
+                ? `${selectedContacts.length + selectedGroups.length} selected`
+                : isCardShareMode 
+                  ? `${processedContacts.length} contacts • ${availableGroups.length} groups`
+                  : `${processedContacts.length} contacts`
             }
           </Text>
           {isCardShareMode && cardTitle && (
