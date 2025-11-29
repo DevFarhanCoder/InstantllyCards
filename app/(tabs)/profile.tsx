@@ -25,7 +25,6 @@ import { getCurrentUser } from "@/lib/useUser";
 import FooterCarousel from "@/components/FooterCarousel";
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronDown } from 'lucide-react-native';
 
 interface UserProfile {
   _id: string;
