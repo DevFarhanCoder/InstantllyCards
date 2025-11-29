@@ -18,53 +18,8 @@ import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
 
-<<<<<<< HEAD
-// Firebase imports for Phone Authentication - with fallback for Expo
-let sendOTPViaFirebase: any = null;
-let verifyOTPViaFirebase: any = null;
-
-try {
-  const firebaseModule = require('@/lib/firebase');
-  sendOTPViaFirebase = firebaseModule.sendOTPViaFirebase;
-  verifyOTPViaFirebase = firebaseModule.verifyOTPViaFirebase;
-  console.log('✅ Firebase modules loaded successfully');
-} catch (error) {
-  console.log('⚠️ Firebase not available in this environment, using fallback authentication');
-  try {
-    const fallbackModule = require('@/lib/firebase-fallback');
-    sendOTPViaFirebase = fallbackModule.sendOTPViaFirebase;
-    verifyOTPViaFirebase = fallbackModule.verifyOTPViaFirebase;
-    console.log('✅ Firebase fallback loaded successfully');
-  } catch (fallbackError) {
-    console.error('❌ Failed to load Firebase fallback:', fallbackError);
-    // Final fallback - inline functions
-    sendOTPViaFirebase = async (phone: string) => {
-      console.log('📱 [INLINE-FALLBACK] Mock OTP sent to:', phone);
-      return {
-        success: true,
-        confirmation: { 
-          verificationId: 'dev-verification-id',
-          confirm: async (code: string) => {
-            if (code.length === 6) {
-              return { user: { phoneNumber: phone } };
-            }
-            throw new Error('Invalid OTP format');
-          }
-        }
-      };
-    };
-    verifyOTPViaFirebase = async (confirmation: any, code: string) => {
-      if (code.length === 6) {
-        return { success: true, user: { phoneNumber: '+1234567890' } };
-      }
-      throw new Error('Invalid OTP format');
-    };
-  }
-}
-=======
 // Fast2SMS imports for Phone Authentication
 import { sendOTPViaFast2SMS, verifyOTPViaBackend } from '@/lib/fast2sms';
->>>>>>> 85770bd68a8957dafd86139af5e4ab0dc0c0004a
 
 import api from "@/lib/api";
 import serverWarmup from "@/lib/serverWarmup";
