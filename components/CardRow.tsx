@@ -10,6 +10,7 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
     const [shareModalVisible, setShareModalVisible] = useState(false);
     const [menuModalVisible, setMenuModalVisible] = useState(false);
     const [scaleAnim] = useState(new Animated.Value(1));
+    const qc = useQueryClient();
     
     const companyName = c.companyName || c.name || "Business";
     const ownerName = c.name && c.name !== c.companyName ? c.name : (c.designation || "Business Owner");
@@ -78,10 +79,23 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                                                 Alert.alert("Success", "Card deleted successfully");
                                                 // Invalidate home feed and ads queries so UI updates immediately
                                                 try {
-                                                    const qc = useQueryClient();
-                                                    qc.invalidateQueries(['cards','feed/contacts']);
-                                                    qc.invalidateQueries(['ads','active']);
-                                                    qc.invalidateQueries(['ads','my-ads']);
+                                                    // Home uses the single key ['contacts-feed'] for the contacts feed.
+                                                    // Invalidate it so Home will refetch, and proactively remove the
+                                                    // deleted card from the cache for instant UI feedback.
+                                                    qc.invalidateQueries({ queryKey: ['contacts-feed'] });
+                                                    try {
+                                                        qc.setQueryData(['contacts-feed'], (old: any) => {
+                                                            if (!old) return old;
+                                                            if (Array.isArray(old)) return old.filter((it: any) => (it._id || it.id) !== (c._id || c.id));
+                                                            return old;
+                                                        });
+                                                    } catch (e) {
+                                                        console.warn('Failed to prune contacts-feed cache after delete:', e);
+                                                    }
+
+                                                    qc.invalidateQueries({ queryKey: ['cards'] });
+                                                    qc.invalidateQueries({ queryKey: ['ads','active'] });
+                                                    qc.invalidateQueries({ queryKey: ['ads','my-ads'] });
                                                 } catch (err) {
                                                     // If queryClient isn't available for some reason, ignore
                                                     console.warn('Query invalidation failed:', err);

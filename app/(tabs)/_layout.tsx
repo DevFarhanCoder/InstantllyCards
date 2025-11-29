@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Platform, Image } from "react-native";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+// fallback for icon visibility
+import { FontAwesome5 } from '@expo/vector-icons';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -41,16 +43,18 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="mycards"
         options={{
+<<<<<<< Updated upstream
           title: "My Cards",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name="albums" color={focused ? "#4F6AF3" : "#9CA3AF"} size={size} />
+=======
+          title: "MyCards",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="albums" color={color} size={size} />
+>>>>>>> Stashed changes
           ),
         }}
       />
-    
-       {/* ✅ MODIFIED: The name must now be the FOLDER name ("ads").
-        The icon uses a custom Google Ads logo image. 
-      */}
       <Tabs.Screen
         name="ads" 
         options={{
@@ -78,7 +82,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="chats"
         options={{

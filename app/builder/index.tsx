@@ -1,4 +1,33 @@
+'use client'
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useMemo, useCallback, useState, useEffect, useRef } from "react";
+import { Calendar as LucideCalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import RNPickerSelect from 'react-native-picker-select';
+import api from "@/lib/api";
+import FormInput from "@/components/FormInput";
+import BusinessAvatar from "@/components/BusinessAvatar";
+import { PrimaryButton } from "@/components/PrimaryButton";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'
+];
+// Reduce year range for debugging
+const yearItems = Array.from({ length: 81 }, (_, i) => {
+    const year = 1950 + i;
+    // RNPickerSelect behaves more reliably when values are strings across platforms
+    return { label: year.toString(), value: year.toString() };
+});
+const yearPickerStyle = {
+    inputIOS: { fontSize: 16, color: '#111827', minWidth: 60, textAlign: 'center' as const, paddingVertical: 2 },
+    inputAndroid: { fontSize: 16, color: '#111827', minWidth: 60, textAlign: 'center' as const, paddingVertical: 2 },
+    iconContainer: { top: 6, right: 0 }
+};
+const monthItems = MONTHS.map((m, idx) => ({ label: m, value: String(idx) }));
 import {
     Alert,
     Image,
@@ -11,17 +40,8 @@ import {
     Pressable,
     TouchableOpacity,
     Animated,
+    TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
-import { Ionicons } from '@expo/vector-icons';
-
-import api from "@/lib/api"; // must attach Bearer token internally
-import { PrimaryButton } from "@/components/PrimaryButton";
-import FormInput from "@/components/FormInput";
-import BusinessAvatar from "@/components/BusinessAvatar";
 import PhoneInput from "@/components/PhoneInput";
 
 // ---------- simple validators ----------
@@ -32,8 +52,47 @@ const isURL = (v: string) =>
 const isDigits = (v: string) => /^\d+$/.test(v);
 const minDigits = (v: string, n: number) => isDigits(v) && v.length >= n;
 
+// Date helpers: format ISO <-> display (dd-mm-yyyy) and parse
+const pad = (n: number) => String(n).padStart(2, '0');
+const formatIsoToDisplay = (iso: string | null) => {
+    if (!iso) return '';
+    try {
+        // iso is expected like YYYY-MM-DDT00:00:00.000Z
+        const [date] = iso.split('T');
+        const [y, m, d] = date.split('-');
+        return `${pad(Number(d))}-${pad(Number(m))}-${y}`;
+    } catch (e) {
+        return '';
+    }
+};
+
+const parseDisplayToIso = (s: string) => {
+    if (!s) return null;
+    const cleaned = s.trim().replace(/\//g, '-');
+    const m = cleaned.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (!m) return null;
+    const day = Number(m[1]);
+    const month = Number(m[2]);
+    const year = Number(m[3]);
+    if (month < 1 || month > 12) return null;
+    if (year < 1900 || year > 2100) return null;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    if (day < 1 || day > daysInMonth) return null;
+    const iso = `${year}-${pad(month)}-${pad(day)}T00:00:00.000Z`;
+    return { iso, year, month: month - 1, day };
+};
+
+// Format digits-as-you-type: '01022004' -> '01-02-2004'
+const formatDigitsToDisplay = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 8); // max 8 digits
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0,2)}-${digits.slice(2)}`;
+    return `${digits.slice(0,2)}-${digits.slice(2,4)}-${digits.slice(4)}`;
+};
+
 export default function Builder() {
     const queryClient = useQueryClient();
+    const router = useRouter();
     const { edit } = useLocalSearchParams<{ edit?: string }>();
     const isEditMode = !!edit;
     
@@ -57,11 +116,129 @@ export default function Builder() {
             const response = await api.post<{ data: any }>("/cards", payload);
             return response.data; // Return the data from the response
         },
-        onSuccess: () => {
-            // Invalidate both queries to refresh both My Cards and Home feed
+        onSuccess: (_data, payload) => {
+            // Log raw server response for debugging date persistence
+            try { console.log('Builder: raw create response:', _data); } catch (e) {}
+            // Invalidate queries to refresh My Cards, Home feed and profile
             queryClient.invalidateQueries({ queryKey: ["cards"] });
             queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-            
+            try { queryClient.invalidateQueries({ queryKey: ['contacts-feed'] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
+            // Try to sync certain fields back to the user's profile so Account reflects latest card
+            (async () => {
+                try {
+                    const profileable: any = {};
+                    // Load existing user from AsyncStorage so we avoid sending an unchanged or conflicting phone
+                    const existingUserRaw = await AsyncStorage.getItem('user');
+                    let existingUser: any = null;
+                    try { existingUser = existingUserRaw ? JSON.parse(existingUserRaw) : null; } catch (e) { existingUser = null; }
+
+                    ['name','personalPhone','gender','birthdate','anniversary'].forEach(k => {
+                        // map card's personalPhone -> phone for profile but only if it's different from stored user phone
+                        if (k === 'personalPhone' && (payload && (payload as any).personalPhone !== undefined)) {
+                            const newPhone = (payload as any).personalPhone;
+                            const storedPhone = existingUser?.phone || existingUser?.phoneNumber || null;
+                            if (!storedPhone || String(newPhone) !== String(storedPhone)) {
+                                profileable.phone = newPhone;
+                            }
+                        } else if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
+                    });
+                    // Normalize gender to canonical values
+                    if (profileable.gender && typeof profileable.gender === 'string') {
+                        const g = String(profileable.gender).toLowerCase();
+                        if (g.startsWith('m')) profileable.gender = 'male';
+                        else if (g.startsWith('f')) profileable.gender = 'female';
+                    }
+
+                    if (Object.keys(profileable).length > 0) {
+                        try {
+                            try {
+                                const resp = await api.put('/auth/update-profile', profileable);
+                                console.log('Builder: profile sync response', resp);
+                                // update AsyncStorage 'user' if present
+                                try {
+                                    const u = await AsyncStorage.getItem('user');
+                                    if (u) {
+                                        const uu = JSON.parse(u);
+                                        const merged = { ...uu, ...profileable };
+                                        await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                    }
+                                } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage', e); }
+                            } catch (err: any) {
+                                // If phone conflict occurs, retry without phone so other fields update
+                                const msg = String(err?.message || err?.data?.message || '');
+                                if (err?.status === 409 || /phone number already exists/i.test(msg)) {
+                                    console.warn('Builder: profile sync phone conflict, retrying without phone');
+                                    const reduced = { ...profileable };
+                                    delete reduced.phone;
+                                    try {
+                                        const resp2 = await api.put('/auth/update-profile', reduced);
+                                        console.log('Builder: profile sync response (without phone)', resp2);
+                                        try {
+                                            const u = await AsyncStorage.getItem('user');
+                                            if (u) {
+                                                const uu = JSON.parse(u);
+                                                const merged = { ...uu, ...reduced };
+                                                await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                            }
+                                        } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage after retry', e); }
+                                    } catch (e2) {
+                                        console.warn('Builder: retry without phone also failed', e2);
+                                    }
+                                } else {
+                                    throw err;
+                                }
+                            }
+
+                            // Invalidate profile & card queries so UI refreshes
+                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards'] }); } catch (e) {}
+                            // Persist created card locally so Profile & MyCards can read it immediately
+                            try {
+                                const createdCard = _data && (_data as any).data ? ( _data as any).data : _data;
+                                    if (createdCard) {
+                                    await AsyncStorage.setItem('default_card', JSON.stringify(createdCard));
+                                    console.log('Builder: saved created card to default_card (preview):', createdCard._id || createdCard.id || JSON.stringify(createdCard).slice(0,200));
+                                    try {
+                                        // Update local ['cards'] cache immediately
+                                        queryClient.setQueryData(['cards'], (old: any) => {
+                                            if (!old) return [createdCard];
+                                            if (Array.isArray(old)) return [createdCard, ...old];
+                                            return old;
+                                        });
+                                    } catch (e) {
+                                        console.warn('Builder: failed to setQueryData for created card (cards):', e);
+                                    }
+
+                                    try {
+                                        // Also proactively add to contacts-feed so Home shows the new card even if Home wasn't mounted
+                                        const before = queryClient.getQueryData(['contacts-feed']);
+                                        console.log('Builder: contacts-feed cache before insert length:', Array.isArray(before) ? before.length : typeof before);
+                                        queryClient.setQueryData(['contacts-feed'], (old: any) => {
+                                            if (!old) return [createdCard];
+                                            if (Array.isArray(old)) return [createdCard, ...old];
+                                            return old;
+                                        });
+                                        const after = queryClient.getQueryData(['contacts-feed']);
+                                        console.log('Builder: contacts-feed cache after insert length:', Array.isArray(after) ? after.length : typeof after);
+                                    } catch (e) {
+                                        console.warn('Builder: failed to setQueryData for contacts-feed', e);
+                                    }
+
+                                    // Invalidate and request refetch for all queries so any mounted screens refresh
+                                    try {
+                                        queryClient.invalidateQueries({ queryKey: ['contacts-feed'], refetchType: 'all' });
+                                        queryClient.invalidateQueries({ queryKey: ['cards'], refetchType: 'all' });
+                                    } catch (e) {
+                                        console.warn('Builder: failed to invalidate queries after create', e);
+                                    }
+                                }
+                            } catch (e) { console.warn('Builder: failed to save default_card', e); }
+                        } catch (e) {
+                            console.warn('Builder: failed to sync profile', e);
+                        }
+                    }
+                } catch (e) { console.warn('Builder: unexpected error while syncing profile', e); }
+            })();
+
             Alert.alert("Success", "Card saved!", [
                 {
                     text: "OK", 
@@ -80,10 +257,108 @@ export default function Builder() {
             const response = await api.put<{ data: any }>(`/cards/${edit}`, payload);
             return response.data;
         },
-        onSuccess: () => {
+        onSuccess: (_data, payload) => {
+            // Log raw server response for debugging date persistence
+            try { console.log('Builder: raw update response:', _data); } catch (e) {}
             queryClient.invalidateQueries({ queryKey: ["cards"] });
             queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-            
+            try { queryClient.invalidateQueries({ queryKey: ['contacts-feed'] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
+            // Sync certain card fields back to profile
+            (async () => {
+                try {
+                    const profileable: any = {};
+                    // Load existing user so we only attempt phone changes when necessary
+                    const existingUserRawU = await AsyncStorage.getItem('user');
+                    let existingUserU: any = null;
+                    try { existingUserU = existingUserRawU ? JSON.parse(existingUserRawU) : null; } catch (e) { existingUserU = null; }
+                    ['name','personalPhone','gender','birthdate','anniversary'].forEach(k => {
+                        if (k === 'personalPhone' && (payload && (payload as any).personalPhone !== undefined)) {
+                            const newPhone = (payload as any).personalPhone;
+                            const storedPhone = existingUserU?.phone || existingUserU?.phoneNumber || null;
+                            if (!storedPhone || String(newPhone) !== String(storedPhone)) {
+                                profileable.phone = newPhone;
+                            }
+                        } else if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
+                    });
+                    // Normalize gender string to profile-friendly values
+                    if (profileable.gender && typeof profileable.gender === 'string') {
+                        const g = String(profileable.gender).toLowerCase();
+                        if (g.startsWith('m')) profileable.gender = 'male';
+                        else if (g.startsWith('f')) profileable.gender = 'female';
+                    }
+                    if (Object.keys(profileable).length > 0) {
+                        try {
+                            try {
+                                const resp = await api.put('/auth/update-profile', profileable);
+                                console.log('Builder update:onSuccess profile sync response', resp);
+                                try {
+                                    const u = await AsyncStorage.getItem('user');
+                                    if (u) {
+                                        const uu = JSON.parse(u);
+                                        const merged = { ...uu, ...profileable };
+                                        await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                    }
+                                } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage', e); }
+                            } catch (err: any) {
+                                const msg = String(err?.message || err?.data?.message || '');
+                                if (err?.status === 409 || /phone number already exists/i.test(msg)) {
+                                    console.warn('Builder update:onSuccess: phone conflict, retrying without phone');
+                                    const reduced = { ...profileable };
+                                    delete reduced.phone;
+                                    try {
+                                        const resp2 = await api.put('/auth/update-profile', reduced);
+                                        console.log('Builder update:onSuccess profile sync response (without phone)', resp2);
+                                        try {
+                                            const u = await AsyncStorage.getItem('user');
+                                            if (u) {
+                                                const uu = JSON.parse(u);
+                                                const merged = { ...uu, ...reduced };
+                                                await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                            }
+                                        } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage after retry', e); }
+                                    } catch (e2) {
+                                        console.warn('Builder update:onSuccess retry without phone failed', e2);
+                                    }
+                                } else {
+                                    throw err;
+                                }
+                            }
+                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards'] }); } catch (e) {}
+                        } catch (e) {
+                            console.warn('Builder update:onSuccess failed to sync profile', e);
+                        }
+                    }
+                } catch (e) { console.warn('Builder update:onSuccess unexpected', e); }
+            })();
+
+            // Persist updated card locally so Profile & MyCards reflect changes immediately
+            (async () => {
+                try {
+                    const updatedCard = _data && (_data as any).data ? (_data as any).data : _data;
+                    if (updatedCard) {
+                        await AsyncStorage.setItem('default_card', JSON.stringify(updatedCard));
+                        console.log('Builder: saved updated card to default_card (preview):', updatedCard._id || updatedCard.id || JSON.stringify(updatedCard).slice(0,200));
+                        // Update react-query cache for ['cards'] to replace the stale card immediately
+                        try {
+                            queryClient.setQueryData(['cards'], (old: any) => {
+                                if (!old) return [updatedCard];
+                                if (Array.isArray(old)) return old.map((c: any) => (c && (c._id || c.id) === (updatedCard._id || updatedCard.id) ? updatedCard : c));
+                                return old;
+                            });
+                        } catch (e) {
+                            console.warn('Builder: failed to setQueryData for updated card', e);
+                        }
+                        // Force refetch of contacts-feed (Home) so update is visible immediately
+                        try {
+                            queryClient.invalidateQueries({ queryKey: ['contacts-feed'] });
+                            queryClient.refetchQueries({ queryKey: ['contacts-feed'] });
+                        } catch (e) {
+                            console.warn('Builder: failed to refresh contacts-feed after update', e);
+                        }
+                    }
+                } catch (e) { console.warn('Builder: failed to save default_card after update', e); }
+            })();
+
             Alert.alert("Success", "Card updated!", [
                 {
                     text: "OK", 
@@ -104,6 +379,7 @@ export default function Builder() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["cards"] });
             queryClient.invalidateQueries({ queryKey: ["public-feed"] });
+            try { queryClient.invalidateQueries({ queryKey: ['contacts-feed'] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
             
             Alert.alert("Success", "Card deleted!", [
                 {
@@ -119,6 +395,93 @@ export default function Builder() {
 
     // Personal
     const [name, setName] = useState("");
+    const [birthdate, setBirthdate] = useState<string | null>(null);
+    const [anniversary, setAnniversary] = useState<string | null>(null);
+    const [birthText, setBirthText] = useState<string>("");
+    const [annivText, setAnnivText] = useState<string>("");
+    const [showBirthdatePicker, setShowBirthdatePicker] = useState(false);
+    const [showAnniversaryPicker, setShowAnniversaryPicker] = useState(false);
+        const [birthYear, setBirthYear] = useState(new Date().getFullYear());
+        const [birthMonth, setBirthMonth] = useState(new Date().getMonth());
+        const [annivYear, setAnnivYear] = useState(new Date().getFullYear());
+        const [annivMonth, setAnnivMonth] = useState(new Date().getMonth());
+
+        // Helper for month navigation
+        const changeMonthYear = (month: number, year: number, delta: number) => {
+            let newMonth = month + delta;
+            let newYear = year;
+            if (newMonth < 0) {
+                newMonth = 11;
+                newYear -= 1;
+            } else if (newMonth > 11) {
+                newMonth = 0;
+                newYear += 1;
+            }
+            return { newMonth, newYear };
+        };
+
+        // Local lightweight calendar component using lucide icons
+        const LocalCalendar = ({ year, month, selectedIso, onDayPress, onPrev, onNext }: any) => {
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const firstWeekday = new Date(year, month, 1).getDay(); // 0=Sun
+            const days = new Date(year, month + 1, 0).getDate();
+
+            const cells: Array<(number | null)> = [];
+            for (let i = 0; i < firstWeekday; i++) cells.push(null);
+            for (let d = 1; d <= days; d++) cells.push(d);
+            while (cells.length % 7 !== 0) cells.push(null);
+
+            const selectedDay = selectedIso ? selectedIso.split('T')[0] : null;
+
+            return (
+                <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <TouchableOpacity onPress={onPrev} style={{ padding: 6 }}>
+                            <ChevronLeft size={20} color="#374151" />
+                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>
+                                {MONTHS[month]}
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>{` ${year}`}</Text>
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={onNext} style={{ padding: 6 }}>
+                            <ChevronRight size={20} color="#374151" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={s.weekRow}>
+                        {['S','M','T','W','T','F','S'].map((w, i) => (
+                            <Text key={`${w}-${i}`} style={s.weekday}>{w}</Text>
+                        ))}
+                    </View>
+
+                    <View>
+                        {Array.from({ length: cells.length / 7 }).map((_, r) => (
+                            <View key={`row-${r}`} style={s.weekRow}>
+                                {cells.slice(r * 7, r * 7 + 7).map((day, ci) => {
+                                    const isSelected = day && selectedDay === `${year}-${pad(month + 1)}-${pad(day)}`;
+                                    return (
+                                        <TouchableOpacity
+                                            key={`cell-${r}-${ci}-${day ?? 'n'}`}
+                                            disabled={!day}
+                                            onPress={() => {
+                                                if (!day) return;
+                                                const iso = `${year}-${pad(month + 1)}-${pad(day)}T00:00:00.000Z`;
+                                                onDayPress(iso);
+                                            }}
+                                            style={[s.dayCell, isSelected ? s.selectedDay : undefined]}
+                                        >
+                                                <Text style={[s.dayText, isSelected ? s.selectedDayText : undefined]}>{day ?? ''}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            );
+        };
     const [gender, setGender] = useState(""); // New gender field
     const [personalCountryCode, setPersonalCountryCode] = useState("91");
     const [personalPhone, setPersonalPhone] = useState("");
@@ -221,6 +584,8 @@ export default function Builder() {
         if (existingCard) {
             console.log("Populating form with existing card data");
             setName(existingCard.name || "");
+            setBirthdate(existingCard.birthdate || null);
+            setAnniversary(existingCard.anniversary || null);
             setGender(existingCard.gender || ""); // Load gender
             setPersonalCountryCode(existingCard.personalCountryCode || "91");
             setPersonalPhone(existingCard.personalPhone || "");
@@ -251,27 +616,40 @@ export default function Builder() {
             setYoutube(existingCard.youtube || "");
             setWhatsapp(existingCard.whatsapp || "");
             setTelegram(existingCard.telegram || "");
+            // keep text inputs in sync with ISO dates
+            setBirthText(formatIsoToDisplay(existingCard.birthdate || null));
+            setAnnivText(formatIsoToDisplay(existingCard.anniversary || null));
         }
     }, [existingCard, isEditMode, edit]);
+
+    // keep text fields in sync when canonical ISO date changes
+    useEffect(() => {
+        setBirthText(formatIsoToDisplay(birthdate));
+    }, [birthdate]);
+    useEffect(() => {
+        setAnnivText(formatIsoToDisplay(anniversary));
+    }, [anniversary]);
 
     const validate = () => {
         const e: Record<string, string> = {};
         if (!isNonEmpty(name)) e.name = "Name is required";
         if (email && !isEmail(email)) e.email = "Invalid email";
         if (!isDigits(personalCountryCode)) e.personalCountryCode = "Only digits";
-        if (!minDigits(personalPhone, 6)) e.personalPhone = "Min 6 digits";
+        if (personalPhone && !/^\d{10}$/.test(personalPhone)) e.personalPhone = "Enter 10 digits";
         if (companyEmail && !isEmail(companyEmail)) e.companyEmail = "Invalid email";
         if (companyWebsite && !isURL(companyWebsite)) e.companyWebsite = "Invalid URL";
         if (!isDigits(companyCountryCode)) e.companyCountryCode = "Only digits";
-        if (companyPhone && !minDigits(companyPhone, 6)) e.companyPhone = "Min 6 digits";
+        if (companyPhone && !/^\d{10}$/.test(companyPhone)) e.companyPhone = "Enter 10 digits";
         // Validate multiple company phones
         companyPhones.forEach((p, idx) => {
-            if (p.phone && !minDigits(p.phone, 6)) {
-                e[`companyPhone_${idx}`] = 'Min 6 digits';
+            if (p.phone && !/^\d{10}$/.test(p.phone)) {
+                e[`companyPhone_${idx}`] = 'Enter 10 digits';
             }
         });
         if (mapsLink && !isURL(mapsLink)) e.mapsLink = "Invalid link";
         if (companyMapsLink && !isURL(companyMapsLink)) e.companyMapsLink = "Invalid link";
+            // Birthdate is required
+            if (!birthdate) e.birthdate = "Birthdate is required";
         setErrors(e);
         return Object.keys(e).length === 0;
     };
@@ -299,6 +677,8 @@ export default function Builder() {
         () => ({
             // Personal
             name,
+            birthdate,
+            anniversary,
             gender, // Add gender to payload
             personalCountryCode,
             personalPhone,
@@ -364,11 +744,27 @@ export default function Builder() {
             if (first) Alert.alert("Fix errors", first);
             return;
         }
-        
+        // Ensure any typed-but-unblurred date fields are parsed into ISO
+        const finalPayload: any = { ...payload };
+        try {
+            if (!finalPayload.birthdate && birthText) {
+                const parsed = parseDisplayToIso(birthText);
+                if (parsed) finalPayload.birthdate = parsed.iso;
+            }
+        } catch (e) { /* ignore parsing failure */ }
+        try {
+            if (!finalPayload.anniversary && annivText) {
+                const parsed = parseDisplayToIso(annivText);
+                if (parsed) finalPayload.anniversary = parsed.iso;
+            }
+        } catch (e) { /* ignore parsing failure */ }
+
         if (isEditMode) {
-            updateCardMutation.mutate(payload);
+            console.log('Builder: update payload preview', { payload: finalPayload });
+            updateCardMutation.mutate(finalPayload);
         } else {
-            createCardMutation.mutate(payload);
+            console.log('Builder: create payload preview', { payload: finalPayload });
+            createCardMutation.mutate(finalPayload);
         }
     };
 
@@ -510,6 +906,7 @@ export default function Builder() {
                     }}>
                         {sectionExpanded.personal && (
                             <View style={s.sectionContent}>
+
                                 <FormField
                                     label="Full Name"
                                     value={name}
@@ -519,6 +916,241 @@ export default function Builder() {
                                     required
                                     placeholder="Enter your full name"
                                 />
+
+                                {/* Birthdate Field */}
+                                <View style={s.formField}>
+                                    <Text style={s.enhancedLabel}>Birthdate<Text style={s.requiredIndicator}> *</Text></Text>
+                                    <View style={[s.dateInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                                        <FormInput
+                                            key="birthdate-input"
+                                            value={birthText}
+                                            onChangeText={(t: string) => {
+                                                // live-format digits into dd-mm-yyyy
+                                                const formatted = formatDigitsToDisplay(t);
+                                                setBirthText(formatted);
+                                                if (errors.birthdate) setErrors(prev => { const c = { ...prev }; delete c.birthdate; return c; });
+
+                                                // if user has entered full 8 digits, auto-apply
+                                                const digits = t.replace(/\D/g, '');
+                                                if (digits.length >= 8) {
+                                                    const parsed = parseDisplayToIso(formatDigitsToDisplay(digits));
+                                                    if (parsed) {
+                                                        setBirthdate(parsed.iso);
+                                                        setBirthYear(parsed.year);
+                                                        setBirthMonth(parsed.month);
+                                                    }
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                const parsed = parseDisplayToIso(birthText);
+                                                if (parsed) {
+                                                    setBirthdate(parsed.iso);
+                                                    setBirthYear(parsed.year);
+                                                    setBirthMonth(parsed.month);
+                                                } else if (birthText.trim() !== '') {
+                                                    setErrors(prev => ({ ...prev, birthdate: 'Invalid date (dd-mm-yyyy)' }));
+                                                } else {
+                                                    setBirthdate(null);
+                                                }
+                                            }}
+                                            placeholder={'dd-mm-yyyy'}
+                                            style={{ color: birthText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0, flex: 1 }}
+                                            keyboardType='default'
+                                            returnKeyType='done'
+                                        />
+                                        <TouchableOpacity onPress={() => setShowBirthdatePicker(true)} style={{ marginLeft: 8 }}>
+                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                                        </TouchableOpacity>
+                                    </View>
+                                    <Err k="birthdate" />
+                                    {showBirthdatePicker && (
+                                        <View style={{ marginVertical: 10 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                        <View style={{ minWidth: 160 }}>
+                                                            <RNPickerSelect
+                                                                value={String(birthMonth)}
+                                                                onValueChange={value => {
+                                                                    const parsed = Number(value);
+                                                                    if (!isNaN(parsed)) setBirthMonth(parsed);
+                                                                }}
+                                                                items={monthItems}
+                                                                style={yearPickerStyle}
+                                                                useNativeAndroidPickerStyle={false}
+                                                                Icon={() => (
+                                                                    <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
+                                                                )}
+                                                                placeholder={{}}
+                                                            />
+                                                        </View>
+                                                    </View>
+                                                    {/* place year picker at the top-right of the picker header */}
+                                                    <View style={{ minWidth: 90, alignSelf: 'flex-start' }}>
+                                                        <RNPickerSelect
+                                                            value={String(birthYear)}
+                                                            onValueChange={value => {
+                                                                const parsed = Number(value);
+                                                                if (!isNaN(parsed)) setBirthYear(parsed);
+                                                            }}
+                                                            items={yearItems}
+                                                            style={yearPickerStyle}
+                                                            useNativeAndroidPickerStyle={false}
+                                                            Icon={() => (
+                                                                <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
+                                                            )}
+                                                            placeholder={{}}
+                                                        />
+                                                    </View>
+                                            </View>
+                                            <LocalCalendar
+                                                year={birthYear}
+                                                month={birthMonth}
+                                                selectedIso={birthdate}
+                                                onDayPress={(iso: string) => {
+                                                    setBirthdate(iso);
+                                                    try {
+                                                        const [y, m] = iso.split('T')[0].split('-');
+                                                        const yN = Number(y);
+                                                        const mN = Number(m) - 1;
+                                                        if (!isNaN(yN)) setBirthYear(yN);
+                                                        if (!isNaN(mN)) setBirthMonth(mN);
+                                                            // reflect in typed input
+                                                            setBirthText(formatIsoToDisplay(iso));
+                                                    } catch (e) {}
+                                                    setShowBirthdatePicker(false);
+                                                }}
+                                                onPrev={() => {
+                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, -1);
+                                                    setBirthMonth(newMonth);
+                                                    setBirthYear(newYear);
+                                                }}
+                                                onNext={() => {
+                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, 1);
+                                                    setBirthMonth(newMonth);
+                                                    setBirthYear(newYear);
+                                                }}
+                                            />
+                                            <TouchableOpacity onPress={() => setShowBirthdatePicker(false)} style={{ alignItems: 'center', margin: 8 }}>
+                                                <Text style={{ color: '#3B82F6', fontWeight: 'bold' }}>Cancel</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Anniversary Field */}
+                                <View style={s.formField}>
+                                    <Text style={s.enhancedLabel}>Anniversary</Text>
+                                    <View style={[s.dateInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                                        <FormInput
+                                            key="anniversary-input"
+                                            value={annivText}
+                                            onChangeText={(t: string) => {
+                                                const formatted = formatDigitsToDisplay(t);
+                                                setAnnivText(formatted);
+
+                                                const digits = t.replace(/\D/g, '');
+                                                if (digits.length >= 8) {
+                                                    const parsed = parseDisplayToIso(formatDigitsToDisplay(digits));
+                                                    if (parsed) {
+                                                        setAnniversary(parsed.iso);
+                                                        setAnnivYear(parsed.year);
+                                                        setAnnivMonth(parsed.month);
+                                                    }
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                const parsed = parseDisplayToIso(annivText);
+                                                if (parsed) {
+                                                    setAnniversary(parsed.iso);
+                                                    setAnnivYear(parsed.year);
+                                                    setAnnivMonth(parsed.month);
+                                                } else if (annivText.trim() !== '') {
+                                                    setErrors(prev => ({ ...prev, anniversary: 'Invalid date (dd-mm-yyyy)' }));
+                                                } else {
+                                                    setAnniversary(null);
+                                                }
+                                            }}
+                                            placeholder={'dd-mm-yyyy'}
+                                            style={{ color: annivText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0, flex: 1 }}
+                                            keyboardType='default'
+                                            returnKeyType='done'
+                                        />
+                                        <TouchableOpacity onPress={() => setShowAnniversaryPicker(true)} style={{ marginLeft: 8 }}>
+                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                                        </TouchableOpacity>
+                                    </View>
+                                    {showAnniversaryPicker && (
+                                        <View style={{ marginVertical: 10 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                    <View style={{ minWidth: 160 }}>
+                                                        <RNPickerSelect
+                                                            value={String(annivMonth)}
+                                                            onValueChange={value => {
+                                                                const parsed = Number(value);
+                                                                if (!isNaN(parsed)) setAnnivMonth(parsed);
+                                                            }}
+                                                            items={monthItems}
+                                                            style={yearPickerStyle}
+                                                            useNativeAndroidPickerStyle={false}
+                                                            Icon={() => (
+                                                                <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
+                                                            )}
+                                                            placeholder={{}}
+                                                        />
+                                                    </View>
+                                                </View>
+                                                {/* place year picker at the top-right of the picker header */}
+                                                <View style={{ minWidth: 90, alignSelf: 'flex-start' }}>
+                                                    <RNPickerSelect
+                                                        value={String(annivYear)}
+                                                        onValueChange={value => {
+                                                            const parsed = Number(value);
+                                                            if (!isNaN(parsed)) setAnnivYear(parsed);
+                                                        }}
+                                                        items={yearItems}
+                                                        style={yearPickerStyle}
+                                                        useNativeAndroidPickerStyle={false}
+                                                        Icon={() => (
+                                                            <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
+                                                        )}
+                                                        placeholder={{}}
+                                                    />
+                                                </View>
+                                            </View>
+                                            <LocalCalendar
+                                                year={annivYear}
+                                                month={annivMonth}
+                                                selectedIso={anniversary}
+                                                onDayPress={(iso: string) => {
+                                                    setAnniversary(iso);
+                                                    try {
+                                                        const [y, m] = iso.split('T')[0].split('-');
+                                                        const yN = Number(y);
+                                                        const mN = Number(m) - 1;
+                                                        if (!isNaN(yN)) setAnnivYear(yN);
+                                                        if (!isNaN(mN)) setAnnivMonth(mN);
+                                                            setAnnivText(formatIsoToDisplay(iso));
+                                                    } catch (e) {}
+                                                    setShowAnniversaryPicker(false);
+                                                }}
+                                                onPrev={() => {
+                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, -1);
+                                                    setAnnivMonth(newMonth);
+                                                    setAnnivYear(newYear);
+                                                }}
+                                                onNext={() => {
+                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, 1);
+                                                    setAnnivMonth(newMonth);
+                                                    setAnnivYear(newYear);
+                                                }}
+                                            />
+                                            <TouchableOpacity onPress={() => setShowAnniversaryPicker(false)} style={{ alignItems: 'center', margin: 8 }}>
+                                                <Text style={{ color: '#3B82F6', fontWeight: 'bold' }}>Cancel</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
 
                                 {/* Gender Dropdown */}
                                 <View style={s.formField}>
@@ -976,7 +1608,6 @@ const s = StyleSheet.create({
     },
     row: { 
         flexDirection: "row", 
-        gap: 12,
         marginBottom: 16,
     },
     cc: { 
@@ -1063,7 +1694,6 @@ const s = StyleSheet.create({
         borderColor: "#C7D2FE",
         flexDirection: "row",
         justifyContent: "center",
-        gap: 8,
     },
     pickTxt: { 
         color: "#3B82F6", 
@@ -1092,7 +1722,6 @@ const s = StyleSheet.create({
     addPhoneBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
         marginTop: 8,
     },
     addPhoneTxt: {
@@ -1103,7 +1732,6 @@ const s = StyleSheet.create({
     phoneRow: {
         flexDirection: 'row',
         alignItems: 'flex-start', // keep top alignment so label sits above input
-        gap: 8,
     },
     phoneWrapper: {
         flex: 1,
@@ -1129,7 +1757,6 @@ const s = StyleSheet.create({
     // Gender Selection Styles
     genderContainer: {
         flexDirection: "row",
-        gap: 12,
         marginTop: 8,
     },
     genderButton: {
@@ -1143,7 +1770,6 @@ const s = StyleSheet.create({
         backgroundColor: "#F3F4F6",
         borderWidth: 2,
         borderColor: "#E5E7EB",
-        gap: 8,
     },
     genderButtonSelected: {
         backgroundColor: "#3B82F6",
@@ -1160,7 +1786,6 @@ const s = StyleSheet.create({
     
     // Action Buttons
     actionContainer: {
-        gap: 12,
         marginTop: 24,
         paddingBottom: 20,
     },
@@ -1174,7 +1799,6 @@ const s = StyleSheet.create({
         borderColor: "#FECACA",
         flexDirection: "row",
         justifyContent: "center",
-        gap: 8,
     },
     deleteBtnText: {
         color: "#DC2626",
@@ -1183,11 +1807,52 @@ const s = StyleSheet.create({
     },
     
     // Helper text
+
     helperText: {
         fontSize: 12,
         color: "#6B7280",
         fontStyle: "italic",
         marginTop: 4,
         lineHeight: 16,
+    },
+    // Outer wrapper for the date row — make transparent so the calendar's inner box is the visible container
+    dateInput: {
+        backgroundColor: 'transparent',
+        borderRadius: 0,
+        padding: 0,
+        borderWidth: 0,
+        marginBottom: 0,
+        justifyContent: 'center',
+    },
+    weekRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    weekday: {
+        flex: 1,
+        textAlign: 'center',
+        color: '#6B7280',
+        fontWeight: '600',
+    },
+    dayCell: {
+        flex: 1,
+        paddingVertical: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dayText: {
+        color: '#374151',
+    },
+    selectedDay: {
+        backgroundColor: '#3B82F6',
+        borderRadius: 20,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    selectedDayText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
     },
 });

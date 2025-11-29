@@ -219,7 +219,9 @@ async function request<T>(
           (lastErr as any).status = e.status ?? 0;
           (lastErr as any).data = e.data ?? null;
         } else if (e.status === 404) {
-          lastErr = new Error('Service temporarily unavailable. Please try again in a moment.');
+          // Prefer any server-provided message for 404s; fall back to a clearer 'Not found' message.
+          const serverMsg = e?.data?.message || e?.message;
+          lastErr = new Error(serverMsg || 'Requested resource not found (404).');
           (lastErr as any).status = 404;
           (lastErr as any).data = e.data ?? null;
         } else if (e.status >= 500) {

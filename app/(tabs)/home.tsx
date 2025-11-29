@@ -2,11 +2,13 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+<<<<<<< Updated upstream
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
+=======
+>>>>>>> Stashed changes
 import api from "@/lib/api";
 import FAB from "@/components/FAB";
 import CardRow from "@/components/CardRow";
@@ -43,44 +45,21 @@ export default function Home() {
   const feedQ = useQuery({
     queryKey: ["contacts-feed"],
     queryFn: async () => {
-      console.log("📱 Home: Fetching contacts feed...");
+      console.log("📱 Home: Fetching contacts feed using shared API helper...");
       try {
-        const token = await AsyncStorage.getItem("token");
-        if (!token) {
-          console.log("❌ Home: No auth token found");
-          return [];
-        }
-
-        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend-6ki0.onrender.com";
-        const url = `${apiBase}/api/cards/feed/contacts`;
-        console.log("🔍 Home: Fetching from URL:", url);
-        
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
-        console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
-        console.log("📇 Home: Cards count:", result.meta?.totalCards);
-        
-        return result.data || [];
-      } catch (error) {
-        console.error("❌ Home: Error fetching contacts feed:", error);
+        const resp = await api.get<{ data: any[] }>('/cards/feed/contacts');
+        // api.get returns parsed JSON (and logs in lib/api)
+        const dataArr = resp?.data || resp || [];
+        console.log('📊 Home: contacts-feed length:', Array.isArray(dataArr) ? dataArr.length : 0);
+        return dataArr;
+      } catch (err) {
+        console.error('❌ Home: Failed to fetch contacts-feed via api.get:', err);
         return [];
       }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh for 5 mins
     gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 mins
-    refetchOnMount: false, // Don't refetch every time component mounts
+    refetchOnMount: true, // Ensure Home refetches when mounted so new/changed cards appear
     refetchOnWindowFocus: false, // Don't refetch when app comes to foreground
     refetchInterval: false, // No auto-refetch - only on manual refresh
   });

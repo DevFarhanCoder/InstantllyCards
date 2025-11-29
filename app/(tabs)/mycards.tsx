@@ -14,7 +14,8 @@ import GroupSharingSessionUI from "@/components/GroupSharingSessionUI";
 import groupSharingService, { GroupSharingSession } from "@/lib/groupSharingService";
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// AsyncStorage removed - no longer reading a signup default card here
 
 type Card = any;
 
@@ -30,7 +31,6 @@ export default function MyCards() {
   const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [showFABMenu, setShowFABMenu] = useState(false);
-  const [signupDefaultCard, setSignupDefaultCard] = useState<Card | null>(null);
   const [showTooltip, setShowTooltip] = useState(true);
   
   // Group name dialog states
@@ -82,51 +82,14 @@ export default function MyCards() {
     });
   }, [q.data, q.isLoading, q.isRefetching, q.isError, q.error]);
 
-  // Read any default card saved at signup (so we can show it immediately)
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const d = await AsyncStorage.getItem('default_card');
-        if (!mounted) return;
-        if (d) {
-          let parsed = null;
-          try {
-            parsed = JSON.parse(d);
-          } catch (parseErr) {
-            console.error('MyCards: Failed to JSON.parse default_card value:', parseErr, 'raw:', d);
-            parsed = d;
-          }
-          // Ensure default card has name and phone for display
-          const userName = await AsyncStorage.getItem('user_name');
-          const userPhone = await AsyncStorage.getItem('user_phone');
-          if (parsed && typeof parsed === 'object') {
-            if (!parsed.name && userName) parsed.name = userName;
-            // Normalize phone fields used by CardRow (personal/company)
-            if ((!parsed.personalPhone && !parsed.companyPhone) && userPhone) {
-              // store as personalPhone for simplicity
-              parsed.personalPhone = userPhone.replace(/^\+/, '');
-              parsed.personalCountryCode = parsed.personalPhone.startsWith('91') ? '91' : parsed.personalCountryCode || '';
-            }
-          }
-          setSignupDefaultCard(parsed);
-          console.log('MyCards: Found signup default card in storage (preview):', parsed && typeof parsed === 'object' ? (parsed._id || parsed.id || parsed.name || '<no-id-or-name>') : String(parsed));
-        } else {
-          setSignupDefaultCard(null);
-        }
-      } catch (e) {
-        console.error('MyCards: Failed reading default_card from storage', e);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+  // No signup default_card logic here — show normal empty state and let server/backend handle any defaults
 
   // Debug: log when ListEmptyComponent will render
   useEffect(() => {
     if (q.data && Array.isArray(q.data) && q.data.length === 0) {
-      console.warn('MyCards: Query returned zero cards. signupDefaultCard?', !!signupDefaultCard);
+      console.warn('MyCards: Query returned zero cards.');
     }
-  }, [q.data, signupDefaultCard]);
+  }, [q.data]);
 
   // Fallback: If user has no cards, create a default card automatically
   // NOTE: frontend auto-creation of a default card on empty results
@@ -283,17 +246,10 @@ export default function MyCards() {
           />
         }
         ListEmptyComponent={
-          signupDefaultCard ? (
-            <View style={s.empty}>
-              <Text style={s.emptyTxt}>A default card was created for you at signup.</Text>
-              <Text style={s.emptySubTxt}>If it's not visible yet, pull to refresh.</Text>
-            </View>
-          ) : (
-            <View style={s.empty}>
-              <Text style={s.emptyTxt}>No cards available.</Text>
-              <Text style={s.emptySubTxt}>Unable to create default card at signup. Please try creating one manually.</Text>
-            </View>
-          )
+          <View style={s.empty}>
+            <Text style={s.emptyTxt}>You haven't created any cards yet</Text>
+            <Text style={s.emptySubTxt}>Tap the + button to create your first card.</Text>
+          </View>
         }
         showsVerticalScrollIndicator={false}
       />

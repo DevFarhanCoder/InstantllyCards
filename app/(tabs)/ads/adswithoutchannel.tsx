@@ -11,6 +11,9 @@ import { getCurrentUser } from '@/lib/useUser';
 
 const { width } = Dimensions.get("window");
 
+// API base (use environment variable when available). Fallback set to remote render URL.
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://instantllychannelpatner.onrender.com';
+
 // Format number with Indian number system (lakhs, crores)
 const formatIndianNumber = (num: number): string => {
   const numStr = num.toString();
@@ -145,7 +148,7 @@ export default function AdsWithoutChannel() {
   const fetchAds = async () => {
     setLoadingAds(true);
     try {
-      const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend-1.onrender.com";
+      const apiBase = process.env.EXPO_PUBLIC_API_BASE || API_BASE;
 
       // If we have a phone number, prefer using it (backwards compatible).
       // Otherwise, try an authenticated request using stored token so user doesn't need to enter phone.
@@ -209,7 +212,7 @@ export default function AdsWithoutChannel() {
         console.warn('Failed to read token from storage before delete:', e);
       }
 
-      const response = await fetch(`http://192.168.0.102:8080/api/ads/${adToDelete}`, {
+      const response = await fetch(`${API_BASE}/api/ads/${adToDelete}`, {
         method: 'DELETE',
         headers,
       });
@@ -246,8 +249,8 @@ export default function AdsWithoutChannel() {
     // Populate form with ad data
     setFormData({
       title: ad.title,
-      bottomImage: ad.bottomImage ? ad.bottomImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', 'http://192.168.0.102:8080') : '',
-      fullscreenImage: ad.fullscreenImage ? ad.fullscreenImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', 'http://192.168.0.102:8080') : '',
+      bottomImage: ad.bottomImage ? ad.bottomImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '',
+      fullscreenImage: ad.fullscreenImage ? ad.fullscreenImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '',
       phoneNumber: ad.phoneNumber,
       pinCode: ad.pinCode || '',
       startDate: ad.startDate,
@@ -315,17 +318,20 @@ export default function AdsWithoutChannel() {
           phoneNumber,
         };
 
-        const response = await fetch(
-          `http://192.168.0.102:8080/api/ads/${editingAdId}`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
-            },
-            body: JSON.stringify(submitData),
-          }
-        );
+        // Use stored token for admin/authorized updates (do not keep hard-coded tokens)
+        const headers: any = { 'Content-Type': 'application/json' };
+        try {
+          const tok = await AsyncStorage.getItem('token');
+          if (tok) headers.Authorization = `Bearer ${tok}`;
+        } catch (e) {
+          console.warn('Failed to read token from storage before edit:', e);
+        }
+
+        const response = await fetch(`${API_BASE}/api/ads/${editingAdId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(submitData),
+        });
 
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -365,17 +371,12 @@ export default function AdsWithoutChannel() {
           uploaderName: 'Mobile User',
         };
 
-        const response = await fetch(
-          'http://192.168.0.102:8080/api/ads',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              // NO Authorization header - this makes it a mobile user upload (pending status)
-            },
-            body: JSON.stringify(submitData),
-          }
-        );
+        // POST new ad as mobile user (no Authorization header) so it arrives as 'pending'
+        const response = await fetch(`${API_BASE}/api/ads`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(submitData),
+        });
 
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -1286,7 +1287,7 @@ export default function AdsWithoutChannel() {
                 <View style={styles.imageSection}>
                   <Text style={styles.imageSectionLabel}>Bottom Banner (624×174)</Text>
                   <Image 
-                    source={{ uri: previewAd.bottomImage ? previewAd.bottomImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', 'http://192.168.0.102:8080') : '' }} 
+                    source={{ uri: previewAd.bottomImage ? previewAd.bottomImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '' }} 
                     style={styles.previewBottomImage}
                     resizeMode="contain"
                   />
@@ -1296,7 +1297,7 @@ export default function AdsWithoutChannel() {
                 <View style={styles.imageSection}>
                   <Text style={styles.imageSectionLabel}>Fullscreen Image (624×1000)</Text>
                   <Image 
-                    source={{ uri: previewAd.fullscreenImage ? previewAd.fullscreenImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', 'http://192.168.0.102:8080') : '' }} 
+                    source={{ uri: previewAd.fullscreenImage ? previewAd.fullscreenImage.replace('https://instantlly-cards-backend-6ki0.onrender.com', API_BASE) : '' }} 
                     style={styles.previewFullscreenImage}
                     resizeMode="contain"
                   />

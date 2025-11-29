@@ -26,17 +26,11 @@ async function registerTokenWithBackendAsync() {
     
     const authToken = await ensureAuth();
     if (authToken) {
-      console.log('🔔 Attempting to register push token with backend...');
-      const result = await api.nonCritical.post('/notifications/register-token', {
-        pushToken: 'expo-go-local-mode',
-        platform: Platform.OS
-      });
-      
-      if (result) {
-        console.log('✅ Expo Go local mode token registered with backend');
-      } else {
-        console.log('⚠️ Push token registration failed silently (non-critical)');
-      }
+      // In Expo Go we intentionally DO NOT send a push token to the production backend.
+      // The backend rejects Expo Go tokens (they are not valid for production) which
+      // causes noisy 400 errors in logs. To keep development logs clean and avoid
+      // unnecessary backend traffic, skip registration here.
+      console.log('🔔 Skipping backend push token registration in Expo Go (expo-go-local-mode)');
     } else {
       console.log('⏸️ Skipping push token registration - user not authenticated');
     }

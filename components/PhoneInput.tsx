@@ -314,10 +314,15 @@ export default function PhoneInput({
         <TextInput
           style={styles.input}
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={(t) => {
+            // Allow only digits and limit to 10 characters
+            const digits = t.replace(/\D/g, '').slice(0, 10);
+            onChangeText(digits);
+          }}
           placeholder={placeholder}
           placeholderTextColor="#9CA3AF"
           keyboardType="phone-pad"
+          maxLength={10}
         />
 
         {/* Clear Button */}
