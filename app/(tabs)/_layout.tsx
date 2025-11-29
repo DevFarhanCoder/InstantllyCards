@@ -43,15 +43,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="mycards"
         options={{
-<<<<<<< Updated upstream
           title: "My Cards",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name="albums" color={focused ? "#4F6AF3" : "#9CA3AF"} size={size} />
-=======
-          title: "MyCards",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="albums" color={color} size={size} />
->>>>>>> Stashed changes
           ),
         }}
       />

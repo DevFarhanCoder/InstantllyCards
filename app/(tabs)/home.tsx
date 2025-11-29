@@ -3,12 +3,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-<<<<<<< Updated upstream
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-
-=======
->>>>>>> Stashed changes
 import api from "@/lib/api";
 import FAB from "@/components/FAB";
 import CardRow from "@/components/CardRow";
