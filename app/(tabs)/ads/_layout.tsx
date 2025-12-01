@@ -36,13 +36,6 @@ export default function AdsStackLayout() {
         options={{
           headerTitle: "Advertisements",
           headerShown: true,
-<<<<<<< Updated upstream
-          headerTitleStyle: {
-            fontSize: 16,
-            fontWeight: "600",
-          },
-=======
->>>>>>> Stashed changes
         }}
       />
       
@@ -52,78 +45,36 @@ export default function AdsStackLayout() {
           headerTitle: "Advertisements",
           headerShown: true,
           headerBackVisible: false,
-<<<<<<< Updated upstream
-          headerRight: () => <HeaderRight />,
-          headerTitleStyle: {
-            fontSize: 16,
-            fontWeight: "600",
-          },
-          // For older versions of react-navigation, you can also use:
-          // headerLeft: () => null,
-=======
->>>>>>> Stashed changes
         }}
       />
     </Stack>
   );
-<<<<<<< Updated upstream
-
 }
 
 const styles = StyleSheet.create({
   headerRight: {
-    flexDirection: "row",
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     marginRight: 8,
-    alignItems: "center",
-  },
-  iconButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    backgroundColor: "#F8F9FA",
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  coinIcon: {
-    fontSize: 14,
-  },
-  creditNumber: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1F2937",
   },
   transferButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
     paddingHorizontal: 12,
-    backgroundColor: "#FEE2E2",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
   },
   transferIcon: {
-    fontSize: 18,
-    color: "#EF4444",
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
   },
   transferLabel: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#EF4444",
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
-=======
-}
->>>>>>> Stashed changes

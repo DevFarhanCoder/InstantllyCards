@@ -1,5 +1,4 @@
 ﻿import React, { useState, useRef, useEffect } from "react";
-<<<<<<< Updated upstream
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, TextInput, Alert, ActivityIndicator, Modal, Image, BackHandler, FlatList } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,13 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { searchPostalCodes as searchLocalPostalCodes } from '@/constants/postalCodes';
 import { useRouter } from "expo-router";
 import { getCurrentUser } from '@/lib/useUser';
-=======
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, TextInput, Alert, ActivityIndicator, Modal, Image, BackHandler } from "react-native";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
-import { Calendar } from 'react-native-calendars';
-import { searchPostalCodes as searchLocalPostalCodes } from '@/constants/postalCodes';
->>>>>>> Stashed changes
 
 const { width } = Dimensions.get("window");
 
@@ -50,7 +42,6 @@ export default function AdsWithoutChannel() {
   const [pinCodeSuggestions, setPinCodeSuggestions] = useState<Array<{postalCode: string, displayName: string}>>([]);
   const [showPinSuggestions, setShowPinSuggestions] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
-<<<<<<< Updated upstream
   const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewAd, setPreviewAd] = useState<any>(null);
@@ -68,14 +59,6 @@ export default function AdsWithoutChannel() {
     }
   }, [userPhoneNumber, activeTab]);
 
-=======
-
-  // Load user's phone number from storage on mount
-  useEffect(() => {
-    loadUserPhone();
-  }, []);
-
->>>>>>> Stashed changes
   // Handle Android back button when menu is open
   useEffect(() => {
     const backAction = () => {
@@ -96,7 +79,6 @@ export default function AdsWithoutChannel() {
 
   const loadUserPhone = async () => {
     try {
-<<<<<<< Updated upstream
       // First try to get from user profile
       const user = await getCurrentUser();
       if (user?.phone) {
@@ -115,14 +97,6 @@ export default function AdsWithoutChannel() {
       }
     } catch (error) {
       console.error('❌ Failed to load user phone:', error);
-=======
-      const savedPhone = await AsyncStorage.getItem('userPhoneNumber');
-      if (savedPhone) {
-        setUserPhoneNumber(savedPhone);
-      }
-    } catch (error) {
-      console.error('Failed to load user phone:', error);
->>>>>>> Stashed changes
     }
   };
 
@@ -169,7 +143,6 @@ export default function AdsWithoutChannel() {
   };
 
   const fetchAds = async () => {
-<<<<<<< Updated upstream
     if (!userPhoneNumber) {
       console.log('⏳ Waiting for phone number to load...');
       return;
@@ -215,29 +188,6 @@ export default function AdsWithoutChannel() {
     } catch (error) {
       console.error('❌ Network error fetching ads:', error);
       Alert.alert('Error', 'Failed to load your ads. Please check your internet connection.');
-=======
-    setLoadingAds(true);
-    try {
-      const response = await fetch('https://instantlly-cards-backend-6ki0.onrender.com/api/ads', {
-        headers: {
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
-        },
-      });
-      const data = await response.json();
-      if (response.ok) {
-        const allAds = data.data || [];
-        // Filter ads to show only those created by this user
-        if (userPhoneNumber) {
-          const userAds = allAds.filter((ad: any) => ad.phoneNumber === userPhoneNumber);
-          setAds(userAds);
-        } else {
-          // If no user phone saved yet, show empty
-          setAds([]);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch ads:', error);
->>>>>>> Stashed changes
     } finally {
       setLoadingAds(false);
     }
@@ -253,11 +203,7 @@ export default function AdsWithoutChannel() {
     
     setIsDeleting(true);
     try {
-<<<<<<< Updated upstream
       const response = await fetch(`https://instantlly-cards-backend-1.onrender.com/api/ads/${adToDelete}`, {
-=======
-      const response = await fetch(`https://instantlly-cards-backend-6ki0.onrender.com/api/ads/${adToDelete}`, {
->>>>>>> Stashed changes
         method: 'DELETE',
         headers: {
           'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
@@ -332,11 +278,7 @@ export default function AdsWithoutChannel() {
     setUploadProgress(0);
     
     try {
-<<<<<<< Updated upstream
       // Simulate upload progress
-=======
-      // Simulate upload progress (since fetch doesn't support onUploadProgress in React Native)
->>>>>>> Stashed changes
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
@@ -347,7 +289,6 @@ export default function AdsWithoutChannel() {
         });
       }, 100);
 
-<<<<<<< Updated upstream
       // Save user's phone number for filtering
       await saveUserPhone(formData.phoneNumber);
 
@@ -459,69 +400,6 @@ export default function AdsWithoutChannel() {
           Alert.alert('Error', data.message || 'Failed to create advertisement');
           setUploadProgress(0);
         }
-=======
-      // Prepare data - add +91 if not already present
-      const submitData = {
-        ...formData,
-        phoneNumber: formData.phoneNumber.startsWith('+91') 
-          ? formData.phoneNumber 
-          : '+91' + formData.phoneNumber,
-      };
-
-      // Save user's phone number for filtering
-      await saveUserPhone(formData.phoneNumber);
-
-      const url = editingAdId 
-        ? `https://instantlly-cards-backend-6ki0.onrender.com/api/ads/${editingAdId}`
-        : 'https://instantlly-cards-backend-6ki0.onrender.com/api/ads';
-      
-      const method = editingAdId ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
-        },
-        body: JSON.stringify(submitData),
-      });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      const data = await response.json();
-
-      console.log(`📤 Mobile App - Ad ${editingAdId ? 'Update' : 'Creation'} Response:`);
-      console.log('Status:', response.status);
-      console.log('Response Data:', data);
-
-      if (response.ok) {
-        // Show success modal instead of alert
-        setShowSuccessModal(true);
-        
-        // Reset form after a delay
-        setTimeout(() => {
-          setFormData({
-            title: '',
-            bottomImage: '',
-            fullscreenImage: '',
-            phoneNumber: '',
-            pinCode: '',
-            startDate: '',
-            endDate: '',
-            priority: 5,
-          });
-          setShowForm(false);
-          setUploadProgress(0);
-          setEditingAdId(null);
-          // Refresh ads list
-          fetchAds();
-        }, 2000);
-      } else {
-        console.error(`❌ Mobile App - Ad ${editingAdId ? 'Update' : 'Creation'} Failed:`, data);
-        Alert.alert('Error', data.message || `Failed to ${editingAdId ? 'update' : 'create'} advertisement`);
-        setUploadProgress(0);
->>>>>>> Stashed changes
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || `Failed to ${editingAdId ? 'update' : 'create'} advertisement`);
@@ -559,7 +437,6 @@ export default function AdsWithoutChannel() {
     setShowDatePicker(null);
   };
 
-<<<<<<< Updated upstream
   // Get user's current location for better postal code suggestions
   const getCurrentLocation = async () => {
     try {
@@ -593,20 +470,11 @@ export default function AdsWithoutChannel() {
     
     if (query.length < 3) {
       console.log('❌ Query too short (minimum 3 characters)');
-=======
-  // Search postal codes using local database (No API needed)
-  const searchPostalCodes = (query: string) => {
-    console.log('🔍 searchPostalCodes called with query:', query);
-    
-    if (query.length < 2) {
-      console.log('❌ Query too short');
->>>>>>> Stashed changes
       setPinCodeSuggestions([]);
       setShowPinSuggestions(false);
       return;
     }
 
-<<<<<<< Updated upstream
     try {
       // OpenStreetMap Nominatim - FREE, no API key required!
       // Use postalcode parameter for better postal code-specific results
@@ -784,65 +652,24 @@ export default function AdsWithoutChannel() {
     const timer = setTimeout(() => {
       if (formData.pinCode && formData.pinCode.length >= 3) {
         console.log('✅ Calling Google Places API with:', formData.pinCode);
-=======
-    const results = searchLocalPostalCodes(query);
-    console.log('📦 Search results count:', results.length);
-    console.log('📦 First 3 results:', results.slice(0, 3));
-    
-    const suggestions = results.map((item: any) => {
-      // Create display name with area if available
-      const displayParts = [item.code];
-      if (item.area) displayParts.push(item.area);
-      displayParts.push(item.city, item.state, item.country);
-      
-      return {
-        postalCode: item.code,
-        displayName: displayParts.join(', '),
-      };
-    });
-
-    console.log('✅ Formatted suggestions count:', suggestions.length);
-    console.log('✅ First suggestion:', suggestions[0]);
-    setPinCodeSuggestions(suggestions);
-    setShowPinSuggestions(suggestions.length > 0);
-    console.log('✅ showPinSuggestions set to:', suggestions.length > 0);
-  };
-
-  // Debounce postal code search
-  useEffect(() => {
-    console.log('⏱️ useEffect triggered, pinCode:', formData.pinCode);
-    const timer = setTimeout(() => {
-      if (formData.pinCode && formData.pinCode.length >= 2) {
-        console.log('✅ Calling searchPostalCodes with:', formData.pinCode);
->>>>>>> Stashed changes
         searchPostalCodes(formData.pinCode);
       } else {
         console.log('❌ Clearing suggestions, length:', formData.pinCode?.length);
         setPinCodeSuggestions([]);
         setShowPinSuggestions(false);
       }
-<<<<<<< Updated upstream
     }, 500); // 500ms debounce - saves API costs by reducing requests
-=======
-    }, 300); // 300ms debounce delay
->>>>>>> Stashed changes
 
     return () => clearTimeout(timer);
   }, [formData.pinCode]);
 
   const selectPinCode = (postalCode: string, displayName: string) => {
-<<<<<<< Updated upstream
     console.log('🎯 selectPinCode called with:', { postalCode, displayName });
-=======
->>>>>>> Stashed changes
     setFormData({ ...formData, pinCode: postalCode });
     setSelectedLocation(displayName);
     setShowPinSuggestions(false);
     setPinCodeSuggestions([]);
-<<<<<<< Updated upstream
     console.log('✅ Selected location set to:', displayName);
-=======
->>>>>>> Stashed changes
   };
 
   const renderDatePicker = () => {
@@ -918,7 +745,6 @@ export default function AdsWithoutChannel() {
     <View style={styles.container}>
       {renderDatePicker()}
       
-<<<<<<< Updated upstream
       {/* Credit Display - only show when form is not open */}
       {!showForm && (
         <View style={styles.creditDisplayContainer}>
@@ -933,8 +759,6 @@ export default function AdsWithoutChannel() {
         </View>
       )}
       
-=======
->>>>>>> Stashed changes
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "create" && styles.activeTab]}
@@ -966,13 +790,8 @@ export default function AdsWithoutChannel() {
         <View style={[styles.page, { width }]}>
           {!showForm ? (
             <View style={styles.emptyState}>
-<<<<<<< Updated upstream
               <Text style={styles.emptyStateTitle}>Upload New Advertisement</Text>
               <Text style={styles.emptyStateText}>Click the button below to upload a new advertisement for your business</Text>
-=======
-              <Text style={styles.emptyStateTitle}>Create New Advertisement</Text>
-              <Text style={styles.emptyStateText}>Click the button below to create a new advertisement for your business</Text>
->>>>>>> Stashed changes
               <TouchableOpacity 
                 style={styles.createButton}
                 onPress={() => setShowForm(true)}
@@ -981,16 +800,11 @@ export default function AdsWithoutChannel() {
                   <View style={styles.iconCircle}>
                     <Text style={styles.buttonIcon}>📄</Text>
                   </View>
-<<<<<<< Updated upstream
                   <Text style={styles.createButtonText}>Upload New Ads</Text>
-=======
-                  <Text style={styles.createButtonText}>Create New Ad</Text>
->>>>>>> Stashed changes
                 </View>
               </TouchableOpacity>
             </View>
           ) : (
-<<<<<<< Updated upstream
           <ScrollView 
             style={styles.formContainer}
             scrollEnabled={!showPinSuggestions}
@@ -998,11 +812,6 @@ export default function AdsWithoutChannel() {
           >
             <View style={styles.formHeader}>
               <Text style={styles.formTitle}>{editingAdId ? 'Edit Advertisement' : 'Upload New Advertisement'}</Text>
-=======
-          <ScrollView style={styles.formContainer}>
-            <View style={styles.formHeader}>
-              <Text style={styles.formTitle}>{editingAdId ? 'Edit Advertisement' : 'Create New Advertisement'}</Text>
->>>>>>> Stashed changes
             </View>
 
             {/* Title Input */}
@@ -1089,11 +898,7 @@ export default function AdsWithoutChannel() {
                     setFormData({ ...formData, pinCode: text });
                     setSelectedLocation(''); // Clear selected location when user types
                   }}
-<<<<<<< Updated upstream
                   placeholder="e.g., 400001"
-=======
-                  placeholder="e.g., 400001 or city name"
->>>>>>> Stashed changes
                   placeholderTextColor="#999"
                   onFocus={() => {
                     if (formData.pinCode.length >= 2 && pinCodeSuggestions.length > 0) {
@@ -1102,16 +907,11 @@ export default function AdsWithoutChannel() {
                   }}
                   onBlur={() => {
                     // Delay to allow tap on suggestion
-<<<<<<< Updated upstream
                     setTimeout(() => setShowPinSuggestions(false), 300);
-=======
-                    setTimeout(() => setShowPinSuggestions(false), 200);
->>>>>>> Stashed changes
                   }}
                 />
                 {showPinSuggestions && pinCodeSuggestions.length > 0 && (
                   <View style={styles.suggestionsContainer}>
-<<<<<<< Updated upstream
                     <ScrollView
                       showsVerticalScrollIndicator={true}
                       nestedScrollEnabled={true}
@@ -1120,22 +920,12 @@ export default function AdsWithoutChannel() {
                       bounces={false}
                     >
                       {pinCodeSuggestions.map((item, index) => (
-=======
-                    <ScrollView 
-                      style={styles.suggestionsList}
-                      showsVerticalScrollIndicator={true}
-                      keyboardShouldPersistTaps="handled"
-                      nestedScrollEnabled={true}
-                    >
-                      {pinCodeSuggestions.map((suggestion, index) => (
->>>>>>> Stashed changes
                         <TouchableOpacity
                           key={index}
                           style={[
                             styles.suggestionItem,
                             index === pinCodeSuggestions.length - 1 && styles.suggestionItemLast
                           ]}
-<<<<<<< Updated upstream
                           onPress={() => {
                             console.log('Selected:', item.postalCode, item.displayName);
                             selectPinCode(item.postalCode, item.displayName);
@@ -1144,18 +934,11 @@ export default function AdsWithoutChannel() {
                         >
                           <Text style={styles.suggestionCode}>{item.postalCode}</Text>
                           <Text style={styles.suggestionArea} numberOfLines={2}>{item.displayName}</Text>
-=======
-                          onPress={() => selectPinCode(suggestion.postalCode, suggestion.displayName)}
-                        >
-                          <Text style={styles.suggestionCode}>{suggestion.postalCode}</Text>
-                          <Text style={styles.suggestionArea} numberOfLines={2}>{suggestion.displayName}</Text>
->>>>>>> Stashed changes
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
                   </View>
                 )}
-<<<<<<< Updated upstream
                 {showPinSuggestions && pinCodeSuggestions.length === 0 && (
                   <View style={styles.noResultsContainer}>
                     <Text style={styles.noResultsText}>❌ No postal codes found</Text>
@@ -1164,15 +947,10 @@ export default function AdsWithoutChannel() {
                 )}
               </View>
               {selectedLocation && selectedLocation.trim() !== '' ? (
-=======
-              </View>
-              {selectedLocation ? (
->>>>>>> Stashed changes
                 <View style={styles.selectedLocationContainer}>
                   <Text style={styles.selectedLocationLabel}>📍 Selected Location:</Text>
                   <Text style={styles.selectedLocationText}>{selectedLocation}</Text>
                 </View>
-<<<<<<< Updated upstream
               ) : formData.pinCode && formData.pinCode.trim() !== '' && pinCodeSuggestions.length > 0 && !showPinSuggestions ? (
                 <View style={styles.selectedLocationContainer}>
                   <Text style={styles.selectedLocationLabel}>💡 Suggestion:</Text>
@@ -1194,10 +972,6 @@ export default function AdsWithoutChannel() {
                 </View>
               ) : (
                 <Text style={styles.smallHelperText}>Enter postal code</Text>
-=======
-              ) : (
-                <Text style={styles.smallHelperText}>Enter postal code or city name for suggestions</Text>
->>>>>>> Stashed changes
               )}
             </View>
 
@@ -1295,7 +1069,6 @@ export default function AdsWithoutChannel() {
             ) : (
               <View style={styles.adsListContainer}>
                 {ads.map((ad, index) => {
-<<<<<<< Updated upstream
                   // Check approval status
                   const approvalStatus = ad.approvalStatus || ad.status || 'pending';
                   const isPendingApproval = approvalStatus === 'pending' || approvalStatus === 'Pending';
@@ -1308,8 +1081,6 @@ export default function AdsWithoutChannel() {
                   else if (isRejectedApproval) approvalText = 'Rejected';
                   
                   // Date-based advertisement status (always calculate)
-=======
->>>>>>> Stashed changes
                   const now = new Date();
                   const start = new Date(ad.startDate);
                   const end = new Date(ad.endDate);
@@ -1317,14 +1088,11 @@ export default function AdsWithoutChannel() {
                   const isExpired = now > end;
                   const isScheduled = now < start;
                   
-<<<<<<< Updated upstream
                   // Ad status text
                   let adStatusText = 'Scheduled';
                   if (isActive) adStatusText = 'Active';
                   else if (isExpired) adStatusText = 'Expired';
                   
-=======
->>>>>>> Stashed changes
                   return (
                     <View key={ad._id || index} style={styles.adCardWrapper}>
                       <View style={styles.adCard}>
@@ -1332,11 +1100,7 @@ export default function AdsWithoutChannel() {
                           <View style={styles.cardRow}>
                             {/* Left: Status badge and title */}
                             <View style={styles.cardLeft}>
-<<<<<<< Updated upstream
                               {/* Ad Status badge at top */}
-=======
-                              {/* Status badge at top */}
->>>>>>> Stashed changes
                               <View style={[
                                 styles.statusBadgeSimple,
                                 isActive && styles.statusBadgeActiveNew,
@@ -1355,11 +1119,7 @@ export default function AdsWithoutChannel() {
                                   isExpired && styles.statusBadgeTextExpired,
                                   isScheduled && styles.statusBadgeTextScheduled
                                 ]}>
-<<<<<<< Updated upstream
                                   {adStatusText}
-=======
-                                  {isActive ? 'Active' : isExpired ? 'Expired' : 'Scheduled'}
->>>>>>> Stashed changes
                                 </Text>
                               </View>
                               <Text style={styles.cardTitle} numberOfLines={1}>{ad.title}</Text>
@@ -1369,7 +1129,6 @@ export default function AdsWithoutChannel() {
                               </Text>
                             </View>
 
-<<<<<<< Updated upstream
                             {/* Right: View Image and Menu buttons */}
                             <View style={styles.cardActions}>
                               <TouchableOpacity 
@@ -1390,15 +1149,6 @@ export default function AdsWithoutChannel() {
                                 <Text style={styles.menuDotsCard}>⋮</Text>
                               </TouchableOpacity>
                             </View>
-=======
-                            {/* Right: Menu button */}
-                            <TouchableOpacity 
-                              style={styles.menuButtonCard}
-                              onPress={() => setOpenMenuId(openMenuId === ad._id ? null : ad._id)}
-                            >
-                              <Text style={styles.menuDotsCard}>⋮</Text>
-                            </TouchableOpacity>
->>>>>>> Stashed changes
 
                             {openMenuId === ad._id && (
                               <View style={styles.menuDropdownCard}>
@@ -1424,7 +1174,6 @@ export default function AdsWithoutChannel() {
                               </View>
                             )}
                           </View>
-<<<<<<< Updated upstream
                           
                           {/* Admin Status - Bottom Right */}
                           <View style={styles.adminStatusContainer}>
@@ -1453,8 +1202,6 @@ export default function AdsWithoutChannel() {
                               <Text style={styles.rejectionReasonText}>{ad.rejectionReason}</Text>
                             </View>
                           )}
-=======
->>>>>>> Stashed changes
                         </View>
                       </View>
                     </View>
@@ -1478,7 +1225,6 @@ export default function AdsWithoutChannel() {
             <View style={styles.successCheckmarkCircle}>
               <Text style={styles.successCheckmark}>✓</Text>
             </View>
-<<<<<<< Updated upstream
             <Text style={styles.successTitle}>
               {editingAdId 
                 ? 'Advertisement updated successfully!' 
@@ -1489,9 +1235,6 @@ export default function AdsWithoutChannel() {
                 Your ad is pending admin approval. You can view its status in the Status tab.
               </Text>
             )}
-=======
-            <Text style={styles.successTitle}>{editingAdId ? 'Advertisement updated successfully!' : 'Advertisement created successfully!'}</Text>
->>>>>>> Stashed changes
             <TouchableOpacity 
               style={styles.successButton}
               onPress={() => setShowSuccessModal(false)}
@@ -1502,7 +1245,6 @@ export default function AdsWithoutChannel() {
         </View>
       </Modal>
 
-<<<<<<< Updated upstream
       {/* Image Preview Modal */}
       <Modal
         visible={showImagePreview}
@@ -1552,8 +1294,6 @@ export default function AdsWithoutChannel() {
         </View>
       </Modal>
 
-=======
->>>>>>> Stashed changes
       {/* Delete Confirmation Modal */}
       <Modal
         visible={showDeleteModal}
@@ -1597,7 +1337,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-<<<<<<< Updated upstream
   creditDisplayContainer: {
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -1629,8 +1368,6 @@ const styles = StyleSheet.create({
     color: "#3B82F6",
     fontWeight: "500",
   },
-=======
->>>>>>> Stashed changes
   adCardWrapper: {
     position: "relative",
     marginBottom: 0,
@@ -1653,22 +1390,14 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   emptyStateTitle: {
-<<<<<<< Updated upstream
     fontSize: 20,
-=======
-    fontSize: 24,
->>>>>>> Stashed changes
     fontWeight: "700",
     color: "#111827",
     marginBottom: 12,
     textAlign: "center",
   },
   emptyStateText: {
-<<<<<<< Updated upstream
     fontSize: 13,
-=======
-    fontSize: 14,
->>>>>>> Stashed changes
     color: "#6B7280",
     textAlign: "center",
     marginBottom: 24,
@@ -1676,7 +1405,6 @@ const styles = StyleSheet.create({
   },
   createButton: {
     backgroundColor: "#2563EB",
-<<<<<<< Updated upstream
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
@@ -1685,16 +1413,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
-=======
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
->>>>>>> Stashed changes
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
   },
@@ -1702,21 +1420,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-<<<<<<< Updated upstream
     gap: 6,
   },
   iconCircle: {
     width: 24,
     height: 24,
     borderRadius: 12,
-=======
-    gap: 10,
-  },
-  iconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
->>>>>>> Stashed changes
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     justifyContent: "center",
     alignItems: "center",
@@ -1724,21 +1433,12 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.2)",
   },
   buttonIcon: {
-<<<<<<< Updated upstream
     fontSize: 14,
   },
   createButtonText: {
     color: "#fff",
     fontSize: 15,
     fontWeight: "600",
-=======
-    fontSize: 15,
-  },
-  createButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
->>>>>>> Stashed changes
     letterSpacing: 0.3,
   },
   formContainer: {
@@ -2133,15 +1833,12 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginBottom: 8,
   },
-<<<<<<< Updated upstream
   statusBadgesRow: {
     flexDirection: "row",
     gap: 8,
     marginBottom: 8,
     flexWrap: "wrap",
   },
-=======
->>>>>>> Stashed changes
   menuButtonCard: {
     padding: 8,
     backgroundColor: "#F3F4F6",
@@ -2196,7 +1893,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF3C7",
     borderWidth: 0,
   },
-<<<<<<< Updated upstream
   statusBadgePendingNew: {
     backgroundColor: "#FED7AA",
     borderWidth: 0,
@@ -2209,8 +1905,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#BBF7D0",
     borderWidth: 0,
   },
-=======
->>>>>>> Stashed changes
   statusDot: {
     width: 5,
     height: 5,
@@ -2230,7 +1924,6 @@ const styles = StyleSheet.create({
   statusBadgeTextScheduled: {
     color: "#D97706",
   },
-<<<<<<< Updated upstream
   statusBadgeTextPending: {
     color: "#EA580C",
   },
@@ -2240,8 +1933,6 @@ const styles = StyleSheet.create({
   statusBadgeTextApproved: {
     color: "#16A34A",
   },
-=======
->>>>>>> Stashed changes
   statusDotActive: {
     backgroundColor: "#059669",
   },
@@ -2251,7 +1942,6 @@ const styles = StyleSheet.create({
   statusDotScheduled: {
     backgroundColor: "#D97706",
   },
-<<<<<<< Updated upstream
   statusDotPending: {
     backgroundColor: "#EA580C",
   },
@@ -2261,8 +1951,6 @@ const styles = StyleSheet.create({
   statusDotApproved: {
     backgroundColor: "#16A34A",
   },
-=======
->>>>>>> Stashed changes
   menuButtonCompact: {
     padding: 4,
     backgroundColor: "#F9FAFB",
@@ -2837,12 +2525,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 8,
   },
-<<<<<<< Updated upstream
-=======
-  iconText: {
-    fontSize: 14,
-  },
->>>>>>> Stashed changes
   adInfoContent: {
     flex: 1,
     justifyContent: "center",
@@ -2900,7 +2582,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#fff",
     textAlign: "center",
-<<<<<<< Updated upstream
     marginBottom: 12,
     lineHeight: 26,
   },
@@ -2912,11 +2593,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingHorizontal: 20,
   },
-=======
-    marginBottom: 28,
-    lineHeight: 26,
-  },
->>>>>>> Stashed changes
   successButton: {
     backgroundColor: "#2563EB",
     borderRadius: 8,
@@ -2994,10 +2670,7 @@ const styles = StyleSheet.create({
   pinCodeContainer: {
     position: "relative",
     zIndex: 1000,
-<<<<<<< Updated upstream
     overflow: "visible",
-=======
->>>>>>> Stashed changes
   },
   searchingIndicator: {
     position: "absolute",
@@ -3021,17 +2694,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
     zIndex: 1001,
-<<<<<<< Updated upstream
     height: 400,
   },
   suggestionsList: {
     flex: 1,
-=======
-    maxHeight: 250,
-  },
-  suggestionsList: {
-    maxHeight: 250,
->>>>>>> Stashed changes
   },
   suggestionItem: {
     paddingHorizontal: 16,
@@ -3073,7 +2739,6 @@ const styles = StyleSheet.create({
     color: "#1F2937",
     lineHeight: 20,
   },
-<<<<<<< Updated upstream
   noResultsContainer: {
     padding: 20,
     alignItems: "center",
@@ -3254,6 +2919,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-=======
->>>>>>> Stashed changes
 });

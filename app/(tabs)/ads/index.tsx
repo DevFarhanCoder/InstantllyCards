@@ -30,11 +30,7 @@ export default function Ads() {
 
   // Without Channel → navigate inside app
   const handleWithoutChannel = () => {
-<<<<<<< Updated upstream
     router.push("/ads/adswithoutchannel");
-=======
-    router.push("/(tabs)/ads/adswithoutchannel");
->>>>>>> Stashed changes
   };
 
   return (

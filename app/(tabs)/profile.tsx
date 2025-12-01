@@ -60,9 +60,8 @@ export default function Profile() {
 
       console.log('Fetching user profile...');
       const response = await api.get("/auth/profile");
-      console.log('Profile response:', JSON.stringify(response));
+      console.log('Profile response:', response);
       
-<<<<<<< Updated upstream
       // Handle both response formats: direct object or wrapped in 'user'
       const profileData = response.user || response;
       
@@ -71,16 +70,6 @@ export default function Profile() {
         setTempName(profileData.name || "");
         setTempPhone(profileData.phone || "");
         setTempAbout(profileData.about || "Available");
-=======
-      // Handle nested user object in response
-      const userData = response.user || response;
-      
-      if (userData && userData.name) {
-        setUserProfile(userData);
-        setTempName(userData.name || "");
-        setTempPhone(userData.phone || "");
-        setTempAbout(userData.about || "Available");
->>>>>>> Stashed changes
       } else {
         throw new Error('Invalid profile data received');
       }
