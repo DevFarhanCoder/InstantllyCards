@@ -18,23 +18,28 @@ export async function fetchAndStoreUserProfile(): Promise<User | null> {
     
     // Fetch user profile from backend
     const response = await api.get<{
-      _id: string;
-      name: string;
-      phone: string;
-      email?: string;
-      profilePicture?: string;
-      about?: string;
+      user: {
+        _id: string;
+        name: string;
+        phone: string;
+        email?: string;
+        profilePicture?: string;
+        about?: string;
+      }
     }>('/auth/profile');
     
-    if (response && response._id) {
+    // Backend returns { user: { ... } }
+    const userProfile = response?.user;
+    
+    if (userProfile && userProfile._id) {
       const userData: User = {
-        id: response._id,
-        _id: response._id,
-        name: response.name,
-        phone: response.phone,
-        email: response.email,
-        profilePicture: response.profilePicture,
-        about: response.about || 'Available'
+        id: userProfile._id,
+        _id: userProfile._id,
+        name: userProfile.name,
+        phone: userProfile.phone,
+        email: userProfile.email,
+        profilePicture: userProfile.profilePicture,
+        about: userProfile.about || 'Available'
       };
       
       // Store in AsyncStorage
@@ -43,7 +48,7 @@ export async function fetchAndStoreUserProfile(): Promise<User | null> {
       
       return userData;
     } else {
-      console.log('❌ Invalid response from profile endpoint');
+      console.log('❌ Invalid response from profile endpoint:', response);
       return null;
     }
   } catch (error) {
