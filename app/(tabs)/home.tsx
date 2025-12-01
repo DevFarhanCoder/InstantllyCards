@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "@/lib/api";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import FAB from "@/components/FAB";
 import CardRow from "@/components/CardRow";
 import FooterCarousel from "@/components/FooterCarousel";

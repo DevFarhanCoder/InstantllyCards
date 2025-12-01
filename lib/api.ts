@@ -17,7 +17,7 @@ const getApiBase = () => {
     }
   }
   
-  return "https://instantlly-cards-backend-6ki0.onrender.com";
+  return "http://192.168.0.108:8080";
 };
 
 const BASE = getApiBase();

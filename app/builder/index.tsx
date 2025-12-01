@@ -2,17 +2,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useMemo, useCallback, useState, useEffect, useRef } from "react";
-// `Ionicons` imported once above to power icon usage in this file
-import { Ionicons } from '@expo/vector-icons';
-import RNPickerSelect from 'react-native-picker-select';
-
-// Adapter components to replace lucide icons with Ionicons so we avoid requiring
-// the native `lucide-react-native` package in Expo/Metro.
-const ChevronLeft = (props: any) => <Ionicons name="chevron-back" {...props} />;
-const ChevronRight = (props: any) => <Ionicons name="chevron-forward" {...props} />;
-const LucideCalendarIcon = (props: any) => <Ionicons name="calendar" {...props} />;
+// Use Expo vector icons instead of lucide-react-native (not installed in project)
+// RNPickerSelect removed to avoid requiring extra native dependency in this repo.
+// We'll use simple text displays and LocalCalendar navigation instead.
 import api from "@/lib/api";
 import FormInput from "@/components/FormInput";
 import BusinessAvatar from "@/components/BusinessAvatar";
@@ -443,7 +438,7 @@ export default function Builder() {
                 <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 10 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <TouchableOpacity onPress={onPrev} style={{ padding: 6 }}>
-                            <ChevronLeft size={20} color="#374151" />
+                            <Ionicons name="chevron-back" size={20} color="#374151" />
                         </TouchableOpacity>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                             <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>
@@ -452,7 +447,7 @@ export default function Builder() {
                             </Text>
                         </View>
                         <TouchableOpacity onPress={onNext} style={{ padding: 6 }}>
-                            <ChevronRight size={20} color="#374151" />
+                            <Ionicons name="chevron-forward" size={20} color="#374151" />
                         </TouchableOpacity>
                     </View>
 
@@ -667,7 +662,7 @@ export default function Builder() {
             return;
         }
         const res = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images, // fixed property name
+            mediaTypes: (ImagePicker as any).MediaTypeOptions?.Images ?? (ImagePicker as any).MediaType?.Images ?? ['Images'], // fixed property name
             base64: true,
             quality: 0.8,
         });
@@ -974,38 +969,34 @@ export default function Builder() {
                                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                                         <View style={{ minWidth: 160 }}>
-                                                            <RNPickerSelect
-                                                                value={String(birthMonth)}
-                                                                onValueChange={value => {
-                                                                    const parsed = Number(value);
-                                                                    if (!isNaN(parsed)) setBirthMonth(parsed);
-                                                                }}
-                                                                items={monthItems}
-                                                                style={yearPickerStyle}
-                                                                useNativeAndroidPickerStyle={false}
-                                                                Icon={() => (
-                                                                    <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
-                                                                )}
-                                                                placeholder={{}}
-                                                            />
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                                                <TouchableOpacity onPress={() => {
+                                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, -1);
+                                                                    setBirthMonth(newMonth);
+                                                                    setBirthYear(newYear);
+                                                                }} style={{ padding: 6 }}>
+                                                                    <Ionicons name="chevron-back" size={18} color="#374151" />
+                                                                </TouchableOpacity>
+                                                                <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 120, textAlign: 'center' }}>{MONTHS[birthMonth]}</Text>
+                                                                <TouchableOpacity onPress={() => {
+                                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, 1);
+                                                                    setBirthMonth(newMonth);
+                                                                    setBirthYear(newYear);
+                                                                }} style={{ padding: 6 }}>
+                                                                    <Ionicons name="chevron-forward" size={18} color="#374151" />
+                                                                </TouchableOpacity>
+                                                            </View>
                                                         </View>
                                                     </View>
                                                     {/* place year picker at the top-right of the picker header */}
-                                                    <View style={{ minWidth: 90, alignSelf: 'flex-start' }}>
-                                                        <RNPickerSelect
-                                                            value={String(birthYear)}
-                                                            onValueChange={value => {
-                                                                const parsed = Number(value);
-                                                                if (!isNaN(parsed)) setBirthYear(parsed);
-                                                            }}
-                                                            items={yearItems}
-                                                            style={yearPickerStyle}
-                                                            useNativeAndroidPickerStyle={false}
-                                                            Icon={() => (
-                                                                <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
-                                                            )}
-                                                            placeholder={{}}
-                                                        />
+                                                    <View style={{ minWidth: 90, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <TouchableOpacity onPress={() => setBirthYear(prev => prev - 1)} style={{ padding: 6 }}>
+                                                            <Ionicons name="remove" size={16} color="#374151" />
+                                                        </TouchableOpacity>
+                                                        <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 60, textAlign: 'center' }}>{String(birthYear)}</Text>
+                                                        <TouchableOpacity onPress={() => setBirthYear(prev => prev + 1)} style={{ padding: 6 }}>
+                                                            <Ionicons name="add" size={16} color="#374151" />
+                                                        </TouchableOpacity>
                                                     </View>
                                             </View>
                                             <LocalCalendar
@@ -1089,39 +1080,35 @@ export default function Builder() {
                                         <View style={{ marginVertical: 10 }}>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                    <View style={{ minWidth: 160 }}>
-                                                        <RNPickerSelect
-                                                            value={String(annivMonth)}
-                                                            onValueChange={value => {
-                                                                const parsed = Number(value);
-                                                                if (!isNaN(parsed)) setAnnivMonth(parsed);
-                                                            }}
-                                                            items={monthItems}
-                                                            style={yearPickerStyle}
-                                                            useNativeAndroidPickerStyle={false}
-                                                            Icon={() => (
-                                                                <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
-                                                            )}
-                                                            placeholder={{}}
-                                                        />
-                                                    </View>
+                                                        <View style={{ minWidth: 160 }}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                                                <TouchableOpacity onPress={() => {
+                                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, -1);
+                                                                    setAnnivMonth(newMonth);
+                                                                    setAnnivYear(newYear);
+                                                                }} style={{ padding: 6 }}>
+                                                                    <Ionicons name="chevron-back" size={18} color="#374151" />
+                                                                </TouchableOpacity>
+                                                                <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 120, textAlign: 'center' }}>{MONTHS[annivMonth]}</Text>
+                                                                <TouchableOpacity onPress={() => {
+                                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, 1);
+                                                                    setAnnivMonth(newMonth);
+                                                                    setAnnivYear(newYear);
+                                                                }} style={{ padding: 6 }}>
+                                                                    <Ionicons name="chevron-forward" size={18} color="#374151" />
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        </View>
                                                 </View>
                                                 {/* place year picker at the top-right of the picker header */}
-                                                <View style={{ minWidth: 90, alignSelf: 'flex-start' }}>
-                                                    <RNPickerSelect
-                                                        value={String(annivYear)}
-                                                        onValueChange={value => {
-                                                            const parsed = Number(value);
-                                                            if (!isNaN(parsed)) setAnnivYear(parsed);
-                                                        }}
-                                                        items={yearItems}
-                                                        style={yearPickerStyle}
-                                                        useNativeAndroidPickerStyle={false}
-                                                        Icon={() => (
-                                                            <Text style={{ fontSize: 14, color: '#111827', marginLeft: 2 }}>▼</Text>
-                                                        )}
-                                                        placeholder={{}}
-                                                    />
+                                                <View style={{ minWidth: 90, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <TouchableOpacity onPress={() => setAnnivYear(prev => prev - 1)} style={{ padding: 6 }}>
+                                                        <Ionicons name="remove" size={16} color="#374151" />
+                                                    </TouchableOpacity>
+                                                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 60, textAlign: 'center' }}>{String(annivYear)}</Text>
+                                                    <TouchableOpacity onPress={() => setAnnivYear(prev => prev + 1)} style={{ padding: 6 }}>
+                                                        <Ionicons name="add" size={16} color="#374151" />
+                                                    </TouchableOpacity>
                                                 </View>
                                             </View>
                                             <LocalCalendar
