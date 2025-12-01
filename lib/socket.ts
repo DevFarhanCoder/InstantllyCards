@@ -49,9 +49,15 @@ export class SocketService {
   private connectionListeners: ((connected: boolean) => void)[] = [];
   private messageStatusListeners: ((data: { messageId: string; status: string; readBy?: string }) => void)[] = [];
 
-  async connect(baseUrl: string = 'https://instantlly-cards-backend-6ki0.onrender.com'): Promise<boolean> {
-    console.log('🔌 SocketService.connect() called with baseUrl:', baseUrl);
-    
+  async connect(baseUrl?: string): Promise<boolean> {
+    const resolvedBase = baseUrl || process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
+    console.log('🔌 SocketService.connect() called with baseUrl:', resolvedBase || '(none configured)');
+
+    if (!resolvedBase) {
+      console.error('❌ No Socket.IO base configured. Set `EXPO_PUBLIC_API_BASE` or `API_BASE` in your env or expo config.');
+      return false;
+    }
+
     if (this.socket?.connected || this.isConnecting) {
       console.log('🔌 Socket already connected or connecting, current state:', {
         connected: this.socket?.connected,
@@ -61,7 +67,7 @@ export class SocketService {
     }
 
     this.isConnecting = true;
-    console.log('🔌 Starting Socket.IO connection to:', baseUrl);
+    console.log('🔌 Starting Socket.IO connection to:', resolvedBase);
 
     try {
       console.log('🔑 Retrieving auth token from AsyncStorage...');
@@ -76,7 +82,7 @@ export class SocketService {
 
       console.log('🔑 Auth token found, creating Socket.IO connection...');
 
-      this.socket = io(baseUrl, {
+      this.socket = io(resolvedBase, {
         auth: {
           token: token
         },

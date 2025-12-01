@@ -48,10 +48,15 @@ export function useAds() {
         });
         
         if (response && response.success && response.data && response.data.length > 0) {
-          const imageBaseUrl = response.imageBaseUrl || 'https://instantlly-cards-backend-6ki0.onrender.com';
-          
+          const defaultImageBase = process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
+          const imageBaseUrl = response.imageBaseUrl || defaultImageBase;
+
+          if (!imageBaseUrl) {
+            console.warn('⚠️ No image base configured. Set EXPO_PUBLIC_API_BASE or API_BASE to construct image URLs from ads response.');
+          }
+
           console.log(`� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
-          console.log('🌐 Image Base URL:', imageBaseUrl);
+          console.log('🌐 Image Base URL:', imageBaseUrl || '(none configured)');
           
           // Check first ad structure
           if (response.data[0]) {

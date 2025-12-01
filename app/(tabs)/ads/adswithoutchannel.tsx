@@ -154,7 +154,7 @@ export default function AdsWithoutChannel() {
       
       // Try the new my-ads endpoint first
       let response = await fetch(
-        `http://103.72.75.235:3000/api/ads/my-ads?phoneNumber=${encodeURIComponent(userPhoneNumber)}`
+        `https://instantlly-cards-backend-1.onrender.com/api/ads/my-ads?phoneNumber=${encodeURIComponent(userPhoneNumber)}`
       );
       
       // If my-ads endpoint not available yet (400/404), fallback to fetching all and filtering
@@ -162,7 +162,7 @@ export default function AdsWithoutChannel() {
         console.log('⚠️ my-ads endpoint not ready, using fallback method');
         
         // Fetch all ads with admin token and filter client-side
-        response = await fetch('http://103.72.75.235:3000/api/ads?approvalStatus=all', {
+        response = await fetch('https://instantlly-cards-backend-1.onrender.com/api/ads?approvalStatus=all', {
           headers: {
             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
           },
@@ -203,7 +203,7 @@ export default function AdsWithoutChannel() {
     
     setIsDeleting(true);
     try {
-      const response = await fetch(`http://103.72.75.235:3000/api/ads/${adToDelete}`, {
+      const response = await fetch(`https://instantlly-cards-backend-1.onrender.com/api/ads/${adToDelete}`, {
         method: 'DELETE',
         headers: {
           'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5MDVjNDlmMGVhNjllMTczMWE4YmU1MCIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJpYXQiOjE3NjMxODEwMDgsImV4cCI6MTc2Mzc4NTgwOH0.EurOhS259RX5pIuN9ldguLe1Xoy11FOjKedkSaz6pfM',
@@ -305,7 +305,7 @@ export default function AdsWithoutChannel() {
         };
 
         const response = await fetch(
-          `http://103.72.75.235:3000/api/ads/${editingAdId}`,
+          `https://instantlly-cards-backend-1.onrender.com/api/ads/${editingAdId}`,
           {
             method: 'PUT',
             headers: {
@@ -355,7 +355,7 @@ export default function AdsWithoutChannel() {
         };
 
         const response = await fetch(
-          'http://103.72.75.235:3000/api/ads',
+          'https://instantlly-cards-backend-1.onrender.com/api/ads',
           {
             method: 'POST',
             headers: {

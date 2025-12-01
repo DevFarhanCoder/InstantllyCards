@@ -2,11 +2,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useMemo, useCallback, useState, useEffect, useRef } from "react";
-import { Calendar as LucideCalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
+// `Ionicons` imported once above to power icon usage in this file
+import { Ionicons } from '@expo/vector-icons';
 import RNPickerSelect from 'react-native-picker-select';
+
+// Adapter components to replace lucide icons with Ionicons so we avoid requiring
+// the native `lucide-react-native` package in Expo/Metro.
+const ChevronLeft = (props: any) => <Ionicons name="chevron-back" {...props} />;
+const ChevronRight = (props: any) => <Ionicons name="chevron-forward" {...props} />;
+const LucideCalendarIcon = (props: any) => <Ionicons name="calendar" {...props} />;
 import api from "@/lib/api";
 import FormInput from "@/components/FormInput";
 import BusinessAvatar from "@/components/BusinessAvatar";

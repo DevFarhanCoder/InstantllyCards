@@ -37,54 +37,23 @@ class ServerWarmup {
   private async performWarmup(): Promise<void> {
     try {
       const startTime = Date.now();
-      
-      // Render free tier can take 50-90 seconds to wake up
-      // Try the health endpoint with a long timeout
-      const warmupUrl = 'https://instantlly-cards-backend-6ki0.onrender.com/api/health';
-      
-      console.log(`🌐 Pinging ${warmupUrl} (timeout: 90 seconds)...`);
-      
-      // Create AbortController for manual timeout (more compatible than AbortSignal.timeout)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Connection timeout after 15 seconds');
-        controller.abort();
-      }, 15000); // 15 second timeout (Starter plan should respond instantly)
-      
-      try {
-        const response = await fetch(warmupUrl, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        const duration = Date.now() - startTime;
-        
-        if (response.ok || response.status < 500) {
-          console.log(`✅ Server warmed up successfully in ${duration}ms (${(duration/1000).toFixed(1)}s)`);
-          this.isWarm = true;
-          this.lastWarmupTime = Date.now();
-        } else {
-          throw new Error(`Server returned status ${response.status}`);
-        }
-        
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        
-        if (fetchError.name === 'AbortError') {
-          throw new Error('Connection timeout. Please check your internet connection and try again.');
-        }
-        throw fetchError;
-      }
-      
+
+      console.log('🌐 Pinging server health via API client...');
+
+      // Use the centralized api client so we don't hard-code hosts here
+      const res = await api.get('/health');
+      const duration = Date.now() - startTime;
+
+      console.log(`✅ Server warmed up successfully in ${duration}ms (${(duration/1000).toFixed(1)}s)`);
+      this.isWarm = true;
+      this.lastWarmupTime = Date.now();
+
       this.isWarming = false;
-      
     } catch (error: any) {
       console.log('⚠️ Server connection failed:', error?.message || error);
       this.isWarming = false;
       this.isWarm = false; // Mark as not warm if failed
-      
+
       // Throw error so login can show appropriate message
       throw new Error(
         'Unable to connect to server. Please check your internet connection and try again.'
