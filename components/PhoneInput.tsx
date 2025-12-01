@@ -314,18 +314,11 @@ export default function PhoneInput({
         <TextInput
           style={styles.input}
           value={value}
-<<<<<<< Updated upstream
-          onChangeText={(t) => {
-            // Allow only digits and limit to 10 characters
-            const digits = t.replace(/\D/g, '').slice(0, 10);
-            onChangeText(digits);
-=======
-          onChangeText={(text) => {
+onChangeText={(text) => {
             // Only allow digits and limit to 10 characters
             const cleaned = text.replace(/\D/g, '');
             const limited = cleaned.slice(0, 10);
             onChangeText(limited);
->>>>>>> Stashed changes
           }}
           placeholder={placeholder}
           placeholderTextColor="#9CA3AF"
