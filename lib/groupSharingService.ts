@@ -164,10 +164,15 @@ class GroupSharingService {
           userPhone = storedUserPhone || '';
         }
         
+        // CRITICAL: Store the userId for later retrieval when setting cards
+        await AsyncStorage.setItem('currentUserId', userId);
+        
         console.log('👤 User data retrieved:', { userId: userId.substring(0, 8), userName, hasPhone: !!userPhone });
       } catch (userError) {
         console.error('⚠️ Error getting user data, using defaults:', userError);
         userId = `user_${Date.now()}`;
+        // Store even the fallback userId
+        await AsyncStorage.setItem('currentUserId', userId);
       }
 
       // Call backend API
