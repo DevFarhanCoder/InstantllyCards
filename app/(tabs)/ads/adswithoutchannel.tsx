@@ -140,6 +140,24 @@ export default function AdsWithoutChannel() {
       return;
     }
 
+    // Confirm ad submission with cost breakdown
+    Alert.alert(
+      '📢 Ad Submission Cost',
+      `💳 Credits: 1020 (will be deducted now)\n💵 Cash Payment: ₹180 (after admin approval)\n📊 Total Cost: 1020 credits + ₹180\n\nYour current credits: ${userCredits.toLocaleString()}\nAfter submission: ${(userCredits - 1020).toLocaleString()}\n\n⚠️ Admin will review your ad. After approval, you will be contacted to pay ₹180.\n\nDo you want to proceed?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Submit Ad',
+          onPress: () => submitAdConfirmed()
+        }
+      ]
+    );
+  };
+
+  const submitAdConfirmed = async () => {
     setIsSubmitting(true);
 
     try {
@@ -176,16 +194,23 @@ export default function AdsWithoutChannel() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert('Success', 'Ad submitted successfully! Awaiting admin approval.');
-        // Reset form
-        setTitle('');
-        setPhoneNumber('');
-        setStartDate('');
-        setEndDate('');
-        setBottomImage(null);
-        setFullscreenImage(null);
-        // Reload ads
-        loadMyAds();
+        Alert.alert(
+          '✅ Ad Submitted Successfully!',
+          `💳 1020 credits deducted\n📊 Remaining credits: ${data.remainingCredits?.toLocaleString() || 'N/A'}\n\n⏳ Your ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
+          [{ text: 'OK', onPress: () => {
+            // Reset form
+            setTitle('');
+            setPhoneNumber('');
+            setStartDate('');
+            setEndDate('');
+            setBottomImage(null);
+            setFullscreenImage(null);
+            // Switch to status tab to see the submitted ad
+            setActiveTab('status');
+            // Reload ads
+            loadMyAds();
+          }}]
+        );
       } else {
         Alert.alert('Error', data.message || 'Failed to submit ad');
       }
