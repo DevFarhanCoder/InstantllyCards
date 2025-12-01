@@ -49,7 +49,8 @@ export class SocketService {
   private connectionListeners: ((connected: boolean) => void)[] = [];
   private messageStatusListeners: ((data: { messageId: string; status: string; readBy?: string }) => void)[] = [];
 
-  async connect(baseUrl: string = 'https://instantlly-cards-backend-6ki0.onrender.com'): Promise<boolean> {
+  async connect(baseUrl: string = 'https://api.instantllycards.com'): Promise<boolean> {
+    // Try AWS Cloud first, fallback to Render if failed
     console.log('🔌 SocketService.connect() called with baseUrl:', baseUrl);
     
     if (this.socket?.connected || this.isConnecting) {

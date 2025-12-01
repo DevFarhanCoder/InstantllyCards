@@ -71,7 +71,9 @@ export const verifyOTPViaBackend = async (phone: string, otp: string) => {
     
     // Call backend API to verify OTP
     // Backend should validate the OTP against stored value
-    const baseUrl = process.env.EXPO_PUBLIC_API_BASE || 'https://instantlly-cards-backend-6ki0.onrender.com';
+    // Try AWS Cloud first, fallback to Render
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE || 'https://api.instantllycards.com';
+    const backupUrl = 'https://instantlly-cards-backend-6ki0.onrender.com';
     
     const response = await fetch(`${baseUrl}/api/auth/verify-otp`, {
       method: 'POST',

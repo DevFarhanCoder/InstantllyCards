@@ -38,44 +38,63 @@ class ServerWarmup {
     try {
       const startTime = Date.now();
       
-      // Render free tier can take 50-90 seconds to wake up
-      // Try the health endpoint with a long timeout
-      const warmupUrl = 'https://instantlly-cards-backend-6ki0.onrender.com/api/health';
+      // Try AWS Cloud first, then Render as backup
+      const warmupUrls = [
+        'https://api.instantllycards.com/api/health', // AWS Cloud - Primary
+        'https://instantlly-cards-backend-6ki0.onrender.com/api/health' // Render - Backup
+      ];
       
-      console.log(`🌐 Pinging ${warmupUrl} (timeout: 90 seconds)...`);
+      let warmedUp = false;
+      let lastError: Error | null = null;
       
-      // Create AbortController for manual timeout (more compatible than AbortSignal.timeout)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Connection timeout after 15 seconds');
-        controller.abort();
-      }, 15000); // 15 second timeout (Starter plan should respond instantly)
-      
-      try {
-        const response = await fetch(warmupUrl, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-        });
+      for (const warmupUrl of warmupUrls) {
+        console.log(`🌐 Pinging ${warmupUrl} (timeout: 15 seconds)...`);
         
-        clearTimeout(timeoutId);
-        const duration = Date.now() - startTime;
+        // Create AbortController for manual timeout (more compatible than AbortSignal.timeout)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.log('⏰ Connection timeout after 15 seconds');
+          controller.abort();
+        }, 15000); // 15 second timeout
         
-        if (response.ok || response.status < 500) {
-          console.log(`✅ Server warmed up successfully in ${duration}ms (${(duration/1000).toFixed(1)}s)`);
-          this.isWarm = true;
-          this.lastWarmupTime = Date.now();
-        } else {
-          throw new Error(`Server returned status ${response.status}`);
+        try {
+          const response = await fetch(warmupUrl, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          const duration = Date.now() - startTime;
+          
+          if (response.ok || response.status < 500) {
+            console.log(`✅ Server warmed up successfully in ${duration}ms (${(duration/1000).toFixed(1)}s)`);
+            console.log(`✅ Connected to: ${warmupUrl}`);
+            this.isWarm = true;
+            this.lastWarmupTime = Date.now();
+            warmedUp = true;
+            break; // Success! Exit loop
+          } else {
+            throw new Error(`Server returned status ${response.status}`);
+          }
+          
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          
+          if (fetchError.name === 'AbortError') {
+            lastError = new Error('Connection timeout');
+            console.log(`⚠️ ${warmupUrl} timeout, trying next...`);
+          } else {
+            lastError = fetchError;
+            console.log(`⚠️ ${warmupUrl} failed: ${fetchError?.message}, trying next...`);
+          }
+          // Continue to next URL
         }
-        
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        
-        if (fetchError.name === 'AbortError') {
-          throw new Error('Connection timeout. Please check your internet connection and try again.');
-        }
-        throw fetchError;
+      }
+      
+      // If all URLs failed, throw error
+      if (!warmedUp) {
+        throw lastError || new Error('All server URLs failed');
       }
       
       this.isWarming = false;

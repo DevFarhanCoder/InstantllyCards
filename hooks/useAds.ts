@@ -48,7 +48,8 @@ export function useAds() {
         });
         
         if (response && response.success && response.data && response.data.length > 0) {
-          const imageBaseUrl = response.imageBaseUrl || 'https://instantlly-cards-backend-6ki0.onrender.com';
+          // AWS Cloud primary, Render backup
+          const imageBaseUrl = response.imageBaseUrl || 'https://api.instantllycards.com';
           
           console.log(`� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
           console.log('🌐 Image Base URL:', imageBaseUrl);

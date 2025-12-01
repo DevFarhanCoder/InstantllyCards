@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get("window");
-const API_BASE_URL = "https://instantlly-cards-backend-6ki0.onrender.com/api";
+const API_BASE_URL = "https://api.instantllycards.com/api";
 
 interface Ad {
   id: string;

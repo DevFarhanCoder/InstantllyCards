@@ -7,7 +7,7 @@ const getApiBase = () => {
   const sources = [
     process.env.EXPO_PUBLIC_API_BASE,
     Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE,
-    "https://instantlly-cards-backend-6ki0.onrender.com" // Fallback
+    "https://api.instantllycards.com" // AWS Cloud - Primary
   ];
   
   for (const source of sources) {
@@ -17,7 +17,7 @@ const getApiBase = () => {
     }
   }
   
-  return "https://instantlly-cards-backend-6ki0.onrender.com";
+  return "https://api.instantllycards.com"; // AWS Cloud - Primary
 };
 
 const BASE = getApiBase();

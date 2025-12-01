@@ -51,7 +51,8 @@ export default function Home() {
           return [];
         }
 
-        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend-6ki0.onrender.com";
+        // AWS Cloud primary, Render backup handled by api.ts
+        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
         const url = `${apiBase}/api/cards/feed/contacts`;
         console.log("🔍 Home: Fetching from URL:", url);
         

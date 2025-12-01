@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "extra": {
-      "EXPO_PUBLIC_API_BASE": "https://instantlly-cards-backend-6ki0.onrender.com",
+      "EXPO_PUBLIC_API_BASE": "https://api.instantllycards.com",
       "router": {},
       "eas": {
         "projectId": "2d7524da-4330-496c-816f-4e011831e6f4"
