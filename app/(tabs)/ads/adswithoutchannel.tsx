@@ -274,6 +274,24 @@ export default function AdsWithoutChannel() {
       return;
     }
 
+    // Confirm ad submission with cost breakdown
+    Alert.alert(
+      '📢 Ad Submission Cost',
+      `💳 Credits: 1020 (will be deducted now)\n💵 Cash Payment: ₹180 (after admin approval)\n📊 Total Cost: 1020 credits + ₹180\n\nYour current credits: ${userCredits.toLocaleString()}\nAfter submission: ${(userCredits - 1020).toLocaleString()}\n\n⚠️ Admin will review your ad. After approval, you will be contacted to pay ₹180.\n\nDo you want to proceed?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Submit Ad',
+          onPress: () => submitAdConfirmed()
+        }
+      ]
+    );
+  };
+
+  const submitAdConfirmed = async () => {
     setIsSubmitting(true);
     setUploadProgress(0);
     
