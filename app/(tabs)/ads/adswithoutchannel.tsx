@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get("window");
-const API_BASE_URL = "https://instantllychannelpatner.onrender.com/api";
+const API_BASE_URL = "https://instantlly-cards-backend-6ki0.onrender.com/api";
 
 interface Ad {
   id: string;
@@ -143,15 +143,12 @@ export default function AdsWithoutChannel() {
     setIsSubmitting(true);
 
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        Alert.alert('Error', 'Please login to create ads');
-        return;
-      }
+      const userPhone = await AsyncStorage.getItem('user_phone');
 
       const formData = new FormData();
       formData.append('title', title);
       formData.append('phoneNumber', phoneNumber);
+      formData.append('uploaderPhone', userPhone || phoneNumber);
       formData.append('startDate', startDate);
       formData.append('endDate', endDate);
 
@@ -173,16 +170,13 @@ export default function AdsWithoutChannel() {
 
       const response = await fetch(`${API_BASE_URL}/channel-partner/ads`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: formData
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert('Success', 'Ad submitted successfully! Awaiting admin approval. 1020 credits deducted.');
+        Alert.alert('Success', 'Ad submitted successfully! Awaiting admin approval.');
         // Reset form
         setTitle('');
         setPhoneNumber('');
@@ -190,8 +184,8 @@ export default function AdsWithoutChannel() {
         setEndDate('');
         setBottomImage(null);
         setFullscreenImage(null);
-        // Reload credits
-        loadUserData();
+        // Reload ads
+        loadMyAds();
       } else {
         Alert.alert('Error', data.message || 'Failed to submit ad');
       }
@@ -206,14 +200,10 @@ export default function AdsWithoutChannel() {
   const loadMyAds = async () => {
     setIsLoadingAds(true);
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) return;
+      const userPhone = await AsyncStorage.getItem('user_phone');
+      if (!userPhone) return;
 
-      const response = await fetch(`${API_BASE_URL}/channel-partner/ads`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await fetch(`${API_BASE_URL}/channel-partner/ads?phone=${userPhone}`);
 
       const data = await response.json();
       if (data.ads) {
