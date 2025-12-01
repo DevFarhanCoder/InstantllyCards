@@ -31,30 +31,28 @@ const HeaderRight = () => {
 export default function AdsStackLayout() {
   return (
     <Stack>
-      {/* 1. index.tsx: The main screen of the tab 
-        The Tabs navigator will show this screen when the "Ads" tab is selected.
-      */}
       <Stack.Screen
         name="index"
         options={{
           headerTitle: "Advertisements",
           headerShown: true,
+<<<<<<< Updated upstream
           headerTitleStyle: {
             fontSize: 16,
             fontWeight: "600",
           },
+=======
+>>>>>>> Stashed changes
         }}
       />
       
-      {/* 2. adswithoutchannel.tsx: The hidden sub-screen 
-        This is now navigable as part of the Ads stack, but not visible in the bottom tab bar.
-      */}
       <Stack.Screen
         name="adswithoutchannel"
         options={{
           headerTitle: "Advertisements",
           headerShown: true,
           headerBackVisible: false,
+<<<<<<< Updated upstream
           headerRight: () => <HeaderRight />,
           headerTitleStyle: {
             fontSize: 16,
@@ -62,10 +60,13 @@ export default function AdsStackLayout() {
           },
           // For older versions of react-navigation, you can also use:
           // headerLeft: () => null,
+=======
+>>>>>>> Stashed changes
         }}
       />
     </Stack>
   );
+<<<<<<< Updated upstream
 
 }
 
@@ -123,3 +124,6 @@ const styles = StyleSheet.create({
     color: "#EF4444",
   },
 });
+=======
+}
+>>>>>>> Stashed changes
