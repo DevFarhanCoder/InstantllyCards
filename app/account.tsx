@@ -48,6 +48,12 @@ export default function Account() {
       setUserProfile(profileData);
       setTempName(profileData?.name || '');
       setTempPhone(profileData?.phone || '');
+      
+      // Set gender, birthdate, anniversary from profile if available
+      if (profileData?.gender) setGender(profileData.gender);
+      if (profileData?.birthdate) setBirthdate(profileData.birthdate);
+      if (profileData?.anniversary) setAnniversary(profileData.anniversary);
+      
       fetchUserCardDetails(profileData._id);
     } catch (err) {
       console.error('Account fetch error', err);
