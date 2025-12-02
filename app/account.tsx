@@ -50,11 +50,15 @@ export default function Account() {
       setTempPhone(profileData?.phone || '');
       
       // Set gender, birthdate, anniversary from profile if available
-      if (profileData?.gender) setGender(profileData.gender);
-      if (profileData?.birthdate) setBirthdate(profileData.birthdate);
-      if (profileData?.anniversary) setAnniversary(profileData.anniversary);
+      const hasProfileGender = !!profileData?.gender;
+      const hasProfileBirthdate = !!profileData?.birthdate;
+      const hasProfileAnniversary = !!profileData?.anniversary;
       
-      fetchUserCardDetails(profileData._id);
+      if (hasProfileGender) setGender(profileData.gender);
+      if (hasProfileBirthdate) setBirthdate(profileData.birthdate);
+      if (hasProfileAnniversary) setAnniversary(profileData.anniversary);
+      
+      fetchUserCardDetails(profileData._id, hasProfileGender, hasProfileBirthdate, hasProfileAnniversary);
     } catch (err) {
       console.error('Account fetch error', err);
       Alert.alert('Error', 'Failed to load account');
@@ -63,18 +67,18 @@ export default function Account() {
     }
   };
 
-  const fetchUserCardDetails = async (userId: string) => {
+  const fetchUserCardDetails = async (userId: string, hasProfileGender = false, hasProfileBirthdate = false, hasProfileAnniversary = false) => {
     try {
       const defaultCardRaw = await AsyncStorage.getItem('default_card');
       if (defaultCardRaw) {
         try {
           const defaultCard = JSON.parse(defaultCardRaw);
           const cardObj = defaultCard && (defaultCard.data || defaultCard.card) ? (defaultCard.data || defaultCard.card) : defaultCard;
-          // If we have a full card object in storage, use its fields
-          if (cardObj && (cardObj.gender || cardObj.birthdate || cardObj.anniversary)) {
-            setGender(cardObj.gender || null);
-            setBirthdate(cardObj.birthdate || cardObj.dob || null);
-            setAnniversary(cardObj.anniversary || cardObj.dob || null);
+          // If we have a full card object in storage, use its fields ONLY if profile doesn't have them
+          if (cardObj) {
+            if (cardObj.gender && !hasProfileGender) setGender(cardObj.gender);
+            if ((cardObj.birthdate || cardObj.dob) && !hasProfileBirthdate) setBirthdate(cardObj.birthdate || cardObj.dob);
+            if ((cardObj.anniversary || cardObj.dob) && !hasProfileAnniversary) setAnniversary(cardObj.anniversary || cardObj.dob);
             return;
           }
           // If default_card only contains an id, try fetching that card directly
