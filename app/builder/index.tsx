@@ -143,6 +143,15 @@ export default function Builder() {
                             }
                         } else if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
                     });
+                    
+                    console.log('📅 Builder: Sending to profile:', {
+                        hasBirthdate: !!profileable.birthdate,
+                        hasAnniversary: !!profileable.anniversary,
+                        birthdate: profileable.birthdate,
+                        anniversary: profileable.anniversary,
+                        gender: profileable.gender
+                    });
+                    
                     // Normalize gender to canonical values
                     if (profileable.gender && typeof profileable.gender === 'string') {
                         const g = String(profileable.gender).toLowerCase();
