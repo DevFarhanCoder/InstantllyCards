@@ -3,14 +3,12 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  Pressable, 
   Alert, 
   Image, 
   TouchableOpacity, 
-  TextInput, 
   ScrollView,
   ActivityIndicator,
-  Dimensions 
+  Platform
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
@@ -37,12 +35,6 @@ export default function Profile() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [editingPhone, setEditingPhone] = useState(false);
-  const [editingAbout, setEditingAbout] = useState(false);
-  const [tempName, setTempName] = useState("");
-  const [tempPhone, setTempPhone] = useState("");
-  const [tempAbout, setTempAbout] = useState("");
 
   // Fetch user profile on component mount
   useEffect(() => {
@@ -67,9 +59,6 @@ export default function Profile() {
       
       if (profileData && profileData.name) {
         setUserProfile(profileData);
-        setTempName(profileData.name || "");
-        setTempPhone(profileData.phone || "");
-        setTempAbout(profileData.about || "Available");
       } else {
         throw new Error('Invalid profile data received');
       }
@@ -82,6 +71,64 @@ export default function Profile() {
   };
 
   const pickImage = async () => {
+    const options = userProfile?.profilePicture 
+      ? ['Take Photo', 'Choose from Gallery', 'Delete Photo', 'Cancel']
+      : ['Take Photo', 'Choose from Gallery', 'Cancel'];
+    
+    const cancelButtonIndex = options.length - 1;
+    const destructiveButtonIndex = userProfile?.profilePicture ? 2 : undefined;
+
+    Alert.alert(
+      'Profile Picture',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: () => takePhoto(),
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: () => pickFromGallery(),
+        },
+        ...(userProfile?.profilePicture ? [{
+          text: 'Delete Photo',
+          style: 'destructive' as const,
+          onPress: () => deleteProfilePicture(),
+        }] : []),
+        {
+          text: 'Cancel',
+          style: 'cancel' as const,
+        },
+      ]
+    );
+  };
+
+  const takePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Please grant permission to access your camera.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadProfilePicture(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const pickFromGallery = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
@@ -94,8 +141,8 @@ export default function Profile() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.5, // Reduced quality to keep Base64 size manageable
-        base64: true, // Get Base64 encoding
+        quality: 0.5,
+        base64: true,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -107,10 +154,44 @@ export default function Profile() {
     }
   };
 
+  const deleteProfilePicture = async () => {
+    Alert.alert(
+      'Delete Photo',
+      'Are you sure you want to delete your profile picture?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setUpdating(true);
+            try {
+              await api.put("/auth/update-profile", { profilePicture: null });
+              
+              setUserProfile(prev => prev ? {...prev, profilePicture: undefined} : null);
+              
+              const userData = await getCurrentUser();
+              if (userData) {
+                delete userData.profilePicture;
+                await AsyncStorage.setItem('user', JSON.stringify(userData));
+              }
+              
+              Alert.alert('Success', 'Profile picture deleted successfully');
+            } catch (error) {
+              console.error('Error deleting profile picture:', error);
+              Alert.alert('Error', 'Failed to delete profile picture. Please try again.');
+            } finally {
+              setUpdating(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const uploadProfilePicture = async (asset: any) => {
     setUpdating(true);
     try {
-      // Convert to Base64 with data URI
       const base64Image = asset.base64;
       const mimeType = asset.mimeType || 'image/jpeg';
       const dataUri = `data:${mimeType};base64,${base64Image}`;
@@ -123,99 +204,20 @@ export default function Profile() {
       
       console.log('✅ Profile picture uploaded successfully');
       
-      // Update local state
       setUserProfile(prev => prev ? {...prev, profilePicture: response.profilePicture} : null);
       
-      // Update AsyncStorage
       const userData = await getCurrentUser();
       if (userData) {
         userData.profilePicture = response.profilePicture;
         await AsyncStorage.setItem('user', JSON.stringify(userData));
       }
       
-      // Silent update - no alert needed
       console.log('✅ Profile picture updated successfully');
     } catch (error) {
       console.error('Error uploading profile picture:', error);
       Alert.alert('Error', 'Failed to update profile picture. Please try again.');
     } finally {
       setUpdating(false);
-    }
-  };
-
-  const updateName = async () => {
-    if (!tempName.trim()) {
-      Alert.alert('Error', 'Name cannot be empty.');
-      return;
-    }
-
-    setUpdating(true);
-    try {
-      const response = await api.put("/auth/update-profile", { name: tempName.trim() });
-      
-      setUserProfile(prev => prev ? {...prev, name: tempName.trim()} : null);
-      setEditingName(false);
-      Alert.alert('Success', 'Name updated successfully!');
-    } catch (error) {
-      console.error('Error updating name:', error);
-      Alert.alert('Error', 'Failed to update name. Please try again.');
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const updatePhone = async () => {
-    if (!tempPhone.trim()) {
-      Alert.alert('Error', 'Phone number cannot be empty.');
-      return;
-    }
-
-    setUpdating(true);
-    try {
-      const response = await api.put("/auth/update-profile", { phone: tempPhone.trim() });
-      
-      setUserProfile(prev => prev ? {...prev, phone: tempPhone.trim()} : null);
-      setEditingPhone(false);
-      Alert.alert('Success', 'Phone number updated successfully!');
-    } catch (error) {
-      console.error('Error updating phone:', error);
-      Alert.alert('Error', 'Failed to update phone number. Please try again.');
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const updateAbout = async () => {
-    if (!tempAbout.trim()) {
-      Alert.alert('Error', 'About cannot be empty.');
-      return;
-    }
-
-    setUpdating(true);
-    try {
-      const response = await api.put("/auth/update-profile", { about: tempAbout.trim() });
-      
-      setUserProfile(prev => prev ? {...prev, about: tempAbout.trim()} : null);
-      setEditingAbout(false);
-      Alert.alert('Success', 'About updated successfully!');
-    } catch (error) {
-      console.error('Error updating about:', error);
-      Alert.alert('Error', 'Failed to update about. Please try again.');
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const cancelEdit = (field: 'name' | 'phone' | 'about') => {
-    if (field === 'name') {
-      setTempName(userProfile?.name || "");
-      setEditingName(false);
-    } else if (field === 'phone') {
-      setTempPhone(userProfile?.phone || "");
-      setEditingPhone(false);
-    } else {
-      setTempAbout(userProfile?.about || "Available");
-      setEditingAbout(false);
     }
   };
 
@@ -308,188 +310,55 @@ export default function Profile() {
             <Text style={styles.userName}>{userProfile.name}</Text>
             <Text style={styles.userPhone}>{userProfile.phone}</Text>
           </View>
-
-          {/* Profile Information Cards */}
-          <View style={styles.profileInfo}>
-            {/* Name Section */}
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="person" size={18} color="#4F6AF3" />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.label}>Full Name</Text>
-                {editingName ? (
-                  <View style={styles.editContainer}>
-                    <TextInput
-                      style={styles.textInput}
-                      value={tempName}
-                      onChangeText={setTempName}
-                      placeholder="Enter your name"
-                      placeholderTextColor="#999"
-                      autoFocus
-                    />
-                    <View style={styles.editActions}>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.cancelButton]} 
-                        onPress={() => cancelEdit('name')}
-                      >
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.saveButton]} 
-                        onPress={updateName}
-                        disabled={updating}
-                      >
-                        {updating ? (
-                          <ActivityIndicator size="small" color={COLORS.white} />
-                        ) : (
-                          <Text style={styles.saveButtonText}>Save</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoValue}>{userProfile.name}</Text>
-                    <TouchableOpacity 
-                      style={styles.editIconButton} 
-                      onPress={() => setEditingName(true)}
-                    >
-                      <Ionicons name="pencil" size={16} color="#4F6AF3" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {/* Phone Section */}
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="call" size={18} color="#4F6AF3" />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.label}>Phone Number</Text>
-                {editingPhone ? (
-                  <View style={styles.editContainer}>
-                    <TextInput
-                      style={styles.textInput}
-                      value={tempPhone}
-                      onChangeText={setTempPhone}
-                      placeholder="Enter your phone number"
-                      placeholderTextColor="#999"
-                      keyboardType="phone-pad"
-                      autoFocus
-                    />
-                    <View style={styles.editActions}>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.cancelButton]} 
-                        onPress={() => cancelEdit('phone')}
-                      >
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.saveButton]} 
-                        onPress={updatePhone}
-                        disabled={updating}
-                      >
-                        {updating ? (
-                          <ActivityIndicator size="small" color={COLORS.white} />
-                        ) : (
-                          <Text style={styles.saveButtonText}>Save</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoValue}>{userProfile.phone}</Text>
-                    <TouchableOpacity 
-                      style={styles.editIconButton} 
-                      onPress={() => setEditingPhone(true)}
-                    >
-                      <Ionicons name="pencil" size={16} color="#4F6AF3" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {/* About Section */}
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconContainer}>
-                <Ionicons name="information-circle" size={18} color="#4F6AF3" />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.label}>About</Text>
-                {editingAbout ? (
-                  <View style={styles.editContainer}>
-                    <TextInput
-                      style={[styles.textInput, styles.textInputMultiline]}
-                      value={tempAbout}
-                      onChangeText={setTempAbout}
-                      placeholder="Tell us about yourself..."
-                      placeholderTextColor="#999"
-                      multiline
-                      numberOfLines={2}
-                      autoFocus
-                    />
-                    <View style={styles.editActions}>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.cancelButton]} 
-                        onPress={() => cancelEdit('about')}
-                      >
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.actionButton, styles.saveButton]} 
-                        onPress={updateAbout}
-                        disabled={updating}
-                      >
-                        {updating ? (
-                          <ActivityIndicator size="small" color={COLORS.white} />
-                        ) : (
-                          <Text style={styles.saveButtonText}>Save</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.infoRow}>
-                    <Text style={[styles.infoValue, styles.aboutText]} numberOfLines={2}>
-                      {userProfile.about || "Available"}
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.editIconButton} 
-                      onPress={() => setEditingAbout(true)}
-                    >
-                      <Ionicons name="pencil" size={16} color="#4F6AF3" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
         </View>
 
-        {/* Feedback Button */}
-        <TouchableOpacity style={styles.feedbackButton} onPress={() => router.push('/feedback' as any)}>
-          <View style={styles.feedbackIconContainer}>
-            <Ionicons name="chatbox-ellipses" size={20} color="#4F6AF3" />
-          </View>
-          <View style={styles.feedbackContent}>
-            <Text style={styles.feedbackTitle}>Send Feedback</Text>
-            <Text style={styles.feedbackSubtitle}>Help us improve your experience</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
-        </TouchableOpacity>
+        {/* Menu Options */}
+        <View style={styles.menuSection}>
+          {/* Manage Account Button */}
+          <TouchableOpacity 
+            style={styles.menuButton} 
+            onPress={() => router.push('/account' as any)}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="settings-outline" size={22} color="#4F6AF3" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Manage Account</Text>
+              <Text style={styles.menuSubtitle}>Update your personal information</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
 
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-          <Ionicons name="log-out-outline" size={20} color="white" />
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-        
-        {/* Bottom spacing for footer carousel */}
+          {/* More Info Button */}
+          <TouchableOpacity 
+            style={styles.menuButton} 
+            onPress={() => router.push('/more-info' as any)}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="information-circle-outline" size={22} color="#4F6AF3" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>More Info</Text>
+              <Text style={styles.menuSubtitle}>Feedback & account settings</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+
+          {/* Logout Button */}
+          <TouchableOpacity 
+            style={styles.logoutMenuButton} 
+            onPress={logout}
+          >
+            <View style={styles.logoutIconContainer}>
+              <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.logoutMenuTitle}>Logout</Text>
+              <Text style={styles.menuSubtitle}>Sign out of your account</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+        </View>        {/* Bottom spacing for footer carousel */}
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -652,121 +521,17 @@ export default function Profile() {
     fontSize: 14,
     fontWeight: '500',
   },
-  profileInfo: {
-    paddingHorizontal: 14,
-    marginTop: 6,
-  },
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 14,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E8ECEF',
-  },
-  infoIconContainer: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  label: {
-    color: '#666',
-    fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 3,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  infoValue: {
-    color: '#1A1A1A',
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-  aboutText: {
-    lineHeight: 18,
-  },
-  editIconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 6,
-  },
-  editContainer: {
-    marginTop: 2,
-  },
-  textInput: {
-    backgroundColor: COLORS.white,
-    color: '#1A1A1A',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: '#4F6AF3',
-  },
-  textInputMultiline: {
-    height: 50,
-    textAlignVertical: 'top',
-  },
-  editActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#E8ECEF',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  saveButton: {
-    backgroundColor: '#4F6AF3',
-    shadowColor: '#4F6AF3',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  saveButtonText: {
-    color: COLORS.white,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  feedbackButton: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.white,
+  menuSection: {
     marginHorizontal: 16,
-    marginTop: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+    marginTop: 16,
+    gap: 12,
+  },
+  menuButton: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E8ECEF',
@@ -776,49 +541,57 @@ export default function Profile() {
     shadowRadius: 4,
     elevation: 2,
   },
-  feedbackIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  menuIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
-  feedbackContent: {
+  menuContent: {
     flex: 1,
   },
-  feedbackTitle: {
+  menuTitle: {
     color: '#1A1A1A',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     marginBottom: 2,
   },
-  feedbackSubtitle: {
+  menuSubtitle: {
     color: '#666',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
   },
-  logoutButton: {
+  logoutMenuButton: {
     flexDirection: 'row',
-    backgroundColor: '#EF4444',
-    paddingVertical: 11,
-    borderRadius: 14,
+    backgroundColor: COLORS.white,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 14,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-    gap: 6,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  logoutButtonText: {
-    color: COLORS.white,
-    fontSize: 15,
+  logoutIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  logoutMenuTitle: {
+    color: '#EF4444',
+    fontSize: 16,
     fontWeight: '700',
+    marginBottom: 2,
   },
 });

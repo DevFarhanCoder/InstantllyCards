@@ -116,8 +116,18 @@ async function request<T>(
         }
         
         try {
+          // Check if response looks like HTML (common error from Render/servers)
+          if (text.trim().startsWith('<')) {
+            console.error('❌ Server returned HTML instead of JSON (likely server error page)');
+            throw new Error('Server error - received HTML error page instead of JSON');
+          }
           data = text ? JSON.parse(text) : null;
-        } catch {
+        } catch (parseError: any) {
+          if (parseError.message?.includes('HTML')) {
+            throw parseError; // Re-throw our HTML detection error
+          }
+          console.error('❌ JSON parse error:', parseError.message);
+          console.error('Response was:', text.substring(0, 200));
           data = text || null;
         }
 
