@@ -1,7 +1,7 @@
 // hooks/auth.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useMutation } from "@tanstack/react-query";
-import api from "@/lib/api";
+import api from "../lib/api";
 
 type User = { id: string; name: string; phone: string; email?: string; avatar?: string };
 type AuthRes = { token: string; user: User };

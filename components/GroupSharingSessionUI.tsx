@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import groupSharingService, { GroupSharingSession, GroupParticipant } from '@/lib/groupSharingService';
+import groupSharingService, { GroupSharingSession, GroupParticipant } from '../lib/groupSharingService';
 import CustomToast, { ToastType } from './CustomToast';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '@/lib/api';
-import { ensureAuth } from '@/lib/auth';
+import api from '../lib/api';
+import { ensureAuth } from '../lib/auth';
 
 const { width } = Dimensions.get('window');
 

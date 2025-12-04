@@ -18,8 +18,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import api from "@/lib/api";
-import { ensureAuth } from "@/lib/auth";
+import api from "../../lib/api";
+import { ensureAuth } from "../../lib/auth";
+
 
 type DeviceContact = {
   id: string;

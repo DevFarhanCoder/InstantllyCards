@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, StyleSheet, Pressable, Alert } from 'react-native';
-import { COLORS } from '@/lib/theme';
 
 const countries = [
   // Americas

@@ -16,8 +16,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCurrentUser, getCurrentUserId } from '@/lib/useUser';
-import api from '@/lib/api';
+import { getCurrentUser, getCurrentUserId } from '../../lib/useUser';
+import api from '../../lib/api';
 
 interface GroupInfo {
   _id: string;

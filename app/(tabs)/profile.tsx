@@ -16,13 +16,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { COLORS } from "@/lib/theme";
-import api from "@/lib/api";
-import { ensureAuth } from "@/lib/auth";
-import { getCurrentUser } from "@/lib/useUser";
-import FooterCarousel from "@/components/FooterCarousel";
+
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ensureAuth } from "../../lib/auth";
+import api from "../../lib/api";
+import { getCurrentUser } from "../../lib/useUser";
+import { COLORS } from "../../lib/theme";
+import FooterCarousel from "../../components/FooterCarousel";
 
 interface UserProfile {
   _id: string;

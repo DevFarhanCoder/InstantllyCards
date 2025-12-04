@@ -14,7 +14,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCurrentUser, getCurrentUserId } from '@/lib/useUser';
+import { getCurrentUser, getCurrentUserId } from '../../lib/useUser';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../lib/api';
 

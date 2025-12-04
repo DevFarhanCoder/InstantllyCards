@@ -13,7 +13,7 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import groupSharingService, { GroupSharingSession } from '@/lib/groupSharingService';
+import groupSharingService, { GroupSharingSession } from '../lib/groupSharingService';
 import CustomToast, { ToastType } from './CustomToast';
 
 interface GroupSharingModalProps {

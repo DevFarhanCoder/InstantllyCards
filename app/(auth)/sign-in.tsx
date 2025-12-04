@@ -3,14 +3,14 @@ import { useState } from "react";
 import { View, TextInput, Button, Text, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from 'expo-constants';
-import api from "@/lib/api";
 import { Link, useRouter } from "expo-router";
+import api from "../../lib/api";
 
 // Import notification registration
 const isExpoGo = Constants.appOwnership === 'expo';
 const notificationModule = isExpoGo 
   ? null
-  : require("@/lib/notifications-production-v2");
+  : require("../../lib/notifications-production-v2");
 
 const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 

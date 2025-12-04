@@ -3,9 +3,10 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator, Animated } from "react-native";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import api from "@/lib/api";
-import { ensureAuth } from "@/lib/auth";
-import BusinessAvatar from "@/components/BusinessAvatar";
+import { ensureAuth } from "../../../lib/auth";
+import api from "../../../lib/api";
+import BusinessAvatar from "../../../components/BusinessAvatar";
+
 
 export default function CardDetail() {
   const { id, cardData } = useLocalSearchParams<{ id: string; cardData: string }>();

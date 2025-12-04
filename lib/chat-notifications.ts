@@ -1,9 +1,9 @@
-import { socketService } from '@/lib/socket';
-import { showInAppNotification } from '@/lib/notifications-expo-go';
+import { socketService } from '../lib/socket';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '@/lib/api';
+import api from '../lib/api';
 import { router } from 'expo-router';
 import { QueryClient } from '@tanstack/react-query';
+import { showInAppNotification } from './notifications-expo-go';
 
 class ChatNotificationService {
   private isInitialized = false;

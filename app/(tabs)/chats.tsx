@@ -20,21 +20,23 @@ import {
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCurrentUser, getCurrentUserId } from '@/lib/useUser';
 import * as Contacts from 'expo-contacts';
 import { useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import api from "@/lib/api";
-import { ensureAuth } from "@/lib/auth";
+
 import { showInAppNotification } from "../../lib/notifications-expo-go";
-import { useChatSocket } from '@/hooks/chats';
-import FooterCarousel from "@/components/FooterCarousel";
-import GroupSharingModal from "@/components/GroupSharingModal";
-import GroupConnectionUI from "@/components/GroupConnectionUI";
-import groupSharingService, { GroupSharingSession } from "@/lib/groupSharingService";
-import GroupSharingSessionUI from "@/components/GroupSharingSessionUI";
+import { useChatSocket } from "../../hooks/chats";
+import groupSharingService, { GroupSharingSession } from "../../lib/groupSharingService";
+import api from "../../lib/api";
+import { ensureAuth } from "../../lib/auth";
+import { getCurrentUser, getCurrentUserId } from "../../lib/useUser";
+import GroupSharingModal from "../../components/GroupSharingModal";
+import GroupConnectionUI from "../../components/GroupConnectionUI";
+import GroupSharingSessionUI from "../../components/GroupSharingSessionUI";
+import FooterCarousel from "../../components/FooterCarousel";
+
 
 type SentCard = {
   _id: string;

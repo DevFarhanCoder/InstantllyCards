@@ -19,19 +19,20 @@ import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Fast2SMS imports for Phone Authentication
-import { sendOTPViaFast2SMS, verifyOTPViaBackend } from '@/lib/fast2sms';
 
-import api from "@/lib/api";
-import serverWarmup from "@/lib/serverWarmup";
-import Field from "@/components/Field";
-import PasswordField from "@/components/PasswordField";
-import PhoneInput from "@/components/PhoneInput";
-import { PrimaryButton } from "@/components/PrimaryButton";
-import { COLORS } from "@/lib/theme";
+
+import * as SmsRetriever from "expo-sms-retriever";
+import serverWarmup from "../../lib/serverWarmup";
+import api from "../../lib/api";
+import { sendOTPViaFast2SMS, verifyOTPViaBackend } from "../../lib/fast2sms";
+import PhoneInput from "../../components/PhoneInput";
+import Field from "../../components/Field";
+import PasswordField from "../../components/PasswordField";
+
 
 // Import notification registration
 // ALWAYS import the module - let the module itself handle Expo Go detection
-const notificationModule = require("@/lib/notifications-production-v2");
+const notificationModule = require("../../lib/notifications-production-v2");
 
 const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
 
@@ -110,6 +111,48 @@ export default function Signup() {
     }
   }, [otpTimer]);
 
+useEffect(() => {
+  if (step !== "otp") return;
+
+  let isMounted = true;
+
+  const start = async () => {
+    try {
+      console.log("📩 Starting SMS Retriever…");
+
+      const started = await SmsRetriever.start();
+      console.log("SMS Retriever started:", started);
+
+      if (started) {
+        SmsRetriever.addListener((event) => {
+          const message = event.value;  // correct for your library
+          console.log("📩 SMS RECEIVED:", message);
+
+          const otpMatch = message.match(/\d{4,6}/);
+          if (otpMatch && isMounted) {
+            setOtp(otpMatch[0]);
+          }
+
+          SmsRetriever.removeListener();
+        });
+      }
+    } catch (error) {
+      console.error("SMS Retriever Error:", error);
+    }
+  };
+
+  start();
+
+  return () => {
+    isMounted = false;
+    try {
+      SmsRetriever.removeListener();
+    } catch {}
+  };
+}, [step]);
+
+
+
   const sendOtp = async () => {
     const requestId = Math.random().toString(36).substring(7);
     const startTime = Date.now();
@@ -148,8 +191,11 @@ export default function Signup() {
 
       // First, check if phone number already exists
       console.log(`🔍 [SIGNUP-SEND-OTP] Checking if phone exists: ${fullPhone}`);
+      const appHash = await SmsRetriever.getHash()
+      console.log("App Hash:", appHash);
       const checkRes = await api.post("/auth/check-phone", {
-        phone: fullPhone
+        phone: fullPhone,
+        appHash: appHash
       });
       
       console.log(`✅ [SIGNUP-SEND-OTP] Check phone response - EXISTS: ${checkRes.exists}`);

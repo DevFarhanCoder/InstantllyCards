@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { router } from "expo-router";
-import api from "@/lib/api";
+import api from "../lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import BusinessAvatar from "./BusinessAvatar";
 

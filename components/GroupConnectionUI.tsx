@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import groupSharingService, { GroupSharingSession, GroupParticipant } from '@/lib/groupSharingService';
+import groupSharingService, { GroupSharingSession, GroupParticipant } from '../lib/groupSharingService';
 import CustomToast, { ToastType } from './CustomToast';
 
 const { width, height } = Dimensions.get('window');
@@ -33,6 +33,8 @@ export default function GroupConnectionUI({
   onClose,
   onConnect
 }: GroupConnectionUIProps) {
+  // Ref to store polling interval
+  const pollingIntervalRef = useRef<number | null>(null);
   const [participants, setParticipants] = useState<GroupParticipant[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(600); // 10 minutes in seconds
@@ -86,8 +88,9 @@ export default function GroupConnectionUI({
         
         if (!currentSession) {
           console.log('⏰ Session expired or not found');
-          showToast('Session expired', 'error');
-          onClose();
+          stopPolling();
+          showToast('Session ended or expired', 'info');
+          handleClose();
           return;
         }
 
@@ -100,29 +103,80 @@ export default function GroupConnectionUI({
         // Auto-open session screen when admin starts sharing
         if (currentSession.status === 'connected' || currentSession.status === 'sharing') {
           console.log('✅ Session is now connected/sharing, opening session screen');
+          stopPolling();
           onConnect();
         }
 
         // Close for non-admin if session ends
         if (!isAdmin && (currentSession.status === 'completed' || currentSession.status === 'expired')) {
           console.log('⏰ Session completed/expired for participant');
+          stopPolling();
           showToast('Session ended by admin', 'info');
-          onClose();
+          handleClose();
         }
       } catch (error) {
+        // Even safer error handling for error.response and error.message
+        let errorMsg: string = '';
+        let errorStatus: number | undefined = undefined;
+        if (error && typeof error === 'object') {
+          if ('response' in error && error.response && typeof error.response === 'object') {
+            if ('data' in error.response && error.response.data && typeof error.response.data === 'object' && 'error' in error.response.data) {
+              if (typeof error.response.data.error === 'string') {
+                errorMsg = error.response.data.error;
+              } else {
+                errorMsg = '';
+              }
+            }
+            if ('status' in error.response && typeof error.response.status === 'number') {
+              errorStatus = error.response.status;
+            }
+          }
+          if ('message' in error && typeof error.message === 'string' && !errorMsg) {
+            errorMsg = error.message;
+          }
+        }
+        if (errorStatus === 404 || (typeof errorMsg === 'string' && (errorMsg.includes('Session not found') || errorMsg.includes('expired')))) {
+          stopPolling();
+          showToast('Session ended or expired', 'info');
+          handleClose();
+          return;
+        }
         console.error('❌ Failed to get session status:', error);
       }
     };
 
-    // Check immediately and then every 2 seconds
+    // Start polling
+    pollingIntervalRef.current = window.setInterval(checkSessionStatus, 2000);
+    // Run once immediately
     checkSessionStatus();
-    const statusInterval = setInterval(checkSessionStatus, 2000);
 
     return () => {
-      clearInterval(statusInterval);
-      console.log('🛑 Stopped group sharing polling');
+      stopPolling();
     };
   }, [visible, session, isAdmin]);
+
+  // Helper to stop polling immediately
+  const stopPolling = () => {
+    if (pollingIntervalRef.current !== null) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+      console.log('🛑 (Immediate) Stopped group sharing polling');
+    }
+  };
+
+  // Custom close handler to stop polling and end session if admin
+  const handleClose = async () => {
+    stopPolling();
+    if (isAdmin) {
+      try {
+        await groupSharingService.endSession();
+        console.log('✅ Session ended by admin via close button');
+      } catch (e) {
+        console.error('❌ Error ending session on close:', e);
+      }
+    }
+    onClose();
+  };
 
   // Countdown timer
   useEffect(() => {
@@ -263,7 +317,7 @@ export default function GroupConnectionUI({
         <SafeAreaView style={styles.safeArea}>
           {/* Modern Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <View style={styles.closeButtonBg}>
                 <Ionicons name="close" size={22} color="#1F2937" />
               </View>
@@ -323,7 +377,7 @@ export default function GroupConnectionUI({
             <View style={styles.centerLogoContainer}>
               <View style={styles.centerLogoCircle}>
                 <Image
-                  source={require('@/assets/images/Instantlly_Logo-removebg.png')}
+                  source={require('../assets/images/Instantlly_Logo-removebg.png')}
                   style={styles.centerLogo}
                   resizeMode="contain"
                 />

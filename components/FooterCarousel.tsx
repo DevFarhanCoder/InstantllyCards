@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Image, Dimensions, StyleSheet, ScrollView, Animated, TouchableOpacity, Modal, Text, Linking, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import api from '@/lib/api';
-import { ensureAuth } from '@/lib/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAds, type Ad } from '@/hooks/useAds';
+import { Ad, useAds } from '../hooks/useAds';
+import { ensureAuth } from '../lib/auth';
+import api from '../lib/api';
 
 const { width: screenWidth } = Dimensions.get('window');
 

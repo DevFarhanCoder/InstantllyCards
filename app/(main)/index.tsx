@@ -1,8 +1,8 @@
 // app/(main)/index.tsx
 import { useEffect, useState } from "react";
 import { View, FlatList, Text, TouchableOpacity } from "react-native";
-import api from "@/lib/api";
 import { useRouter } from "expo-router";
+import api from "../../lib/api";
 
 export default function Dashboard() {
   const r = useRouter();

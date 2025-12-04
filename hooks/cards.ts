@@ -1,7 +1,7 @@
 // hooks/cards.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/api";
-import { ensureAuth } from "@/lib/auth";
+import api from "../lib/api";
+import { ensureAuth } from "../lib/auth";
 
 /** Mobile form shape */
 export type CardPayload = {

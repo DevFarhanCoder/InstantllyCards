@@ -3,17 +3,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { FlatList, StyleSheet, Text, View, RefreshControl, TouchableOpacity, Pressable, Modal, Animated, TextInput, Alert } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import api from "@/lib/api";
-import CardRow from "@/components/CardRow";
-import { ensureAuth } from "@/lib/auth";
-import FooterCarousel from "@/components/FooterCarousel";
-import GroupSharingModal from "@/components/GroupSharingModal";
-import GroupConnectionUI from "@/components/GroupConnectionUI";
-import GroupSharingSessionUI from "@/components/GroupSharingSessionUI";
-import groupSharingService, { GroupSharingSession } from "@/lib/groupSharingService";
+import api from "../../lib/api";
+import { ensureAuth } from "../../lib/auth";
+import FooterCarousel from "../../components/FooterCarousel";
+
 import { Ionicons } from '@expo/vector-icons';
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import groupSharingService, { GroupSharingSession } from "../../lib/groupSharingService";
+import GroupSharingModal from "../../components/GroupSharingModal";
+import GroupConnectionUI from "../../components/GroupConnectionUI";
+import GroupSharingSessionUI from "../../components/GroupSharingSessionUI";
+import CardRow from "../../components/CardRow";
 
 type Card = any;
 

@@ -16,8 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import api from '@/lib/api';
-import { getCurrentUserId } from '@/lib/useUser';
+import api from '../../lib/api';
+import { getCurrentUserId } from '../../lib/useUser';
 
 const { width: screenWidth } = Dimensions.get('window');
 const cardWidth = (screenWidth - 48) / 2; // 2 cards per row with margins

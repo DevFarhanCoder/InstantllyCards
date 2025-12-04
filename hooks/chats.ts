@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { socketService } from '@/lib/socket';
-import api from '@/lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { showInAppNotification } from '@/lib/notifications-expo-go';
 import { router } from 'expo-router';
+import { socketService } from '../lib/socket';
+import api from '../lib/api';
 
 export interface MessageData {
   _id?: string;

@@ -17,19 +17,18 @@ import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api from "@/lib/api";
-import serverWarmup from "@/lib/serverWarmup";
-import Field from "@/components/Field";
-import PasswordField from "@/components/PasswordField";
-import PhoneInput from "@/components/PhoneInput";
-import { PrimaryButton } from "@/components/PrimaryButton";
+
 
 // Import notification registration
 // ALWAYS import the module - let the module itself handle Expo Go detection
-const notificationModule = require("@/lib/notifications-production-v2");
+const notificationModule = require("../../lib/notifications-production-v2");
 
 const registerPendingPushToken = notificationModule?.registerPendingPushToken || (async () => {});
-import { COLORS } from "@/lib/theme";
+import api from "../../lib/api";
+import serverWarmup from "../../lib/serverWarmup";
+import PhoneInput from "../../components/PhoneInput";
+import PasswordField from "../../components/PasswordField";
+import { PrimaryButton } from "../../components/PrimaryButton";
 
 const { height: screenHeight } = Dimensions.get('window');
 

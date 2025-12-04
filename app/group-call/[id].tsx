@@ -14,9 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getCurrentUser } from '@/lib/useUser';
-import { socketService } from '@/lib/socket';
-import api from '@/lib/api';
+import { getCurrentUser } from '../../lib/useUser';
+import { socketService } from '../../lib/socket';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

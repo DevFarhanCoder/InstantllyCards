@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "@/lib/query";
+import { queryClient } from "../lib/query";
 import Constants from 'expo-constants';
 import serverWarmup from "../lib/serverWarmup";
 import ForceUpdateModal from "../components/ForceUpdateModal";
 import { checkAppVersion, getCurrentAppVersion, getAppStoreUrl } from "../lib/versionCheck";
-import { chatNotificationService } from "@/lib/chat-notifications";
+import { chatNotificationService } from "../lib/chat-notifications";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';

@@ -6,11 +6,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import CardRow from "../../components/CardRow";
+import FooterCarousel from "../../components/FooterCarousel";
+import FAB from "../../components/FAB";
 
-import api from "@/lib/api";
-import FAB from "@/components/FAB";
-import CardRow from "@/components/CardRow";
-import FooterCarousel from "@/components/FooterCarousel";
+
 
 type Card = any;
 

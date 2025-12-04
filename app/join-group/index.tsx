@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getCurrentUser } from '@/lib/useUser';
-import api from '@/lib/api';
+import { getCurrentUser } from '../../lib/useUser';
+import api from '../../lib/api';
 
 export default function JoinGroupScreen() {
   const [joinCode, setJoinCode] = useState('');

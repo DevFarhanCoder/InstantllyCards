@@ -17,12 +17,13 @@ import * as ImagePicker from "expo-image-picker";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
+import FormInput from "../../components/FormInput";
+import PhoneInput from "../../components/PhoneInput";
+import BusinessAvatar from "../../components/BusinessAvatar";
+import { PrimaryButton } from "../../components/PrimaryButton";
+import api from "../../lib/api";
 
-import api from "@/lib/api"; // must attach Bearer token internally
-import { PrimaryButton } from "@/components/PrimaryButton";
-import FormInput from "@/components/FormInput";
-import BusinessAvatar from "@/components/BusinessAvatar";
-import PhoneInput from "@/components/PhoneInput";
+
 
 // ---------- simple validators ----------
 const isNonEmpty = (v: string) => v.trim().length > 0;

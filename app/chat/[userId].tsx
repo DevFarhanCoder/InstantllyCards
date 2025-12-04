@@ -16,10 +16,10 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import api from "@/lib/api";
-import { ensureAuth } from "@/lib/auth";
+import api from "../../lib/api";
+import { ensureAuth } from "../../lib/auth";
 import { scheduleMessageNotification, showInAppNotification, showExpoGoNotification } from "../../lib/notifications-expo-go";
-import { useChatSocket, useSendMessage } from "@/hooks/chats";
+import { useChatSocket, useSendMessage } from "../../hooks/chats";
 
 type Message = {
   id: string;
