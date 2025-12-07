@@ -197,7 +197,12 @@ export default function ResetPassword() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.box}>
-        <Text style={styles.title}>Reset Password</Text>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.replace('/(auth)/login')} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#F97316" />
+          </Pressable>
+          <Text style={styles.title}>Reset Password</Text>
+        </View>
         {step === 'otp' && (
           <>
             <Text style={styles.subtitle}>Enter your registered phone number to receive an OTP</Text>
@@ -304,7 +309,10 @@ export default function ResetPassword() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   box: { margin: 20, backgroundColor: '#fff', borderRadius: 12, padding: 20, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 4 },
-  title: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  backButton: { flexDirection: 'row', alignItems: 'center', marginRight: 16 },
+  backText: { fontSize: 18, fontWeight: '600', color: '#F97316', marginLeft: 4 },
+  title: { fontSize: 20, fontWeight: '700', color: '#111827' },
   subtitle: { color: '#6B7280', marginBottom: 12 },
   input: { backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
   button: { backgroundColor: '#F97316', borderRadius: 12, height: 52, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },

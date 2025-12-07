@@ -10,7 +10,6 @@ import {
   Animated,
   Vibration,
   Pressable,
-  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import groupSharingService, { GroupSharingSession } from '@/lib/groupSharingService';
@@ -483,27 +482,35 @@ export default function GroupSharingModal({
                   <Text style={styles.sharingControlTitle}>Sharing Permissions</Text>
                 </View>
                 
-                <View style={styles.sharingControlRow}>
-                  <View style={styles.sharingControlInfo}>
-                    <Text style={styles.sharingControlLabel}>
-                      {allowParticipantSharing 
-                        ? 'Participants can share with each other' 
-                        : 'Only admin shares cards'}
-                    </Text>
-                    <Text style={styles.sharingControlHint}>
-                      {allowParticipantSharing
-                        ? 'Everyone exchanges cards with everyone'
-                        : 'Participants only exchange with admin'}
-                    </Text>
+                {/* Radio Option 1: Only admin shares cards */}
+                <TouchableOpacity 
+                  style={styles.radioOption}
+                  onPress={() => setAllowParticipantSharing(false)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioButton}>
+                    {!allowParticipantSharing && <View style={styles.radioButtonInner} />}
                   </View>
-                  <Switch
-                    value={allowParticipantSharing}
-                    onValueChange={setAllowParticipantSharing}
-                    trackColor={{ false: '#CBD5E1', true: '#6366F1' }}
-                    thumbColor="#FFFFFF"
-                    ios_backgroundColor="#CBD5E1"
-                  />
-                </View>
+                  <View style={styles.radioTextContainer}>
+                    <Text style={styles.radioLabel}>Only admin shares cards</Text>
+                    <Text style={styles.radioHint}>Participants only exchange with admin</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Radio Option 2: Participants can share with each other */}
+                <TouchableOpacity 
+                  style={styles.radioOption}
+                  onPress={() => setAllowParticipantSharing(true)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioButton}>
+                    {allowParticipantSharing && <View style={styles.radioButtonInner} />}
+                  </View>
+                  <View style={styles.radioTextContainer}>
+                    <Text style={styles.radioLabel}>Participants can share with each other</Text>
+                    <Text style={styles.radioHint}>Everyone exchanges cards with everyone</Text>
+                  </View>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -647,6 +654,41 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sharingControlHint: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#6366F1',
+  },
+  radioTextContainer: {
+    flex: 1,
+  },
+  radioLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  radioHint: {
     fontSize: 13,
     color: '#6B7280',
   },

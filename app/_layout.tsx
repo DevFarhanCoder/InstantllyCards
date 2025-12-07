@@ -7,6 +7,8 @@ import serverWarmup from "../lib/serverWarmup";
 import ForceUpdateModal from "../components/ForceUpdateModal";
 import { checkAppVersion, getCurrentAppVersion, getAppStoreUrl } from "../lib/versionCheck";
 import { chatNotificationService } from "@/lib/chat-notifications";
+import { socketService } from "@/lib/socket";
+import { showInAppNotification } from "@/lib/notifications-expo-go";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -67,9 +69,25 @@ export default function RootLayout() {
       // Set up notification listeners
       const unsubscribe = setupNotificationListeners();
       
+      // Initialize Socket.IO and set up admin transfer listener
+      console.log('🔌 Connecting to Socket.IO...');
+      await socketService.connect();
+      
+      const unsubscribeAdminTransfer = socketService.onAdminTransfer((data) => {
+        console.log('👑 GLOBAL: Received admin transfer notification:', data);
+        showInAppNotification({
+          title: '👑 You\'re Now Admin!',
+          body: data.message,
+          data: { groupId: data.groupId, type: 'admin_transfer' }
+        });
+      });
+      
       console.log('✅ App initialization complete');
       
-      return unsubscribe;
+      return () => {
+        unsubscribe?.();
+        unsubscribeAdminTransfer();
+      };
     };
     
     initApp();

@@ -129,6 +129,7 @@ export default function Account() {
       await api.put('/auth/update-profile', { name: tempName.trim() });
       setUserProfile((prev: any) => prev ? { ...prev, name: tempName.trim() } : prev);
       setEditingName(false);
+      await fetchUserProfile(); // Refresh profile data
       Alert.alert('Success', 'Name updated');
       // merge into default_card for card creation
       mergeIntoDefaultCard({ name: tempName.trim() });
@@ -151,6 +152,7 @@ export default function Account() {
       await api.put('/auth/update-profile', { phone: tempPhone.trim() });
       setUserProfile((prev: any) => prev ? { ...prev, phone: tempPhone.trim() } : prev);
       setEditingPhone(false);
+      await fetchUserProfile(); // Refresh profile data
       Alert.alert('Success', 'Phone updated');
       // merge into default_card for card creation
       mergeIntoDefaultCard({ phone: tempPhone.trim() });
@@ -485,6 +487,7 @@ export default function Account() {
                             await updateAllUserCards({ gender: tempGender });
                             setGender(tempGender);
                             setEditingGender(false);
+                            await fetchUserProfile(); // Refresh profile data
                             Alert.alert('Success', 'Gender updated');
                           } catch (err) {
                             Alert.alert('Error', 'Failed to update gender');
@@ -535,6 +538,7 @@ export default function Account() {
                             await updateAllUserCards({ birthdate: iso });
                             setBirthdate(iso);
                             setEditingBirth(false);
+                            await fetchUserProfile(); // Refresh profile data
                             Alert.alert('Success', 'Birthdate updated');
                           } catch (err) {
                             Alert.alert('Error', 'Failed to update birthdate');
@@ -585,6 +589,7 @@ export default function Account() {
                             await updateAllUserCards({ anniversary: iso });
                             setAnniversary(iso);
                             setEditingAnniv(false);
+                            await fetchUserProfile(); // Refresh profile data
                             Alert.alert('Success', 'Anniversary updated');
                           } catch (err) {
                             Alert.alert('Error', 'Failed to update anniversary');

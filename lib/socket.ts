@@ -48,6 +48,7 @@ export class SocketService {
   private groupTypingListeners: ((data: { userId: string; groupId: string; isTyping: boolean }) => void)[] = [];
   private connectionListeners: ((connected: boolean) => void)[] = [];
   private messageStatusListeners: ((data: { messageId: string; status: string; readBy?: string }) => void)[] = [];
+  private adminTransferListeners: ((data: { groupId: string; groupName: string; message: string }) => void)[] = [];
 
   async connect(baseUrl?: string): Promise<boolean> {
     const resolvedBase = baseUrl || process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
@@ -269,6 +270,12 @@ export class SocketService {
       });
     });
 
+    // Handle admin transfer notification
+    this.socket.on('admin_transferred', (data: { groupId: string; groupName: string; message: string }) => {
+      console.log('👑 Admin transferred notification via Socket.IO:', data);
+      this.notifyAdminTransferListeners(data);
+    });
+
     // Handle errors
     this.socket.on('error', (error: any) => {
       console.error('🚨 Socket.IO error:', error);
@@ -472,9 +479,20 @@ export class SocketService {
     };
   }
 
+  onAdminTransfer(listener: (data: { groupId: string; groupName: string; message: string }) => void) {
+    this.adminTransferListeners.push(listener);
+    return () => {
+      this.adminTransferListeners = this.adminTransferListeners.filter(l => l !== listener);
+    };
+  }
+
   // Private notification methods
   private notifyMessageListeners(message: MessageData) {
     this.messageListeners.forEach(listener => listener(message));
+  }
+
+  private notifyAdminTransferListeners(data: { groupId: string; groupName: string; message: string }) {
+    this.adminTransferListeners.forEach(listener => listener(data));
   }
 
   private notifyGroupMessageListeners(message: MessageData) {

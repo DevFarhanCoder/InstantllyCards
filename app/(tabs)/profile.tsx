@@ -166,7 +166,7 @@ export default function Profile() {
           onPress: async () => {
             setUpdating(true);
             try {
-              await api.put("/auth/update-profile", { profilePicture: null });
+              await api.put("/auth/update-profile", { profilePicture: "" });
               
               setUserProfile(prev => prev ? {...prev, profilePicture: undefined} : null);
               

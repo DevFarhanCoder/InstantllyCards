@@ -50,6 +50,24 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="chats"
+        options={{
+          title: "Messaging",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="chatbubbles" color={focused ? "#047857" : "#9CA3AF"} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="vouchers"
+        options={{
+          title: "Vouchers",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="gift" color={focused ? "#cc7a00" : "#9CA3AF"} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="ads" 
         options={{
           title: "Ads",
@@ -73,24 +91,6 @@ export default function TabsLayout() {
                 resizeMode="contain"
               />
             )
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="chats"
-        options={{
-          title: "Messaging",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="chatbubbles" color={focused ? "#047857" : "#9CA3AF"} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="vouchers"
-        options={{
-          title: "Vouchers",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="gift" color={focused ? "#cc7a00" : "#9CA3AF"} size={size} />
           ),
         }}
       />

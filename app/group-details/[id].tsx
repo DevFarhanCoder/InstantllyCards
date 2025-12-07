@@ -74,16 +74,41 @@ export default function GroupDetailsScreen() {
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isMember, setIsMember] = useState(true);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [cardsSummary, setCardsSummary] = useState<GroupCardsSummary | null>(null);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [activeCardsTab, setActiveCardsTab] = useState<'sent' | 'received'>('sent');
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [showTransferAdminModal, setShowTransferAdminModal] = useState(false);
+  const [selectedNewAdmin, setSelectedNewAdmin] = useState<string | null>(null);
 
   useEffect(() => {
     loadGroupDetails();
     loadGroupCards();
+    
+    // Set up Socket.IO listener for admin transfer notifications
+    const { socketService } = require('@/lib/socket');
+    const unsubscribe = socketService.onAdminTransfer((data: { groupId: string; groupName: string; message: string }) => {
+      if (data.groupId === id) {
+        Alert.alert(
+          '👑 You\'re Now Admin!',
+          data.message,
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              // Reload group details to update UI
+              loadGroupDetails();
+            }
+          }]
+        );
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
   }, [id]);
 
   // Reload group details when returning to screen
@@ -133,7 +158,18 @@ export default function GroupDetailsScreen() {
           };
           
           setGroupInfo(groupInfo);
-          setIsAdmin(group.admin._id === currentUserId || group.admin === currentUserId);
+          
+          // Check if current user is admin - handle both object and string admin ID
+          const adminId = typeof group.admin === 'object' ? group.admin._id : group.admin;
+          const isUserAdmin = adminId === currentUserId || String(adminId) === String(currentUserId);
+          setIsAdmin(isUserAdmin);
+          console.log('🔍 Admin check - adminId:', adminId, 'currentUserId:', currentUserId, 'isAdmin:', isUserAdmin);
+
+          // Check if current user is still a member
+          const isUserMember = group.members.some((member: any) => 
+            member._id === currentUserId || member === currentUserId
+          );
+          setIsMember(isUserMember);
 
           // Process group members from API response
           const members: GroupMember[] = [];
@@ -409,74 +445,216 @@ export default function GroupDetailsScreen() {
     );
   };
 
-  const leaveGroup = () => {
-    if (isAdmin && groupMembers.length > 1) {
-      Alert.alert(
-        'Transfer Admin',
-        'You are the admin of this group. Please transfer admin rights to another member before leaving.',
-        [{ text: 'OK' }]
-      );
+  const transferAdminRole = async () => {
+    if (!selectedNewAdmin) {
+      Alert.alert('Error', 'Please select a member to transfer admin rights to.');
       return;
     }
 
+    try {
+      if (!groupInfo || !id) return;
+
+      const newAdminMember = groupMembers.find(m => m.id === selectedNewAdmin);
+      if (!newAdminMember) {
+        Alert.alert('Error', 'Selected member not found.');
+        return;
+      }
+
+      // Call backend API to transfer admin
+      const response = await api.put(`/groups/${id}/transfer-admin`, {
+        newAdminId: selectedNewAdmin
+      });
+
+      if (response && response.success) {
+        // Update local state immediately - current user is no longer admin
+        setIsAdmin(false);
+        setShowTransferAdminModal(false);
+        setSelectedNewAdmin(null);
+        
+        // Reload group details to get fresh data from backend
+        await loadGroupDetails();
+        
+        Alert.alert(
+          'Admin Transferred',
+          `${newAdminMember.name} is now the group admin. You can now leave the group.`,
+          [
+            { 
+              text: 'Leave Group', 
+              onPress: () => {
+                // Now show leave confirmation
+                setTimeout(() => setShowLeaveConfirm(true), 100);
+              }
+            },
+            {
+              text: 'Stay in Group',
+              style: 'cancel'
+            }
+          ]
+        );
+      } else {
+        throw new Error(response?.message || 'Failed to transfer admin');
+      }
+    } catch (error) {
+      console.error('Error transferring admin:', error);
+      Alert.alert('Error', 'Failed to transfer admin rights. Please try again.');
+    }
+  };
+
+  const leaveGroup = () => {
+    console.log('🔴🔴🔴 LEAVE GROUP BUTTON CLICKED 🔴🔴🔴');
+    console.log('📊 isAdmin:', isAdmin);
+    console.log('📊 groupMembers.length:', groupMembers.length);
+    console.log('📊 groupMembers:', groupMembers.map(m => ({ name: m.name, isAdmin: m.isAdmin })));
+    
+    // If admin and there are other members, must transfer admin first
+    if (isAdmin && groupMembers.length > 1) {
+      console.log('✅ Admin check passed - showing transfer admin requirement');
+      Alert.alert(
+        'Transfer Admin Required',
+        'As the group admin, you must transfer admin rights to another member before leaving the group.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Transfer Admin', 
+            onPress: () => setShowTransferAdminModal(true)
+          }
+        ]
+      );
+      return;
+    }
+    
+    console.log('⚠️ Admin check did NOT trigger - showing leave confirmation');
+    console.log('About to show confirmation modal');
     setShowLeaveConfirm(true);
+    console.log('Modal state set to true');
   };
 
   const confirmLeaveGroup = async () => {
+    console.log('🔵🔵🔵 CONFIRM LEAVE GROUP FUNCTION CALLED 🔵🔵🔵');
+    console.log('🔵 Function scope - id:', id);
+    console.log('🔵 Function scope - groupInfo:', groupInfo);
+    
     try {
-      if (!groupInfo) return;
-
-      // Remove current user from group members
-      const updatedMembers = groupInfo.members.filter(memberId => memberId !== currentUserId);
+      console.log('🚀 Starting leave group process...');
+      console.log('📋 Group Info:', groupInfo);
+      console.log('🆔 Group ID:', id);
       
-      if (updatedMembers.length === 0) {
-        // Last member leaving - delete the group
-        await AsyncStorage.removeItem(`group_${id}`);
-        await AsyncStorage.removeItem(`group_messages_${id}`);
-        
-        const groupsListData = await AsyncStorage.getItem('groups_list');
-        if (groupsListData) {
-          const groupsList = JSON.parse(groupsListData);
-          const updatedList = groupsList.filter((groupId: string) => groupId !== id);
-          await AsyncStorage.setItem('groups_list', JSON.stringify(updatedList));
-        }
-      } else {
-        // Update group without current user
-        const updatedGroup = {
-          ...groupInfo,
-          members: updatedMembers,
-          updatedAt: new Date().toISOString(),
-        };
-
-        await AsyncStorage.setItem(`group_${id}`, JSON.stringify(updatedGroup));
-
-        // Add system message about user leaving
-        const messagesData = await AsyncStorage.getItem(`group_messages_${id}`);
-        const messages = messagesData ? JSON.parse(messagesData) : [];
-        
-        const systemMessage = {
-          id: `msg_system_${Date.now()}`,
-          senderId: 'system',
-          senderName: 'System',
-          text: 'You left the group',
-          timestamp: new Date().toISOString(),
-          type: 'system',
-        };
-        
-        messages.push(systemMessage);
-        await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(messages));
+      if (!groupInfo) {
+        console.log('❌ No group info found, aborting leave');
+        return;
       }
 
       setShowLeaveConfirm(false);
+      setLoading(true);
+
+      console.log('📞 Making API call to DELETE /groups/' + id);
       
-      // Navigate back to chats
-      router.replace('/(tabs)/chats' as any);
+      // Call backend API to leave the group
+      const response = await api.del(`/groups/${id}`);
       
-      Alert.alert('Success', 'You have left the group.');
-    } catch (error) {
-      console.error('Error leaving group:', error);
-      Alert.alert('Error', 'Failed to leave group. Please try again.');
+      console.log('📥 Received response from backend:', JSON.stringify(response, null, 2));
+      
+      if (response.success) {
+        console.log('✅ Backend confirmed success');
+        // Show appropriate message based on action
+        if (response.action === 'deleted') {
+          // Group was deleted (last member left)
+          await AsyncStorage.removeItem(`group_${id}`);
+          await AsyncStorage.removeItem(`group_messages_${id}`);
+          
+          const groupsListData = await AsyncStorage.getItem('groups_list');
+          if (groupsListData) {
+            const groupsList = JSON.parse(groupsListData);
+            const updatedList = groupsList.filter((groupId: string) => groupId !== id);
+            await AsyncStorage.setItem('groups_list', JSON.stringify(updatedList));
+          }
+          
+          // Set preference to show Groups tab
+          await AsyncStorage.setItem('chats_active_tab', 'groups');
+          
+          router.replace('/(tabs)/chats' as any);
+          Alert.alert('Group Deleted', 'You were the last member. The group has been deleted.');
+        } else {
+          // User left the group successfully
+          console.log('✅ Successfully left group. Response:', response);
+          
+          // Set preference to show Groups tab
+          await AsyncStorage.setItem('chats_active_tab', 'groups');
+          
+          setLoading(false);
+          
+          // Navigate to chats
+          router.replace('/(tabs)/chats' as any);
+          
+          if (response.action === 'left' && response.message?.includes('admin was transferred')) {
+            Alert.alert(
+              'Left Group', 
+              'You left the group and admin rights were transferred to another member.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert(
+              'Left Group', 
+              'You have successfully left the group.',
+              [{ text: 'OK' }]
+            );
+          }
+        }
+      } else {
+        console.log('❌ Backend returned success=false');
+        console.log('Error message:', response.error || response.message);
+        throw new Error(response.error || 'Failed to leave group');
+      }
+    } catch (error: any) {
+      console.error('❌❌❌ ERROR LEAVING GROUP ❌❌❌');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      console.error('Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      setLoading(false);
+      Alert.alert('Error', 'Failed to leave group. Please try again.\n\n' + (error?.message || String(error)));
+    } finally {
+      console.log('🔵 confirmLeaveGroup function FINISHED (finally block)');
     }
+  };
+
+  const deleteGroupFromDevice = async () => {
+    Alert.alert(
+      'Delete Group',
+      'This will remove the group and all its messages from your device. This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Remove group from local storage
+              await AsyncStorage.removeItem(`group_${id}`);
+              await AsyncStorage.removeItem(`group_messages_${id}`);
+              
+              const groupsListData = await AsyncStorage.getItem('groups_list');
+              if (groupsListData) {
+                const groupsList = JSON.parse(groupsListData);
+                const updatedList = groupsList.filter((groupId: string) => groupId !== id);
+                await AsyncStorage.setItem('groups_list', JSON.stringify(updatedList));
+              }
+
+              // Navigate back to chats
+              router.replace('/(tabs)/chats' as any);
+              
+              Alert.alert('Success', 'Group deleted from your device.');
+            } catch (error) {
+              console.error('Error deleting group:', error);
+              Alert.alert('Error', 'Failed to delete group. Please try again.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -970,14 +1148,37 @@ export default function GroupDetailsScreen() {
           {groupMembers.map(renderMemberItem)}
         </View>
 
-
-
         {/* Actions Section */}
         <View style={styles.section}>
-          <TouchableOpacity style={styles.actionItem} onPress={leaveGroup}>
-            <Ionicons name="exit-outline" size={24} color="#EF4444" />
-            <Text style={styles.actionTextDanger}>Leave Group</Text>
-          </TouchableOpacity>
+          {isMember ? (
+            <>
+              {isAdmin && (
+                <TouchableOpacity 
+                  style={[styles.actionItem, styles.actionItemBorder]} 
+                  onPress={() => setShowTransferAdminModal(true)}
+                >
+                  <Ionicons name="person-add-outline" size={24} color="#F59E0B" />
+                  <Text style={styles.actionTextWarning}>Transfer Admin</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.actionItem} onPress={leaveGroup}>
+                <Ionicons name="exit-outline" size={24} color="#EF4444" />
+                <Text style={styles.actionTextDanger}>Leave Group</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.notMemberBanner}>
+                <Ionicons name="information-circle" size={24} color="#F59E0B" />
+                <Text style={styles.notMemberText}>You are no longer a member of this group</Text>
+              </View>
+              
+              <TouchableOpacity style={[styles.actionItem, styles.actionItemLast]} onPress={deleteGroupFromDevice}>
+                <Ionicons name="trash-outline" size={24} color="#EF4444" />
+                <Text style={styles.actionTextDanger}>Delete Group from Device</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </ScrollView>
       )}
@@ -1018,6 +1219,93 @@ export default function GroupDetailsScreen() {
         </View>
       </Modal>
 
+      {/* Transfer Admin Modal */}
+      <Modal
+        visible={showTransferAdminModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowTransferAdminModal(false);
+          setSelectedNewAdmin(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
+            <Ionicons 
+              name="person-add-outline" 
+              size={48} 
+              color="#F59E0B" 
+              style={{ alignSelf: 'center', marginBottom: 12 }} 
+            />
+            <Text style={styles.modalTitle}>Transfer Admin</Text>
+            <Text style={styles.modalText}>
+              Select a member to transfer admin rights to. You will no longer be the admin after this.
+            </Text>
+            
+            <ScrollView style={styles.membersList} showsVerticalScrollIndicator={false}>
+              {groupMembers
+                .filter(member => member.id !== currentUserId)
+                .map((member) => (
+                  <TouchableOpacity
+                    key={member.id}
+                    style={[
+                      styles.transferMemberItem,
+                      selectedNewAdmin === member.id && styles.transferMemberItemSelected
+                    ]}
+                    onPress={() => setSelectedNewAdmin(member.id)}
+                  >
+                    <View style={styles.transferMemberInfo}>
+                      <View style={styles.transferMemberAvatar}>
+                        {member.profilePicture ? (
+                          <Image 
+                            source={{ uri: member.profilePicture }} 
+                            style={styles.transferMemberAvatarImage} 
+                          />
+                        ) : (
+                          <Text style={styles.transferMemberAvatarText}>
+                            {member.name.charAt(0).toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.transferMemberDetails}>
+                        <Text style={styles.transferMemberName}>{member.name}</Text>
+                        {member.phoneNumber && (
+                          <Text style={styles.transferMemberPhone}>{member.phoneNumber}</Text>
+                        )}
+                      </View>
+                    </View>
+                    {selectedNewAdmin === member.id && (
+                      <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonSecondary}
+                onPress={() => {
+                  setShowTransferAdminModal(false);
+                  setSelectedNewAdmin(null);
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButtonPrimary,
+                  !selectedNewAdmin && styles.modalButtonDisabled
+                ]}
+                onPress={transferAdminRole}
+                disabled={!selectedNewAdmin}
+              >
+                <Text style={styles.modalButtonTextPrimary}>Transfer Admin</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Leave Group Confirmation Modal */}
       <Modal
         visible={showLeaveConfirm}
@@ -1027,9 +1315,10 @@ export default function GroupDetailsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
+            <Ionicons name="exit-outline" size={48} color="#EF4444" style={{ alignSelf: 'center', marginBottom: 12 }} />
             <Text style={styles.modalTitle}>Leave Group</Text>
             <Text style={styles.modalText}>
-              Are you sure you want to leave "{groupInfo?.name}"? You will no longer receive messages from this group.
+              Are you sure you want to leave "{groupInfo?.name}"?\n\nYou can delete it from your device later using the "Delete Group from Device" option.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1040,7 +1329,10 @@ export default function GroupDetailsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalButtonPrimary}
-                onPress={confirmLeaveGroup}
+                onPress={() => {
+                  console.log('🟢🟢🟢 MODAL LEAVE BUTTON CLICKED 🟢🟢🟢');
+                  confirmLeaveGroup();
+                }}
               >
                 <Text style={styles.modalButtonTextPrimary}>Leave</Text>
               </TouchableOpacity>
@@ -1258,11 +1550,41 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#333333",
+  },
+  actionItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#374151",
+  },
+  actionItemLast: {
+    borderBottomWidth: 0,
   },
   actionTextDanger: {
     fontSize: 16,
     color: "#EF4444",
     marginLeft: 12,
+    fontWeight: "500",
+  },
+  actionTextWarning: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#F59E0B",
+    marginLeft: 12,
+  },
+  notMemberBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  notMemberText: {
+    fontSize: 14,
+    color: "#92400E",
+    marginLeft: 12,
+    flex: 1,
     fontWeight: "500",
   },
   modalOverlay: {
@@ -1690,5 +2012,67 @@ const styles = StyleSheet.create({
   imagePickerCancelText: {
     fontSize: 16,
     color: "#9CA3AF",
+  },
+  
+  // Transfer Admin Modal Styles
+  membersList: {
+    width: "100%",
+    maxHeight: 300,
+    marginVertical: 16,
+  },
+  transferMemberItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#F9FAFB",
+    marginBottom: 8,
+  },
+  transferMemberItemSelected: {
+    backgroundColor: "#DBEAFE",
+    borderWidth: 2,
+    borderColor: "#3B82F6",
+  },
+  transferMemberInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  transferMemberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E5E7EB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  transferMemberAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  transferMemberAvatarText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  transferMemberDetails: {
+    flex: 1,
+  },
+  transferMemberName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  transferMemberPhone: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  modalButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+    opacity: 0.5,
   },
 });
