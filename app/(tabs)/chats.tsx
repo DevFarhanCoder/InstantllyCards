@@ -1317,11 +1317,22 @@ export default function Chats() {
       const currentUserId = await getCurrentUserId();
       
       if (response && response.success && response.groups) {
+        console.log('🔍 DEBUG: Groups response from backend:', JSON.stringify(response.groups.map((g: any) => ({
+          id: g._id,
+          name: g.name,
+          adminId: g.admin?._id,
+          showAdminTransfer: g.showAdminTransfer,
+          adminTransferredBy: g.adminTransferredBy,
+          adminTransferInfo: g.adminTransferInfo
+        })), null, 2));
+        
         const backendGroups = response.groups.map((group: any) => {
           // Check if backend says to show admin transfer message
           const adminTransferMessage = group.showAdminTransfer && group.adminTransferredBy
             ? `${group.adminTransferredBy} made you admin`
             : null;
+          
+          console.log(`🔍 Group ${group.name}: showAdminTransfer=${group.showAdminTransfer}, adminTransferredBy=${group.adminTransferredBy}, message=${adminTransferMessage}`);
           
           return {
             id: group._id,
