@@ -527,22 +527,20 @@ export default function GroupDetailsScreen() {
   };
 
   const confirmLeaveGroup = async () => {
-    console.log('🔵🔵🔵 CONFIRM LEAVE GROUP FUNCTION CALLED 🔵🔵🔵');
-    console.log('🔵 Function scope - id:', id);
-    console.log('🔵 Function scope - groupInfo:', groupInfo);
+    console.log('🔵 CONFIRM LEAVE GROUP - Group Details');
+    console.log('🔵 Group ID:', id);
+    console.log('🔵 Group Info:', groupInfo);
     
     try {
-      console.log('🚀 Starting leave group process...');
-      console.log('📋 Group Info:', groupInfo);
-      console.log('🆔 Group ID:', id);
+      console.log('🚀 Starting leave group process from group details...');
       
-      if (!groupInfo) {
+      if (!groupInfo || !id) {
         console.log('❌ No group info found, aborting leave');
+        Alert.alert('Error', 'Group information not available.');
         return;
       }
 
       setShowLeaveConfirm(false);
-      setLoading(true);
 
       console.log('📞 Making API call to DELETE /groups/' + id);
       
@@ -551,52 +549,71 @@ export default function GroupDetailsScreen() {
       
       console.log('📥 Received response from backend:', JSON.stringify(response, null, 2));
       
-      if (response.success) {
-        console.log('✅ Backend confirmed success');
-        // Show appropriate message based on action
-        if (response.action === 'deleted') {
-          // Group was deleted (last member left)
-          await AsyncStorage.removeItem(`group_${id}`);
-          await AsyncStorage.removeItem(`group_messages_${id}`);
+      if (response && response.success) {
+        console.log('✅ Successfully left group from backend');
+        
+        // Update local group data to mark as left - DON'T DELETE IT
+        try {
+          let groupData = await AsyncStorage.getItem(`group_${id}`);
           
-          const groupsListData = await AsyncStorage.getItem('groups_list');
-          if (groupsListData) {
-            const groupsList = JSON.parse(groupsListData);
-            const updatedList = groupsList.filter((groupId: string) => groupId !== id);
-            await AsyncStorage.setItem('groups_list', JSON.stringify(updatedList));
+          // If group doesn't exist in storage, create it from current groupInfo
+          if (!groupData && groupInfo) {
+            console.log('⚠️ Group not in storage, creating from current data...');
+            const newGroupData = {
+              id: id,
+              _id: id,
+              name: groupInfo.name,
+              description: groupInfo.description || '',
+              icon: groupInfo.icon || '',
+              members: groupInfo.members || [],
+              admin: groupInfo.admin,
+              createdAt: groupInfo.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            await AsyncStorage.setItem(`group_${id}`, JSON.stringify(newGroupData));
+            groupData = JSON.stringify(newGroupData);
           }
           
-          // Set preference to show Groups tab
-          await AsyncStorage.setItem('chats_active_tab', 'groups');
-          
-          router.replace('/(tabs)/chats' as any);
-          Alert.alert('Group Deleted', 'You were the last member. The group has been deleted.');
-        } else {
-          // User left the group successfully
-          console.log('✅ Successfully left group. Response:', response);
-          
-          // Set preference to show Groups tab
-          await AsyncStorage.setItem('chats_active_tab', 'groups');
-          
-          setLoading(false);
-          
-          // Navigate to chats
-          router.replace('/(tabs)/chats' as any);
-          
-          if (response.action === 'left' && response.message?.includes('admin was transferred')) {
-            Alert.alert(
-              'Left Group', 
-              'You left the group and admin rights were transferred to another member.',
-              [{ text: 'OK' }]
-            );
+          if (groupData) {
+            const group = JSON.parse(groupData);
+            
+            // Mark the group as left by updating it
+            group.hasLeft = true;
+            group.leftAt = new Date().toISOString();
+            
+            // Save the updated group data - DO NOT DELETE
+            await AsyncStorage.setItem(`group_${id}`, JSON.stringify(group));
+            console.log('✅ Marked group as left in local storage (NOT DELETED)');
+            
+            // Add system message indicating user left
+            const messagesData = await AsyncStorage.getItem(`group_messages_${id}`);
+            const messages = messagesData ? JSON.parse(messagesData) : [];
+            
+            const systemMessage = {
+              id: `msg_system_${Date.now()}`,
+              senderId: 'system',
+              senderName: 'System',
+              text: 'You left the group',
+              timestamp: new Date().toISOString(),
+              type: 'system',
+            };
+            
+            messages.push(systemMessage);
+            await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(messages));
+            console.log('✅ Added "You left the group" system message');
           } else {
-            Alert.alert(
-              'Left Group', 
-              'You have successfully left the group.',
-              [{ text: 'OK' }]
-            );
+            console.error('❌ Could not find or create group data');
           }
+        } catch (storageError) {
+          console.error('Error updating local storage:', storageError);
         }
+        
+        // Store preference to show Groups tab BEFORE navigation
+        await AsyncStorage.setItem('chats_active_tab', 'groups');
+        console.log('✅ Set chats_active_tab to groups');
+        
+        // Navigate to chats tab which will auto-switch to Groups tab
+        router.replace('/(tabs)/chats' as any);
       } else {
         console.log('❌ Backend returned success=false');
         console.log('Error message:', response.error || response.message);
