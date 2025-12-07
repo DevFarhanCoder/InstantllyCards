@@ -107,16 +107,6 @@ export const useChatSocket = () => {
       }
     });
 
-    // Set up admin transfer notification listener (global)
-    const unsubscribeAdminTransfer = socketService.onAdminTransfer((data) => {
-      console.log('👑 Received admin transfer notification:', data);
-      showInAppNotification({
-        title: '👑 You\'re Now Admin!',
-        body: data.message,
-        data: { groupId: data.groupId, type: 'admin_transfer' }
-      });
-    });
-
     // Auto-connect when hook is used
     connect();
 
@@ -124,7 +114,6 @@ export const useChatSocket = () => {
       unsubscribeConnection();
       unsubscribeOnlineUsers();
       unsubscribeTyping();
-      unsubscribeAdminTransfer();
     };
   }, [connect]);
 

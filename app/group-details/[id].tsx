@@ -88,27 +88,6 @@ export default function GroupDetailsScreen() {
     loadGroupDetails();
     loadGroupCards();
     
-    // Set up Socket.IO listener for admin transfer notifications
-    const { socketService } = require('@/lib/socket');
-    const unsubscribe = socketService.onAdminTransfer((data: { groupId: string; groupName: string; message: string }) => {
-      if (data.groupId === id) {
-        Alert.alert(
-          '👑 You\'re Now Admin!',
-          data.message,
-          [{ 
-            text: 'OK', 
-            onPress: () => {
-              // Reload group details to update UI
-              loadGroupDetails();
-            }
-          }]
-        );
-      }
-    });
-    
-    return () => {
-      unsubscribe();
-    };
   }, [id]);
 
   // Reload group details when returning to screen
@@ -116,6 +95,24 @@ export default function GroupDetailsScreen() {
     useCallback(() => {
       console.log('🔄 Group details screen focused - reloading data');
       loadGroupDetails();
+      
+      // Mark admin transfer notification as seen
+      const markNotificationSeen = async () => {
+        try {
+          const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
+          if (notificationsStr) {
+            const notifications = JSON.parse(notificationsStr);
+            const updated = notifications.map((n: any) => 
+              n.groupId === id ? { ...n, seen: true } : n
+            );
+            await AsyncStorage.setItem('admin_transfer_notifications', JSON.stringify(updated));
+            console.log('✅ Marked admin transfer notification as seen for group:', id);
+          }
+        } catch (error) {
+          console.error('Error marking notification as seen:', error);
+        }
+      };
+      markNotificationSeen();
     }, [id])
   );
 

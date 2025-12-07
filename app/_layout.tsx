@@ -73,13 +73,28 @@ export default function RootLayout() {
       console.log('🔌 Connecting to Socket.IO...');
       await socketService.connect();
       
-      const unsubscribeAdminTransfer = socketService.onAdminTransfer((data) => {
+      const unsubscribeAdminTransfer = socketService.onAdminTransfer(async (data) => {
         console.log('👑 GLOBAL: Received admin transfer notification:', data);
-        showInAppNotification({
-          title: '👑 You\'re Now Admin!',
-          body: data.message,
-          data: { groupId: data.groupId, type: 'admin_transfer' }
-        });
+        
+        // Save notification to AsyncStorage for UI display in group list
+        try {
+          const existingNotifications = await AsyncStorage.getItem('admin_transfer_notifications');
+          const notifications = existingNotifications ? JSON.parse(existingNotifications) : [];
+          
+          notifications.push({
+            groupId: data.groupId,
+            groupName: data.groupName,
+            fromUser: data.fromUser,
+            message: data.message,
+            timestamp: data.timestamp,
+            seen: false
+          });
+          
+          await AsyncStorage.setItem('admin_transfer_notifications', JSON.stringify(notifications));
+          console.log('💾 Saved admin transfer notification to storage');
+        } catch (error) {
+          console.error('Error saving notification:', error);
+        }
       });
       
       console.log('✅ App initialization complete');

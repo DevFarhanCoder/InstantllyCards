@@ -1536,6 +1536,27 @@ export default function Chats() {
 
   // Render group item
   const renderGroupItem = ({ item }: { item: any }) => {
+    const [adminTransferNotification, setAdminTransferNotification] = useState<any>(null);
+    
+    useEffect(() => {
+      // Check for unseen admin transfer notifications for this group
+      const checkNotification = async () => {
+        try {
+          const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
+          if (notificationsStr) {
+            const notifications = JSON.parse(notificationsStr);
+            const groupNotification = notifications.find(
+              (n: any) => n.groupId === item.id && !n.seen
+            );
+            setAdminTransferNotification(groupNotification);
+          }
+        } catch (error) {
+          console.error('Error loading notifications:', error);
+        }
+      };
+      checkNotification();
+    }, [item.id]);
+    
     const formatTime = (timestamp: string) => {
       if (!timestamp) return '';
       
@@ -1583,9 +1604,18 @@ export default function Chats() {
         
         <View style={s.conversationInfo}>
           <Text style={s.conversationName}>{item.name}</Text>
-          <Text style={[s.conversationMessage, hasLeftGroup && s.leftGroupMessage]} numberOfLines={1}>
-            {item.lastMessage || `${item.members?.length || 0} members`}
-          </Text>
+          {adminTransferNotification ? (
+            <View style={s.adminTransferBadge}>
+              <Ionicons name="crown" size={14} color="#10B981" />
+              <Text style={s.adminTransferText} numberOfLines={1}>
+                {adminTransferNotification.fromUser} made you admin
+              </Text>
+            </View>
+          ) : (
+            <Text style={[s.conversationMessage, hasLeftGroup && s.leftGroupMessage]} numberOfLines={1}>
+              {item.lastMessage || `${item.members?.length || 0} members`}
+            </Text>
+          )}
         </View>
         
         <View style={s.conversationTime}>
@@ -2596,6 +2626,23 @@ function GroupsFAB({
     color: "#EF4444", // Red color
     fontStyle: "italic",
     fontWeight: "500",
+  },
+  adminTransferBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  adminTransferText: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '600',
+    marginLeft: 4,
+    flex: 1,
   },
   groupOptionsButton: {
     padding: 4,
