@@ -35,10 +35,26 @@ export default function PermissionsGate() {
         else router.replace("/(auth)/signup");
     }
 
+    // useEffect(() => {
+    //     checkContacts();
+    //     checkNotifications();
+    // }, []);
     useEffect(() => {
-        checkContacts();
-        checkNotifications();
+        (async () => {
+
+            await checkContacts();
+            await checkNotifications();
+
+            const c = await Contacts.getPermissionsAsync();
+            const n = await Notifications.getPermissionsAsync();
+
+            if (c.status === "granted" && n.status === "granted") {
+                enterApp();
+            }
+
+        })();
     }, []);
+
 
     const bothAllowed = contactsAllowed && notificationsAllowed;
 
