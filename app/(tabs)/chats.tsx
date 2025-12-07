@@ -148,6 +148,9 @@ export default function Chats() {
   const [showGroupConnection, setShowGroupConnection] = useState(false);
   const [showGroupSession, setShowGroupSession] = useState(false);
   const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
+  
+  // Admin transfer notifications state
+  const [adminTransferNotifications, setAdminTransferNotifications] = useState<any[]>([]);
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   
   // Track currently active chat to prevent notifications
@@ -334,6 +337,22 @@ export default function Chats() {
     }
   };
 
+  // Load admin transfer notifications
+  useEffect(() => {
+    const loadAdminTransferNotifications = async () => {
+      try {
+        const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
+        if (notificationsStr) {
+          const notifications = JSON.parse(notificationsStr);
+          setAdminTransferNotifications(notifications);
+        }
+      } catch (error) {
+        console.error('Error loading admin transfer notifications:', error);
+      }
+    };
+    loadAdminTransferNotifications();
+  }, []);
+
   // Load conversations when component mounts
   useEffect(() => {
     loadConversations();
@@ -496,7 +515,21 @@ export default function Chats() {
         }
       };
       
+      // Reload admin transfer notifications
+      const reloadNotifications = async () => {
+        try {
+          const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
+          if (notificationsStr) {
+            const notifications = JSON.parse(notificationsStr);
+            setAdminTransferNotifications(notifications);
+          }
+        } catch (error) {
+          console.error('Error reloading admin transfer notifications:', error);
+        }
+      };
+      
       checkTabPreference();
+      reloadNotifications();
       
       loadConversations();
       loadGroups(); // Load groups when screen is focused
@@ -1536,26 +1569,10 @@ export default function Chats() {
 
   // Render group item
   const renderGroupItem = ({ item }: { item: any }) => {
-    const [adminTransferNotification, setAdminTransferNotification] = useState<any>(null);
-    
-    useEffect(() => {
-      // Check for unseen admin transfer notifications for this group
-      const checkNotification = async () => {
-        try {
-          const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
-          if (notificationsStr) {
-            const notifications = JSON.parse(notificationsStr);
-            const groupNotification = notifications.find(
-              (n: any) => n.groupId === item.id && !n.seen
-            );
-            setAdminTransferNotification(groupNotification);
-          }
-        } catch (error) {
-          console.error('Error loading notifications:', error);
-        }
-      };
-      checkNotification();
-    }, [item.id]);
+    // Check for unseen admin transfer notification for this group
+    const adminTransferNotification = adminTransferNotifications.find(
+      (n: any) => n.groupId === item.id && !n.seen
+    );
     
     const formatTime = (timestamp: string) => {
       if (!timestamp) return '';
