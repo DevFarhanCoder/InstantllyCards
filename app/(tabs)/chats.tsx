@@ -1622,12 +1622,9 @@ export default function Chats() {
         <View style={s.conversationInfo}>
           <Text style={s.conversationName}>{item.name}</Text>
           {adminTransferNotification ? (
-            <View style={s.adminTransferBadge}>
-              <Ionicons name="crown" size={14} color="#10B981" />
-              <Text style={s.adminTransferText} numberOfLines={1}>
-                {adminTransferNotification.fromUser} made you admin
-              </Text>
-            </View>
+            <Text style={s.adminTransferMessage} numberOfLines={1}>
+              {adminTransferNotification.fromUser} made you admin
+            </Text>
           ) : (
             <Text style={[s.conversationMessage, hasLeftGroup && s.leftGroupMessage]} numberOfLines={1}>
               {item.lastMessage || `${item.members?.length || 0} members`}
@@ -2644,22 +2641,11 @@ function GroupsFAB({
     fontStyle: "italic",
     fontWeight: "500",
   },
-  adminTransferBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 2,
-  },
-  adminTransferText: {
+  adminTransferMessage: {
+    color: "#10B981", // Green color
+    fontStyle: "italic",
+    fontWeight: "500",
     fontSize: 12,
-    color: '#059669',
-    fontWeight: '600',
-    marginLeft: 4,
-    flex: 1,
   },
   groupOptionsButton: {
     padding: 4,
