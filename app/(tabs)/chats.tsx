@@ -36,6 +36,7 @@ import GroupSharingModal from "../../components/GroupSharingModal";
 import GroupConnectionUI from "../../components/GroupConnectionUI";
 import GroupSharingSessionUI from "../../components/GroupSharingSessionUI";
 import FooterCarousel from "../../components/FooterCarousel";
+import { socketService } from "../../lib/socket";
 
 
 type SentCard = {
@@ -321,16 +322,32 @@ export default function Chats() {
   useEffect(() => {
     loadConversations();
     loadStoredContacts(); // Auto-load contacts from MongoDB instead of checkSyncStatus
-    checkForAllPendingMessages(); // Check for new messages from all contacts
+    // checkForAllPendingMessages(); // Check for new messages from all contacts
     
     // Set up periodic checking for new messages (every 30 seconds for reasonable performance)
-    const messageCheckInterval = setInterval(() => {
-      checkForAllPendingMessages();
-      checkForGroupUpdates(); // Also check for group updates
-    }, 30000); // Reduced frequency to 30 seconds
+    // const messageCheckInterval = setInterval(() => {
+    //   checkForAllPendingMessages();
+    //   checkForGroupUpdates(); // Also check for group updates
+    // }, 30000); // Reduced frequency to 30 seconds
     
-    return () => clearInterval(messageCheckInterval);
+    // return () => clearInterval(messageCheckInterval);
   }, []);
+useEffect(() => {
+  if (!socketService || !isConnected) return;
+
+  const handleNewMessage = () => {
+     loadConversations();
+     loadGroups();
+  };
+
+  socketService.on("new_message", handleNewMessage);
+  socketService.on("new_group_message", handleNewMessage);
+
+  return () => {
+    socketService.off("new_message", handleNewMessage);
+    socketService.off("new_group_message", handleNewMessage);
+  }
+}, [socketService, isConnected]);
 
   // Handle incoming navigation params from notifications
   useEffect(() => {

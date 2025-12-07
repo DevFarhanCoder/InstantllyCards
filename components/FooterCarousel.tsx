@@ -10,10 +10,10 @@ import api from '../lib/api';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// const SHOW_ADS = false; // Set to false to disable ads, true to enable
+const SHOW_ADS = false; // Set to false to disable ads, true to enable
 
 const FooterCarousel = () => {
-  // if (!SHOW_ADS) return null;  // add this for a while remove before push code 
+  if (!SHOW_ADS) return null;  // add this for a while remove before push code 
   console.log('🔄 FooterCarousel: Component mounting/re-rendering');
   
   // Use shared hook for cached ads (supports 100+ ads smoothly)
@@ -338,177 +338,177 @@ const FooterCarousel = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Show loading state */}
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#10B981" />
-          <Text style={styles.loadingText}>Loading ads...</Text>
-        </View>
-      )}
+    // <View style={styles.container}>
+    //   {/* Show loading state */}
+    //   {isLoading && (
+    //     <View style={styles.loadingContainer}>
+    //       <ActivityIndicator size="small" color="#10B981" />
+    //       <Text style={styles.loadingText}>Loading ads...</Text>
+    //     </View>
+    //   )}
       
-      {/* Show empty state if no ads */}
-      {!isLoading && allAds.length === 0 && (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No promotions available</Text>
-        </View>
-      )}
+    //   {/* Show empty state if no ads */}
+    //   {!isLoading && allAds.length === 0 && (
+    //     <View style={styles.emptyContainer}>
+    //       <Text style={styles.emptyText}>No promotions available</Text>
+    //     </View>
+    //   )}
       
-      {/* Show ads if available */}
-      {!isLoading && allAds.length > 0 && (
-        <ScrollView
-          ref={scrollViewRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onScroll={handleScroll}
-          onMomentumScrollEnd={handleScrollEnd}
-          scrollEventThrottle={16}
-          style={styles.scrollView}
-        >
-          {infiniteAds.map((ad, index) => (
-          <TouchableOpacity 
-            key={`${ad.id}-${index}`} 
-            style={styles.slide}
-            activeOpacity={0.9}
-            onPress={() => handleAdPress(ad)}
-          >
-            <Image
-              source={ad.image}
-              style={styles.image}
-              resizeMode="cover"
-              onLoadStart={() => {
-                console.log(`🔄 [IMG LOAD] Starting to load image at index ${index}:`, {
-                  adId: ad.id,
-                  imageUri: ad.image?.uri || 'NO URI',
-                  isFromApi: ad.isFromApi
-                });
-              }}
-              onError={(error) => {
-                console.error(`❌ [IMG LOAD ERROR] Failed to load image at index ${index}:`);
-                console.error(`   Ad ID: ${ad.id}`);
-                console.error(`   Image URI: ${ad.image?.uri || 'NO URI'}`);
-                console.error(`   Is from API: ${ad.isFromApi}`);
-                console.error(`   Error:`, error.nativeEvent.error);
-              }}
-              onLoad={() => {
-                console.log(`✅ [IMG LOAD SUCCESS] Image loaded at index ${index}:`, {
-                  adId: ad.id,
-                  imageUri: ad.image?.uri || 'NO URI',
-                  isFromApi: ad.isFromApi
-                });
-              }}
-            />
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      )}
+    //   {/* Show ads if available */}
+    //   {!isLoading && allAds.length > 0 && (
+    //     <ScrollView
+    //       ref={scrollViewRef}
+    //       horizontal
+    //       pagingEnabled
+    //       showsHorizontalScrollIndicator={false}
+    //       onScroll={handleScroll}
+    //       onMomentumScrollEnd={handleScrollEnd}
+    //       scrollEventThrottle={16}
+    //       style={styles.scrollView}
+    //     >
+    //       {infiniteAds.map((ad, index) => (
+    //       <TouchableOpacity 
+    //         key={`${ad.id}-${index}`} 
+    //         style={styles.slide}
+    //         activeOpacity={0.9}
+    //         onPress={() => handleAdPress(ad)}
+    //       >
+    //         <Image
+    //           source={ad.image}
+    //           style={styles.image}
+    //           resizeMode="cover"
+    //           onLoadStart={() => {
+    //             console.log(`🔄 [IMG LOAD] Starting to load image at index ${index}:`, {
+    //               adId: ad.id,
+    //               imageUri: ad.image?.uri || 'NO URI',
+    //               isFromApi: ad.isFromApi
+    //             });
+    //           }}
+    //           onError={(error) => {
+    //             console.error(`❌ [IMG LOAD ERROR] Failed to load image at index ${index}:`);
+    //             console.error(`   Ad ID: ${ad.id}`);
+    //             console.error(`   Image URI: ${ad.image?.uri || 'NO URI'}`);
+    //             console.error(`   Is from API: ${ad.isFromApi}`);
+    //             console.error(`   Error:`, error.nativeEvent.error);
+    //           }}
+    //           onLoad={() => {
+    //             console.log(`✅ [IMG LOAD SUCCESS] Image loaded at index ${index}:`, {
+    //               adId: ad.id,
+    //               imageUri: ad.image?.uri || 'NO URI',
+    //               isFromApi: ad.isFromApi
+    //             });
+    //           }}
+    //         />
+    //       </TouchableOpacity>
+    //     ))}
+    //   </ScrollView>
+    //   )}
 
-      {/* Full Screen Ad Modal - Only for Test Ad */}
-      <Modal
-        visible={showModal}
-        transparent={false}
-        animationType="none"
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.fullScreenModal}>
-          {/* Full Screen Ad Image */}
-          <Image
-            source={(selectedAd as any)?.bannerImage || selectedAd?.image}
-            style={styles.fullScreenImage}
-            resizeMode="contain"
-          />
+    //   {/* Full Screen Ad Modal - Only for Test Ad */}
+    //   <Modal
+    //     visible={showModal}
+    //     transparent={false}
+    //     animationType="none"
+    //     onRequestClose={() => setShowModal(false)}
+    //   >
+    //     <View style={styles.fullScreenModal}>
+    //       {/* Full Screen Ad Image */}
+    //       <Image
+    //         source={(selectedAd as any)?.bannerImage || selectedAd?.image}
+    //         style={styles.fullScreenImage}
+    //         resizeMode="contain"
+    //       />
           
-          {/* Gradient Overlay */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
-            style={styles.gradientOverlay}
-          />
+    //       {/* Gradient Overlay */}
+    //       <LinearGradient
+    //         colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
+    //         style={styles.gradientOverlay}
+    //       />
           
-          {/* Close Button */}
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={() => setShowModal(false)}
-          >
-            <Ionicons name="close-circle" size={40} color="#FFFFFF" />
-          </TouchableOpacity>
+    //       {/* Close Button */}
+    //       <TouchableOpacity 
+    //         style={styles.closeButton}
+    //         onPress={() => setShowModal(false)}
+    //       >
+    //         <Ionicons name="close-circle" size={40} color="#FFFFFF" />
+    //       </TouchableOpacity>
           
-          {/* Buttons at Bottom - Horizontal Row */}
-          <View style={styles.buttonContainer}>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity 
-                style={[styles.fullScreenButton, styles.callButton]}
-                onPress={handleCall}
-                disabled={isSearching}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.fullScreenButtonText}>Call</Text>
-              </TouchableOpacity>
+    //       {/* Buttons at Bottom - Horizontal Row */}
+    //       <View style={styles.buttonContainer}>
+    //         <View style={styles.buttonRow}>
+    //           <TouchableOpacity 
+    //             style={[styles.fullScreenButton, styles.callButton]}
+    //             onPress={handleCall}
+    //             disabled={isSearching}
+    //             activeOpacity={0.8}
+    //           >
+    //             <Text style={styles.fullScreenButtonText}>Call</Text>
+    //           </TouchableOpacity>
               
-              <TouchableOpacity 
-                style={[styles.fullScreenButton, styles.messageButton]}
-                onPress={handleMessage}
-                disabled={isSearching}
-                activeOpacity={0.8}
-              >
-                {isSearching ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.fullScreenButtonText}>Message</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+    //           <TouchableOpacity 
+    //             style={[styles.fullScreenButton, styles.messageButton]}
+    //             onPress={handleMessage}
+    //             disabled={isSearching}
+    //             activeOpacity={0.8}
+    //           >
+    //             {isSearching ? (
+    //               <ActivityIndicator color="#FFFFFF" size="small" />
+    //             ) : (
+    //               <Text style={styles.fullScreenButtonText}>Message</Text>
+    //             )}
+    //           </TouchableOpacity>
+    //         </View>
+    //       </View>
+    //     </View>
+    //   </Modal>
 
-      {/* Simple Popup Modal - For Regular Ads */}
-      <Modal
-        visible={showSimpleModal}
-        transparent={true}
-        animationType="none"
-        onRequestClose={() => setShowSimpleModal(false)}
-      >
-        <TouchableOpacity 
-          style={styles.simpleModalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSimpleModal(false)}
-        >
-          <View style={styles.simpleModalContent}>
-            <Text style={styles.simpleModalTitle}>Choose an action</Text>
+    //   {/* Simple Popup Modal - For Regular Ads */}
+    //   <Modal
+    //     visible={showSimpleModal}
+    //     transparent={true}
+    //     animationType="none"
+    //     onRequestClose={() => setShowSimpleModal(false)}
+    //   >
+    //     <TouchableOpacity 
+    //       style={styles.simpleModalOverlay}
+    //       activeOpacity={1}
+    //       onPress={() => setShowSimpleModal(false)}
+    //     >
+    //       <View style={styles.simpleModalContent}>
+    //         <Text style={styles.simpleModalTitle}>Choose an action</Text>
             
-            <TouchableOpacity 
-              style={styles.simpleModalButton}
-              onPress={handleCall}
-              disabled={isSearching}
-            >
-              <Text style={styles.simpleModalButtonText}>Call</Text>
-            </TouchableOpacity>
+    //         <TouchableOpacity 
+    //           style={styles.simpleModalButton}
+    //           onPress={handleCall}
+    //           disabled={isSearching}
+    //         >
+    //           <Text style={styles.simpleModalButtonText}>Call</Text>
+    //         </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={[styles.simpleModalButton, styles.simpleModalButtonMessage]}
-              onPress={handleMessage}
-              disabled={isSearching}
-            >
-              {isSearching ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.simpleModalButtonText}>Message</Text>
-              )}
-            </TouchableOpacity>
+    //         <TouchableOpacity 
+    //           style={[styles.simpleModalButton, styles.simpleModalButtonMessage]}
+    //           onPress={handleMessage}
+    //           disabled={isSearching}
+    //         >
+    //           {isSearching ? (
+    //             <ActivityIndicator color="#FFFFFF" />
+    //           ) : (
+    //             <Text style={styles.simpleModalButtonText}>Message</Text>
+    //           )}
+    //         </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={[styles.simpleModalButton, styles.simpleModalButtonCancel]}
-              onPress={() => setShowSimpleModal(false)}
-              disabled={isSearching}
-            >
-              <Text style={[styles.simpleModalButtonText, styles.simpleCancelText]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-    // <></>
+    //         <TouchableOpacity 
+    //           style={[styles.simpleModalButton, styles.simpleModalButtonCancel]}
+    //           onPress={() => setShowSimpleModal(false)}
+    //           disabled={isSearching}
+    //         >
+    //           <Text style={[styles.simpleModalButtonText, styles.simpleCancelText]}>Cancel</Text>
+    //         </TouchableOpacity>
+    //       </View>
+    //     </TouchableOpacity>
+    //   </Modal>
+    // </View>
+    <></>
 
   );
 };

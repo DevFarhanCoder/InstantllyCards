@@ -16,8 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useChatSocket, useConversations, useGroups, useUnreadCount } from '@/hooks/chats';
-import { getCurrentUserId } from '@/lib/useUser';
+import { getCurrentUserId } from '../lib/useUser';
+import { useChatSocket, useConversations, useGroups, useUnreadCount } from '../hooks/chats';
 
 interface ChatItemProps {
   item: any;

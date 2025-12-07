@@ -15,7 +15,7 @@ interface MessageData {
   receiverId?: string;
   groupId?: string;
   content: string;
-  messageType: 'text' | 'image' | 'file' | 'location';
+  messageType: 'text' | 'image' | 'file' | 'location' | 'system';
   timestamp: Date;
   status: 'sent' | 'delivered' | 'read';
   localMessageId?: string;
@@ -34,6 +34,29 @@ interface MessageData {
 }
 
 export class SocketService {
+  // off(arg0: string, handleNewMessage: (msg: any) => void) {
+  //   throw new Error('Method not implemented.');
+  // }
+  // on(arg0: string, handleNewMessage: (msg: any) => void) {
+  //   throw new Error('Method not implemented.');
+  // }
+  // static leaveConversation(arg0: { groupId: string; }, id: string) {
+  //   throw new Error('Method not implemented.');
+  // }
+public on(event: string, callback: (...args: any[]) => void) {
+  if (!this.socket) return;
+  this.socket.on(event, callback);
+}
+
+public off(event: string, callback: (...args: any[]) => void) {
+  if (!this.socket) return;
+  this.socket.off(event, callback);
+}
+
+public static leaveConversation(conversationId?: string, groupId?: string) {
+  socketService.leaveConversation(conversationId, groupId);
+}
+
   private socket: Socket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -196,7 +219,7 @@ export class SocketService {
     console.log('🎧 Setting up Socket.IO message listeners...');
 
     // Handle new private messages
-    this.socket.on('new_message', (message: MessageData) => {
+    this.socket.on('new_group_message', (message: MessageData) => {
       console.log('📨 Received new private message via Socket.IO:', message);
       this.notifyMessageListeners(message);
     });
@@ -272,7 +295,7 @@ export class SocketService {
     console.log('✅ Socket.IO message listeners setup complete');
   }
 
-  async sendMessage(receiverId: string, content: string, messageType: 'text' | 'image' | 'file' | 'location' = 'text', localMessageId?: string, metadata?: any): Promise<boolean> {
+  async sendMessage(receiverId: string, content: string, messageType: 'text' | 'image' | 'file' | 'location' | 'system', localMessageId?: string, metadata?: any): Promise<boolean> {
     if (!this.socket?.connected) {
       console.error('Socket not connected');
       return false;
@@ -288,7 +311,7 @@ export class SocketService {
       }
 
       const messageData = {
-        senderId: user._id || user.id,
+        // senderId: user._id || user.id,
         receiverId,
         content,
         messageType,
@@ -303,8 +326,7 @@ export class SocketService {
       return false;
     }
   }
-
-  async sendGroupMessage(groupId: string, content: string, messageType: 'text' | 'image' | 'file' | 'location' = 'text', localMessageId?: string, metadata?: any): Promise<boolean> {
+  async sendGroupMessage(groupId: string, content: string, messageType: 'text' | 'image' | 'file' | 'location' | 'system' = 'text', localMessageId?: string, metadata?: any): Promise<boolean> {
     if (!this.socket?.connected) {
       console.error('Socket not connected');
       return false;
@@ -320,7 +342,7 @@ export class SocketService {
       }
 
       const messageData = {
-        senderId: user._id || user.id,
+        // senderId: user._id || user.id,
         groupId,
         content,
         messageType,

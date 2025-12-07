@@ -11,7 +11,7 @@ export interface MessageData {
   receiverId?: string;
   groupId?: string;
   content: string;
-  messageType: 'text' | 'image' | 'file' | 'location';
+  messageType: 'text' | 'image' | 'file' | 'location' | 'system' ;
   timestamp: Date;
   status: 'sent' | 'delivered' | 'read';
   localMessageId?: string;
@@ -222,7 +222,7 @@ export const useSendMessage = () => {
   const sendMessage = useCallback(async (
     receiverId: string,
     content: string,
-    messageType: 'text' | 'image' | 'file' | 'location' = 'text',
+    messageType: 'text' | 'image' | 'file' | 'location' | 'system' = 'text',
     metadata?: any
   ) => {
     try {
@@ -248,7 +248,7 @@ export const useSendMessage = () => {
   const sendGroupMessage = useCallback(async (
     groupId: string,
     content: string,
-    messageType: 'text' | 'image' | 'file' | 'location' = 'text',
+    messageType: 'text' | 'image' | 'file' | 'location' | 'system',
     metadata?: any
   ) => {
     try {

@@ -21,6 +21,7 @@ import { getCurrentUser } from '../../lib/useUser';
 import api from '../../lib/api';
 import { showInAppNotification } from '../../lib/notifications-expo-go';
 import { useChatSocket, useSendMessage } from '../../hooks/chats';
+import { SocketService } from '../../lib/socket';
 
 
 interface GroupMessage {
@@ -29,7 +30,7 @@ interface GroupMessage {
   senderName: string;
   text: string;
   timestamp: string;
-  type: 'text' | 'system';
+  type: 'text' | 'image' | 'file' | 'location' | 'system'
 }
 
 interface GroupInfo {
@@ -61,49 +62,89 @@ export default function GroupChatScreen() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [displayName, setDisplayName] = useState<string>('Group');
   const flatListRef = useRef<FlatList>(null);
-  
+
   // Add Socket.IO integration
   const { isConnected, socketService } = useChatSocket();
   const { sendGroupMessage: sendGroupMessageViaSocket } = useSendMessage();
 
+
   useEffect(() => {
-    if (!isInitialized) {
-      initializeChat();
-      setIsInitialized(true);
-    }
-    setActiveChat();
-    
-    // Join the group room for real-time messaging (but don't set up duplicate listeners)
-    if (isConnected && id) {
-      console.log('🎧 Setting up Socket.IO listeners for group:', id);
-      
-      // Join the group room for real-time messaging
-      socketService.joinConversation(undefined, id);
-      console.log('🏠 Joined group room:', id);
-      
-      // Set up a message refresh interval to check for new messages
-      const messageRefreshInterval = setInterval(() => {
-        checkForNewMessages();
-      }, 2000); // Check every 2 seconds for new messages
-      
-      return () => {
-        clearActiveChat();
-        socketService.leaveConversation(undefined, id);
-        console.log('🚪 Left group room:', id);
-        clearInterval(messageRefreshInterval);
-      };
-    } else {
-      // Fallback to polling if Socket.IO is not connected
-      const messageInterval = setInterval(() => {
-        checkForNewMessages();
-      }, 5000);
-      
-      return () => {
-        clearActiveChat();
-        clearInterval(messageInterval);
-      };
-    }
-  }, [id, isConnected, socketService, isInitialized]);
+    if (!id) return;
+
+    console.log('loading group initial data for group ID:', id);
+
+    // load previous chat + members first
+    fetchGroupChatHistory();
+    initializeChat();
+
+  }, [id]);
+
+  useEffect(() => {
+    if (!isConnected || !id) return;
+
+    socketService.joinConversation(undefined, id);
+
+    const handleNewMessage = (msg: any) => {
+      setMessages(prev => [...prev, {
+        id: msg._id || msg.id,
+        senderId: msg.sender?._id || msg.senderId,
+        senderName: msg.sender?.name || msg.senderName,
+        text: msg.content || msg.text,
+        timestamp: msg.timestamp || msg.createdAt,
+        type: msg.messageType || 'text',
+      }]);
+    };
+
+    socketService.on("new_group_message", handleNewMessage);
+
+    return () => {
+      socketService.leaveConversation(undefined, id);
+      socketService.off("new_group_message", handleNewMessage);
+    };
+  }, [id, isConnected, socketService]);
+
+
+  // useEffect(() => {
+  //   if (!isInitialized) {
+  //     initializeChat();
+  //     setIsInitialized(true);
+  //   }
+  //   setActiveChat();
+
+  //   // Join the group room for real-time messaging (but don't set up duplicate listeners)
+  //   if (isConnected && id) {
+  //     console.log('🎧 Setting up Socket.IO listeners for group:', id);
+
+  //     // Join the group room for real-time messaging
+  //     socketService.joinConversation(undefined, id);
+  //     console.log('🏠 Joined group room:', id);
+
+  //     // Set up a message refresh interval to check for new messages
+  //     const messageRefreshInterval = setInterval(() => {
+  //       checkForNewMessages();
+  //     }, 2000); // Check every 2 seconds for new messages
+
+  //     return () => {
+  //       clearActiveChat();
+  //       socketService.leaveConversation(undefined, id);
+  //       console.log('🚪 Left group room:', id);
+  //       clearInterval(messageRefreshInterval);
+  //     };
+  //   } else {
+  //     // Fallback to polling if Socket.IO is not connected
+  //     const messageInterval = setInterval(() => {
+  //       checkForNewMessages();
+  //     }, 5000);
+
+  //     return () => {
+  //       clearActiveChat();
+  //       clearInterval(messageInterval);
+  //     };
+  //   }
+  // }, [id, isConnected, socketService, isInitialized]);
+
+
+
 
   // Update display name whenever groupInfo changes
   useEffect(() => {
@@ -122,9 +163,9 @@ export default function GroupChatScreen() {
     useCallback(() => {
       const reloadGroupInfo = async () => {
         if (!id) return;
-        
+
         console.log('🔄 Focus effect: Reloading group info...');
-        
+
         try {
           // Reload from storage first (fastest and most reliable)
           const groupData = await AsyncStorage.getItem(`group_${id}`);
@@ -138,7 +179,7 @@ export default function GroupChatScreen() {
           console.error('Error reloading group info:', error);
         }
       };
-      
+
       reloadGroupInfo();
     }, [id])
   );
@@ -180,10 +221,10 @@ export default function GroupChatScreen() {
       try {
         console.log(`🔍 Fetching group data for ID: ${id}`);
         const response = await api.get('/groups');
-        
+
         if (response && response.success && response.groups) {
           const backendGroup = response.groups.find((g: any) => g._id === id);
-          
+
           if (backendGroup) {
             console.log(`✅ Found group in backend: ${backendGroup.name}`);
             group = {
@@ -224,7 +265,7 @@ export default function GroupChatScreen() {
 
         // Load group members
         const members: GroupMember[] = [];
-        
+
         // Try to get populated member data from backend response first
         try {
           const response = await api.get('/groups');
@@ -248,7 +289,7 @@ export default function GroupChatScreen() {
         } catch (memberError) {
           console.error('❌ Failed to fetch members from backend:', memberError);
         }
-        
+
         // Fallback to AsyncStorage method if backend fetch failed
         if (members.length === 0) {
           console.log('🔄 Falling back to AsyncStorage for member data...');
@@ -283,8 +324,10 @@ export default function GroupChatScreen() {
             }
           }
         }
-        
+
         setGroupMembers(members);
+        // Fetch chat history from backend
+        await fetchGroupChatHistory();
       } else {
         console.error(`❌ Group not found with ID: ${id}`);
         Alert.alert('Error', 'Group not found.');
@@ -294,14 +337,36 @@ export default function GroupChatScreen() {
 
       // Load messages
       loadMessages();
-      
+
       // Check for any pending messages
-      setTimeout(() => {
-        checkForNewMessages();
-      }, 1000); // Small delay to ensure all data is loaded
+      // setTimeout(() => {
+      //   checkForNewMessages();
+      // }, 1000); // Small delay to ensure all data is loaded
     } catch (error) {
       console.error('Error initializing group chat:', error);
       Alert.alert('Error', 'Failed to load group chat.');
+    }
+  };
+
+  // Fetch full group chat history from backend
+  const fetchGroupChatHistory = async () => {
+    if (!id) return;
+    try {
+      const response = await api.get(`/messages/groupmessage/${id}`);
+      if (response && response.success && Array.isArray(response.messages)) {
+        // Map backend messages to GroupMessage format if needed
+        const groupMessages = response.messages.map((msg: any) => ({
+          id: msg._id || msg.id || msg.messageId,
+          senderId: msg.sender?._id || msg.senderId,
+          senderName: msg.sender?.name || msg.senderName || 'Unknown',
+          text: msg.content || msg.text,
+          timestamp: msg.timestamp || msg.createdAt,
+          type: msg.messageType || 'text',
+        }));
+        setMessages(groupMessages);
+      }
+    } catch (error) {
+      console.error('Error fetching group chat history:', error);
     }
   };
 
@@ -312,7 +377,7 @@ export default function GroupChatScreen() {
       const messagesData = await AsyncStorage.getItem(`group_messages_${id}`);
       if (messagesData) {
         const groupMessages: GroupMessage[] = JSON.parse(messagesData);
-        setMessages(groupMessages.sort((a, b) => 
+        setMessages(groupMessages.sort((a, b) =>
           new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         ));
       }
@@ -321,77 +386,74 @@ export default function GroupChatScreen() {
     }
   };
 
-  const checkForNewMessages = async () => {
-    if (!id || !currentUserId) return;
+  // const checkForNewMessages = async () => {
+  //   if (!id || !currentUserId) return;
 
-    try {
-      // Use the group-specific endpoint to check for new messages
-      const response = await api.get(`/messages/check-group-pending/${id}`);
-      
-      if (response?.success && response.messages && response.messages.length > 0) {
-        console.log(`📬 Received ${response.messages.length} new group messages`);
-        
-        const newMessages: GroupMessage[] = response.messages.map((msg: any) => ({
-          id: msg.messageId,
-          senderId: msg.senderId,
-          senderName: msg.senderName,
-          text: msg.text,
-          timestamp: msg.timestamp,
-          type: 'text'
-        }));
+  //   try {
+  //     // Use the group-specific endpoint to check for new messages
+  //     const response = await api.get(`/messages/check-group-pending/${id}`);
 
-        // Get current messages
-        const currentMessagesData = await AsyncStorage.getItem(`group_messages_${id}`);
-        const currentMessages: GroupMessage[] = currentMessagesData 
-          ? JSON.parse(currentMessagesData) 
-          : [];
+  //     if (response?.success && response.messages && response.messages.length > 0) {
+  //       console.log(`📬 Received ${response.messages.length} new group messages`);
 
-        // Merge new messages with existing ones (avoid duplicates)
-        const existingMessageIds = new Set(currentMessages.map(m => m.id));
-        const uniqueNewMessages = newMessages.filter(msg => !existingMessageIds.has(msg.id));
+  //       const newMessages: GroupMessage[] = response.messages.map((msg: any) => ({
+  //         id: msg.messageId,
+  //         senderId: msg.senderId,
+  //         senderName: msg.senderName,
+  //         text: msg.text,
+  //         timestamp: msg.timestamp,
+  //         type: 'text'
+  //       }));
 
-        if (uniqueNewMessages.length > 0) {
-          const updatedMessages = [...currentMessages, ...uniqueNewMessages].sort((a, b) => 
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          );
+  //       // Get current messages
+  //       const currentMessagesData = await AsyncStorage.getItem(`group_messages_${id}`);
+  //       const currentMessages: GroupMessage[] = currentMessagesData 
+  //         ? JSON.parse(currentMessagesData) 
+  //         : [];
 
-          // Update state and storage
-          setMessages(updatedMessages);
-          await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(updatedMessages));
+  //       // Merge new messages with existing ones (avoid duplicates)
+  //       const existingMessageIds = new Set(messages.map(m => m.id));
+  //       const uniqueNewMessages = newMessages.filter(msg => !existingMessageIds.has(msg.id));
+  //       if (uniqueNewMessages.length > 0) {
+  //         const updatedMessages = [...messages, ...uniqueNewMessages].sort((a, b) => 
+  //           new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  //         );
+  //         setMessages(updatedMessages);
+  //         await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(updatedMessages));
 
-          // Show notification for each new message (if not currently active)
-          const activeChat = await AsyncStorage.getItem('currentActiveChat');
-          if (activeChat !== `group_${id}`) {
-            for (const msg of uniqueNewMessages) {
-              await showInAppNotification(
-                `${groupInfo?.name || 'Group'}: ${msg.senderName}`,
-                msg.text,
-                () => {
-                  // Focus this chat when notification is tapped
-                  router.push(`/group-chat/${id}?name=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
-                }
-              );
-            }
-          }
+  //         // Show notification for each new message (if not currently active)
+  //         const activeChat = await AsyncStorage.getItem('currentActiveChat');
+  //         if (activeChat !== `group_${id}`) {
+  //           for (const msg of uniqueNewMessages) {
+  //             await showInAppNotification(
+  //               `${groupInfo?.name || 'Group'}: ${msg.senderName}`,
+  //               msg.text,
+  //               () => {
+  //                 // Focus this chat when notification is tapped
+  //                 router.push(`/group-chat/${id}?name=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
+  //               }
+  //             );
+  //           }
+  //         }
 
-          // Scroll to bottom if new messages received
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
+  //         // Scroll to bottom if new messages received
+  //         setTimeout(() => {
+  //           flatListRef.current?.scrollToEnd({ animated: true });
+  //         }, 100);
 
-          // Mark messages as delivered
-          await api.post('/messages/mark-group-delivered', {
-            messageIds: uniqueNewMessages.map(m => m.id),
-            groupId: id
-          });
-          
-          console.log(`✅ Marked ${uniqueNewMessages.length} group messages as delivered`);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking for new group messages:', error);
-    }
-  };
+  //         // Mark messages as delivered
+  //         await api.post('/messages/mark-group-delivered', {
+  //           messageIds: uniqueNewMessages.map(m => m.id),
+  //           groupId: id
+  //         });
+
+  //         console.log(`✅ Marked ${uniqueNewMessages.length} group messages as delivered`);
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error('Error checking for new group messages:', error);
+  //   }
+  // };
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !id || !currentUserId) return;
@@ -400,7 +462,7 @@ export default function GroupChatScreen() {
       // Get current user name from group members or fallback
       const currentUserMember = groupMembers.find(m => m.id === currentUserId);
       const currentUserName = currentUserMember?.name || 'You';
-      
+
       const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const message: GroupMessage = {
         id: messageId,
@@ -408,7 +470,7 @@ export default function GroupChatScreen() {
         senderName: currentUserName,
         text: newMessage.trim(),
         timestamp: new Date().toISOString(),
-        type: 'text',
+        type: 'text' as const,
       };
 
       // Add to messages list immediately for better UX
@@ -431,9 +493,9 @@ export default function GroupChatScreen() {
         console.log('📨 Sending group message via Socket.IO:', messageId);
         try {
           const success = await sendGroupMessageViaSocket(
-            id, 
-            message.text, 
-            'text'
+            id,
+            message.text,
+            'text' as const
           );
           if (success) {
             console.log('✅ Group message sent via Socket.IO:', messageId);
@@ -522,7 +584,7 @@ export default function GroupChatScreen() {
   const initiateGroupCall = async (type: 'audio' | 'video') => {
     try {
       console.log(`🎥 Initiating ${type} call for group:`, id);
-      
+
       // Check if user has necessary permissions
       const user = await getCurrentUser();
       if (!user) {
@@ -532,7 +594,7 @@ export default function GroupChatScreen() {
 
       // Navigate to group call screen
       router.push(`/group-call/${id}?type=${type}&groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
-      
+
       // Send call invitation to all group members via Socket.IO
       if (socketService.isConnected()) {
         // For now, send as a system message. We'll enhance this with proper call signaling later
@@ -544,13 +606,18 @@ export default function GroupChatScreen() {
           timestamp: new Date().toISOString(),
           type: 'system' as const
         };
-        
+
         // Add the call message to local state
-        setMessages(prev => [...prev, callMessage]);
-        
+        // setMessages(prev => [...prev, callMessage]);
+        sendGroupMessageViaSocket(
+          id,
+          `📞 ${user.name} started a ${type} call`,
+          "system"
+        );
+
         console.log(`📞 Group ${type} call invitation sent`);
       }
-      
+
     } catch (error) {
       console.error('Error initiating group call:', error);
       Alert.alert('Error', 'Failed to start group call');
@@ -559,198 +626,202 @@ export default function GroupChatScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView 
-        style={styles.root} 
+      <KeyboardAvoidingView
+        style={styles.root}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         {/* Header */}
         <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backText}>‹</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.groupInfoButton}
-          onPress={openGroupInfo}
-        >
-          <View style={styles.groupAvatar}>
-            {groupInfo?.icon ? (
-              <Image source={{ uri: groupInfo.icon }} style={styles.groupAvatarImage} />
-            ) : (
-              <Ionicons name="people" size={24} color="#FFFFFF" />
-            )}
-          </View>
-          
-          <View style={styles.groupHeaderInfo}>
-            <Text style={styles.groupName}>{displayName}</Text>
-            <View style={styles.statusRow}>
-              {/* Socket.IO connection indicator */}
-              <View style={[styles.connectionDot, isConnected ? styles.connectedDot : styles.disconnectedDot]} />
-              <Text style={styles.memberCount}>
-                {groupMembers.length} member{groupMembers.length !== 1 ? 's' : ''}
-              </Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backText}>‹</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.groupInfoButton}
+            onPress={openGroupInfo}
+          >
+            <View style={styles.groupAvatar}>
+              {groupInfo?.icon ? (
+                <Image source={{ uri: groupInfo.icon }} style={styles.groupAvatarImage} />
+              ) : (
+                <Ionicons name="people" size={24} color="#FFFFFF" />
+              )}
             </View>
+
+            <View style={styles.groupHeaderInfo}>
+              <Text style={styles.groupName}>{displayName}</Text>
+              <View style={styles.statusRow}>
+                {/* Socket.IO connection indicator */}
+                <View style={[styles.connectionDot, isConnected ? styles.connectedDot : styles.disconnectedDot]} />
+                <Text style={styles.memberCount}>
+                  {groupMembers.length} member{groupMembers.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* Call Buttons */}
+          <View style={styles.callButtonsContainer}>
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={() => initiateGroupCall('audio')}
+            >
+              <Ionicons name="call" size={20} color="#059669" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={() => initiateGroupCall('video')}
+            >
+              <Ionicons name="videocam" size={20} color="#7C3AED" />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
 
-        {/* Call Buttons */}
-        <View style={styles.callButtonsContainer}>
-          <TouchableOpacity 
-            style={styles.callButton}
-            onPress={() => initiateGroupCall('audio')}
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={() => setShowGroupMenu(true)}
           >
-            <Ionicons name="call" size={20} color="#059669" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.callButton}
-            onPress={() => initiateGroupCall('video')}
-          >
-            <Ionicons name="videocam" size={20} color="#7C3AED" />
+            <Ionicons name="ellipsis-vertical" size={20} color="#111827" />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity 
-          style={styles.moreButton}
-          onPress={() => setShowGroupMenu(true)}
-        >
-          <Ionicons name="ellipsis-vertical" size={20} color="#111827" />
-        </TouchableOpacity>
-      </View>
+        {/* Messages List */}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          style={styles.messagesList}
+          contentContainerStyle={styles.messagesContainer}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          showsVerticalScrollIndicator={false}
+        />
 
-      {/* Messages List */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        style={styles.messagesList}
-        contentContainerStyle={styles.messagesContainer}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        showsVerticalScrollIndicator={false}
-      />
+        {/* Message Input */}
+        <View style={styles.inputContainer}>
+          <View style={styles.inputWrapper}>
+            <TouchableOpacity
+              style={styles.cardShareButton}
+              onPress={() => {
+                // Navigate to card selection for sharing
+                router.push(`/share-card-to-group/${id}?groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
+              }}
+            >
+              <Ionicons name="card" size={20} color="#3B82F6" />
+            </TouchableOpacity>
 
-      {/* Message Input */}
-      <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
-          <TouchableOpacity
-            style={styles.cardShareButton}
-            onPress={() => {
-              // Navigate to card selection for sharing
-              router.push(`/share-card-to-group/${id}?groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
-            }}
-          >
-            <Ionicons name="card" size={20} color="#3B82F6" />
-          </TouchableOpacity>
-          
-          <TextInput
-            style={styles.messageInput}
-            placeholder="Type a message..."
-            placeholderTextColor="#9CA3AF"
-            value={newMessage}
-            onChangeText={setNewMessage}
-            multiline
-          />
-          
-          <TouchableOpacity
-            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!newMessage.trim()}
-          >
-            <Ionicons name="send" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+            <TextInput
+              style={styles.messageInput}
+              placeholder="Type a message..."
+              placeholderTextColor="#9CA3AF"
+              value={newMessage}
+              onChangeText={setNewMessage}
+              multiline
+            />
+
+            <TouchableOpacity
+              style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
+              onPress={sendMessage}
+              disabled={!newMessage.trim()}
+            >
+              <Ionicons name="send" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {/* Group Menu Modal */}
-      <Modal
-        visible={showGroupMenu}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowGroupMenu(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          onPress={() => setShowGroupMenu(false)}
-          activeOpacity={0.0}
+        {/* Group Menu Modal */}
+        <Modal
+          visible={showGroupMenu}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowGroupMenu(false)}
         >
-          <View style={styles.groupMenuContainer}>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => {
-                setShowGroupMenu(false);
-                // Navigate to see all group cards
-                router.push(`/group-cards/${id}?groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
-              }}
-            >
-              <Ionicons name="albums-outline" size={24} color="#111827" />
-              <Text style={styles.menuItemText}>See all cards</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => {
-                setShowGroupMenu(false);
-                // Navigate to group info
-                router.push(`/group-details/${id}?name=${encodeURIComponent(groupInfo?.name || '')}` as any);
-              }}
-            >
-              <Ionicons name="information-circle-outline" size={24} color="#111827" />
-              <Text style={styles.menuItemText}>Group Info</Text>
-            </TouchableOpacity>
-            
-            {/* Admin Transfer - Only show for group admin */}
-            {groupInfo?.admin === currentUserId && (
-              <TouchableOpacity 
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            onPress={() => setShowGroupMenu(false)}
+            activeOpacity={0.0}
+          >
+            <View style={styles.groupMenuContainer}>
+              <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
                   setShowGroupMenu(false);
-                  // Show member selection for admin transfer
+                  // Navigate to see all group cards
+                  router.push(`/group-cards/${id}?groupName=${encodeURIComponent(groupInfo?.name || 'Group')}` as any);
+                }}
+              >
+                <Ionicons name="albums-outline" size={24} color="#111827" />
+                <Text style={styles.menuItemText}>See all cards</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowGroupMenu(false);
+                  // Navigate to group info
+                  router.push(`/group-details/${id}?name=${encodeURIComponent(groupInfo?.name || '')}` as any);
+                }}
+              >
+                <Ionicons name="information-circle-outline" size={24} color="#111827" />
+                <Text style={styles.menuItemText}>Group Info</Text>
+              </TouchableOpacity>
+
+              {/* Admin Transfer - Only show for group admin */}
+              {groupInfo?.admin === currentUserId && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowGroupMenu(false);
+                    // Show member selection for admin transfer
+                    Alert.alert(
+                      'Transfer Admin',
+                      'Select a new admin for this group. You will no longer be the admin.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Select Member', onPress: () => {
+                            // This would ideally open a member selection screen
+                            // For now, we'll show a simple prompt
+                            Alert.alert('Feature Coming Soon', 'Admin transfer functionality will be available soon.');
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="person-add-outline" size={24} color="#FFA500" />
+                  <Text style={[styles.menuItemText, { color: '#FFA500' }]}>Transfer Admin</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowGroupMenu(false);
                   Alert.alert(
-                    'Transfer Admin',
-                    'Select a new admin for this group. You will no longer be the admin.',
+                    'Leave Group',
+                    'Are you sure you want to leave this group?',
                     [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Select Member', onPress: () => {
-                        // This would ideally open a member selection screen
-                        // For now, we'll show a simple prompt
-                        Alert.alert('Feature Coming Soon', 'Admin transfer functionality will be available soon.');
-                      }}
+                      {
+                        text: 'Leave', style: 'destructive', onPress: () => {
+                          // Leave group functionality
+                          router.back();
+                        }
+                      }
                     ]
                   );
                 }}
               >
-                <Ionicons name="person-add-outline" size={24} color="#FFA500" />
-                <Text style={[styles.menuItemText, { color: '#FFA500' }]}>Transfer Admin</Text>
+                <Ionicons name="exit-outline" size={24} color="#FF6B6B" />
+                <Text style={[styles.menuItemText, { color: '#FF6B6B' }]}>Leave Group</Text>
               </TouchableOpacity>
-            )}
-            
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => {
-                setShowGroupMenu(false);
-                Alert.alert(
-                  'Leave Group',
-                  'Are you sure you want to leave this group?',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Leave', style: 'destructive', onPress: () => {
-                      // Leave group functionality
-                      router.back();
-                    }}
-                  ]
-                );
-              }}
-            >
-              <Ionicons name="exit-outline" size={24} color="#FF6B6B" />
-              <Text style={[styles.menuItemText, { color: '#FF6B6B' }]}>Leave Group</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
