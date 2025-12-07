@@ -129,6 +129,11 @@ export default function GroupChatScreen() {
         console.log('🔄 Focus effect: Reloading group info...');
         
         try {
+          // Mark admin transfer as seen in backend
+          await api.put(`/groups/${id}/mark-transfer-seen`).catch(err => {
+            console.log('Note: Could not mark transfer as seen:', err.message);
+          });
+          
           // Reload from storage first (fastest and most reliable)
           const groupData = await AsyncStorage.getItem(`group_${id}`);
           if (groupData) {

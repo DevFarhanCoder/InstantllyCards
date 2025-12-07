@@ -149,8 +149,6 @@ export default function Chats() {
   const [showGroupSession, setShowGroupSession] = useState(false);
   const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
   
-  // Admin transfer notifications state
-  const [adminTransferNotifications, setAdminTransferNotifications] = useState<any[]>([]);
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   
   // Track currently active chat to prevent notifications
@@ -337,21 +335,7 @@ export default function Chats() {
     }
   };
 
-  // Load admin transfer notifications
-  useEffect(() => {
-    const loadAdminTransferNotifications = async () => {
-      try {
-        const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
-        if (notificationsStr) {
-          const notifications = JSON.parse(notificationsStr);
-          setAdminTransferNotifications(notifications);
-        }
-      } catch (error) {
-        console.error('Error loading admin transfer notifications:', error);
-      }
-    };
-    loadAdminTransferNotifications();
-  }, []);
+
 
   // Load conversations when component mounts
   useEffect(() => {
@@ -1333,20 +1317,28 @@ export default function Chats() {
       const currentUserId = await getCurrentUserId();
       
       if (response && response.success && response.groups) {
-        const backendGroups = response.groups.map((group: any) => ({
-          id: group._id,
-          name: group.name,
-          description: group.description || '',
-          icon: group.icon || '',
-          members: group.members || [],
-          admin: group.admin,
-          memberCount: group.members ? group.members.length : 0,
-          lastMessage: `${group.members ? group.members.length : 0} members`,
-          timestamp: group.updatedAt || group.createdAt,
-          unreadCount: 0,
-          inviteCode: group.inviteCode,
-          isAdmin: group.admin._id ? (group.admin._id === currentUserId) : false
-        }));
+        const backendGroups = response.groups.map((group: any) => {
+          // Check if backend says to show admin transfer message
+          const adminTransferMessage = group.showAdminTransfer && group.adminTransferredBy
+            ? `${group.adminTransferredBy} made you admin`
+            : null;
+          
+          return {
+            id: group._id,
+            name: group.name,
+            description: group.description || '',
+            icon: group.icon || '',
+            members: group.members || [],
+            admin: group.admin,
+            memberCount: group.members ? group.members.length : 0,
+            lastMessage: adminTransferMessage || `${group.members ? group.members.length : 0} members`,
+            timestamp: group.updatedAt || group.createdAt,
+            unreadCount: 0,
+            inviteCode: group.inviteCode,
+            isAdmin: group.admin._id ? (group.admin._id === currentUserId) : false,
+            showAdminTransfer: !!adminTransferMessage
+          };
+        });
         
         // Check local storage for groups that user has left (still in storage but not in backend response)
         try {
@@ -1569,11 +1561,6 @@ export default function Chats() {
 
   // Render group item
   const renderGroupItem = ({ item }: { item: any }) => {
-    // Check for unseen admin transfer notification for this group
-    const adminTransferNotification = adminTransferNotifications.find(
-      (n: any) => n.groupId === item.id && !n.seen
-    );
-    
     const formatTime = (timestamp: string) => {
       if (!timestamp) return '';
       
@@ -1621,15 +1608,13 @@ export default function Chats() {
         
         <View style={s.conversationInfo}>
           <Text style={s.conversationName}>{item.name}</Text>
-          {adminTransferNotification ? (
-            <Text style={s.adminTransferMessage} numberOfLines={1}>
-              {adminTransferNotification.fromUser} made you admin
-            </Text>
-          ) : (
-            <Text style={[s.conversationMessage, hasLeftGroup && s.leftGroupMessage]} numberOfLines={1}>
-              {item.lastMessage || `${item.members?.length || 0} members`}
-            </Text>
-          )}
+          <Text style={[
+            s.conversationMessage, 
+            hasLeftGroup && s.leftGroupMessage,
+            item.showAdminTransfer && s.adminTransferMessage
+          ]} numberOfLines={1}>
+            {item.lastMessage || `${item.members?.length || 0} members`}
+          </Text>
         </View>
         
         <View style={s.conversationTime}>
