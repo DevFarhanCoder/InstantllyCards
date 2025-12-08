@@ -511,11 +511,13 @@ export default function CardDetail() {
         <TouchableOpacity 
           style={s.secondaryButton} 
           onPress={() => {
-            const companyName = card.companyName || card.name || 'Business Card';
-            router.push(`/contacts/select?cardId=${card._id}&cardTitle=${encodeURIComponent(companyName)}` as any);
+            // Navigate to card selection screen with recipient info
+            const recipientName = card.companyName || card.name || 'Contact';
+            const recipientId = card.userId || card.owner || card._id;
+            router.push(`/select-card-for-contacts?recipientId=${recipientId}&recipientName=${encodeURIComponent(recipientName)}` as any);
           }}
         >
-          <Text style={s.secondaryButtonText}>🔗 Share Card</Text>
+          <Text style={s.secondaryButtonText}>🔗 Share My Card</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Platform, Image } from "react-native";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+// fallback for icon visibility
+import { FontAwesome5 } from '@expo/vector-icons';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -47,10 +49,24 @@ export default function TabsLayout() {
           ),
         }}
       />
-    
-       {/* ✅ MODIFIED: The name must now be the FOLDER name ("ads").
-        The icon uses a custom Google Ads logo image. 
-      */}
+      <Tabs.Screen
+        name="chats"
+        options={{
+          title: "Messaging",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="chatbubbles" color={focused ? "#047857" : "#9CA3AF"} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="vouchers"
+        options={{
+          title: "Vouchers",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="gift" color={focused ? "#cc7a00" : "#9CA3AF"} size={size} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="ads" 
         options={{
@@ -75,25 +91,6 @@ export default function TabsLayout() {
                 resizeMode="contain"
               />
             )
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="chats"
-        options={{
-          title: "Messaging",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="chatbubbles" color={focused ? "#047857" : "#9CA3AF"} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="vouchers"
-        options={{
-          title: "Vouchers",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="gift" color={focused ? "#cc7a00" : "#9CA3AF"} size={size} />
           ),
         }}
       />

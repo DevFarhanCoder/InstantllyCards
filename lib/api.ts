@@ -7,7 +7,7 @@ const getApiBase = () => {
   const sources = [
     process.env.EXPO_PUBLIC_API_BASE,
     Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE,
-    "https://api.instantllycards.com" // AWS Cloud - Primary
+    "https://instantlly-cards-backend-6ki0.onrender.com" // Production fallback
   ];
   
   for (const source of sources) {
@@ -17,7 +17,7 @@ const getApiBase = () => {
     }
   }
   
-  return "https://api.instantllycards.com"; // AWS Cloud - Primary
+  return "https://instantlly-cards-backend-6ki0.onrender.com";
 };
 
 const BASE = getApiBase();
@@ -116,8 +116,18 @@ async function request<T>(
         }
         
         try {
+          // Check if response looks like HTML (common error from Render/servers)
+          if (text.trim().startsWith('<')) {
+            console.error('❌ Server returned HTML instead of JSON (likely server error page)');
+            throw new Error('Server error - received HTML error page instead of JSON');
+          }
           data = text ? JSON.parse(text) : null;
-        } catch {
+        } catch (parseError: any) {
+          if (parseError.message?.includes('HTML')) {
+            throw parseError; // Re-throw our HTML detection error
+          }
+          console.error('❌ JSON parse error:', parseError.message);
+          console.error('Response was:', text.substring(0, 200));
           data = text || null;
         }
 
@@ -147,15 +157,28 @@ async function request<T>(
         // Handle timeout and network errors with better messages
         if (e.name === 'AbortError') {
           lastErr = new Error('Connection timeout. The server might be starting up, please wait a moment and try again.');
+          (lastErr as any).status = e.status ?? 0;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.message?.includes('Network request failed') || e.message?.includes('Failed to fetch')) {
           lastErr = new Error('Network error - Please check your internet connection and try again.');
+          (lastErr as any).status = e.status ?? 0;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.status === 404) {
-          lastErr = new Error('Service temporarily unavailable. Please try again in a moment.');
+          // Prefer any server-provided message for 404s; fall back to a clearer 'Not found' message.
+          const serverMsg = e?.data?.message || e?.message;
+          lastErr = new Error(serverMsg || 'Requested resource not found (404).');
+          (lastErr as any).status = 404;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.status >= 500) {
           lastErr = new Error('Server error. Please try again later.');
+          (lastErr as any).status = e.status ?? 500;
+          (lastErr as any).data = e.data ?? null;
         } else if (e.status === 401) {
           lastErr = new Error('Authentication required. Please log in again.');
+          (lastErr as any).status = 401;
+          (lastErr as any).data = e.data ?? null;
         } else {
+          // Preserve original error object when possible
           lastErr = e;
         }
         

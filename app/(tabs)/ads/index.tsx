@@ -7,7 +7,7 @@ import {
   Linking,
   Alert,
 } from "react-native";
-import { useRouter } from "expo-router"; // 👈 import router for navigation
+import { useRouter } from "expo-router";
 
 export default function Ads() {
   const router = useRouter();
@@ -30,12 +30,11 @@ export default function Ads() {
 
   // Without Channel → navigate inside app
   const handleWithoutChannel = () => {
-    router.push("/ads/adswithoutchannel"); // 👈 go to new page
+    router.push("/ads/adswithoutchannel");
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Advertisements</Text>
       <Text style={styles.subtitle}>
         Here you can manage and view your active ads 📢
       </Text>
@@ -60,27 +59,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingTop: 20,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#4F6AF3",
-    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
     color: "#555",
     textAlign: "center",
     marginBottom: 30,
+    marginTop: 10,
   },
   button: {
     backgroundColor: "#4F6AF3",
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 10,
+    alignSelf: "center",
   },
   buttonText: {
     color: "#fff",
@@ -89,6 +85,7 @@ const styles = StyleSheet.create({
   },
   linkContainer: {
     marginTop: 16,
+    alignSelf: "center",
   },
   linkText: {
     fontSize: 15,

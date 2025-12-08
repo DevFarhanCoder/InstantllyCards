@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, StyleSheet, Pressable, Alert, Dimensions } from 'react-native';
+import { COLORS } from '@/lib/theme';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 const countries = [
   // Americas
@@ -254,7 +257,7 @@ export default function PhoneInput({
   onChangeText,
   countryCode,
   onCountryCodeChange,
-  placeholder = "Enter your phone number"
+  placeholder = "80012 34567"
 }: PhoneInputProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -311,10 +314,16 @@ export default function PhoneInput({
         <TextInput
           style={styles.input}
           value={value}
-          onChangeText={onChangeText}
+onChangeText={(text) => {
+            // Only allow digits and limit to 10 characters
+            const cleaned = text.replace(/\D/g, '');
+            const limited = cleaned.slice(0, 10);
+            onChangeText(limited);
+          }}
           placeholder={placeholder}
           placeholderTextColor="#9CA3AF"
           keyboardType="phone-pad"
+          maxLength={10}
         />
 
         {/* Clear Button */}
@@ -393,26 +402,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
     borderRadius: 14,
-    height: 56,
+    height: screenWidth < 360 ? 52 : 56, // Slightly smaller on very small screens
     borderWidth: 1.5,
     borderColor: '#E6E9EE',
     paddingLeft: 4,
-    paddingRight: 12,
+    paddingRight: 8, // Reduced padding to give more space for input
+    minWidth: 0, // Ensure proper flex behavior
+    width: '100%', // Ensure full width usage
+    maxWidth: screenWidth - 40, // Account for parent padding
   },
   countryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: screenWidth < 360 ? 4 : 6, // Less padding on small screens
     paddingVertical: 8,
-    gap: 4,
+    gap: screenWidth < 360 ? 2 : 3, // Smaller gap on small screens
+    minWidth: screenWidth < 360 ? 70 : 80, // Responsive minimum width
+    maxWidth: screenWidth < 360 ? 90 : 100, // Responsive maximum width
   },
   flag: {
-    fontSize: 18,
+    fontSize: 16, // Slightly smaller flag
   },
   code: {
-    fontSize: 15,
+    fontSize: 14, // Smaller font for country code
     fontWeight: '600',
     color: '#111827',
+    minWidth: 30, // Ensure minimum width for codes
   },
   arrow: {
     fontSize: 9,
@@ -421,18 +436,21 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: screenWidth < 360 ? 14 : 16, // Smaller font on very small screens
     color: '#111827',
-    paddingHorizontal: 12,
+    paddingHorizontal: screenWidth < 360 ? 6 : 8, // Less padding on small screens
     height: '100%',
+    minWidth: 0, // Ensure proper text truncation if needed
+    textAlign: 'left',
   },
   clearButton: {
-    padding: 8,
+    padding: 4, // Reduced padding
+    marginLeft: 4,
   },
   clearCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18, // Slightly smaller
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#9CA3AF',
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,35 +1,80 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React from "react";
+import { View, TouchableOpacity, Text, StyleSheet, Alert } from "react-native";
+
+// Custom header with icons
+const HeaderRight = () => {
+  const router = useRouter();
+
+  const handleCredits = () => {
+    router.push("/credits");
+  };
+
+  const handleTransfer = () => {
+    router.push("/transfer");
+  };
+
+  return (
+    <View style={styles.headerRight}>
+      <TouchableOpacity 
+        style={styles.transferButton} 
+        onPress={handleTransfer}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.transferIcon}>⇄</Text>
+        <Text style={styles.transferLabel}>Transfer</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 export default function AdsStackLayout() {
   return (
     <Stack>
-      {/* 1. index.tsx: The main screen of the tab 
-        The Tabs navigator will show this screen when the "Ads" tab is selected.
-      */}
       <Stack.Screen
         name="index"
         options={{
           headerTitle: "Advertisements",
-          headerShown: true, // You probably want a header inside the stack
+          headerShown: true,
         }}
       />
       
-      {/* 2. adswithoutchannel.tsx: The hidden sub-screen 
-        This is now navigable as part of the Ads stack, but not visible in the bottom tab bar.
-      */}
       <Stack.Screen
         name="adswithoutchannel"
         options={{
           headerTitle: "Advertisements",
           headerShown: true,
-          // Hide the back arrow on this screen
           headerBackVisible: false,
-          // For older versions of react-navigation, you can also use:
-          // headerLeft: () => null,
         }}
       />
     </Stack>
   );
-
 }
+
+const styles = StyleSheet.create({
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginRight: 8,
+  },
+  transferButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  transferIcon: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  transferLabel: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+});

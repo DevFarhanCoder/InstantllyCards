@@ -39,6 +39,14 @@ export function useAds() {
         const response = await api.get('/ads/active');
         
         console.log('📥 [MOBILE STEP 2] useAds: API response received');
+        
+        // Check if response is valid JSON (not HTML error page)
+        if (typeof response === 'string') {
+          console.error('❌ Network error fetching ads: Received HTML instead of JSON');
+          console.error('Response preview:', response.substring(0, 200));
+          return [];
+        }
+        
         console.log('📊 Response structure:', {
           success: response?.success,
           count: response?.count,
@@ -48,11 +56,15 @@ export function useAds() {
         });
         
         if (response && response.success && response.data && response.data.length > 0) {
-          // AWS Cloud primary, Render backup
-          const imageBaseUrl = response.imageBaseUrl || 'https://api.instantllycards.com';
-          
+          const defaultImageBase = process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
+          const imageBaseUrl = response.imageBaseUrl || defaultImageBase;
+
+          if (!imageBaseUrl) {
+            console.warn('⚠️ No image base configured. Set EXPO_PUBLIC_API_BASE or API_BASE to construct image URLs from ads response.');
+          }
+
           console.log(`� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
-          console.log('🌐 Image Base URL:', imageBaseUrl);
+          console.log('🌐 Image Base URL:', imageBaseUrl || '(none configured)');
           
           // Check first ad structure
           if (response.data[0]) {
@@ -108,9 +120,16 @@ export function useAds() {
           return [];
         }
       } catch (error) {
-        console.error('❌ [MOBILE ERROR] useAds: Error fetching ads:', error);
-        console.error('Error details:', error instanceof Error ? error.message : String(error));
+        console.error('❌ Network error fetching ads:', error instanceof Error ? error : String(error));
+        if (error instanceof Error) {
+          console.error('Error message:', error.message);
+          if ('status' in error) {
+            console.error('HTTP status:', (error as any).status);
+          }
+        }
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        // Return empty array instead of throwing to prevent app crash
         return [];
       }
     },

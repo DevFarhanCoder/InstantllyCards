@@ -5,7 +5,9 @@ import Constants from 'expo-constants';
 import serverWarmup from "../lib/serverWarmup";
 import ForceUpdateModal from "../components/ForceUpdateModal";
 import { checkAppVersion, getCurrentAppVersion, getAppStoreUrl } from "../lib/versionCheck";
-import { chatNotificationService } from "../lib/chat-notifications";
+import { chatNotificationService } from "@/lib/chat-notifications";
+import { socketService } from "@/lib/socket";
+import { showInAppNotification } from "@/lib/notifications-expo-go";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 // Import the appropriate notification system based on environment
@@ -67,9 +69,40 @@ export default function RootLayout() {
       // Set up notification listeners
       const unsubscribe = setupNotificationListeners();
       
+      // Initialize Socket.IO and set up admin transfer listener
+      console.log('🔌 Connecting to Socket.IO...');
+      await socketService.connect();
+      
+      const unsubscribeAdminTransfer = socketService.onAdminTransfer(async (data) => {
+        console.log('👑 GLOBAL: Received admin transfer notification:', data);
+        
+        // Save notification to AsyncStorage for UI display in group list
+        try {
+          const existingNotifications = await AsyncStorage.getItem('admin_transfer_notifications');
+          const notifications = existingNotifications ? JSON.parse(existingNotifications) : [];
+          
+          notifications.push({
+            groupId: data.groupId,
+            groupName: data.groupName,
+            fromUser: data.fromUser,
+            message: data.message,
+            timestamp: data.timestamp,
+            seen: false
+          });
+          
+          await AsyncStorage.setItem('admin_transfer_notifications', JSON.stringify(notifications));
+          console.log('💾 Saved admin transfer notification to storage');
+        } catch (error) {
+          console.error('Error saving notification:', error);
+        }
+      });
+      
       console.log('✅ App initialization complete');
       
-      return unsubscribe;
+      return () => {
+        unsubscribe?.();
+        unsubscribeAdminTransfer();
+      };
     };
     
     initApp();

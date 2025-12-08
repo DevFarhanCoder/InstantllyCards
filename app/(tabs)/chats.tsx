@@ -72,11 +72,30 @@ type Conversation = {
 
 export default function Chats() {
   const [userData, setUserData] = useState<any>(null);
+  const [initialTabLoaded, setInitialTabLoaded] = useState(false);
+  
   useEffect(() => {
       getCurrentUser().then(setUserData);
     }, []);
   console.log('🏠 Chats tab component rendered');
-  const [activeTab, setActiveTab] = useState<'chats' | 'groups' | 'sent' | 'received'>('chats');
+  const [activeTab, setActiveTab] = useState<'chats' | 'groups' | 'sent' | 'received'>('groups'); // Start with groups as default
+  
+  // Check for tab preference IMMEDIATELY on mount - BEFORE rendering content
+  useEffect(() => {
+    const checkInitialTab = async () => {
+      const savedTab = await AsyncStorage.getItem('chats_active_tab');
+      if (savedTab === 'groups') {
+        console.log('📌 Keeping Groups tab active');
+        await AsyncStorage.removeItem('chats_active_tab'); // Clear it
+      } else {
+        // No preference, default to chats
+        setActiveTab('chats');
+      }
+      setInitialTabLoaded(true); // Allow rendering
+    };
+    checkInitialTab();
+  }, []);
+  
   // Read incoming deep-link/navigation params from notifications
   const params = useLocalSearchParams<{ tab?: string; highlightCardId?: string }>();
   const incomingTab = params?.tab as string | undefined;
@@ -132,6 +151,7 @@ export default function Chats() {
   const [showGroupConnection, setShowGroupConnection] = useState(false);
   const [showGroupSession, setShowGroupSession] = useState(false);
   const [currentGroupSession, setCurrentGroupSession] = useState<GroupSharingSession | null>(null);
+  
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   
   // Track currently active chat to prevent notifications
@@ -318,6 +338,8 @@ export default function Chats() {
     }
   };
 
+
+
   // Load conversations when component mounts
   useEffect(() => {
     loadConversations();
@@ -484,9 +506,38 @@ useEffect(() => {
   useFocusEffect(
     useCallback(() => {
       console.log('🔄 Chats screen focused - loading from MongoDB');
+      
+      // Check if we should switch to Groups tab (after leaving a group) - DO THIS FIRST SYNCHRONOUSLY
+      const checkTabPreference = async () => {
+        const savedTab = await AsyncStorage.getItem('chats_active_tab');
+        if (savedTab === 'groups') {
+          console.log('📌 Switching to Groups tab IMMEDIATELY');
+          setActiveTab('groups');
+          // Clear the preference
+          await AsyncStorage.removeItem('chats_active_tab');
+        }
+      };
+      
+      // Reload admin transfer notifications
+      const reloadNotifications = async () => {
+        try {
+          const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
+          if (notificationsStr) {
+            const notifications = JSON.parse(notificationsStr);
+            setAdminTransferNotifications(notifications);
+          }
+        } catch (error) {
+          console.error('Error reloading admin transfer notifications:', error);
+        }
+      };
+      
+      checkTabPreference();
+      reloadNotifications();
+      
       loadConversations();
       loadGroups(); // Load groups when screen is focused
       loadStoredContacts(); // Load contacts from MongoDB + smart-sync existing contacts only
+      
       return () => {
         console.log('🔄 Chats screen unfocused');
       };
@@ -802,6 +853,19 @@ useEffect(() => {
       setVisitedTabs(prev => new Set([...Array.from(prev), tabs[page]]));
     }
   }, [screenWidth, currentPage, tabs]);
+  
+  // Scroll to Groups page when activeTab is 'groups' on initial load
+  useEffect(() => {
+    if (initialTabLoaded && activeTab === 'groups' && currentPage !== 1) {
+      // Programmatically scroll to Groups (index 1)
+      const groupsIndex = tabs.indexOf('groups');
+      scrollViewRef.current?.scrollTo({
+        x: groupsIndex * screenWidth,
+        animated: false // No animation on initial load for instant navigation
+      });
+      setCurrentPage(groupsIndex);
+    }
+  }, [initialTabLoaded, activeTab, screenWidth, tabs]);
   
   // Helper function to format time
   const formatTime = (date: Date) => {
@@ -1269,124 +1333,158 @@ useEffect(() => {
       // Fetch groups from backend API
       const response = await api.get('/groups');
       
+      const currentUserId = await getCurrentUserId();
+      
       if (response && response.success && response.groups) {
-        const currentUserId = await getCurrentUserId();
+        console.log('🔍 DEBUG: Groups response from backend:', JSON.stringify(response.groups.map((g: any) => ({
+          id: g._id,
+          name: g.name,
+          adminId: g.admin?._id,
+          showAdminTransfer: g.showAdminTransfer,
+          adminTransferredBy: g.adminTransferredBy,
+          adminTransferInfo: g.adminTransferInfo
+        })), null, 2));
         
-        const backendGroups = response.groups.map((group: any) => ({
-          id: group._id,
-          name: group.name,
-          description: group.description || '',
-          icon: group.icon || '',
-          members: group.members || [],
-          admin: group.admin,
-          memberCount: group.members ? group.members.length : 0,
-          lastMessage: `${group.members ? group.members.length : 0} members`,
-          timestamp: group.updatedAt || group.createdAt,
-          unreadCount: 0,
-          inviteCode: group.inviteCode,
-          isAdmin: group.admin._id ? (group.admin._id === currentUserId) : false
-        }));
+        const backendGroups = response.groups.map((group: any) => {
+          // Check if backend says to show admin transfer message
+          const adminTransferMessage = group.showAdminTransfer && group.adminTransferredBy
+            ? `${group.adminTransferredBy} made you admin`
+            : null;
+          
+          console.log(`🔍 Group ${group.name}: showAdminTransfer=${group.showAdminTransfer}, adminTransferredBy=${group.adminTransferredBy}, message=${adminTransferMessage}`);
+          
+          return {
+            id: group._id,
+            name: group.name,
+            description: group.description || '',
+            icon: group.icon || '',
+            members: group.members || [],
+            admin: group.admin,
+            memberCount: group.members ? group.members.length : 0,
+            lastMessage: adminTransferMessage || `${group.members ? group.members.length : 0} members`,
+            timestamp: group.updatedAt || group.createdAt,
+            unreadCount: 0,
+            inviteCode: group.inviteCode,
+            isAdmin: group.admin._id ? (group.admin._id === currentUserId) : false,
+            showAdminTransfer: !!adminTransferMessage
+          };
+        });
         
-        console.log(`✅ Loaded ${backendGroups.length} groups from backend`);
+        // Check local storage for groups that user has left (still in storage but not in backend response)
+        try {
+          const allLocalGroups = await AsyncStorage.getAllKeys();
+          const groupKeys = allLocalGroups.filter(key => key.startsWith('group_') && !key.includes('messages'));
+          
+          console.log(`🔍 Checking ${groupKeys.length} local groups for left status...`);
+          
+          for (const key of groupKeys) {
+            const groupId = key.replace('group_', '');
+            
+            // Check if this group is already in backend groups
+            const existsInBackend = backendGroups.some((g: any) => g.id === groupId);
+            
+            if (!existsInBackend) {
+              // This group exists locally but not in backend - user might have left it
+              const groupData = await AsyncStorage.getItem(key);
+              if (groupData) {
+                const group = JSON.parse(groupData);
+                
+                console.log(`📋 Group ${group.name}: hasLeft=${group.hasLeft}, checking messages...`);
+                
+                // Check if there's a "You left the group" message OR hasLeft flag
+                const messagesData = await AsyncStorage.getItem(`group_messages_${groupId}`);
+                let hasLeftMessage = false;
+                
+                if (messagesData) {
+                  const messages = JSON.parse(messagesData);
+                  hasLeftMessage = messages.some((msg: any) => msg.text === 'You left the group');
+                }
+                
+                // Show the group if user has left it (either flag or message exists)
+                if (hasLeftMessage || group.hasLeft) {
+                  console.log(`✅ Adding left group: ${group.name}`);
+                  // Add this group to the list with special status
+                  backendGroups.push({
+                    id: groupId,
+                    name: group.name,
+                    description: group.description || '',
+                    icon: group.icon || '',
+                    members: [],
+                    admin: null,
+                    memberCount: 0,
+                    lastMessage: 'You left the group',
+                    timestamp: group.leftAt || group.updatedAt || group.createdAt,
+                    lastMessageTime: group.leftAt || group.updatedAt || group.createdAt,
+                    unreadCount: 0,
+                    inviteCode: '',
+                    isAdmin: false
+                  });
+                }
+              }
+            }
+          }
+        } catch (storageError) {
+          console.error('❌ Error checking local storage for left groups:', storageError);
+        }
+        
+        console.log(`✅ Loaded ${backendGroups.length} groups (including left groups)`);
         setGroups(backendGroups);
         setGroupsLoading(false);
       } else {
         console.log('📭 No groups found in backend response');
-        setGroups([]);
+        
+        // Still check local storage for left groups
+        try {
+          const leftGroups = [];
+          const allLocalGroups = await AsyncStorage.getAllKeys();
+          const groupKeys = allLocalGroups.filter(key => key.startsWith('group_') && !key.includes('messages'));
+          
+          for (const key of groupKeys) {
+            const groupId = key.replace('group_', '');
+            const groupData = await AsyncStorage.getItem(key);
+            if (groupData) {
+              const group = JSON.parse(groupData);
+              
+              const messagesData = await AsyncStorage.getItem(`group_messages_${groupId}`);
+              let hasLeftMessage = false;
+              
+              if (messagesData) {
+                const messages = JSON.parse(messagesData);
+                hasLeftMessage = messages.some((msg: any) => msg.text === 'You left the group');
+              }
+              
+              if (hasLeftMessage || group.hasLeft) {
+                leftGroups.push({
+                  id: groupId,
+                  name: group.name,
+                  description: group.description || '',
+                  icon: group.icon || '',
+                  members: [],
+                  admin: null,
+                  memberCount: 0,
+                  lastMessage: 'You left the group',
+                  timestamp: group.leftAt || group.updatedAt || group.createdAt,
+                  lastMessageTime: group.leftAt || group.updatedAt || group.createdAt,
+                  unreadCount: 0,
+                  inviteCode: '',
+                  isAdmin: false
+                });
+              }
+            }
+          }
+          
+          setGroups(leftGroups);
+        } catch (storageError) {
+          console.error('❌ Error loading left groups from storage:', storageError);
+          setGroups([]);
+        }
+        
         setGroupsLoading(false);
       }
     } catch (error) {
       console.error('❌ Failed to load groups from backend:', error);
-      
-      // Fallback to local storage for existing groups
-      try {
-        console.log('🔄 Falling back to local storage...');
-        const userData = await getCurrentUser();
-        if (!userData) {
-          setGroups([]);
-          return;
-        }
-
-        const currentUserId = userData.id || userData._id;
-        if (!currentUserId) {
-          setGroups([]);
-          return;
-        }
-
-        // Get the list of group IDs for the current user
-        const userGroupsStr = await AsyncStorage.getItem(`user_groups_${currentUserId}`);
-        if (!userGroupsStr) {
-          setGroups([]);
-          return;
-        }
-
-        const groupIds = JSON.parse(userGroupsStr);
-        const loadedGroups = [];
-
-        for (const groupId of groupIds) {
-          // Load group info
-          const groupData = await AsyncStorage.getItem(`group_${groupId}`);
-          if (groupData) {
-            const group = JSON.parse(groupData);
-            
-            // Check if current user is still a member
-            if (!group.members.includes(currentUserId)) {
-              // User has left this group, skip it or show with "You left" status
-              continue;
-            }
-            
-            // Load latest message for this group
-            const messagesData = await AsyncStorage.getItem(`group_messages_${groupId}`);
-            let lastMessage = '';
-            let lastMessageTime = '';
-            
-            if (messagesData) {
-              const messages = JSON.parse(messagesData);
-              if (messages.length > 0) {
-                const latestMessage = messages[messages.length - 1];
-                if (latestMessage.type === 'system') {
-                  lastMessage = latestMessage.text;
-                } else {
-                  const senderName = latestMessage.senderId === currentUserId ? 'You' : latestMessage.senderName;
-                  lastMessage = `${senderName}: ${latestMessage.text}`;
-                }
-                lastMessageTime = latestMessage.timestamp;
-              }
-            }
-
-            // Count members
-            const memberCount = group.members.length;
-            
-            loadedGroups.push({
-              id: group.id,
-              name: group.name,
-              description: group.description,
-              icon: group.icon,
-              members: group.members,
-              memberCount,
-              isAdmin: group.admin === currentUserId,
-              lastMessage: lastMessage || `${memberCount} member${memberCount === 1 ? '' : 's'}`,
-              lastMessageTime: lastMessageTime,
-              createdAt: group.createdAt,
-            });
-          }
-        }
-
-        // Sort groups by last message time (most recent first)
-        loadedGroups.sort((a, b) => {
-          if (!a.lastMessageTime) return 1;
-          if (!b.lastMessageTime) return -1;
-          return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
-        });
-
-        setGroups(loadedGroups);
-        console.log('📱 Loaded groups from local storage:', loadedGroups.length, 'groups for user', currentUserId);
-        setGroupsLoading(false);
-      } catch (localError) {
-        console.error('❌ Failed to load groups from local storage:', localError);
-        setGroups([]);
-        setGroupsLoading(false);
-      }
+      setGroupsLoading(false);
+      setGroups([]);
     }
   };
 
@@ -1465,7 +1563,7 @@ useEffect(() => {
   const deleteGroup = async (groupId: string, groupName: string) => {
     Alert.alert(
       'Delete Group',
-      `Are you sure you want to delete "${groupName}" from your chat list? This action cannot be undone.`,
+      `Are you sure you want to delete this group?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1473,16 +1571,17 @@ useEffect(() => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Use backend API to leave group
-              await api.del(`/groups/${groupId}`);
+              // Remove group data from local storage
+              await AsyncStorage.removeItem(`group_${groupId}`);
+              await AsyncStorage.removeItem(`group_messages_${groupId}`);
               
               // Refresh groups list
               await loadGroups();
               
-              Alert.alert('Success', 'You have left the group.');
+              Alert.alert('Success', 'Group deleted successfully.');
             } catch (error) {
-              console.error('Error leaving group:', error);
-              Alert.alert('Error', 'Failed to leave group. Please try again.');
+              console.error('Error deleting group:', error);
+              Alert.alert('Error', 'Failed to delete group. Please try again.');
             }
           },
         },
@@ -1539,7 +1638,11 @@ useEffect(() => {
         
         <View style={s.conversationInfo}>
           <Text style={s.conversationName}>{item.name}</Text>
-          <Text style={[s.conversationMessage, hasLeftGroup && s.leftGroupMessage]} numberOfLines={1}>
+          <Text style={[
+            s.conversationMessage, 
+            hasLeftGroup && s.leftGroupMessage,
+            item.showAdminTransfer && s.adminTransferMessage
+          ]} numberOfLines={1}>
             {item.lastMessage || `${item.members?.length || 0} members`}
           </Text>
         </View>
@@ -1551,20 +1654,7 @@ useEffect(() => {
           {hasLeftGroup ? (
             <TouchableOpacity
               style={s.groupOptionsButton}
-              onPress={() => {
-                Alert.alert(
-                  'Group Options',
-                  `What would you like to do with "${item.name}"?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => deleteGroup(item.id, item.name),
-                    },
-                  ]
-                );
-              }}
+              onPress={() => deleteGroup(item.id, item.name)}
             >
               <Ionicons name="ellipsis-vertical" size={18} color="#9CA3AF" />
             </TouchableOpacity>
@@ -1878,6 +1968,11 @@ useEffect(() => {
 
   return (
     <SafeAreaView style={s.root}>
+      {!initialTabLoaded ? (
+        // Show brief loading while checking which tab to show
+        <View style={s.root} />
+      ) : (
+        <>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.headerTitle}>Messages</Text>
@@ -2033,6 +2128,8 @@ useEffect(() => {
 
       {/* Footer Carousel */}
       <FooterCarousel />
+      </>
+      )}
     </SafeAreaView>
   );
 }
@@ -2555,8 +2652,15 @@ function GroupsFAB({
     fontSize: 12,
   },
   leftGroupMessage: {
-    color: "#9CA3AF",
+    color: "#EF4444", // Red color
     fontStyle: "italic",
+    fontWeight: "500",
+  },
+  adminTransferMessage: {
+    color: "#10B981", // Green color
+    fontStyle: "italic",
+    fontWeight: "500",
+    fontSize: 12,
   },
   groupOptionsButton: {
     padding: 4,

@@ -71,11 +71,17 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
   private groupTypingListeners: ((data: { userId: string; groupId: string; isTyping: boolean }) => void)[] = [];
   private connectionListeners: ((connected: boolean) => void)[] = [];
   private messageStatusListeners: ((data: { messageId: string; status: string; readBy?: string }) => void)[] = [];
+  private adminTransferListeners: ((data: { groupId: string; groupName: string; message: string }) => void)[] = [];
 
-  async connect(baseUrl: string = 'https://api.instantllycards.com'): Promise<boolean> {
-    // Try AWS Cloud first, fallback to Render if failed
-    console.log('🔌 SocketService.connect() called with baseUrl:', baseUrl);
-    
+  async connect(baseUrl?: string): Promise<boolean> {
+    const resolvedBase = baseUrl || process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
+    console.log('🔌 SocketService.connect() called with baseUrl:', resolvedBase || '(none configured)');
+
+    if (!resolvedBase) {
+      console.error('❌ No Socket.IO base configured. Set `EXPO_PUBLIC_API_BASE` or `API_BASE` in your env or expo config.');
+      return false;
+    }
+
     if (this.socket?.connected || this.isConnecting) {
       console.log('🔌 Socket already connected or connecting, current state:', {
         connected: this.socket?.connected,
@@ -85,7 +91,7 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
     }
 
     this.isConnecting = true;
-    console.log('🔌 Starting Socket.IO connection to:', baseUrl);
+    console.log('🔌 Starting Socket.IO connection to:', resolvedBase);
 
     try {
       console.log('🔑 Retrieving auth token from AsyncStorage...');
@@ -100,7 +106,7 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
 
       console.log('🔑 Auth token found, creating Socket.IO connection...');
 
-      this.socket = io(baseUrl, {
+      this.socket = io(resolvedBase, {
         auth: {
           token: token
         },
@@ -285,6 +291,12 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
         messageId: data.localMessageId || data.messageId, 
         status: 'delivered' 
       });
+    });
+
+    // Handle admin transfer notification
+    this.socket.on('admin_transferred', (data: { groupId: string; groupName: string; message: string }) => {
+      console.log('👑 Admin transferred notification via Socket.IO:', data);
+      this.notifyAdminTransferListeners(data);
     });
 
     // Handle errors
@@ -489,9 +501,20 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
     };
   }
 
+  onAdminTransfer(listener: (data: { groupId: string; groupName: string; message: string }) => void) {
+    this.adminTransferListeners.push(listener);
+    return () => {
+      this.adminTransferListeners = this.adminTransferListeners.filter(l => l !== listener);
+    };
+  }
+
   // Private notification methods
   private notifyMessageListeners(message: MessageData) {
     this.messageListeners.forEach(listener => listener(message));
+  }
+
+  private notifyAdminTransferListeners(data: { groupId: string; groupName: string; message: string }) {
+    this.adminTransferListeners.forEach(listener => listener(data));
   }
 
   private notifyGroupMessageListeners(message: MessageData) {
