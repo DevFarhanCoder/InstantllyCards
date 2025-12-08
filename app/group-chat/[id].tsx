@@ -1041,36 +1041,13 @@ export default function GroupChatScreen() {
                 style={styles.menuItem}
                 onPress={async () => {
                   setShowGroupMenu(false);
-<<<<<<< HEAD
-                  Alert.alert(
-                    'Leave Group',
-                    'Are you sure you want to leave this group?',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Leave', style: 'destructive', onPress: () => {
-                          // Leave group functionality
-                          router.back();
-                        }
-                      }
-                    ]
-                  );
-=======
                   await loadGroupMembers();
                   setShowTransferAdminModal(true);
->>>>>>> origin/shalini-dev
                 }}
               >
                 <Ionicons name="exit-outline" size={24} color="#FF6B6B" />
                 <Text style={[styles.menuItemText, { color: '#FF6B6B' }]}>Leave Group</Text>
               </TouchableOpacity>
-<<<<<<< HEAD
-            </View>
-          </TouchableOpacity>
-        </Modal>
-
-      </KeyboardAvoidingView>
-=======
             )}
             
             <TouchableOpacity 
@@ -1226,7 +1203,6 @@ export default function GroupChatScreen() {
       </Modal>
 
     </KeyboardAvoidingView>
->>>>>>> origin/shalini-dev
     </SafeAreaView>
   );
 }
