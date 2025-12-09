@@ -47,6 +47,7 @@ type SentCard = {
   cardTitle: string;
   sentAt: string;
   status: 'sent' | 'delivered' | 'viewed';
+  hasMutualExchange?: boolean; // Added to check if recipient has sent a card back
 };
 
 type ReceivedCard = {
@@ -57,6 +58,17 @@ type ReceivedCard = {
   cardTitle: string;
   receivedAt: string;
   isViewed: boolean;
+};
+
+// Type for grouped received cards by sender
+type GroupedReceivedCard = {
+  senderId: string;
+  senderName: string;
+  senderProfilePicture?: string;
+  cardCount: number;
+  latestReceivedAt: string;
+  hasUnviewed: boolean;
+  cards: ReceivedCard[];
 };
 
 type Conversation = {
@@ -518,21 +530,7 @@ useEffect(() => {
         }
       };
       
-      // Reload admin transfer notifications
-      const reloadNotifications = async () => {
-        try {
-          const notificationsStr = await AsyncStorage.getItem('admin_transfer_notifications');
-          if (notificationsStr) {
-            const notifications = JSON.parse(notificationsStr);
-            setAdminTransferNotifications(notifications);
-          }
-        } catch (error) {
-          console.error('Error reloading admin transfer notifications:', error);
-        }
-      };
-      
       checkTabPreference();
-      reloadNotifications();
       
       loadConversations();
       loadGroups(); // Load groups when screen is focused
@@ -1080,6 +1078,48 @@ useEffect(() => {
     }
   }, [receivedCardsQuery]);
 
+  // Refresh received cards when screen comes into focus (to update viewed status)
+  useFocusEffect(
+    useCallback(() => {
+      if (activeTab === 'received') {
+        receivedCardsQuery.refetch();
+      }
+    }, [activeTab, receivedCardsQuery])
+  );
+
+  // Helper function: Group received cards by sender
+  const groupReceivedCardsBySender = useCallback((cards: ReceivedCard[]): GroupedReceivedCard[] => {
+    const grouped = cards.reduce((acc, card) => {
+      const senderId = card.senderId;
+      if (!acc[senderId]) {
+        acc[senderId] = {
+          senderId: card.senderId,
+          senderName: card.senderName,
+          senderProfilePicture: (card as any).senderProfilePicture || (card as any).senderAvatar,
+          cardCount: 0,
+          latestReceivedAt: card.receivedAt,
+          hasUnviewed: false,
+          cards: [],
+        };
+      }
+      acc[senderId].cardCount++;
+      acc[senderId].cards.push(card);
+      if (!card.isViewed) {
+        acc[senderId].hasUnviewed = true;
+      }
+      // Update latest received time if this card is newer
+      if (new Date(card.receivedAt) > new Date(acc[senderId].latestReceivedAt)) {
+        acc[senderId].latestReceivedAt = card.receivedAt;
+      }
+      return acc;
+    }, {} as Record<string, GroupedReceivedCard>);
+
+    // Convert to array and sort by latest received time
+    return Object.values(grouped).sort((a, b) => 
+      new Date(b.latestReceivedAt).getTime() - new Date(a.latestReceivedAt).getTime()
+    );
+  }, []);
+
   const requestContactsPermission = async () => {
     try {
       const { status } = await Contacts.requestPermissionsAsync();
@@ -1227,58 +1267,148 @@ useEffect(() => {
     }
   };
 
-  const renderSentCard = useCallback(({ item }: { item: SentCard }) => (
+  const renderSentCard = useCallback(({ item }: { item: SentCard }) => {
+    // Check if there's mutual card exchange
+    const receivedCards = receivedCardsQuery.data?.pages.flatMap(page => page.data) || [];
+    const hasMutualExchange = receivedCards.some(card => card.senderId === item.recipientId);
+
+    return (
+      <TouchableOpacity
+        onPress={() => {
+          router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
+        }}
+      >
+        <Animated.View
+          style={[
+            s.cardItem, 
+            (incomingHighlightCardId === item._id || incomingHighlightCardId === item.cardId || highlightId === item._id) && {
+              backgroundColor: highlightAnimation.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['#FFFFFF', '#FFE4B5']
+              }),
+              borderColor: '#FF6B35',
+              borderWidth: 2,
+              transform: [{
+                scale: pulseAnimation
+              }],
+              opacity: highlightAnimation.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [1, 0.8, 1]
+              })
+            }
+          ]}
+        >
+        {(item as any).cardPhoto || (item as any).recipientProfilePicture ? (
+          <Image source={{ uri: (item as any).cardPhoto || (item as any).recipientProfilePicture }} style={s.cardLogo} />
+        ) : (
+          <View style={[s.cardLogo, s.avatarPlaceholder]}>
+            <Text style={s.avatarText}>{item.recipientName?.charAt(0).toUpperCase() || 'U'}</Text>
+          </View>
+        )}
+
+        <View style={s.cardInfo}>
+          <View style={s.cardTitleRow}>
+            <Text style={s.cardTitleBold} numberOfLines={1} ellipsizeMode="tail">{item.recipientName}</Text>
+          </View>
+          <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
+        </View>
+
+        {/* Show Pending or Chat Icon */}
+        {hasMutualExchange ? (
+          <TouchableOpacity 
+            onPress={() => {
+              router.push({ 
+                pathname: `/chat/[userId]`, 
+                params: { 
+                  userId: item.recipientId, 
+                  name: item.recipientName 
+                } 
+              } as any);
+            }}
+            style={s.chatIconButton}
+          >
+            <Ionicons name="chatbubbles" size={24} color="#3B82F6" />
+          </TouchableOpacity>
+        ) : (
+          <View style={s.pendingStatusContainer}>
+            <Text style={s.pendingStatusText}>Pending</Text>
+          </View>
+        )}
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  }, [receivedCardsQuery.data, handleCall]);
+
+  // New render function for grouped received cards
+  const renderGroupedReceivedCard = useCallback(({ item }: { item: GroupedReceivedCard }) => (
     <TouchableOpacity
       onPress={() => {
-        router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
+        router.push({ 
+          pathname: `/received-cards-from/[senderId]`, 
+          params: { 
+            senderId: item.senderId, 
+            senderName: item.senderName 
+          } 
+        } as any);
       }}
     >
-      <Animated.View
-        style={[
-          s.cardItem, 
-          (incomingHighlightCardId === item._id || incomingHighlightCardId === item.cardId || highlightId === item._id) && {
-            backgroundColor: highlightAnimation.interpolate({
-              inputRange: [0, 1],
-              outputRange: ['#FFFFFF', '#FFE4B5']
-            }),
-            borderColor: '#FF6B35',
-            borderWidth: 2,
-            transform: [{
-              scale: pulseAnimation
-            }],
-            opacity: highlightAnimation.interpolate({
-              inputRange: [0, 0.5, 1],
-              outputRange: [1, 0.8, 1]
-            })
-          }
-        ]}
-      >
-      {(item as any).cardPhoto || (item as any).recipientProfilePicture ? (
-        <Image source={{ uri: (item as any).cardPhoto || (item as any).recipientProfilePicture }} style={s.cardLogo} />
-      ) : (
-        <View style={[s.cardLogo, s.avatarPlaceholder]}>
-          <Text style={s.avatarText}>{item.recipientName?.charAt(0).toUpperCase() || 'U'}</Text>
-        </View>
-      )}
+      <View style={s.cardItem}>
+        {item.senderProfilePicture ? (
+          <Image source={{ uri: item.senderProfilePicture }} style={s.cardLogo} />
+        ) : (
+          <View style={[s.cardLogo, s.avatarPlaceholder]}>
+            <Text style={s.avatarText}>{item.senderName?.charAt(0).toUpperCase() || 'U'}</Text>
+          </View>
+        )}
 
-      <View style={s.cardInfo}>
-        <View style={s.cardTitleRow}>
-          <Text style={s.cardTitleBold} numberOfLines={1} ellipsizeMode="tail">{item.recipientName}</Text>
+        <View style={s.cardInfo}>
+          <View style={s.cardTitleRow}>
+            <Text style={s.cardTitleBold} numberOfLines={1} ellipsizeMode="tail">{item.senderName}</Text>
+          </View>
+          <View style={s.cardCountRow}>
+            <Text style={s.cardCountLabel}>{item.cardCount}</Text>
+            <Text style={s.cardCountSuffix}> {item.cardCount === 1 ? 'Card' : 'Cards'}</Text>
+            {item.hasUnviewed && (
+              <View style={s.newBadgeSmall}>
+                <Text style={s.newBadgeTextSmall}>NEW</Text>
+              </View>
+            )}
+          </View>
         </View>
-        <Text style={s.cardSubtitle} numberOfLines={1} ellipsizeMode="tail">{item.cardTitle}</Text>
       </View>
-      </Animated.View>
     </TouchableOpacity>
-  ), [handleCall]);
+  ), []);
 
   const renderReceivedCard = useCallback(({ item }: { item: ReceivedCard }) => (
     <TouchableOpacity
       onPress={async () => {
         router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
+        
+        // Mark card as viewed if not already viewed
         if (!item.isViewed) {
           try {
-            await api.post(`/cards/shared/${item._id}/view`);
-            queryClient.invalidateQueries({ queryKey: ["received-cards"] });
+            console.log(`👁️ Marking card ${item._id} as viewed...`);
+            const response = await api.post(`/cards/shared/${item._id}/view`);
+            console.log(`✅ View API response:`, response);
+            
+            // Small delay to ensure backend has updated
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Invalidate ALL received-cards queries (ignore search parameter)
+            console.log('🔄 Invalidating ALL received-cards queries...');
+            await queryClient.invalidateQueries({ 
+              queryKey: ["received-cards"],
+              exact: false, // Invalidate all variations including search queries
+              refetchType: 'all'
+            });
+            
+            // Force refetch active queries
+            await queryClient.refetchQueries({ 
+              queryKey: ["received-cards"],
+              exact: false,
+              type: 'active'
+            });
+            console.log('✅ Received cards cache fully refreshed after view');
           } catch (error) {
             console.error('Failed to mark card as viewed:', error);
           }
@@ -1352,6 +1482,13 @@ useEffect(() => {
             : null;
           
           console.log(`🔍 Group ${group.name}: showAdminTransfer=${group.showAdminTransfer}, adminTransferredBy=${group.adminTransferredBy}, message=${adminTransferMessage}`);
+          
+          // Mark transfer as seen now that user has seen it in the chats list
+          if (adminTransferMessage) {
+            api.put(`/groups/${group._id}/mark-transfer-seen`).catch(err => {
+              console.log('Note: Could not mark transfer as seen:', err.message);
+            });
+          }
           
           return {
             id: group._id,
@@ -1783,6 +1920,7 @@ useEffect(() => {
           keyExtractor={(item) => item.id}
           renderItem={renderGroupItem}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 140 }}
           refreshing={refreshing}
           onRefresh={onRefresh}
           removeClippedSubviews={true}
@@ -1800,10 +1938,26 @@ useEffect(() => {
   const renderSentPage = useMemo(() => {
     // Flatten infinite query pages into single array
     const sent = sentCardsQuery.data?.pages.flatMap(page => page.data) || [];
+    const received = receivedCardsQuery.data?.pages.flatMap(page => page.data) || [];
+    
+    // Find people who sent cards but we haven't sent back
+    const sendersWithoutReply = received.reduce((acc, receivedCard: ReceivedCard) => {
+      const hasSentBack = sent.some((sentCard: SentCard) => sentCard.recipientId === receivedCard.senderId);
+      if (!hasSentBack && !acc.some((p: {senderId: string; senderName: string; senderProfilePicture?: string}) => p.senderId === receivedCard.senderId)) {
+        acc.push({
+          senderId: receivedCard.senderId,
+          senderName: receivedCard.senderName,
+          senderProfilePicture: (receivedCard as any).senderProfilePicture
+        });
+      }
+      return acc;
+    }, [] as Array<{senderId: string; senderName: string; senderProfilePicture?: string}>);
+
     const priorityOrder = { sent: 0, delivered: 1, viewed: 2 } as any;
     const ordered = [...sent].sort((a: SentCard, b: SentCard) => (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3));
 
     console.log(`📤 Sent cards: ${sent.length} total, ${sentCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${sentCardsQuery.hasNextPage}`);
+    console.log(`🔔 Pending connections: ${sendersWithoutReply.length} people waiting for reply`);
 
     const handleLoadMore = () => {
       console.log(`📤 Sent LoadMore triggered - hasNextPage: ${sentCardsQuery.hasNextPage}, isFetching: ${sentCardsQuery.isFetchingNextPage}`);
@@ -1813,8 +1967,32 @@ useEffect(() => {
       }
     };
 
+    const handleSendToPending = () => {
+      router.push({
+        pathname: '/select-recipients',
+        params: {
+          recipients: JSON.stringify(sendersWithoutReply)
+        }
+      } as any);
+    };
+
     return (
       <View style={[s.page, { width: screenWidth }]}>
+        {/* Pending Connections Banner */}
+        {sendersWithoutReply.length > 0 && (
+          <View style={s.pendingBanner}>
+            <View style={s.pendingBannerContent}>
+              <Ionicons name="people-outline" size={20} color="#007AFF" style={{ marginRight: 8 }} />
+              <Text style={s.pendingBannerText}>
+                {sendersWithoutReply.length} {sendersWithoutReply.length === 1 ? 'person is' : 'persons are'} trying to connect with you
+              </Text>
+            </View>
+            <TouchableOpacity style={s.pendingSendButton} onPress={handleSendToPending}>
+              <Text style={s.pendingSendButtonText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
         <FlatList
           data={ordered}
           keyExtractor={(item) => item._id}
@@ -1853,22 +2031,27 @@ useEffect(() => {
         />
       </View>
     );
-  }, [screenWidth, sentCardsQuery.data, sentCardsQuery.hasNextPage, sentCardsQuery.isFetchingNextPage, sentRefreshing, handleSentRefresh]);
+  }, [screenWidth, sentCardsQuery.data, receivedCardsQuery.data, sentCardsQuery.hasNextPage, sentCardsQuery.isFetchingNextPage, sentRefreshing, handleSentRefresh]);
 
   const renderReceivedPage = useMemo(() => {
     // Flatten infinite query pages into single array
     const received = receivedCardsQuery.data?.pages.flatMap(page => page.data) || [];
     
-    // Sort logic: If searching, trust backend relevance sorting; otherwise sort by viewed status and date
-    const ordered = debouncedSearchQuery.trim() 
-      ? received // Keep backend relevance sorting when searching
-      : [...received].sort((a: ReceivedCard, b: ReceivedCard) => 
+    // Group cards by sender ONLY if NOT searching
+    const groupedCards = !debouncedSearchQuery.trim() 
+      ? groupReceivedCardsBySender(received)
+      : [];
+
+    // Sort logic: If searching, trust backend relevance sorting; otherwise use grouped cards
+    const orderedCards = debouncedSearchQuery.trim() 
+      ? [...received].sort((a: ReceivedCard, b: ReceivedCard) => 
           (a.isViewed === b.isViewed) ? 
             new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime() : 
             (a.isViewed ? 1 : -1)
-        );
+        )
+      : [];
 
-    console.log(`📬 Received cards: ${received.length} total, ${receivedCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${receivedCardsQuery.hasNextPage}`);
+    console.log(`📬 Received cards: ${received.length} total, ${groupedCards.length} senders, ${receivedCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${receivedCardsQuery.hasNextPage}`);
 
     const handleLoadMore = () => {
       console.log(`📬 Received LoadMore triggered - hasNextPage: ${receivedCardsQuery.hasNextPage}, isFetching: ${receivedCardsQuery.isFetchingNextPage}`);
@@ -1877,6 +2060,10 @@ useEffect(() => {
         receivedCardsQuery.fetchNextPage();
       }
     };
+
+    // Determine data to show: if searching, show individual cards; otherwise show grouped
+    const isSearching = debouncedSearchQuery.trim().length > 0;
+    const dataToShow = isSearching ? orderedCards : groupedCards;
 
     return (
       <View style={[s.page, { width: screenWidth }]}>
@@ -1920,9 +2107,21 @@ useEffect(() => {
         </View>
         
         <FlatList
-          data={ordered}
-          keyExtractor={(item) => item._id}
-          renderItem={renderReceivedCard}
+          data={dataToShow}
+          keyExtractor={(item) => {
+            if (isSearching) {
+              return (item as ReceivedCard)._id;
+            } else {
+              return (item as GroupedReceivedCard).senderId;
+            }
+          }}
+          renderItem={({ item }) => {
+            if (isSearching) {
+              return renderReceivedCard({ item: item as ReceivedCard });
+            } else {
+              return renderGroupedReceivedCard({ item: item as GroupedReceivedCard });
+            }
+          }}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingVertical: 4 }}
           removeClippedSubviews={true}
@@ -1964,7 +2163,7 @@ useEffect(() => {
         />
       </View>
     );
-  }, [screenWidth, receivedCardsQuery.data, receivedCardsQuery.hasNextPage, receivedCardsQuery.isFetchingNextPage, receivedRefreshing, handleReceivedRefresh]);
+  }, [screenWidth, receivedCardsQuery.data, receivedCardsQuery.hasNextPage, receivedCardsQuery.isFetchingNextPage, receivedRefreshing, handleReceivedRefresh, debouncedSearchQuery, receivedSearchQuery, groupReceivedCardsBySender, renderReceivedCard, renderGroupedReceivedCard]);
 
   return (
     <SafeAreaView style={s.root}>
@@ -2186,28 +2385,6 @@ function GroupsFAB({
       {/* Menu Options */}
       {showMenu && (
         <View style={[fabStyles.menuContainer, { bottom: bottom + SIZE + 10 }]}>
-          <TouchableOpacity 
-            style={fabStyles.menuItem}
-            onPress={() => {
-              setShowMenu(false);
-              onCreateGroupSharing();
-            }}
-          >
-            <Text style={fabStyles.menuText}>Create Group Sharing</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={fabStyles.menuItem}
-            onPress={() => {
-              setShowMenu(false);
-              onJoinGroupSharing();
-            }}
-          >
-            <Text style={fabStyles.menuText}>Join Group Sharing</Text>
-          </TouchableOpacity>
-
-          <View style={fabStyles.menuDivider} />
-          
           <TouchableOpacity 
             style={fabStyles.menuItem}
             onPress={() => {
@@ -2782,6 +2959,115 @@ function GroupsFAB({
     fontSize: 12,
     color: "#9CA3AF",
     marginTop: 2,
+  },
+  
+  // Sent tab styles
+  chatIconButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#EFF6FF",
+    marginLeft: 8,
+  },
+  pendingStatusContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#FEF3C7",
+    marginLeft: 8,
+  },
+  pendingStatusText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#D97706",
+  },
+  
+  // Received tab grouped styles
+  cardCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  cardCountLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  cardCountSuffix: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginLeft: 2,
+  },
+  newBadgeSmall: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  newBadgeTextSmall: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  cardCountBadge: {
+    backgroundColor: "#3B82F6",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 8,
+    minWidth: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardCountText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  unviewedIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#EF4444",
+    marginLeft: 8,
+  },
+  
+  // Pending connections banner
+  pendingBanner: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  pendingBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+  },
+  pendingBannerText: {
+    fontSize: 14,
+    color: "#1E40AF",
+    fontWeight: "500",
+    flex: 1,
+  },
+  pendingSendButton: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  pendingSendButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
 

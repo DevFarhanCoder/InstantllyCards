@@ -156,6 +156,17 @@ export default function GroupDetailsScreen() {
           
           setGroupInfo(groupInfo);
           
+          // Debug: Check admin transfer info
+          if (group.adminTransferInfo) {
+            console.log('🔍 Admin Transfer Info:', {
+              previousAdmin: group.adminTransferInfo.previousAdmin,
+              transferredAt: group.adminTransferInfo.transferredAt,
+              seen: group.adminTransferInfo.seen,
+              showAdminTransfer: group.showAdminTransfer,
+              adminTransferredBy: group.adminTransferredBy
+            });
+          }
+          
           // Check if current user is admin - handle both object and string admin ID
           const adminId = typeof group.admin === 'object' ? group.admin._id : group.admin;
           const isUserAdmin = adminId === currentUserId || String(adminId) === String(currentUserId);
@@ -323,7 +334,7 @@ export default function GroupDetailsScreen() {
     router.push(`/(main)/card/${cardId}` as any);
   };
 
-  const removeMember = (memberId: string, memberName: string) => {
+  const removeMember = async (memberId: string, memberName: string) => {
     if (!isAdmin) {
       Alert.alert('Permission Denied', 'Only group admins can remove members.');
       return;
@@ -334,56 +345,33 @@ export default function GroupDetailsScreen() {
       return;
     }
 
-    Alert.alert(
-      'Remove Member',
-      `Are you sure you want to remove ${memberName} from the group?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (!groupInfo) return;
+    try {
+      console.log(`🔍 Removing member ${memberName} (${memberId}) from group ${id}`);
+      console.log(`🔍 Request payload:`, { memberId });
+      
+      // Call backend API to remove member
+      const response = await api.put(`/groups/${id}/remove-member`, {
+        memberId: memberId
+      });
 
-              // Update group members
-              const updatedMembers = groupInfo.members.filter(id => id !== memberId);
-              const updatedGroup = {
-                ...groupInfo,
-                members: updatedMembers,
-                updatedAt: new Date().toISOString(),
-              };
+      console.log(`🔍 API response:`, response.data);
 
-              await AsyncStorage.setItem(`group_${id}`, JSON.stringify(updatedGroup));
+      if (response.data.success) {
+        console.log('✅ Member removed successfully from backend');
+        
+        // Reload group details to get updated member list
+        await loadGroupDetails();
 
-              // Add system message
-              const messagesData = await AsyncStorage.getItem(`group_messages_${id}`);
-              const messages = messagesData ? JSON.parse(messagesData) : [];
-              
-              const systemMessage = {
-                id: `msg_system_${Date.now()}`,
-                senderId: 'system',
-                senderName: 'System',
-                text: `${memberName} was removed from the group`,
-                timestamp: new Date().toISOString(),
-                type: 'system',
-              };
-              
-              messages.push(systemMessage);
-              await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(messages));
-
-              // Reload group details
-              loadGroupDetails();
-
-              Alert.alert('Success', `${memberName} has been removed from the group.`);
-            } catch (error) {
-              console.error('Error removing member:', error);
-              Alert.alert('Error', 'Failed to remove member. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+        Alert.alert('Success', `${memberName} has been removed from the group.`);
+      } else {
+        throw new Error(response.data.error || 'Failed to remove member');
+      }
+    } catch (error: any) {
+      console.error('Error removing member:', error);
+      console.error('Error response:', error.response?.data);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to remove member';
+      Alert.alert('Error', errorMessage);
+    }
   };
 
   const makeAdmin = (memberId: string, memberName: string) => {
@@ -868,16 +856,10 @@ export default function GroupDetailsScreen() {
       onPress={() => {
         if (isAdmin && member.id !== currentUserId) {
           Alert.alert(
-            'Member Actions',
-            `What would you like to do with ${member.name}?`,
+            'Remove Member',
+            `Are you sure you want to remove ${member.name} from the group?`,
             [
               { text: 'Cancel', style: 'cancel' },
-              ...(member.isAdmin ? [] : [
-                {
-                  text: 'Make Admin',
-                  onPress: () => makeAdmin(member.id, member.name),
-                },
-              ]),
               {
                 text: 'Remove from Group',
                 style: 'destructive',
@@ -1332,7 +1314,7 @@ export default function GroupDetailsScreen() {
             <Ionicons name="exit-outline" size={48} color="#EF4444" style={{ alignSelf: 'center', marginBottom: 12 }} />
             <Text style={styles.modalTitle}>Leave Group</Text>
             <Text style={styles.modalText}>
-              Are you sure you want to leave "{groupInfo?.name}"?\n\nYou can delete it from your device later using the "Delete Group from Device" option.
+              Are you sure you want to leave "{groupInfo?.name}"You can delete it from your device later using the "Delete Group from Device" option.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity

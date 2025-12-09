@@ -170,11 +170,6 @@ export default function GroupChatScreen() {
         console.log('🔄 Focus effect: Reloading group info...');
 
         try {
-          // Mark admin transfer as seen in backend
-          await api.put(`/groups/${id}/mark-transfer-seen`).catch(err => {
-            console.log('Note: Could not mark transfer as seen:', err.message);
-          });
-          
           // Reload from storage first (fastest and most reliable)
           const groupData = await AsyncStorage.getItem(`group_${id}`);
           if (groupData) {
@@ -1075,7 +1070,7 @@ export default function GroupChatScreen() {
                   return;
                 }
                 
-                const message = `Are you sure you want to leave "${groupInfo?.name}"?\n\nYou can delete it from your device later using the "Delete Group from Device" option.`;
+                const message = `Are you sure you want to leave "${groupInfo?.name}"You can delete it from your device later using the "Delete Group from Device" option.`;
                 
                 Alert.alert(
                   'Leave Group',

@@ -372,12 +372,13 @@ export default function ChatScreen() {
         console.log('👤 Loaded contact info from storage:', contactData);
         setContactInfo(contactData);
       } else {
-        console.log('👤 No stored contact info found, setting basic info...');
-        // Set basic contact info with name from params
+        console.log('👤 No stored contact info found, using name from params...');
+        // Set basic contact info with name from params or phone number
+        const displayName = name || (isPhoneOnly === 'true' ? phone : null) || 'Unknown';
         const basicContactData = {
           id: actualUserId,
-          name: name || 'Unknown',
-          phoneNumber: null,
+          name: displayName,
+          phoneNumber: phone || null,
           lastUpdated: new Date().toISOString()
         };
         setContactInfo(basicContactData);
