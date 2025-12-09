@@ -180,7 +180,7 @@ export default function SelectRecipientsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -216,7 +216,7 @@ export default function SelectRecipientsScreen() {
         data={recipients}
         keyExtractor={(item) => item.senderId}
         renderItem={renderRecipient}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 100 }]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No recipients found</Text>

@@ -286,7 +286,7 @@ const s = StyleSheet.create({
     card: {
         flexDirection: "row",
         alignItems: "center",
-        padding: 16,
+        padding: 12,
         backgroundColor: "#fff",
         borderRadius: 16,
         marginBottom: 12,
@@ -309,12 +309,16 @@ const s = StyleSheet.create({
         justifyContent: "center",
         zIndex: 10,
     },
+    avatarContainer: {
+        position: "relative",
+        marginRight: 16,
+    },
     logo: {
         width: 60,
         height: 60,
         borderRadius: 30,
         backgroundColor: "#E5E7EB",
-        marginRight: 16,
+        marginRight: 12,
     },
     info: {
         flex: 1,

@@ -1998,7 +1998,7 @@ useEffect(() => {
           keyExtractor={(item) => item._id}
           renderItem={renderSentCard}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingVertical: 4 }}
+          contentContainerStyle={{ paddingVertical: 4, paddingBottom: 140 }}
           removeClippedSubviews={true}
           maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={100}
@@ -2123,7 +2123,7 @@ useEffect(() => {
             }
           }}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingVertical: 4 }}
+          contentContainerStyle={{ paddingVertical: 4, paddingBottom: 140 }}
           removeClippedSubviews={true}
           maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={100}
