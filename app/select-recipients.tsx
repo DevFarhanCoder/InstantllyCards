@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { getCurrentUserId } from '@/lib/useUser';
 
@@ -23,6 +24,7 @@ type Recipient = {
 
 export default function SelectRecipientsScreen() {
   const params = useLocalSearchParams();
+  const queryClient = useQueryClient();
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -86,8 +88,7 @@ export default function SelectRecipientsScreen() {
         try {
           // Send all cards to this recipient
           const cardSendPromises = userCards.map((card: any) =>
-            api.post('/cards/send', {
-              cardId: card._id,
+            api.post(`/cards/${card._id}/share`, {
               recipientId: recipientId,
             })
           );
@@ -102,6 +103,20 @@ export default function SelectRecipientsScreen() {
       const results = await Promise.all(sendPromises);
       const successCount = results.filter(r => r.success).length;
       const failCount = results.filter(r => !r.success).length;
+
+      console.log(`✅ Cards sent successfully to ${successCount} recipients`);
+      
+      // Invalidate and refetch queries immediately to show new cards
+      console.log('🔄 Invalidating and refetching sent-cards queries...');
+      await queryClient.invalidateQueries({ 
+        queryKey: ["sent-cards"],
+        refetchType: 'active' // Refetch active queries immediately
+      });
+      await queryClient.refetchQueries({ 
+        queryKey: ["sent-cards"],
+        type: 'active'
+      });
+      console.log('✅ Sent cards refreshed');
 
       setSending(false);
 

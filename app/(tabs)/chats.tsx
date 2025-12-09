@@ -1364,10 +1364,32 @@ export default function Chats() {
     <TouchableOpacity
       onPress={async () => {
         router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
+        
+        // Mark card as viewed if not already viewed
         if (!item.isViewed) {
           try {
-            await api.post(`/cards/shared/${item._id}/view`);
-            queryClient.invalidateQueries({ queryKey: ["received-cards"] });
+            console.log(`👁️ Marking card ${item._id} as viewed...`);
+            const response = await api.post(`/cards/shared/${item._id}/view`);
+            console.log(`✅ View API response:`, response);
+            
+            // Small delay to ensure backend has updated
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Invalidate ALL received-cards queries (ignore search parameter)
+            console.log('🔄 Invalidating ALL received-cards queries...');
+            await queryClient.invalidateQueries({ 
+              queryKey: ["received-cards"],
+              exact: false, // Invalidate all variations including search queries
+              refetchType: 'all'
+            });
+            
+            // Force refetch active queries
+            await queryClient.refetchQueries({ 
+              queryKey: ["received-cards"],
+              exact: false,
+              type: 'active'
+            });
+            console.log('✅ Received cards cache fully refreshed after view');
           } catch (error) {
             console.error('Failed to mark card as viewed:', error);
           }

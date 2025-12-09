@@ -68,6 +68,29 @@ export default function ReceivedCardsFromSender() {
         const filteredCards = response.data.filter((card: ReceivedCard) => card.senderId === senderId);
         console.log('📋 Filtered cards count:', filteredCards.length);
         setCards(filteredCards);
+        
+        // Auto-mark all unviewed cards from this sender as viewed
+        const unviewedCards = filteredCards.filter((card: ReceivedCard) => !card.isViewed);
+        if (unviewedCards.length > 0) {
+          console.log(`📋 Auto-marking ${unviewedCards.length} cards as viewed...`);
+          
+          // Mark all unviewed cards as viewed in parallel
+          const markPromises = unviewedCards.map((card: ReceivedCard) => 
+            api.post(`/cards/shared/${card._id}/view`).catch(err => {
+              console.error(`Failed to mark card ${card._id} as viewed:`, err);
+            })
+          );
+          
+          await Promise.all(markPromises);
+          console.log('✅ All cards marked as viewed');
+          
+          // Invalidate the main received cards query to update the badge
+          await queryClient.invalidateQueries({ 
+            queryKey: ["received-cards"],
+            exact: false,
+            refetchType: 'all'
+          });
+        }
       }
     } catch (error) {
       console.error('Error loading cards from sender:', error);
@@ -81,14 +104,30 @@ export default function ReceivedCardsFromSender() {
       style={[styles.cardItem, !item.isViewed && styles.unseenCard]}
       onPress={async () => {
         router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
+        
+        // Mark card as viewed if not already viewed
         if (!item.isViewed) {
           try {
-            await api.post(`/cards/shared/${item._id}/view`);
-            // Invalidate the received cards query to refresh the main list
-            queryClient.invalidateQueries({ queryKey: ["received-cards"] });
-            loadCards(); // Reload to update viewed status
+            console.log(`👁️ [received-cards-from] Marking card ${item._id} as viewed...`);
+            const response = await api.post(`/cards/shared/${item._id}/view`);
+            console.log(`✅ [received-cards-from] View API response:`, response);
+            
+            // Small delay to ensure backend has updated
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Invalidate all received-cards queries
+            console.log('🔄 [received-cards-from] Invalidating received-cards queries...');
+            await queryClient.invalidateQueries({ 
+              queryKey: ["received-cards"],
+              exact: false,
+              refetchType: 'all'
+            });
+            
+            // Reload cards in this screen
+            loadCards();
+            console.log('✅ [received-cards-from] Cards refreshed after view');
           } catch (error) {
-            console.error('Failed to mark card as viewed:', error);
+            console.error('[received-cards-from] Failed to mark card as viewed:', error);
           }
         }
       }}

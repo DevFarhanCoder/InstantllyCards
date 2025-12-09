@@ -347,11 +347,14 @@ export default function GroupDetailsScreen() {
 
     try {
       console.log(`🔍 Removing member ${memberName} (${memberId}) from group ${id}`);
+      console.log(`🔍 Request payload:`, { memberId });
       
       // Call backend API to remove member
       const response = await api.put(`/groups/${id}/remove-member`, {
         memberId: memberId
       });
+
+      console.log(`🔍 API response:`, response.data);
 
       if (response.data.success) {
         console.log('✅ Member removed successfully from backend');
@@ -365,6 +368,7 @@ export default function GroupDetailsScreen() {
       }
     } catch (error: any) {
       console.error('Error removing member:', error);
+      console.error('Error response:', error.response?.data);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to remove member';
       Alert.alert('Error', errorMessage);
     }
