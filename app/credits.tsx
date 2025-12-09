@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { scaleFontSize, scaleSize, moderateScale } from "@/lib/responsive";
 
 export default function Credits() {
   return (
@@ -41,27 +42,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
   },
   content: {
-    padding: 20,
+    padding: scaleSize(20),
   },
   header: {
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: scaleSize(24),
   },
   icon: {
-    fontSize: 60,
-    marginBottom: 12,
+    fontSize: scaleFontSize(60),
+    marginBottom: scaleSize(12),
   },
   title: {
-    fontSize: 28,
+    fontSize: scaleFontSize(28),
     fontWeight: "700",
     color: "#111827",
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: moderateScale(16),
+    padding: scaleSize(24),
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: scaleSize(24),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -69,36 +70,36 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: scaleFontSize(16),
     color: "#6B7280",
-    marginBottom: 12,
+    marginBottom: scaleSize(12),
     fontWeight: "500",
   },
   creditAmount: {
-    fontSize: 48,
+    fontSize: scaleFontSize(48),
     fontWeight: "700",
     color: "#4F6AF3",
-    marginBottom: 8,
+    marginBottom: scaleSize(8),
   },
   cardSubtitle: {
-    fontSize: 14,
+    fontSize: scaleFontSize(14),
     color: "#9CA3AF",
   },
   infoSection: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: moderateScale(12),
+    padding: scaleSize(20),
+    marginBottom: scaleSize(16),
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: scaleFontSize(18),
     fontWeight: "600",
     color: "#111827",
-    marginBottom: 12,
+    marginBottom: scaleSize(12),
   },
   infoText: {
-    fontSize: 14,
+    fontSize: scaleFontSize(14),
     color: "#6B7280",
-    lineHeight: 22,
+    lineHeight: scaleFontSize(22),
   },
 });
