@@ -346,41 +346,27 @@ export default function GroupDetailsScreen() {
     }
 
     try {
-      if (!groupInfo) return;
-
-      // Update group members
-      const updatedMembers = groupInfo.members.filter(id => id !== memberId);
-      const updatedGroup = {
-        ...groupInfo,
-        members: updatedMembers,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await AsyncStorage.setItem(`group_${id}`, JSON.stringify(updatedGroup));
-
-      // Add system message
-      const messagesData = await AsyncStorage.getItem(`group_messages_${id}`);
-      const messages = messagesData ? JSON.parse(messagesData) : [];
+      console.log(`🔍 Removing member ${memberName} (${memberId}) from group ${id}`);
       
-      const systemMessage = {
-        id: `msg_system_${Date.now()}`,
-        senderId: 'system',
-        senderName: 'System',
-        text: `${memberName} was removed from the group`,
-        timestamp: new Date().toISOString(),
-        type: 'system',
-      };
-      
-      messages.push(systemMessage);
-      await AsyncStorage.setItem(`group_messages_${id}`, JSON.stringify(messages));
+      // Call backend API to remove member
+      const response = await api.put(`/groups/${id}/remove-member`, {
+        memberId: memberId
+      });
 
-      // Reload group details
-      loadGroupDetails();
+      if (response.data.success) {
+        console.log('✅ Member removed successfully from backend');
+        
+        // Reload group details to get updated member list
+        await loadGroupDetails();
 
-      Alert.alert('Success', `${memberName} has been removed from the group.`);
-    } catch (error) {
+        Alert.alert('Success', `${memberName} has been removed from the group.`);
+      } else {
+        throw new Error(response.data.error || 'Failed to remove member');
+      }
+    } catch (error: any) {
       console.error('Error removing member:', error);
-      Alert.alert('Error', 'Failed to remove member. Please try again.');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to remove member';
+      Alert.alert('Error', errorMessage);
     }
   };
 
