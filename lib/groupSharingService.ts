@@ -13,6 +13,7 @@ export interface GroupSharingSession {
   expiresAt: string;
   isActive: boolean;
   status: 'waiting' | 'connected' | 'sharing' | 'completed' | 'expired';
+  allowParticipantSharing?: boolean;
 }
 
 export interface GroupParticipant {

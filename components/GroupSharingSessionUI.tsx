@@ -376,14 +376,17 @@ export default function GroupSharingSessionUI({
         <View style={styles.adminActions}>
           {isAdmin ? (
             <>
-              <TouchableOpacity
-                style={styles.createGroupButton}
-                onPress={onCreateGroup}
-                disabled={isLoading}
-              >
-                <Ionicons name="people" size={20} color="#FFFFFF" />
-                <Text style={styles.createGroupButtonText}>Create New Group</Text>
-              </TouchableOpacity>
+              {/* Show Create New Group button only if allowParticipantSharing is true */}
+              {session?.allowParticipantSharing && (
+                <TouchableOpacity
+                  style={styles.createGroupButton}
+                  onPress={onCreateGroup}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="people" size={20} color="#FFFFFF" />
+                  <Text style={styles.createGroupButtonText}>Create New Group</Text>
+                </TouchableOpacity>
+              )}
               
               <TouchableOpacity
                 style={styles.quitButton}
@@ -391,7 +394,7 @@ export default function GroupSharingSessionUI({
                 disabled={isLoading}
               >
                 <Ionicons name="exit-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.quitButtonText}>Share to Messaging</Text>
+                <Text style={styles.quitButtonText}>Quit Group Sharing</Text>
               </TouchableOpacity>
             </>
           ) : (
