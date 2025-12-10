@@ -71,7 +71,7 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
   private groupTypingListeners: ((data: { userId: string; groupId: string; isTyping: boolean }) => void)[] = [];
   private connectionListeners: ((connected: boolean) => void)[] = [];
   private messageStatusListeners: ((data: { messageId: string; status: string; readBy?: string }) => void)[] = [];
-  private adminTransferListeners: ((data: { groupId: string; groupName: string; message: string }) => void)[] = [];
+  private adminTransferListeners: ((data: { groupId: string; groupName: string; message: string; fromUser?: string; timestamp?: Date }) => void)[] = [];
 
   async connect(baseUrl?: string): Promise<boolean> {
     const resolvedBase = baseUrl || process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
@@ -501,7 +501,7 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
     };
   }
 
-  onAdminTransfer(listener: (data: { groupId: string; groupName: string; message: string }) => void) {
+  onAdminTransfer(listener: (data: { groupId: string; groupName: string; message: string; fromUser?: string; timestamp?: Date }) => void) {
     this.adminTransferListeners.push(listener);
     return () => {
       this.adminTransferListeners = this.adminTransferListeners.filter(l => l !== listener);

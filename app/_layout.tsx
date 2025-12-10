@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { queryClient } from "../lib/query";
 import Constants from 'expo-constants';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import serverWarmup from "../lib/serverWarmup";
 import ForceUpdateModal from "../components/ForceUpdateModal";
 import { checkAppVersion, getCurrentAppVersion, getAppStoreUrl } from "../lib/versionCheck";
@@ -28,25 +29,39 @@ export default function RootLayout() {
   useEffect(() => {
     // Check for app updates on startup
     const performVersionCheck = async () => {
-      console.log('🔍 Performing version check...');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🔍 [VERSION CHECK] Starting version check...');
+      console.log(`📱 Current app version: ${getCurrentAppVersion()}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
       try {
         const versionInfo = await checkAppVersion();
         
+        console.log('📦 [VERSION CHECK] Response received:', JSON.stringify(versionInfo, null, 2));
+        
         if (versionInfo && versionInfo.updateRequired) {
-          console.log('⚠️ Update required! Current:', versionInfo.currentVersion, 'Minimum:', versionInfo.minimumVersion);
+          console.log('⚠️ [VERSION CHECK] UPDATE REQUIRED!');
+          console.log(`   Current: ${versionInfo.currentVersion}`);
+          console.log(`   Minimum: ${versionInfo.minimumVersion}`);
+          console.log(`   Latest: ${versionInfo.latestVersion}`);
+          console.log(`   Update URL: ${versionInfo.updateUrl}`);
           setUpdateRequired(true);
           setUpdateUrl(versionInfo.updateUrl);
           setLatestVersion(versionInfo.latestVersion);
+        } else if (versionInfo === null) {
+          console.log('✅ [VERSION CHECK] No update required (returned null)');
+          setUpdateRequired(false);
         } else {
-          console.log('✅ App version is up to date');
+          console.log('✅ [VERSION CHECK] App version is up to date');
           setUpdateRequired(false);
         }
       } catch (error) {
-        console.error('❌ Version check error:', error);
+        console.error('❌ [VERSION CHECK] Error during version check:', error);
         // Don't show update modal on error
         setUpdateRequired(false);
       }
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     };
 
     performVersionCheck();
@@ -84,9 +99,9 @@ export default function RootLayout() {
           notifications.push({
             groupId: data.groupId,
             groupName: data.groupName,
-            fromUser: data.fromUser,
+            fromUser: data.fromUser || 'Unknown',
             message: data.message,
-            timestamp: data.timestamp,
+            timestamp: data.timestamp || new Date(),
             seen: false
           });
           
