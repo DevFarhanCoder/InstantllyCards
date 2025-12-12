@@ -1,6 +1,6 @@
 ﻿import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl } from "react-native";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl, Modal } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,8 +22,10 @@ const handleAdClick = () => {
 };
 
 export default function Home() {
+  console.log("🏠 HOME: Component rendering...");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [userName, setUserName] = React.useState<string>("");
+  const [showVideoTest, setShowVideoTest] = React.useState(false);
   const queryClient = useQueryClient();
 
   // Fetch user name for profile initial
@@ -72,6 +74,7 @@ export default function Home() {
         console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
         console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
         console.log("📇 Home: Cards count:", result.meta?.totalCards);
+        console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
         
         return result.data || [];
       } catch (error) {
@@ -79,10 +82,10 @@ export default function Home() {
         return [];
       }
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh for 5 mins
-    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 mins
-    refetchOnMount: false, // Don't refetch every time component mounts
-    refetchOnWindowFocus: false, // Don't refetch when app comes to foreground
+    staleTime: 30 * 1000, // 30 seconds - reduced cache time
+    gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 mins
+    refetchOnMount: true, // Refetch when screen loads to get fresh data
+    refetchOnWindowFocus: true, // Refetch when app comes to foreground
     refetchInterval: false, // No auto-refetch - only on manual refresh
   });
 
@@ -117,6 +120,8 @@ export default function Home() {
     dataLength: feedQ.data?.length,
     filteredLength: filteredCards?.length 
   });
+
+  console.log("🎨 HOME: About to render SafeAreaView");
 
   return (
     <SafeAreaView style={s.root}>
@@ -274,4 +279,150 @@ const s = StyleSheet.create({
   empty: { flex: 1, height: 240, alignItems: "center", justifyContent: "center" },
   emptyTxt: { color: "#6B7280", fontSize: 18, textAlign: "center", fontWeight: "500" },
   emptySubTxt: { color: "#9CA3AF", fontSize: 14, textAlign: "center", marginTop: 8 },
+  testButton: {
+    position: "absolute",
+    top: 50,
+    right: 16,
+    backgroundColor: "#3B82F6",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  testButtonText: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "bold",
+    letterSpacing: 3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  videoTestContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    width: "90%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  videoTestTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  videoPlaceholder: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    marginBottom: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    borderStyle: "dashed",
+  },
+  videoPlaceholderText: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  videoPlaceholderSubtext: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  playVideoButton: {
+    backgroundColor: "#10B981",
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#10B981",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  playVideoText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  videoPlayer: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#000000",
+    borderRadius: 12,
+    marginBottom: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  videoOverlay: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  playIcon: {
+    fontSize: 64,
+    color: "#FFFFFF",
+    marginBottom: 8,
+  },
+  playText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  videoTestMessage: {
+    fontSize: 15,
+    color: "#6B7280",
+    lineHeight: 22,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  knowMoreButton: {
+    backgroundColor: "#3B82F6",
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#3B82F6",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  knowMoreText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  closeButton: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  closeButtonText: {
+    color: "#6B7280",
+    fontSize: 15,
+    fontWeight: "500",
+    textAlign: "center",
+  },
 });

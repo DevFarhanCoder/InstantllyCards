@@ -114,7 +114,9 @@ export default function Builder() {
     // Create card mutation
     const createCardMutation = useMutation({
         mutationFn: async (payload: any) => {
+            console.log('📤 Builder: Sending card creation payload:', JSON.stringify({ birthdate: payload.birthdate, anniversary: payload.anniversary, name: payload.name }));
             const response = await api.post<{ data: any }>("/cards", payload);
+            console.log('✅ Builder: Card creation response:', JSON.stringify({ birthdate: response.data?.birthdate, anniversary: response.data?.anniversary }));
             return response.data; // Return the data from the response
         },
         onSuccess: (_data, payload) => {
@@ -218,20 +220,8 @@ export default function Builder() {
                                         console.warn('Builder: failed to setQueryData for created card (cards):', e);
                                     }
 
-                                    try {
-                                        // Also proactively add to contacts-feed so Home shows the new card even if Home wasn't mounted
-                                        const before = queryClient.getQueryData(['contacts-feed']);
-                                        console.log('Builder: contacts-feed cache before insert length:', Array.isArray(before) ? before.length : typeof before);
-                                        queryClient.setQueryData(['contacts-feed'], (old: any) => {
-                                            if (!old) return [createdCard];
-                                            if (Array.isArray(old)) return [createdCard, ...old];
-                                            return old;
-                                        });
-                                        const after = queryClient.getQueryData(['contacts-feed']);
-                                        console.log('Builder: contacts-feed cache after insert length:', Array.isArray(after) ? after.length : typeof after);
-                                    } catch (e) {
-                                        console.warn('Builder: failed to setQueryData for contacts-feed', e);
-                                    }
+                                    // DO NOT add user's own cards to contacts-feed (home screen should only show other members' cards)
+                                    console.log('Builder: Skipping contacts-feed cache update for user\'s own card (should only show in My Cards)');
 
                                     // Invalidate and request refetch for all queries so any mounted screens refresh
                                     try {
@@ -593,6 +583,8 @@ export default function Builder() {
         
         if (existingCard) {
             console.log("Populating form with existing card data");
+            console.log("📅 existingCard.birthdate:", existingCard.birthdate);
+            console.log("📅 existingCard.anniversary:", existingCard.anniversary);
             setName(existingCard.name || "");
             setBirthdate(existingCard.birthdate || null);
             setAnniversary(existingCard.anniversary || null);
@@ -626,18 +618,19 @@ export default function Builder() {
             setYoutube(existingCard.youtube || "");
             setWhatsapp(existingCard.whatsapp || "");
             setTelegram(existingCard.telegram || "");
-            // keep text inputs in sync with ISO dates
-            setBirthText(formatIsoToDisplay(existingCard.birthdate || null));
-            setAnnivText(formatIsoToDisplay(existingCard.anniversary || null));
         }
     }, [existingCard, isEditMode, edit]);
 
     // keep text fields in sync when canonical ISO date changes
     useEffect(() => {
-        setBirthText(formatIsoToDisplay(birthdate));
+        const formatted = formatIsoToDisplay(birthdate);
+        console.log("📅 Setting birthText from birthdate:", birthdate, "->", formatted);
+        setBirthText(formatted);
     }, [birthdate]);
     useEffect(() => {
-        setAnnivText(formatIsoToDisplay(anniversary));
+        const formatted = formatIsoToDisplay(anniversary);
+        console.log("📅 Setting annivText from anniversary:", anniversary, "->", formatted);
+        setAnnivText(formatted);
     }, [anniversary]);
 
     const validate = () => {
@@ -720,6 +713,8 @@ export default function Builder() {
         }),
         [
             name,
+            birthdate,
+            anniversary,
             gender,
             personalCountryCode,
             personalPhone,
@@ -930,7 +925,7 @@ export default function Builder() {
                                 {/* Birthdate Field */}
                                 <View style={s.formField}>
                                     <Text style={s.enhancedLabel}>Birthdate<Text style={s.requiredIndicator}> *</Text></Text>
-                                    <View style={[s.dateInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                                    <View style={s.dateInput}>
                                         <FormInput
                                             key="birthdate-input"
                                             value={birthText}
@@ -964,89 +959,18 @@ export default function Builder() {
                                                 }
                                             }}
                                             placeholder={'dd-mm-yyyy'}
-                                            style={{ color: birthText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0, flex: 1 }}
+                                            style={{ color: birthText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0 }}
                                             keyboardType='default'
                                             returnKeyType='done'
                                         />
-                                        <TouchableOpacity onPress={() => setShowBirthdatePicker(true)} style={{ marginLeft: 8 }}>
-                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                                        </TouchableOpacity>
                                     </View>
                                     <Err k="birthdate" />
-                                    {showBirthdatePicker && (
-                                        <View style={{ marginVertical: 10 }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                        <View style={{ minWidth: 160 }}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, -1);
-                                                                    setBirthMonth(newMonth);
-                                                                    setBirthYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-back" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                                <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 120, textAlign: 'center' }}>{MONTHS[birthMonth]}</Text>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, 1);
-                                                                    setBirthMonth(newMonth);
-                                                                    setBirthYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-forward" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                            </View>
-                                                        </View>
-                                                    </View>
-                                                    {/* place year picker at the top-right of the picker header */}
-                                                    <View style={{ minWidth: 90, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <TouchableOpacity onPress={() => setBirthYear(prev => prev - 1)} style={{ padding: 6 }}>
-                                                            <Ionicons name="remove" size={16} color="#374151" />
-                                                        </TouchableOpacity>
-                                                        <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 60, textAlign: 'center' }}>{String(birthYear)}</Text>
-                                                        <TouchableOpacity onPress={() => setBirthYear(prev => prev + 1)} style={{ padding: 6 }}>
-                                                            <Ionicons name="add" size={16} color="#374151" />
-                                                        </TouchableOpacity>
-                                                    </View>
-                                            </View>
-                                            <LocalCalendar
-                                                year={birthYear}
-                                                month={birthMonth}
-                                                selectedIso={birthdate}
-                                                onDayPress={(iso: string) => {
-                                                    setBirthdate(iso);
-                                                    try {
-                                                        const [y, m] = iso.split('T')[0].split('-');
-                                                        const yN = Number(y);
-                                                        const mN = Number(m) - 1;
-                                                        if (!isNaN(yN)) setBirthYear(yN);
-                                                        if (!isNaN(mN)) setBirthMonth(mN);
-                                                            // reflect in typed input
-                                                            setBirthText(formatIsoToDisplay(iso));
-                                                    } catch (e) {}
-                                                    setShowBirthdatePicker(false);
-                                                }}
-                                                onPrev={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, -1);
-                                                    setBirthMonth(newMonth);
-                                                    setBirthYear(newYear);
-                                                }}
-                                                onNext={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, 1);
-                                                    setBirthMonth(newMonth);
-                                                    setBirthYear(newYear);
-                                                }}
-                                            />
-                                            <TouchableOpacity onPress={() => setShowBirthdatePicker(false)} style={{ alignItems: 'center', margin: 8 }}>
-                                                <Text style={{ color: '#3B82F6', fontWeight: 'bold' }}>Cancel</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
                                 </View>
 
                                 {/* Anniversary Field */}
                                 <View style={s.formField}>
                                     <Text style={s.enhancedLabel}>Anniversary</Text>
-                                    <View style={[s.dateInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                                    <View style={s.dateInput}>
                                         <FormInput
                                             key="anniversary-input"
                                             value={annivText}
@@ -1077,81 +1001,11 @@ export default function Builder() {
                                                 }
                                             }}
                                             placeholder={'dd-mm-yyyy'}
-                                            style={{ color: annivText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0, flex: 1 }}
+                                            style={{ color: annivText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0 }}
                                             keyboardType='default'
                                             returnKeyType='done'
                                         />
-                                        <TouchableOpacity onPress={() => setShowAnniversaryPicker(true)} style={{ marginLeft: 8 }}>
-                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                                        </TouchableOpacity>
                                     </View>
-                                    {showAnniversaryPicker && (
-                                        <View style={{ marginVertical: 10 }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                        <View style={{ minWidth: 160 }}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, -1);
-                                                                    setAnnivMonth(newMonth);
-                                                                    setAnnivYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-back" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                                <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 120, textAlign: 'center' }}>{MONTHS[annivMonth]}</Text>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, 1);
-                                                                    setAnnivMonth(newMonth);
-                                                                    setAnnivYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-forward" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                            </View>
-                                                        </View>
-                                                </View>
-                                                {/* place year picker at the top-right of the picker header */}
-                                                <View style={{ minWidth: 90, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <TouchableOpacity onPress={() => setAnnivYear(prev => prev - 1)} style={{ padding: 6 }}>
-                                                        <Ionicons name="remove" size={16} color="#374151" />
-                                                    </TouchableOpacity>
-                                                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 60, textAlign: 'center' }}>{String(annivYear)}</Text>
-                                                    <TouchableOpacity onPress={() => setAnnivYear(prev => prev + 1)} style={{ padding: 6 }}>
-                                                        <Ionicons name="add" size={16} color="#374151" />
-                                                    </TouchableOpacity>
-                                                </View>
-                                            </View>
-                                            <LocalCalendar
-                                                year={annivYear}
-                                                month={annivMonth}
-                                                selectedIso={anniversary}
-                                                onDayPress={(iso: string) => {
-                                                    setAnniversary(iso);
-                                                    try {
-                                                        const [y, m] = iso.split('T')[0].split('-');
-                                                        const yN = Number(y);
-                                                        const mN = Number(m) - 1;
-                                                        if (!isNaN(yN)) setAnnivYear(yN);
-                                                        if (!isNaN(mN)) setAnnivMonth(mN);
-                                                            setAnnivText(formatIsoToDisplay(iso));
-                                                    } catch (e) {}
-                                                    setShowAnniversaryPicker(false);
-                                                }}
-                                                onPrev={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, -1);
-                                                    setAnnivMonth(newMonth);
-                                                    setAnnivYear(newYear);
-                                                }}
-                                                onNext={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, 1);
-                                                    setAnnivMonth(newMonth);
-                                                    setAnnivYear(newYear);
-                                                }}
-                                            />
-                                            <TouchableOpacity onPress={() => setShowAnniversaryPicker(false)} style={{ alignItems: 'center', margin: 8 }}>
-                                                <Text style={{ color: '#3B82F6', fontWeight: 'bold' }}>Cancel</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
                                 </View>
 
                                 {/* Gender Dropdown */}
