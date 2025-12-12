@@ -139,9 +139,12 @@ export default function Builder() {
                         // map card's personalPhone -> phone for profile but only if it's different from stored user phone
                         if (k === 'personalPhone' && (payload && (payload as any).personalPhone !== undefined)) {
                             const newPhone = (payload as any).personalPhone;
-                            const storedPhone = existingUser?.phone || existingUser?.phoneNumber || null;
-                            if (!storedPhone || String(newPhone) !== String(storedPhone)) {
-                                profileable.phone = newPhone;
+                            // Only send phone if it's not empty
+                            if (newPhone && newPhone.trim() !== '') {
+                                const storedPhone = existingUser?.phone || existingUser?.phoneNumber || null;
+                                if (!storedPhone || String(newPhone) !== String(storedPhone)) {
+                                    profileable.phone = newPhone;
+                                }
                             }
                         } else if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
                     });
@@ -254,12 +257,14 @@ export default function Builder() {
     // Update card mutation
     const updateCardMutation = useMutation({
         mutationFn: async (payload: any) => {
+            console.log('📤 Builder: Sending card UPDATE payload:', JSON.stringify({ birthdate: payload.birthdate, anniversary: payload.anniversary, name: payload.name }));
             const response = await api.put<{ data: any }>(`/cards/${edit}`, payload);
+            console.log('✅ Builder: Card UPDATE response:', JSON.stringify({ birthdate: response.data?.birthdate, anniversary: response.data?.anniversary, name: response.data?.name }));
             return response.data;
         },
         onSuccess: (_data, payload) => {
             // Log raw server response for debugging date persistence
-            try { console.log('Builder: raw update response:', _data); } catch (e) {}
+            try { console.log('Builder: raw update response:', JSON.stringify({ birthdate: _data?.birthdate, anniversary: _data?.anniversary })); } catch (e) {}
             queryClient.invalidateQueries({ queryKey: ["cards"] });
             queryClient.invalidateQueries({ queryKey: ["public-feed"] });
             try { queryClient.invalidateQueries({ queryKey: ['contacts-feed'] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
@@ -274,9 +279,12 @@ export default function Builder() {
                     ['name','personalPhone','gender','birthdate','anniversary'].forEach(k => {
                         if (k === 'personalPhone' && (payload && (payload as any).personalPhone !== undefined)) {
                             const newPhone = (payload as any).personalPhone;
-                            const storedPhone = existingUserU?.phone || existingUserU?.phoneNumber || null;
-                            if (!storedPhone || String(newPhone) !== String(storedPhone)) {
-                                profileable.phone = newPhone;
+                            // Only send phone if it's not empty
+                            if (newPhone && newPhone.trim() !== '') {
+                                const storedPhone = existingUserU?.phone || existingUserU?.phoneNumber || null;
+                                if (!storedPhone || String(newPhone) !== String(storedPhone)) {
+                                    profileable.phone = newPhone;
+                                }
                             }
                         } else if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
                     });
@@ -766,10 +774,10 @@ export default function Builder() {
         } catch (e) { /* ignore parsing failure */ }
 
         if (isEditMode) {
-            console.log('Builder: update payload preview', { payload: finalPayload });
+            console.log('🔄 Builder: UPDATE mode - payload preview:', JSON.stringify({ birthdate: finalPayload.birthdate, anniversary: finalPayload.anniversary, name: finalPayload.name }));
             updateCardMutation.mutate(finalPayload);
         } else {
-            console.log('Builder: create payload preview', { payload: finalPayload });
+            console.log('✨ Builder: CREATE mode - payload preview:', JSON.stringify({ birthdate: finalPayload.birthdate, anniversary: finalPayload.anniversary, name: finalPayload.name }));
             createCardMutation.mutate(finalPayload);
         }
     };
@@ -928,7 +936,6 @@ export default function Builder() {
                                     <Text style={s.enhancedLabel}>Birthdate<Text style={s.requiredIndicator}> *</Text></Text>
                                     <View style={s.dateInput}>
                                         <FormInput
-                                            key="birthdate-input"
                                             value={birthText}
                                             onChangeText={(t: string) => {
                                                 // live-format digits into dd-mm-yyyy
@@ -973,7 +980,6 @@ export default function Builder() {
                                     <Text style={s.enhancedLabel}>Anniversary</Text>
                                     <View style={s.dateInput}>
                                         <FormInput
-                                            key="anniversary-input"
                                             value={annivText}
                                             onChangeText={(t: string) => {
                                                 const formatted = formatDigitsToDisplay(t);
