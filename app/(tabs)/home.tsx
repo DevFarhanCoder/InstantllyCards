@@ -25,20 +25,53 @@ export default function Home() {
   console.log("🏠 HOME: Component rendering...");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [userName, setUserName] = React.useState<string>("");
+  const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [showVideoTest, setShowVideoTest] = React.useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch user name for profile initial
+  // Fetch user name and ID for profile initial and filtering
   React.useEffect(() => {
-    const fetchUserName = async () => {
+    const fetchUserData = async () => {
       try {
         const name = await AsyncStorage.getItem("user_name");
         if (name) setUserName(name);
+        
+        let userId = await AsyncStorage.getItem("currentUserId");
+        if (userId) {
+          setCurrentUserId(userId);
+          console.log("🔍 Home: Current user ID loaded from storage:", userId);
+        } else {
+          // Fallback: Fetch from profile API if not in storage
+          console.log("⚠️ Home: No user ID in storage, fetching from profile API...");
+          try {
+            const token = await AsyncStorage.getItem("token");
+            if (token) {
+              const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
+              const response = await fetch(`${apiBase}/api/auth/profile`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+              if (response.ok) {
+                const profileData = await response.json();
+                if (profileData._id) {
+                  userId = profileData._id.toString();
+                  await AsyncStorage.setItem("currentUserId", userId);
+                  setCurrentUserId(userId);
+                  console.log("✅ Home: User ID fetched from profile and stored:", userId);
+                }
+              }
+            }
+          } catch (apiError) {
+            console.error("❌ Home: Failed to fetch user ID from profile:", apiError);
+          }
+        }
       } catch (error) {
-        console.error("Error fetching user name:", error);
+        console.error("Error fetching user data:", error);
       }
     };
-    fetchUserName();
+    fetchUserData();
   }, []);
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
@@ -95,12 +128,43 @@ export default function Home() {
     queryClient.invalidateQueries({ queryKey: ["contacts-feed"] });
   }, [queryClient]);
 
-  // Filter cards based on search query
+  // Filter cards: 1) Exclude user's own cards, 2) Deduplicate, 3) Apply search query
   const filteredCards = React.useMemo(() => {
-    if (!searchQuery.trim() || !feedQ.data) return feedQ.data || [];
+    let cards = feedQ.data || [];
+    
+    console.log("🔍 Home Filter - Starting with cards:", cards.length);
+    console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
+    
+    // CRITICAL: Filter out user's own cards (extra safety on client side)
+    if (currentUserId) {
+      const beforeFilter = cards.length;
+      cards = cards.filter((card: any) => {
+        const cardUserId = (card.userId || card.owner || "").toString();
+        const isOwnCard = cardUserId === currentUserId;
+        
+        console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
+        
+        if (isOwnCard) {
+          console.log("🚫 Home: Filtering out user's own card:", card.name);
+        }
+        return !isOwnCard;
+      });
+      console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
+    } else {
+      console.warn("⚠️ Home Filter - No currentUserId set, cannot filter own cards!");
+    }
+    
+    // Deduplicate cards by _id to prevent React key errors
+    const uniqueCards = Array.from(
+      new Map(cards.map((card: any) => [card._id, card])).values()
+    );
+    console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
+    
+    // Apply search filter
+    if (!searchQuery.trim()) return uniqueCards;
     
     const query = searchQuery.toLowerCase();
-    return feedQ.data.filter((card: any) => {
+    return uniqueCards.filter((card: any) => {
       const companyName = (card.companyName || "").toLowerCase();
       const name = (card.name || "").toLowerCase();
       const keywords = (card.keywords || "").toLowerCase();
@@ -111,7 +175,7 @@ export default function Home() {
              keywords.includes(query) ||
              location.includes(query);
     });
-  }, [feedQ.data, searchQuery]);
+  }, [feedQ.data, searchQuery, currentUserId]);
 
   console.log("🎯 Home: Query state:", { 
     isLoading: feedQ.isLoading, 

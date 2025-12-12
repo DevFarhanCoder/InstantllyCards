@@ -438,6 +438,10 @@ useEffect(() => {
       if (res?.user?.phone) {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
+      // Store user ID for filtering own cards from home feed
+      if (res?.user?.id || res?.user?._id) {
+        await AsyncStorage.setItem("currentUserId", (res.user.id || res.user._id).toString());
+      }
       
       console.log(`✅ [SIGNUP-CREATE] Token and user data saved`);
       

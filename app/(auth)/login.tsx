@@ -158,6 +158,10 @@ export default function Login() {
       if (res?.user?.phone) {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
+      // Store user ID for filtering own cards from home feed
+      if (res?.user?.id || res?.user?._id) {
+        await AsyncStorage.setItem("currentUserId", (res.user.id || res.user._id).toString());
+      }
       
       setProgress(100);
       console.log('✅ Login successful, now registering push token BEFORE navigation');
