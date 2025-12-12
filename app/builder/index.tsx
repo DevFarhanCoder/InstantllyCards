@@ -586,8 +586,9 @@ export default function Builder() {
             console.log("📅 existingCard.birthdate:", existingCard.birthdate);
             console.log("📅 existingCard.anniversary:", existingCard.anniversary);
             setName(existingCard.name || "");
-            setBirthdate(existingCard.birthdate || null);
-            setAnniversary(existingCard.anniversary || null);
+            // Handle empty strings as null for date fields
+            setBirthdate(existingCard.birthdate && existingCard.birthdate !== "" ? existingCard.birthdate : null);
+            setAnniversary(existingCard.anniversary && existingCard.anniversary !== "" ? existingCard.anniversary : null);
             setGender(existingCard.gender || ""); // Load gender
             setPersonalCountryCode(existingCard.personalCountryCode || "91");
             setPersonalPhone(existingCard.personalPhone || "");
