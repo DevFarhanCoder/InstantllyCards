@@ -28,7 +28,7 @@ const FooterCarousel = () => {
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   
-  console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads (cached)`);
+  console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads`);
   
   // Preload banner images for instant display
   useEffect(() => {
@@ -201,12 +201,14 @@ const FooterCarousel = () => {
       isFromApi: ad.isFromApi,
       hasFullBanner: ad.hasFullBanner
     });
+    
     setSelectedAd(ad);
-    // Check if ad has full banner
+    
+    // Show fullscreen modal for ads with full banner
     if (ad.hasFullBanner) {
-      setShowModal(true); // Show full-screen modal
+      setShowModal(true);
     } else {
-      setShowSimpleModal(true); // Show simple popup
+      setShowSimpleModal(true); // Show simple popup for ads without full banner
     }
   };
 
@@ -366,7 +368,8 @@ const FooterCarousel = () => {
           scrollEventThrottle={16}
           style={styles.scrollView}
         >
-          {infiniteAds.map((ad, index) => (
+          {infiniteAds.map((ad, index) => {            
+            return (
           <TouchableOpacity 
             key={`${ad.id}-${index}`} 
             style={styles.slide}
@@ -400,11 +403,12 @@ const FooterCarousel = () => {
               }}
             />
           </TouchableOpacity>
-        ))}
+          );
+        })}
       </ScrollView>
       )}
 
-      {/* Full Screen Ad Modal - Only for Test Ad */}
+      {/* Full Screen Ad Modal - For Video Ads and Full Banner Image Ads */}
       <Modal
         visible={showModal}
         transparent={false}
@@ -412,7 +416,7 @@ const FooterCarousel = () => {
         onRequestClose={() => setShowModal(false)}
       >
         <View style={styles.fullScreenModal}>
-          {/* Full Screen Ad Image */}
+          {/* Show fullscreen image */}
           <Image
             source={(selectedAd as any)?.bannerImage || selectedAd?.image}
             style={styles.fullScreenImage}
@@ -436,6 +440,7 @@ const FooterCarousel = () => {
           {/* Buttons at Bottom - Horizontal Row */}
           <View style={styles.buttonContainer}>
             <View style={styles.buttonRow}>
+              {/* Image Ad - Show Call and Message buttons */}
               <TouchableOpacity 
                 style={[styles.fullScreenButton, styles.callButton]}
                 onPress={handleCall}
@@ -564,6 +569,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   fullScreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullScreenVideo: {
     width: '100%',
     height: '100%',
   },

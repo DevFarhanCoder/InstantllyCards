@@ -81,36 +81,49 @@ export function useAds() {
           }
           
           // Format ads for carousel - sorted by priority (backend already sorted)
-          // ✅ UPDATED: Now using GridFS URLs instead of base64
-          const formattedApiAds: Ad[] = response.data.map((ad: any, index: number) => {
-            // Build full image URLs using GridFS endpoints
-            const bottomImageUri = ad.bottomImageUrl 
-              ? `${imageBaseUrl}${ad.bottomImageUrl}`
-              : null;
-            
-            const fullscreenImageUri = ad.fullscreenImageUrl 
-              ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
-              : null;
-            
-            if (index === 0) {
-              console.log(`🖼️  [MOBILE STEP 5] Constructing image URLs for first ad:`);
-              console.log(`   Bottom Image: ${bottomImageUri}`);
-              console.log(`   Fullscreen Image: ${fullscreenImageUri || 'N/A'}`);
-            }
-            
-            return {
-              id: `api-${ad._id}`,
-              image: bottomImageUri ? { uri: bottomImageUri } : { uri: '' },
-              phone: ad.phoneNumber,
-              name: ad.title || 'Ad from Dashboard',
-              hasFullBanner: !!ad.fullscreenImageUrl,
-              bannerImage: fullscreenImageUri ? { uri: fullscreenImageUri } : undefined,
-              isFromApi: true,
-              priority: ad.priority || 5,
-            };
-          });
+          // ✅ UPDATED: Now using GridFS URLs for images
+          const formattedApiAds: Ad[] = response.data
+            .filter((ad: any) => {
+              // Filter out video ads (should already be filtered by backend, but double-check)
+              if (ad.adType === 'video') {
+                console.warn(`⚠️  Skipping video ad "${ad.title}" (ID: ${ad._id}) - Video ads not supported in bottom carousel`);
+                return false;
+              }
+              
+              // Filter out ads without valid bottom image
+              const hasValidBottomImage = ad.bottomImageUrl && ad.bottomImageUrl.trim() !== '';
+              if (!hasValidBottomImage) {
+                console.warn(`⚠️  Skipping ad "${ad.title}" (ID: ${ad._id}) - No bottom image URL`);
+              }
+              return hasValidBottomImage;
+            })
+            .map((ad: any, index: number) => {
+              const bottomImageUri = `${imageBaseUrl}${ad.bottomImageUrl}`;
+              const fullscreenImageUri = ad.fullscreenImageUrl 
+                ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
+                : null;
+              
+              if (index === 0) {
+                console.log(`🖼️  [MOBILE STEP 5] Constructing URLs for first ad:`);
+                console.log(`   Bottom Image: ${bottomImageUri}`);
+                console.log(`   Fullscreen Image: ${fullscreenImageUri || 'N/A'}`);
+              }
+              
+              return {
+                id: `api-${ad._id}`,
+                image: { uri: bottomImageUri },
+                phone: ad.phoneNumber,
+                name: ad.title || 'Ad from Dashboard',
+                hasFullBanner: !!ad.fullscreenImageUrl,
+                bannerImage: fullscreenImageUri 
+                  ? { uri: fullscreenImageUri } 
+                  : undefined,
+                isFromApi: true,
+                priority: ad.priority || 5,
+              };
+            });
           
-          console.log(`✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`);
+          console.log(`✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads (filtered out invalid ads)`);
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
           
           return formattedApiAds;
@@ -135,13 +148,13 @@ export function useAds() {
     },
     
     // Cache configuration for smooth 100+ ads queue
-    staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
-    gcTime: 30 * 60 * 1000, // 30 minutes - kept in memory (increased for 100+ ads)
+    staleTime: 0, // FORCE FRESH DATA - no cache for testing
+    gcTime: 1000, // 1 second - clear quickly
     
     // Don't refetch on component mount/focus (use cache)
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    refetchOnMount: true, // FORCE REFETCH for testing
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     
     // Auto-refresh every 10 minutes in background (smooth queue updates)
     refetchInterval: 10 * 60 * 1000,

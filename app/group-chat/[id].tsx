@@ -1004,47 +1004,6 @@ export default function GroupChatScreen() {
                 <Text style={styles.menuItemText}>Group Info</Text>
               </TouchableOpacity>
 
-              {/* Admin Transfer - Only show for group admin */}
-              {groupInfo?.admin === currentUserId && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setShowGroupMenu(false);
-                    // Show member selection for admin transfer
-                    Alert.alert(
-                      'Transfer Admin',
-                      'Select a new admin for this group. You will no longer be the admin.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Select Member', onPress: () => {
-                            // This would ideally open a member selection screen
-                            // For now, we'll show a simple prompt
-                            Alert.alert('Feature Coming Soon', 'Admin transfer functionality will be available soon.');
-                          }
-                        }
-                      ]
-                    );
-                  }}
-                >
-                  <Ionicons name="person-add-outline" size={24} color="#FFA500" />
-                  <Text style={[styles.menuItemText, { color: '#FFA500' }]}>Transfer Admin</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={async () => {
-                  setShowGroupMenu(false);
-                  await loadGroupMembers();
-                  setShowTransferAdminModal(true);
-                }}
-              >
-                <Ionicons name="exit-outline" size={24} color="#FF6B6B" />
-                <Text style={[styles.menuItemText, { color: '#FF6B6B' }]}>Leave Group</Text>
-              </TouchableOpacity>
-            )}
-            
             <TouchableOpacity 
               style={styles.menuItem}
               onPress={async () => {

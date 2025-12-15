@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useQueryClient } from "@tanstack/react-query";
 
 
 
@@ -34,6 +35,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 const { height: screenHeight } = Dimensions.get('window');
 
 export default function Login() {
+  const queryClient = useQueryClient();
   const [countryCode, setCountryCode] = useState("+91"); // Default to India
   const [phoneNumber, setPhoneNumber] = useState("");
   const [forgotPhoneError, setForgotPhoneError] = useState("");
@@ -150,6 +152,10 @@ export default function Login() {
       if (!token) {
         throw new Error("Invalid login credentials. Please try again.");
       }
+
+      // CRITICAL: Clear all React Query cache to prevent data leakage from previous account
+      console.log('🧹 Clearing React Query cache before login...');
+      queryClient.clear();
 
       await AsyncStorage.setItem("token", token);
       if (res?.user?.name) {

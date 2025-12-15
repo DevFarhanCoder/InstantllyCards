@@ -736,10 +736,28 @@ export default function ContactSelectScreen() {
 
         if (duplicates.length > 0) {
           const duplicateNames = duplicates.map(c => c.name).join(', ');
+          
+          // Find the sent card ID to highlight
+          const sentCardToHighlight = sentCards.find((sentCard: any) => 
+            sentCard.cardId === cardId && sentCard.recipientId === duplicates[0].userId
+          );
+          
           Alert.alert(
             'Card Already Sent',
             `You have already sent this card to: ${duplicateNames}.\n\nYou can only send a card once to each user.`,
-            [{ text: 'OK' }]
+            [{
+              text: 'OK',
+              onPress: () => {
+                // Navigate to Sent tab with highlight parameter
+                if (sentCardToHighlight) {
+                  console.log('📍 Navigating to Sent tab with highlight:', sentCardToHighlight._id);
+                  router.push(`/(tabs)/chats?tab=sent&highlightCardId=${sentCardToHighlight._id}`);
+                } else {
+                  // Fallback to just opening Sent tab
+                  router.push('/(tabs)/chats?tab=sent');
+                }
+              }
+            }]
           );
           return; // Stop the sharing process
         }

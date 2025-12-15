@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "../lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import BusinessAvatar from "./BusinessAvatar";
 
 export default function CardRow({ c, showEditButton = false, onRefresh }: { c: any; showEditButton?: boolean; onRefresh?: () => void }) {
+    const queryClient = useQueryClient();
     const [shareModalVisible, setShareModalVisible] = useState(false);
     const [menuModalVisible, setMenuModalVisible] = useState(false);
     const [scaleAnim] = useState(new Animated.Value(1));
@@ -73,14 +75,57 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                     style: "destructive",
                     onPress: async () => {
                         try {
+                            // Delete from server FIRST to check if card exists
                             await api.del(`/cards/${c._id}`);
+                            
+                            // ⚡ INSTANT UPDATE: Remove card from cache after successful delete
+                            queryClient.setQueryData(['cards'], (old: any) => {
+                                if (!old) return [];
+                                if (Array.isArray(old)) {
+                                    return old.filter((card: any) => (card._id || card.id) !== c._id);
+                                }
+                                return old;
+                            });
+                            
+                            // Invalidate related queries in background (non-blocking)
+                            setTimeout(() => {
+                                queryClient.invalidateQueries({ queryKey: ["cards"] });
+                                queryClient.invalidateQueries({ queryKey: ["public-feed"] });
+                                queryClient.invalidateQueries({ queryKey: ['contacts-feed'] });
+                                queryClient.invalidateQueries({ queryKey: ['profile'] });
+                            }, 100);
+                            
                             Alert.alert("Success", "Card deleted successfully");
-                            if (onRefresh) {
-                                onRefresh();
-                            }
-                        } catch (error) {
+                        } catch (error: any) {
                             console.error("Delete error:", error);
-                            Alert.alert("Error", "Failed to delete card");
+                            console.error("Card ID:", c._id);
+                            console.error("Card userId:", c.userId);
+                            
+                            // Better error messages based on error type
+                            let errorMessage = "Failed to delete card";
+                            if (error?.message?.includes("Not found") || error?.status === 404) {
+                                errorMessage = "Cannot delete this card. It may have already been deleted or you don't have permission.";
+                                // Remove from cache anyway since it doesn't exist or isn't accessible
+                                queryClient.setQueryData(['cards'], (old: any) => {
+                                    if (!old) return [];
+                                    if (Array.isArray(old)) {
+                                        return old.filter((card: any) => (card._id || card.id) !== c._id);
+                                    }
+                                    return old;
+                                });
+                                // Force refetch to get accurate list
+                                setTimeout(() => {
+                                    queryClient.invalidateQueries({ queryKey: ["cards"] });
+                                }, 500);
+                            } else if (error?.message?.includes("Network") || error?.message?.includes("timeout")) {
+                                errorMessage = "Network error. Please check your connection and try again.";
+                                // Don't remove from cache on network errors
+                            } else {
+                                // For other errors, refetch to ensure consistency
+                                queryClient.invalidateQueries({ queryKey: ["cards"] });
+                            }
+                            
+                            Alert.alert("Error", errorMessage);
                         }
                     }
                 }

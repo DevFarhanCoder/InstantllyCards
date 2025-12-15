@@ -156,11 +156,62 @@ export default function SelectCardForContactsScreen() {
         }
       } catch (error: any) {
         console.error('❌ Error sharing card:', error);
-        Alert.alert(
-          'Error',
-          error.message || 'Failed to share card. Please try again.',
-          [{ text: 'OK' }]
-        );
+        
+        // Check if it's a duplicate share error (409 status or "already" in message)
+        const errorMessage = error.message || error?.data?.message || '';
+        const isDuplicateError = error.status === 409 || 
+                                 errorMessage.toLowerCase().includes('already') ||
+                                 errorMessage.toLowerCase().includes('duplicate');
+        
+        if (isDuplicateError) {
+          // Get the sent card for highlighting
+          try {
+            const sentCardsResponse = await api.get<{ success: boolean; data: any[] }>('/cards/sent');
+            const sentCards = sentCardsResponse?.data || [];
+            
+            // Find the sent card to this recipient
+            const sentCardToHighlight = sentCards.find((sentCard: any) => 
+              sentCard.cardId === selectedCard._id && sentCard.recipientId === recipientId
+            );
+            
+            Alert.alert(
+              'Card Already Sent',
+              `You have already sent this card to ${recipientName}.\n\nYou can only send a card once to each user.`,
+              [{
+                text: 'OK',
+                onPress: () => {
+                  // Navigate to Sent tab with highlight parameter
+                  if (sentCardToHighlight) {
+                    console.log('📍 Navigating to Sent tab with highlight:', sentCardToHighlight._id);
+                    router.push(`/(tabs)/chats?tab=sent&highlightCardId=${sentCardToHighlight._id}`);
+                  } else {
+                    // Fallback to just opening Sent tab
+                    router.push('/(tabs)/chats?tab=sent');
+                  }
+                }
+              }]
+            );
+          } catch (fetchError) {
+            // Fallback if we can't fetch sent cards
+            Alert.alert(
+              'Card Already Sent',
+              `You have already sent this card to ${recipientName}.\n\nYou can only send a card once to each user.`,
+              [{
+                text: 'OK',
+                onPress: () => {
+                  router.push('/(tabs)/chats?tab=sent');
+                }
+              }]
+            );
+          }
+        } else {
+          // Show generic error for other types of errors
+          Alert.alert(
+            'Error',
+            errorMessage || 'Failed to share card. Please try again.',
+            [{ text: 'OK' }]
+          );
+        }
       } finally {
         setSending(false);
       }

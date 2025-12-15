@@ -36,8 +36,24 @@ export default function MyCards() {
   const [groupName, setGroupName] = useState('');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+
+  // Get current user ID on mount
+  React.useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const userId = await AsyncStorage.getItem("currentUserId");
+        if (userId) setCurrentUserId(userId);
+      } catch (error) {
+        console.error("Failed to fetch user ID:", error);
+      }
+    };
+    fetchUserId();
+  }, []);
+
   const q = useQuery({
-    queryKey: ["cards"],
+    queryKey: ["cards", currentUserId], // CRITICAL: Include userId to prevent data leakage
+    enabled: !!currentUserId, // Only fetch when user ID is available
     queryFn: async () => {
       console.log("MyCards: Fetching user cards...");
       try {
@@ -63,7 +79,7 @@ export default function MyCards() {
   });
 
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["cards"] });
+    queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
   };
 
   // Group sharing handlers

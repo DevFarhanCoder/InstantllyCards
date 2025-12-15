@@ -178,7 +178,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
     try {
       await setupAndroidChannels();
     } catch (channelError) {
-      console.warn('⚠️ [REGISTER] Could not setup Android channels, continuing...', channelError);
+      // Silently handle channel setup errors - not critical
+      console.log('ℹ️ [REGISTER] Android channels setup skipped');
     }
 
     // Check if we're on a physical device
@@ -246,19 +247,22 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
     return token;
   } catch (error: any) {
-    console.error('❌ [REGISTER] Error during registration:', error);
-    console.error('❌ [REGISTER] Error name:', error?.name);
-    console.error('❌ [REGISTER] Error message:', error?.message);
-    console.error('❌ [REGISTER] Error stack:', error?.stack);
-    
-    // Handle Firebase-specific errors
+    // Handle Firebase-specific errors (common in development)
     if (error?.message?.includes('FirebaseApp is not initialized') || 
         error?.message?.includes('Default FirebaseApp') ||
-        error?.code === 'ERR_FIREBASE_NOT_INITIALIZED') {
-      console.warn('⚠️ [REGISTER] Firebase not initialized - likely running in Expo Go or development build without proper setup');
-      console.log('✅ [REGISTER] This is expected in development - notification registration will be skipped');
+        error?.code === 'ERR_FIREBASE_NOT_INITIALIZED' ||
+        error?.message?.includes('fcm-credentials')) {
+      console.log('ℹ️ [REGISTER] Firebase not configured - using mock token for development');
+      console.log('ℹ️ [REGISTER] This is normal in development builds - notifications will work in production');
       return 'development-mock-token';
     }
+    
+    // For other errors, log details
+    console.error('❌ [REGISTER] Error during registration:', error?.message || error);
+    console.log('ℹ️ [REGISTER] Error details:', {
+      name: error?.name,
+      code: error?.code
+    });
     
     // Report to backend for diagnosis (but don't let this fail the registration)
     try {

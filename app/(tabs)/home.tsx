@@ -76,7 +76,8 @@ export default function Home() {
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
   const feedQ = useQuery({
-    queryKey: ["contacts-feed"],
+    queryKey: ["contacts-feed", currentUserId], // CRITICAL: Include userId to prevent data leakage
+    enabled: !!currentUserId, // Only fetch when user ID is available
     queryFn: async () => {
       console.log("📱 Home: Fetching contacts feed...");
       try {
@@ -125,8 +126,8 @@ export default function Home() {
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
     console.log("🔄 Manual refresh triggered");
-    queryClient.invalidateQueries({ queryKey: ["contacts-feed"] });
-  }, [queryClient]);
+    queryClient.invalidateQueries({ queryKey: ["contacts-feed", currentUserId] });
+  }, [queryClient, currentUserId]);
 
   // Filter cards: 1) Exclude user's own cards, 2) Deduplicate, 3) Apply search query
   const filteredCards = React.useMemo(() => {

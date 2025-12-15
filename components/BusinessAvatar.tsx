@@ -10,6 +10,20 @@ interface BusinessAvatarProps {
   backgroundColor?: string;
 }
 
+// Helper to convert image paths to full URLs
+const getImageUrl = (imagePath: string | null | undefined): string => {
+  if (!imagePath) return '';
+  // If it's already a full URL or Base64, return as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('data:')) {
+    return imagePath;
+  }
+  // If it's a relative path, construct full URL
+  const apiBase = process.env.EXPO_PUBLIC_API_BASE || 'http://192.168.0.104:8080';
+  const cleanBase = apiBase.replace(/\/$/, '');
+  const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  return `${cleanBase}${cleanPath}`;
+};
+
 export default function BusinessAvatar({ 
   companyPhoto, 
   companyName, 
@@ -37,11 +51,13 @@ export default function BusinessAvatar({
   ];
 
   if (companyPhoto) {
+    const imageUrl = getImageUrl(companyPhoto);
     return (
       <Image
-        source={{ uri: companyPhoto }}
+        source={{ uri: imageUrl }}
         style={avatarStyle}
         resizeMode="cover"
+        onError={(e) => console.log('❌ BusinessAvatar image load error:', e.nativeEvent.error, 'URL:', imageUrl)}
       />
     );
   }

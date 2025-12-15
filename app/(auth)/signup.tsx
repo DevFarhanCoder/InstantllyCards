@@ -17,17 +17,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Contacts from 'expo-contacts';
 
 // Fast2SMS imports for Phone Authentication
-
-
-import * as SmsRetriever from "expo-sms-retriever";
 import serverWarmup from "../../lib/serverWarmup";
 import api from "../../lib/api";
 import { sendOTPViaFast2SMS, verifyOTPViaBackend } from "../../lib/fast2sms";
 import PhoneInput from "../../components/PhoneInput";
 import Field from "../../components/Field";
 import PasswordField from "../../components/PasswordField";
+import OtpInput from "../../components/OtpInput";
+import { useSmsRetriever } from "../../hooks/useSmsRetriever";
 
 
 // Import notification registration
@@ -51,6 +51,12 @@ export default function Signup() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
+  
+  // SMS Retriever Hook for automatic OTP detection
+  const { otp: autoOtp, appHash, isListening } = useSmsRetriever({ 
+    autoStart: true,
+    otpLength: 6 
+  });
   
   // Store the verified phone number with country code
   const [verifiedPhone, setVerifiedPhone] = useState("");
@@ -111,45 +117,14 @@ export default function Signup() {
     }
   }, [otpTimer]);
 
-useEffect(() => {
-  if (step !== "otp") return;
-
-  let isMounted = true;
-
-  const start = async () => {
-    try {
-      console.log("📩 Starting SMS Retriever…");
-
-      const started = await SmsRetriever.start();
-      console.log("SMS Retriever started:", started);
-
-      if (started) {
-        SmsRetriever.addListener((event) => {
-          const message = event.value;  // correct for your library
-          console.log("📩 SMS RECEIVED:", message);
-
-          const otpMatch = message.match(/\d{4,6}/);
-          if (otpMatch && isMounted) {
-            setOtp(otpMatch[0]);
-          }
-
-          SmsRetriever.removeListener();
-        });
-      }
-    } catch (error) {
-      console.error("SMS Retriever Error:", error);
+  // Auto-fill OTP when detected by SMS Retriever
+  useEffect(() => {
+    if (autoOtp && step === 'otp') {
+      console.log('✅ [Auto-Fill] OTP detected:', autoOtp);
+      setOtp(autoOtp);
+      showToast("OTP auto-filled!", "success");
     }
-  };
-
-  start();
-
-  return () => {
-    isMounted = false;
-    try {
-      SmsRetriever.removeListener();
-    } catch {}
-  };
-}, [step]);
+  }, [autoOtp, step]);
 
 
 
@@ -192,11 +167,12 @@ useEffect(() => {
 
       // First, check if phone number already exists
       console.log(`🔍 [SIGNUP-SEND-OTP] Checking if phone exists: ${fullPhone}`);
-      const appHash = await SmsRetriever.getHash()
-      console.log("App Hash:", appHash);
+      console.log(`📱 [SMS Retriever] App Hash: ${appHash}`);
+      console.log(`📱 [SMS Retriever] Listening: ${isListening}`);
+      
       const checkRes = await api.post("/auth/check-phone", {
         phone: fullPhone,
-        appHash: appHash
+        appHash: appHash || '' // Send app hash to backend for SMS formatting
       });
       
       console.log(`✅ [SIGNUP-SEND-OTP] Check phone response - EXISTS: ${checkRes.exists}`);
@@ -485,6 +461,78 @@ useEffect(() => {
         }).catch(e => console.error('🔔 [PUSH-TOKEN] Error reporting failed:', e?.message));
       }
       
+      // SYNC CONTACTS AUTOMATICALLY AFTER SIGNUP
+      try {
+        console.log(`\n📱 [CONTACT-SYNC] AUTO-SYNC START`);
+        console.log(`${'='.repeat(70)}`);
+        
+        // Request contacts permission
+        const { status } = await Contacts.requestPermissionsAsync();
+        if (status === 'granted') {
+          console.log(`✅ [CONTACT-SYNC] Contacts permission granted`);
+          
+          // Get device contacts
+          console.log(`📱 [CONTACT-SYNC] Reading device contacts...`);
+          const { data: deviceContacts } = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+          });
+          
+          // Extract phone numbers
+          const phoneNumbers = deviceContacts
+            .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
+            .map((contact: any) => ({
+              name: contact.name || 'Unknown Contact',
+              phoneNumber: contact.phoneNumbers[0]?.number?.replace(/\D/g, '') || ''
+            }))
+            .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
+          
+          console.log(`📊 [CONTACT-SYNC] Found ${phoneNumbers.length} valid contacts`);
+          
+          if (phoneNumbers.length > 0) {
+            // Send contacts in batches
+            const BATCH_SIZE = 200;
+            const totalBatches = Math.ceil(phoneNumbers.length / BATCH_SIZE);
+            
+            console.log(`📤 [CONTACT-SYNC] Syncing in ${totalBatches} batch(es)...`);
+            
+            for (let i = 0; i < phoneNumbers.length; i += BATCH_SIZE) {
+              const batch = phoneNumbers.slice(i, i + BATCH_SIZE);
+              const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+              
+              console.log(`📤 [CONTACT-SYNC] Batch ${batchNumber}/${totalBatches} (${batch.length} contacts)`);
+              
+              try {
+                await api.post("/contacts/sync-all", { contacts: batch });
+                console.log(`✅ [CONTACT-SYNC] Batch ${batchNumber}/${totalBatches} synced`);
+              } catch (batchError) {
+                console.error(`❌ [CONTACT-SYNC] Batch ${batchNumber} failed:`, batchError);
+              }
+              
+              // Small delay between batches
+              if (i + BATCH_SIZE < phoneNumbers.length) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            }
+            
+            // Save sync timestamp
+            await AsyncStorage.setItem('contactsSyncTimestamp', Date.now().toString());
+            await AsyncStorage.setItem('contactsSynced', 'true');
+            
+            console.log(`✅ [CONTACT-SYNC] AUTO-SYNC COMPLETE - ${phoneNumbers.length} contacts synced`);
+          } else {
+            console.log(`⚠️ [CONTACT-SYNC] No valid contacts found to sync`);
+          }
+        } else {
+          console.log(`⚠️ [CONTACT-SYNC] Contacts permission denied - user can sync later from Chats tab`);
+        }
+        
+        console.log(`${'='.repeat(70)}\n`);
+      } catch (syncError: any) {
+        console.error(`❌ [CONTACT-SYNC] AUTO-SYNC FAILED:`, syncError?.message);
+        console.log(`⚠️ [CONTACT-SYNC] User can manually sync contacts from Chats tab`);
+        // Don't block signup if contact sync fails
+      }
+      
       console.log(`🔀 [SIGNUP] Navigation: Redirecting to home...`);
       console.log(`${'='.repeat(70)}\n`);
       router.replace("/(tabs)/home");
@@ -618,13 +666,11 @@ useEffect(() => {
               <>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Enter OTP</Text>
-                  <Field
-                    label=""
-                    placeholder="Enter 6-digit OTP"
-                    keyboardType="number-pad"
+                  <OtpInput
+                    length={6}
                     value={otp}
                     onChangeText={setOtp}
-                    maxLength={6}
+                    autoFocus={true}
                   />
                   <View style={styles.otpFooter}>
                     {otpTimer > 0 ? (
