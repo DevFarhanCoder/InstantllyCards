@@ -9,8 +9,10 @@ import {
   Image,
   Dimensions,
   BackHandler,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +29,8 @@ export default function ForceUpdateModal({
   currentVersion,
   latestVersion,
 }: ForceUpdateModalProps) {
+  const insets = useSafeAreaInsets();
+  
   // Disable Android back button to prevent dismissal
   React.useEffect(() => {
     if (visible) {
@@ -63,7 +67,7 @@ export default function ForceUpdateModal({
       {/* Semi-transparent overlay */}
       <View style={styles.overlay}>
         {/* Bottom Sheet Container */}
-        <View style={styles.bottomSheet}>
+        <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           {/* Header with close icon (disabled) */}
           <View style={styles.header}>
             <View style={styles.handleBar} />
