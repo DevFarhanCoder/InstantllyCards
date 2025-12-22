@@ -361,6 +361,21 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 
+          {/* Referral Program Button */}
+          <TouchableOpacity 
+            style={styles.menuButton} 
+            onPress={() => router.push('/referral' as any)}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="gift-outline" size={22} color="#10B981" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Referral Program</Text>
+              <Text style={styles.menuSubtitle}>Invite friends and earn credits</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+
           {/* Logout Button */}
           <TouchableOpacity 
             style={styles.logoutMenuButton} 

@@ -43,7 +43,29 @@
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#FFFFFF",
         "monochromeImage": "./assets/logo.png"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "instantllycards.com",
+              "pathPrefix": "/signup"
+            },
+            {
+              "scheme": "http",
+              "host": "instantllycards.com",
+              "pathPrefix": "/signup"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

@@ -9,6 +9,7 @@ import { router } from "expo-router";
 import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
+import ReferralBanner from "../../components/ReferralBanner";
 
 
 
@@ -219,6 +220,9 @@ export default function Home() {
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* Referral Banner */}
+      <ReferralBanner />
 
       {/* Main Content */}
       {feedQ.isLoading ? (

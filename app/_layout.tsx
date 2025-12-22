@@ -10,6 +10,8 @@ import { chatNotificationService } from "@/lib/chat-notifications";
 import { socketService } from "@/lib/socket";
 import { showInAppNotification } from "@/lib/notifications-expo-go";
 import { QueryClientProvider } from "@tanstack/react-query";
+import * as Linking from 'expo-linking';
+import { getPlayStoreReferrer } from "@/lib/playStoreReferrer";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -72,6 +74,16 @@ export default function RootLayout() {
     const initApp = async () => {
       console.log('🚀 Initializing app systems...');
       
+      // Check for Play Store referrer on first launch
+      try {
+        const referralCode = await getPlayStoreReferrer();
+        if (referralCode) {
+          console.log('🎁 Play Store referral code captured:', referralCode);
+        }
+      } catch (error) {
+        console.error('❌ Error checking Play Store referrer:', error);
+      }
+      
       // Initialize chat notification service with QueryClient
       chatNotificationService.initialize(queryClient);
       
@@ -121,6 +133,41 @@ export default function RootLayout() {
     };
     
     initApp();
+  }, []);
+
+  // Deep Link Handler for Referral System
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      console.log('🔗 Deep link received:', url);
+      
+      const { path, queryParams } = Linking.parse(url);
+      
+      // Check if it's a signup referral link
+      if (path === 'signup' && queryParams?.ref) {
+        const referralCode = queryParams.ref as string;
+        console.log('🎁 Referral code detected:', referralCode);
+        
+        // Store referral code in AsyncStorage
+        await AsyncStorage.setItem('pending_referral_code', referralCode);
+        console.log('💾 Referral code stored in AsyncStorage');
+      }
+    };
+
+    // Handle initial URL (app opened from link)
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('🔗 Initial URL:', url);
+        handleDeepLink({ url });
+      }
+    });
+
+    // Handle subsequent deep links (app already open)
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   return (

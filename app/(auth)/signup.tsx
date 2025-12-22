@@ -51,6 +51,7 @@ export default function Signup() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
+  const [manualReferralCode, setManualReferralCode] = useState(""); // Manual referral code input
   
   // SMS Retriever Hook for automatic OTP detection
   const { otp: autoOtp, appHash, isListening } = useSmsRetriever({ 
@@ -350,6 +351,12 @@ export default function Signup() {
 
       console.log(`📱 Phone: ${fullPhone}`);
 
+      // Check for pending referral code or use manually entered one
+      let referralCode = manualReferralCode.trim().toUpperCase() || await AsyncStorage.getItem('pending_referral_code');
+      if (referralCode) {
+        console.log(`🎁 Referral code found: ${referralCode}`);
+      }
+
       setLoading(true);
       setProgress(10);
       setLoadingMessage("Preparing...");
@@ -365,13 +372,20 @@ export default function Signup() {
       setProgress(50);
       setLoadingMessage("Creating account...");
       console.log(`⏳ [SIGNUP-CREATE] Calling backend /auth/signup endpoint...`);
-      console.log(`   Payload: { name, phone, password }`);
+      console.log(`   Payload: { name, phone, password${referralCode ? ', referralCode' : ''} }`);
 
       const res = await api.post("/auth/signup", {
         name: nameT,
         phone: fullPhone,
-        password: passwordT
+        password: passwordT,
+        ...(referralCode && { referralCode })
       });
+
+      // Clear referral code after successful signup
+      if (referralCode) {
+        await AsyncStorage.removeItem('pending_referral_code');
+        console.log(`🗑️ Cleared referral code from storage`);
+      }
 
       setProgress(80);
       
