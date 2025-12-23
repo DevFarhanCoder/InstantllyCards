@@ -33,7 +33,7 @@ export default function TrackStatusPage() {
     try {
       setLoading(true);
       
-      // Try to fetch detailed referral data
+      // Fetch referral data
       try {
         const response = await api.get('/credits/referral-stats');
         setReferrals(response.recentReferrals || []);

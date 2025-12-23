@@ -671,6 +671,13 @@ export default function Builder() {
             return;
         }
         
+        // CRITICAL: Don't auto-save until form has been populated with existing data
+        // This prevents saving empty drafts that overwrite actual card data
+        if (isEditMode && !formPopulated) {
+            console.log('⏸️ Skipping draft save - form not yet populated with existing card data');
+            return;
+        }
+        
         saveDraft();
         
         return () => {
@@ -678,7 +685,7 @@ export default function Builder() {
                 clearTimeout(draftSaveTimeout.current);
             }
         };
-    }, [saveDraft, createCardMutation.isPending, updateCardMutation.isPending]);
+    }, [saveDraft, createCardMutation.isPending, updateCardMutation.isPending, isEditMode, formPopulated]);
 
     // Track if form has been populated to avoid overwriting user changes
     const [formPopulated, setFormPopulated] = useState(false);
@@ -734,6 +741,13 @@ export default function Builder() {
         
         // If we have draft data, check if it's newer than existing card
         if (draftData) {
+            console.log('📂 Draft data found:', {
+                name: draftData.name,
+                email: draftData.email,
+                companyName: draftData.companyName,
+                hasTimestamp: !!draftData.timestamp
+            });
+            
             let shouldLoadDraft = true;
             
             if (isEditMode && existingCard && existingCard.updatedAt) {
@@ -743,6 +757,13 @@ export default function Builder() {
                 console.log('🕐 Draft timestamp:', new Date(draftTime).toISOString());
                 console.log('🕐 Card updated at:', new Date(cardUpdateTime).toISOString());
                 console.log('🔍 Should load draft:', shouldLoadDraft);
+                
+                // IMPORTANT: If draft is from before card was saved, ignore it
+                if (!shouldLoadDraft) {
+                    console.log('⏭️ Draft is older than saved card - ignoring draft and loading from API');
+                    // Don't load the draft, let the next useEffect load from existingCard
+                    return;
+                }
             }
             
             if (shouldLoadDraft) {
@@ -853,12 +874,30 @@ export default function Builder() {
         
         if (existingCard && !formPopulated) {
             console.log("Populating form with existing card data from API");
+            console.log("� Full existingCard data:", JSON.stringify(existingCard, null, 2));
             console.log("📅 existingCard.birthdate:", existingCard.birthdate);
             console.log("📅 existingCard.anniversary:", existingCard.anniversary);
+            console.log("📧 existingCard.email:", existingCard.email);
+            console.log("🏢 existingCard.companyName:", existingCard.companyName);
+            console.log("📱 existingCard.personalPhone:", existingCard.personalPhone);
+            console.log("📱 existingCard.companyPhone:", existingCard.companyPhone);
             setName(existingCard.name || "");
             // Handle empty strings as null for date fields
-            setBirthdate(existingCard.birthdate && existingCard.birthdate !== "" ? existingCard.birthdate : null);
-            setAnniversary(existingCard.anniversary && existingCard.anniversary !== "" ? existingCard.anniversary : null);
+            const birthdateValue = existingCard.birthdate && existingCard.birthdate !== "" ? existingCard.birthdate : null;
+            const anniversaryValue = existingCard.anniversary && existingCard.anniversary !== "" ? existingCard.anniversary : null;
+            setBirthdate(birthdateValue);
+            setAnniversary(anniversaryValue);
+            // Format display text for date fields
+            if (birthdateValue) {
+                const formatted = formatIsoToDisplay(birthdateValue);
+                setBirthText(formatted);
+                console.log("📅 Loaded birthText:", formatted);
+            }
+            if (anniversaryValue) {
+                const formatted = formatIsoToDisplay(anniversaryValue);
+                setAnnivText(formatted);
+                console.log("📅 Loaded annivText:", formatted);
+            }
             setGender(existingCard.gender || ""); // Load gender
             setPersonalCountryCode(existingCard.personalCountryCode || "91");
             setPersonalPhone(existingCard.personalPhone || "");
@@ -881,7 +920,8 @@ export default function Builder() {
             setCompanyMapsLink(existingCard.companyMapsLink || "");
             setMessage(existingCard.message || "");
             setCompanyPhoto(existingCard.companyPhoto || "");
-            handleKeywordsChange(existingCard.keywords || ""); // Use debounced handler
+            setKeywords(existingCard.keywords || ""); // Directly set keywords without debounce during load
+            console.log("🔍 Loaded keywords:", existingCard.keywords);
             setLinkedin(existingCard.linkedin || "");
             setTwitter(existingCard.twitter || "");
             setInstagram(existingCard.instagram || "");

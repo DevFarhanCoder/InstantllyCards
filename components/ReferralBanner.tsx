@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import api from '@/lib/api';
 
 const { width } = Dimensions.get('window');
@@ -11,19 +10,30 @@ interface ReferralBannerProps {
   style?: any;
 }
 
+interface ReferralStats {
+  referralCode: string;
+  totalReferrals: number;
+  totalCreditsEarned: number;
+}
+
 export default function ReferralBanner({ style }: ReferralBannerProps) {
   const [config, setConfig] = useState<{ signupBonus: number; referralReward: number } | null>(null);
+  const [stats, setStats] = useState<ReferralStats | null>(null);
 
   useEffect(() => {
-    loadConfig();
+    loadData();
   }, []);
 
-  const loadConfig = async () => {
+  const loadData = async () => {
     try {
-      const response = await api.get('/credits/config');
-      setConfig(response.config);
+      const [configResponse, statsResponse] = await Promise.all([
+        api.get('/credits/config'),
+        api.get('/credits/referral-stats')
+      ]);
+      setConfig(configResponse.config);
+      setStats(statsResponse);
     } catch (error) {
-      console.error('Error loading credit config:', error);
+      console.error('Error loading referral data:', error);
     }
   };
 
@@ -33,67 +43,60 @@ export default function ReferralBanner({ style }: ReferralBannerProps) {
 
   if (!config) return null;
 
+  const friendsCount = stats?.totalReferrals || 0;
+
   return (
-    <TouchableOpacity style={[styles.container, style]} onPress={handlePress} activeOpacity={0.9}>
-      <LinearGradient
-        colors={['#3B82F6', '#2563EB', '#1D4ED8']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
-      >
-        <View style={styles.iconContainer}>
-          <Ionicons name="gift" size={32} color="#FFFFFF" />
-        </View>
-        <View style={styles.content}>
-          <Text style={styles.title}>Invite Friends & Earn Credits!</Text>
-          <Text style={styles.subtitle}>
-            Get {config.referralReward} credits for each friend who signs up
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
-      </LinearGradient>
+    <TouchableOpacity style={[styles.container, style]} onPress={handlePress} activeOpacity={0.95}>
+      <View style={styles.iconContainer}>
+        <Ionicons name="gift" size={24} color="#8B5CF6" />
+      </View>
+      <View style={styles.content}>
+        <Text style={styles.title}>Refer & Earn {config.referralReward} Credits</Text>
+        <Text style={styles.subtitle}>
+          {friendsCount === 0 ? 'Start inviting friends' : `${friendsCount} friend${friendsCount === 1 ? '' : 's'} joined`}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#8B5CF6" />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 16,
-    marginVertical: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  gradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3E8FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   content: {
     flex: 1,
   },
   title: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 2,
   },
   subtitle: {
     fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    color: '#6B7280',
   },
 });
