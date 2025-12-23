@@ -5,7 +5,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, Link, useFocusEffect } from "expo-router";
 import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
@@ -28,6 +28,8 @@ export default function Home() {
   const [userName, setUserName] = React.useState<string>("");
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [showVideoTest, setShowVideoTest] = React.useState(false);
+  const [userCredits, setUserCredits] = React.useState<number>(0);
+  const [creditsLoading, setCreditsLoading] = React.useState(true);
   const queryClient = useQueryClient();
 
   // Fetch user name and ID for profile initial and filtering
@@ -74,6 +76,55 @@ export default function Home() {
     };
     fetchUserData();
   }, []);
+
+  // Fetch user credits
+  const fetchCredits = React.useCallback(async () => {
+    try {
+      setCreditsLoading(true);
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
+        console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
+        
+        const response = await fetch(`${apiBase}/api/credits/balance`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log("💰 Home: Credits response status:", response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
+          setUserCredits(data.credits || 0);
+          console.log("✅ Home: Credits set to:", data.credits || 0);
+        } else {
+          const errorText = await response.text();
+          console.error("❌ Home: Credits fetch failed:", response.status, errorText);
+        }
+      } else {
+        console.error("❌ Home: No auth token found for credits");
+      }
+    } catch (error) {
+      console.error("❌ Home: Error fetching credits:", error);
+    } finally {
+      setCreditsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchCredits();
+  }, [fetchCredits]);
+
+  // Refetch credits when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("🔄 Home: Screen focused, refreshing credits...");
+      fetchCredits();
+    }, [fetchCredits])
+  );
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
   const feedQ = useQuery({
@@ -127,8 +178,9 @@ export default function Home() {
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
     console.log("🔄 Manual refresh triggered");
+    fetchCredits(); // Also refresh credits
     queryClient.invalidateQueries({ queryKey: ["contacts-feed", currentUserId] });
-  }, [queryClient, currentUserId]);
+  }, [queryClient, currentUserId, fetchCredits]);
 
   // Filter cards: 1) Exclude user's own cards, 2) Deduplicate, 3) Apply search query
   const filteredCards = React.useMemo(() => {
@@ -207,6 +259,21 @@ export default function Home() {
             <Text style={s.searchIcon}></Text>
           </TouchableOpacity>
         </View>
+
+        {/* Credits Icon */}
+        <Link href="/referral" asChild>
+          <TouchableOpacity style={s.creditsButton}>
+            <View style={s.creditsIconContainer}>
+              <Text style={s.coinIcon}>🪙</Text>
+              {creditsLoading ? (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              ) : (
+                <Text style={s.creditsCount}>{userCredits}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Link>
+
         <TouchableOpacity 
           style={s.profileButton}
           onPress={() => router.push('/(tabs)/profile')}
@@ -221,9 +288,6 @@ export default function Home() {
         </TouchableOpacity>
       </View>
 
-      {/* Referral Banner */}
-      <ReferralBanner />
-
       {/* Main Content */}
       {feedQ.isLoading ? (
         <View style={s.loadingContainer}>
@@ -233,8 +297,13 @@ export default function Home() {
         <FlatList
           data={filteredCards}
           keyExtractor={(it: any) => it._id}
-          renderItem={({ item }) => <CardRow c={item} />}
-          contentContainerStyle={{ padding: 16, paddingBottom: 180 }}
+          renderItem={({ item }) => (
+            <View style={{ paddingHorizontal: 16 }}>
+              <CardRow c={item} />
+            </View>
+          )}
+          ListHeaderComponent={<ReferralBanner />}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 180 }}
           ListEmptyComponent={
             <View style={s.empty}>
               <Text style={s.emptyTxt}>No cards yet.</Text>
@@ -309,6 +378,34 @@ const s = StyleSheet.create({
   searchIcon: {
     fontSize: 20,
     color: "#FFFFFF",
+  },
+  creditsButton: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  creditsIconContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#F59E0B",
+    justifyContent: "center",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    gap: 3,
+  },
+  creditsCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  coinIcon: {
+    fontSize: 16,
   },
   profileButton: {
     width: 44,

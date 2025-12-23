@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, Link } from 'expo-router';
 import api from '@/lib/api';
 
 const { width } = Dimensions.get('window');
@@ -38,7 +38,13 @@ export default function ReferralBanner({ style }: ReferralBannerProps) {
   };
 
   const handlePress = () => {
-    router.push('/referral');
+    try {
+      router.push('/(tabs)/../referral' as any);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback to replace
+      router.replace('/referral' as any);
+    }
   };
 
   if (!config) return null;
@@ -46,18 +52,20 @@ export default function ReferralBanner({ style }: ReferralBannerProps) {
   const friendsCount = stats?.totalReferrals || 0;
 
   return (
-    <TouchableOpacity style={[styles.container, style]} onPress={handlePress} activeOpacity={0.95}>
-      <View style={styles.iconContainer}>
-        <Ionicons name="gift" size={24} color="#8B5CF6" />
-      </View>
-      <View style={styles.content}>
-        <Text style={styles.title}>Refer & Earn {config.referralReward} Credits</Text>
-        <Text style={styles.subtitle}>
-          {friendsCount === 0 ? 'Start inviting friends' : `${friendsCount} friend${friendsCount === 1 ? '' : 's'} joined`}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="#8B5CF6" />
-    </TouchableOpacity>
+    <Link href="/referral" asChild>
+      <TouchableOpacity style={styles.container} activeOpacity={0.9}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="gift" size={22} color="#8B5CF6" />
+        </View>
+        <View style={styles.content}>
+          <Text style={styles.title}>Refer & Earn {config.referralReward} Credits</Text>
+          <Text style={styles.subtitle}>
+            {friendsCount === 0 ? 'Start inviting friends' : `${friendsCount} friend${friendsCount === 1 ? '' : 's'} joined`}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#8B5CF6" />
+      </TouchableOpacity>
+    </Link>
   );
 }
 
@@ -67,21 +75,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 8,
-    marginBottom: 8,
+    marginBottom: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F3E8FF',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EDE9FE',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -92,11 +100,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#000000',
+    color: '#111827',
     marginBottom: 2,
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: '#9CA3AF',
   },
 });

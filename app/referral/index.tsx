@@ -5,11 +5,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Share,
   ActivityIndicator,
   Alert,
-  Clipboard,
-  RefreshControl
+  RefreshControl,
+  Modal,
+  Share,
+  Platform,
+  Clipboard
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +40,8 @@ export default function ReferralPage() {
   const [userCredits, setUserCredits] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<'hindi' | 'english' | null>(null);
 
   useEffect(() => {
     loadReferralData();
@@ -82,19 +86,90 @@ export default function ReferralPage() {
 
   const handleShare = async () => {
     if (!stats?.referralCode || !config) return;
+    
+    // Reset language selection and show modal
+    setSelectedLanguage(null);
+    setLanguageModalVisible(true);
+  };
 
-    // Generate Play Store link with referral code embedded
-    const playStoreUrl = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
+  const handleLanguageSelect = (language: 'hindi' | 'english') => {
+    setSelectedLanguage(language);
+  };
 
-    const message = `🎁 Join InstantllyCards and get ${config.signupBonus} free credits!\n\nDownload the app now:\n${playStoreUrl}\n\nYou'll automatically get ${config.signupBonus} credits, and I'll get ${config.referralReward} credits!`;
+  const handleShareWithLanguage = async () => {
+    if (!selectedLanguage || !stats?.referralCode || !config) return;
+
+    setLanguageModalVisible(false);
 
     try {
+      // Generate Play Store link with referral code
+      const playStoreUrl = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
+      
+      const hindiMessage = `🎉 मुझे ₹200 क्रेडिट मिला!
+
+मैंने यह ऐप डाउनलोड किया और मुझे ₹200 क्रेडिट मिला! यह ऐप विजिटिंग कार्ड मैनेजमेंट के लिए बहुत अच्छा है। इसके फायदे नीचे दिए गए वीडियो लिंक में दिखाए गए हैं:
+
+▪️ आपको ₹200 क्रेडिट मिलेगा - जब आप डाउनलोड करेंगे तो आपको भी ₹300 क्रेडिट मिलेगा।
+
+▪️ रेफरल से प्रतिदिन कितना कमा सकते हैं - अगर आप 6 ग्रुप में रेफरल मैसेज भेजते हैं और प्रत्येक ग्रुप में 500 सदस्य हैं, तो आपका मैसेज 3000 लोगों तक पहुंचेगा। सामान्यतः 20 से 50 लोग मोबाइल ऐप डाउनलोड करते हैं। 20 लोगों पर आपको प्रत्येक से ₹300 मिलेंगे, कुल ₹6000 प्रतिदिन!
+
+▪️ रेफरल इनकम प्राप्त करने के लिए क्या करें - रेफरल मैसेज और रेफरल लिंक डाउनलोड करें और इस मैसेज व लिंक को अपने व्हाट्सऐप ग्रुप में भेजें।
+
+📱 अभी डाउनलोड करें (Play Store):
+${playStoreUrl}
+
+▪️ एप्लिकेशन के फायदे और इसका उपयोग कैसे करें, देखने के लिए वीडियो:
+https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
+
+▪️ अगर आपको कोई समस्या है तो इस व्हाट्सऐप ग्रुप में जुड़ें और अपनी समस्या लिखें। यदि आपको इस एप्लिकेशन का उपयोग करने में कोई प्रश्न या समस्या है तो आप यहां पूछ सकते हैं:
+https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
+
+▪️ चैनल पार्टनर बनने के लिए वीडियो लिंक:
+https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing
+
+▪️ धन्यवाद`;
+
+      const englishMessage = `🎉 I Got Rs 200 Credit!
+
+I have downloaded this app & Got Rs 200 Credit! The app is very good for Visiting Card Management. Advantages are shown in the video link given below:
+
+▪️ You will get Rs 200 Credit - When you download, you will also get Rs. 300 Credit.
+
+▪️ How much you can earn per day by Referral - If you send Referral Message to 6 Groups & in each group 500 persons are members, then your message will go to 3000 persons. Normally 20 to 50 persons download the Mobile App, so on 20 Persons you get ₹300 each, total is Rs. 6000 per day!
+
+▪️ What to do for Getting Referral Income - Download the Referral Message & Referral Link & Send this Message & Link to your WhatsApp Groups.
+
+📱 Download now (Play Store):
+${playStoreUrl}
+
+▪️ Video to See the Advantage of the Application & How to use it:
+https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
+
+▪️ If you have any problem then join this WhatsApp Group and write the Problem you are getting. If you have any questions or problems in using this application then you can ask here:
+https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
+
+▪️ Video Link for becoming Channel Partner Explanation:
+https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing
+
+▪️ Thank You`;
+
+      const message = selectedLanguage === 'hindi' ? hindiMessage : englishMessage;
+
+      // Open share dialog with the message
       await Share.share({
-        message,
-        title: 'Join InstantllyCards'
+        message: message,
+        title: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards'
       });
-    } catch (error) {
-      console.error('Error sharing:', error);
+
+    } catch (error: any) {
+      if (error?.message !== 'User did not share') {
+        console.error('Error sharing:', error);
+        Alert.alert(
+          'Error',
+          'Failed to share message. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
     }
   };
 
@@ -249,6 +324,71 @@ export default function ReferralPage() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Language Selection Modal */}
+      <Modal
+        visible={languageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setLanguageModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Language</Text>
+              <TouchableOpacity onPress={() => setLanguageModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>Choose your preferred language for sharing</Text>
+
+            <View style={styles.languageOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.languageOption,
+                  selectedLanguage === 'hindi' && styles.languageOptionSelected
+                ]}
+                onPress={() => handleLanguageSelect('hindi')}
+              >
+                <View style={styles.radioButton}>
+                  {selectedLanguage === 'hindi' && <View style={styles.radioButtonInner} />}
+                </View>
+                <View style={styles.languageInfo}>
+                  <Text style={styles.languageLabel}>हिंदी</Text>
+                  <Text style={styles.languageSubLabel}>Hindi</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.languageOption,
+                  selectedLanguage === 'english' && styles.languageOptionSelected
+                ]}
+                onPress={() => handleLanguageSelect('english')}
+              >
+                <View style={styles.radioButton}>
+                  {selectedLanguage === 'english' && <View style={styles.radioButtonInner} />}
+                </View>
+                <View style={styles.languageInfo}>
+                  <Text style={styles.languageLabel}>English</Text>
+                  <Text style={styles.languageSubLabel}>English</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {selectedLanguage && (
+              <TouchableOpacity
+                style={styles.shareNowButton}
+                onPress={handleShareWithLanguage}
+              >
+                <Ionicons name="share-social" size={20} color="#FFFFFF" />
+                <Text style={styles.shareNowButtonText}>Share Now</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -495,5 +635,97 @@ const styles = StyleSheet.create({
     color: '#374151',
     lineHeight: 20,
     paddingTop: 6,
+  },
+  // Language Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 24,
+  },
+  languageOptions: {
+    gap: 12,
+  },
+  languageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  languageOptionSelected: {
+    borderColor: '#8B5CF6',
+    backgroundColor: '#F3E8FF',
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#8B5CF6',
+  },
+  languageInfo: {
+    flex: 1,
+  },
+  languageLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  languageSubLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  shareNowButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 20,
+    gap: 8,
+  },
+  shareNowButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

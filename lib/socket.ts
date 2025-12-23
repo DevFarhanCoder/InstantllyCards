@@ -110,15 +110,12 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
         auth: {
           token: token
         },
-        transports: ['websocket', 'polling'], // WebSocket first for speed (matches backend)
-        timeout: 20000, // Match backend pingTimeout
-        reconnection: true,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: this.reconnectDelay,
+        transports: ['websocket', 'polling'],
+        timeout: 20000,
+        reconnection: false, // Disable auto-reconnect to prevent error spam
+        reconnectionAttempts: 0,
         autoConnect: true,
-        forceNew: true,
-        upgrade: true,
-        rememberUpgrade: true // Remember successful websocket upgrade
+        forceNew: true
       });
 
       console.log('⚙️ Socket.IO instance created, waiting for connection...');
@@ -141,60 +138,33 @@ public static leaveConversation(conversationId?: string, groupId?: string) {
         });
 
         this.socket.on('connect_error', (error) => {
-          console.error('❌ Socket.IO connection error:', error);
-          console.error('❌ Error message:', error.message);
-          if ('type' in error) console.error('❌ Error type:', (error as any).type);
-          if ('description' in error) console.error('❌ Error description:', JSON.stringify((error as any).description));
-          
-          // Log specific transport issues
-          if (error.message.includes('websocket')) {
-            console.log('🔄 WebSocket failed, will fallback to polling');
+          // Only log first error to avoid spam
+          if (this.reconnectAttempts === 0) {
+            console.log('💡 WebSocket unavailable. Chat features will be disabled.');
           }
-          if (error.message.includes('TransportError')) {
-            console.log('🔄 Transport error detected, retrying with different configuration');
-          }
-          
+          this.reconnectAttempts++;
           this.isConnecting = false;
           this.notifyConnectionListeners(false);
           resolve(false);
         });
 
         this.socket.on('disconnect', (reason) => {
-          console.log('🔌 Socket.IO disconnected. Reason:', reason);
+          if (reason === 'io server disconnect') {
+            this.handleReconnect();
+          }
           this.notifyConnectionListeners(false);
         });
 
         this.socket.on('reconnect', (attemptNumber) => {
-          console.log('🔄 Socket.IO reconnected after', attemptNumber, 'attempts');
           this.notifyConnectionListeners(true);
         });
 
-        this.socket.on('reconnect_error', (error) => {
-          console.error('❌ Socket.IO reconnection error:', error);
+        this.socket.on('reconnect_error', () => {
+          // Silent - don't spam logs
         });
 
         this.socket.on('reconnect_failed', () => {
-          console.error('❌ Socket.IO reconnection failed');
           this.notifyConnectionListeners(false);
-        });
-
-        this.socket.on('connect_error', (error) => {
-          console.error('❌ Socket.IO connection error:', error);
-          console.error('❌ Error details:', JSON.stringify(error, null, 2));
-          this.isConnecting = false;
-          this.notifyConnectionListeners(false);
-          resolve(false);
-        });
-
-        this.socket.on('disconnect', (reason) => {
-          console.log('🔌 Socket.IO disconnected, reason:', reason);
-          this.notifyConnectionListeners(false);
-          
-          if (reason === 'io server disconnect') {
-            // Server disconnected us, try to reconnect
-            console.log('🔄 Server disconnected, attempting to reconnect...');
-            this.handleReconnect();
-          }
         });
 
         // Set up message listeners

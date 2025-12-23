@@ -98,7 +98,11 @@ export default function RootLayout() {
       
       // Initialize Socket.IO and set up admin transfer listener
       console.log('🔌 Connecting to Socket.IO...');
-      await socketService.connect();
+      try {
+        await socketService.connect();
+      } catch (error) {
+        console.log('⚠️ Socket.IO connection failed (non-critical):', error);
+      }
       
       const unsubscribeAdminTransfer = socketService.onAdminTransfer(async (data) => {
         console.log('👑 GLOBAL: Received admin transfer notification:', data);
