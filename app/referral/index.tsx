@@ -220,14 +220,24 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
         }
       >
         {/* Credits Balance Banner */}
-        <View style={styles.creditsBanner}>
-          <View style={styles.creditsContent}>
-            <Text style={styles.creditsLabel}>Your Balance</Text>
-            <Text style={styles.creditsAmount}>{userCredits.toLocaleString()}</Text>
-            <Text style={styles.creditsUnit}>Credits</Text>
-          </View>
-          <View style={styles.creditsIconCircle}>
-            <Ionicons name="wallet" size={32} color="#10B981" />
+        <View style={styles.creditsBannerContainer}>
+          <TouchableOpacity 
+            style={styles.creditsBanner}
+            onPress={() => router.push('/referral/credits-history')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.creditsContent}>
+              <Text style={styles.creditsLabel}>Your Balance</Text>
+              <Text style={styles.creditsAmount}>{userCredits.toLocaleString()}</Text>
+              <Text style={styles.creditsUnit}>Credits</Text>
+            </View>
+            <View style={styles.creditsIconCircle}>
+              <Ionicons name="wallet" size={32} color="#10B981" />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.creditsHintContainer}>
+            <Ionicons name="information-circle-outline" size={14} color="#9CA3AF" />
+            <Text style={styles.creditsHintText}> Tap to view transaction history</Text>
           </View>
         </View>
 
@@ -423,21 +433,39 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  creditsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  creditsBannerContainer: {
+    marginBottom: 20,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
+    overflow: 'hidden',
+  },
+  creditsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+  },
+  creditsHintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#F9FAFB',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  creditsHintText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginLeft: 4,
   },
   creditsContent: {
     flex: 1,

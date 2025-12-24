@@ -31,6 +31,13 @@ interface UserProfile {
   profilePicture?: string;
   email?: string;
   about?: string;
+  quizProgress?: {
+    completed: boolean;
+    currentQuestionIndex: number;
+    answeredQuestions: string[];
+    creditsEarned: number;
+    completedAt?: Date;
+  };
 }
 
 export default function Profile() {
@@ -38,6 +45,9 @@ export default function Profile() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+
+  // Check if user has completed the quiz
+  const hasCompletedSurvey = userProfile?.quizProgress?.completed === true;
 
   // Fetch user profile on component mount
   useEffect(() => {
@@ -331,6 +341,23 @@ export default function Profile() {
 
         {/* Menu Options */}
         <View style={styles.menuSection}>
+          {/* Earn More Credits Button - Only show if survey not completed */}
+          {!hasCompletedSurvey && (
+            <TouchableOpacity 
+              style={styles.earnCreditsButton} 
+              onPress={() => router.push('/profile/earn-credits' as any)}
+            >
+              <View style={styles.earnCreditsIconContainer}>
+                <Ionicons name="gift" size={22} color="#10B981" />
+              </View>
+              <View style={styles.menuContent}>
+                <Text style={styles.earnCreditsTitle}>Earn More Credits</Text>
+                <Text style={styles.menuSubtitle}>Answer questions & get rewarded</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
+
           {/* Manage Account Button */}
           <TouchableOpacity 
             style={styles.menuButton} 
@@ -626,6 +653,36 @@ const styles = StyleSheet.create({
   },
   logoutMenuTitle: {
     color: '#EF4444',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  earnCreditsButton: {
+    flexDirection: 'row',
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#86EFAC',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  earnCreditsIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  earnCreditsTitle: {
+    color: '#10B981',
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 2,
