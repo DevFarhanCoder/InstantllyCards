@@ -79,17 +79,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
+    borderWidth: 2,
+    borderColor: '#8B5CF6', // Purple border matching gift box
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    opacity: 0.6, // More transparent for less visual dominance
   },
   iconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: 'rgba(141,92,246,0.15)', // Semi-transparent purple matching gift box
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,

@@ -4,12 +4,13 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, Activity
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { router, Link, useFocusEffect } from "expo-router";
 import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
 import ReferralBanner from "../../components/ReferralBanner";
+import CategoryGrid from "../../components/CategoryGrid";
 
 
 
@@ -243,24 +244,31 @@ export default function Home() {
 
   return (
     <SafeAreaView style={s.root}>
-      {/* Search Header */}
-      <View style={s.searchContainer}>
-        <View style={s.searchWrapper}>
-          <View style={s.searchBox}>
-            <TextInput
-              style={s.searchInput}
-              placeholder="Search..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#9CA3AF"
-            />
+      {/* Custom Header */}
+      <View style={s.headerRow}>
+        {/* Profile Left */}
+        <TouchableOpacity 
+          style={s.profileButton}
+          onPress={() => router.push('/(tabs)/profile')}
+        >
+          <View style={s.profileGradientBorder}>
+            <View style={s.profileInner}>
+              <Text style={{fontWeight: 'bold', fontSize: 22, color: '#fff'}}>
+                {userName ? userName.charAt(0).toUpperCase() : ''}
+              </Text>
+            </View>
           </View>
-          <TouchableOpacity style={s.searchButton}>
-            <Text style={s.searchIcon}></Text>
-          </TouchableOpacity>
+        </TouchableOpacity>
+        {/* Title Center */}
+        <View style={s.headerTitleLogoContainer}>
+          <View style={s.headerTitleTextWrap}>
+            <Text style={s.headerTitleLogo}>
+              <Text style={s.headerTitleOrange}>Instant</Text>
+              <Text style={s.headerTitleCyan}>lly</Text>
+            </Text>
+          </View>
         </View>
-
-        {/* Credits Icon */}
+        {/* Credits Right */}
         <Link href="/referral" asChild>
           <TouchableOpacity style={s.creditsButton}>
             <View style={s.creditsIconContainer}>
@@ -273,19 +281,21 @@ export default function Home() {
             </View>
           </TouchableOpacity>
         </Link>
+      </View>
 
-        <TouchableOpacity 
-          style={s.profileButton}
-          onPress={() => router.push('/(tabs)/profile')}
-        >
-          <View style={s.profileGradientBorder}>
-            <View style={s.profileInner}>
-              <Text style={s.profileInitial}>
-                {userName ? userName.charAt(0).toUpperCase() : "U"}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+      {/* Search Bar - Static at the top */}
+      <View style={s.searchBarRow}>
+        <View style={s.searchBarContainer}>
+          <Ionicons name="search" size={22} color="#9CA3AF" style={{marginLeft: 10, marginRight: 6}} />
+          <TextInput
+            style={s.searchInputModern}
+            placeholder="Search business cards"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor="#9CA3AF"
+          />
+          {/* Removed scanner and mic icons as requested */}
+        </View>
       </View>
 
       {/* Main Content */}
@@ -302,8 +312,20 @@ export default function Home() {
               <CardRow c={item} />
             </View>
           )}
-          ListHeaderComponent={<ReferralBanner />}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 180 }}
+          ListHeaderComponent={
+            <>
+              <ReferralBanner />
+              <CategoryGrid />
+              <View style={[s.cardsHeadingRow, { marginBottom: 16 }]}> // Added gap below heading
+                <View style={s.cardsHeadingLine} />
+                <Text style={s.cardsHeadingText}>Business Cards</Text>
+                <View style={s.cardsHeadingLine} />
+              </View>
+            </>
+          }
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 80 }}
+          initialNumToRender={2}
+          windowSize={5}
           ListEmptyComponent={
             <View style={s.empty}>
               <Text style={s.emptyTxt}>No cards yet.</Text>
@@ -334,28 +356,130 @@ export default function Home() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F4F6FA" },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginHorizontal: 16,
     marginTop: 8,
-    marginBottom: 16,
-    gap: 12,
+    marginBottom: 0,
+  },
+  headerTitleLogoContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 0,
+    gap: 4,
+  },
+  headerLogoImgNoBg: {
+    width: 32,
+    height: 32,
+    marginRight: 8,
+    alignSelf: 'center',
+    backgroundColor: 'transparent',
+  },
+  headerTitleTextWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 32,
+  },
+  headerTitleLogo: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    fontFamily: 'System',
+    includeFontPadding: false,
+    paddingTop: 0,
+    lineHeight: 32,
+  },
+  headerTitleCyan: {
+    color: '#00C3FF', // logo left cyan
+    fontWeight: '900',
+    fontFamily: 'System',
+  },
+  headerTitleBlue: {
+    color: '#0090FF', // logo right blue
+    fontWeight: '900',
+    fontFamily: 'System',
+  },
+  headerTitleOrange: {
+    color: '#FF9100', // logo orange
+    fontWeight: '900',
+    fontFamily: 'System',
+  },
+  sectionTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginTop: 18,
+    marginBottom: 8,
+    marginLeft: 18,
+  },
+  cardsHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  cardsHeadingLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#B0B0B0',
+    marginHorizontal: 8,
+  },
+  cardsHeadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    textAlign: 'center',
+    letterSpacing: 1,
+    paddingHorizontal: 8,
+    backgroundColor: 'transparent',
+  },
+    searchBarContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: '#2563eb', // Blue border for search bar
+      paddingVertical: 4,
+      marginTop: 0,
+      marginBottom: 0,
+      shadowColor: '#000',
+      shadowOpacity: 0.04,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    searchInputModern: {
+      flex: 1,
+      fontSize: 18,
+      color: '#6B7280',
+      paddingVertical: 6,
+      paddingHorizontal: 0,
+      backgroundColor: 'transparent',
+    },
+  searchBarRow: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 10,
   },
   searchWrapper: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3B82F6",
+    marginHorizontal: 16,
     borderRadius: 30,
     padding: 2,
-    shadowColor: "#000",
+    fontSize: 18,
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 5,
   },
   searchBox: {
-    flex: 1,
+    lineHeight: 20,
     backgroundColor: "#FFFFFF",
     borderRadius: 26,
     paddingHorizontal: 20,
