@@ -78,19 +78,42 @@ export default function Login() {
     let mounted = true;
     (async () => {
       try {
+        // Check if password was just reset
+        const justReset = await AsyncStorage.getItem('password_just_reset');
+        if (justReset === 'true') {
+          console.log('🔄 [LOGIN] Password just reset - clearing all cached state');
+          // Clear the flag
+          await AsyncStorage.removeItem('password_just_reset');
+          // Reset all login state
+          setPassword('');
+          setPasswordError('');
+          setForgotPhoneError('');
+          // Clear query cache to prevent stale API responses
+          queryClient.clear();
+        }
+        
         const stored = await AsyncStorage.getItem('login_prefill_phone');
         if (!mounted || !stored) return;
         // Parse stored phone into country code and local 10-digit number
         const raw = stored.toString().trim();
-        const digits = raw.replace(/\D/g, '');
-        if (raw.startsWith('+')) {
-          const m = raw.match(/^\+(\d{1,3})/);
-          const cc = m ? `+${m[1]}` : '+91';
+        
+        // For Indian numbers starting with +91, extract properly
+        if (raw.startsWith('+91')) {
+          const digits = raw.replace(/\D/g, '');
+          const local = digits.slice(-10); // Last 10 digits
+          setCountryCode('+91');
+          setPhoneNumber(local);
+        } else if (raw.startsWith('+')) {
+          // Other country codes
+          const digits = raw.replace(/\D/g, '');
           const local = digits.slice(-10);
-          setCountryCode(cc);
+          // Extract country code (everything except last 10 digits)
+          const ccDigits = digits.slice(0, -10);
+          setCountryCode('+' + ccDigits);
           setPhoneNumber(local);
         } else {
-          // assume India local number if no plus
+          // No + prefix, assume India local number
+          const digits = raw.replace(/\D/g, '');
           const local = digits.slice(-10);
           setCountryCode('+91');
           setPhoneNumber(local);

@@ -205,12 +205,19 @@ export default function ResetPassword() {
         // phone may be in formats like '+911234567890' or '91234567890' or '1234567890'
         // store as-is so login can parse it
         await AsyncStorage.setItem('login_prefill_phone', phone);
+        await AsyncStorage.setItem('password_just_reset', 'true'); // Flag to clear login state
       } catch (e) {
         console.warn('Failed to set login prefill phone', e);
       }
 
-      Alert.alert('Success', 'Reset password successfully !!', [
-        { text: 'OK', onPress: () => router.replace('/(auth)/login') }
+      Alert.alert('Success', 'Password reset successfully! Please login with your new password.', [
+        { 
+          text: 'OK', 
+          onPress: () => {
+            // Use replace to completely reset navigation state
+            router.replace('/(auth)/login');
+          }
+        }
       ]);
     } catch (e: any) {
       console.error('reset-password error', e);
