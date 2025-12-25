@@ -1,107 +1,94 @@
 {
-  "expo": {
-    "name": "Instantlly Cards",
-    "slug": "instantllycards",
-    "version": "1.0.48",
-    "orientation": "portrait",
-    "icon": "./assets/logo.png",
-    "scheme": "instantllycards",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "extra": {
-      "EXPO_PUBLIC_API_BASE": "",
-      "router": {},
-      "eas": {
-        "projectId": "2d7524da-4330-496c-816f-4e011831e6f4"
-      }
-    },
-    "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "icon": "./assets/logo.png",
-      "bundleIdentifier": "com.instantllycards.www.twa",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
-    "android": {
-      "package": "com.instantllycards.www.twa",
-      "versionCode": 48,
-      "permissions": [
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.VIBRATE",
-        "android.permission.WAKE_LOCK"
-      ],
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "icon": "./assets/logo.png",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#FFFFFF",
-        "monochromeImage": "./assets/logo.png"
-      },
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "instantllycards.com",
-              "pathPrefix": "/signup"
-            },
-            {
-              "scheme": "http",
-              "host": "instantllycards.com",
-              "pathPrefix": "/signup"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        }
-      ]
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/logo.png"
-    },
-    "notification": {
-      "vapidPublicKey": "BPxDmVKAhbGMGX4Y3P2Qf7UHI8V_N2T6J5K3a9M7ZlQ0E4S8Y9qR1W6D3fG5bC2vL8X7n4oP6I5e9mZ3Y2qS1W4E"
-    },
-    "plugins": [
-      "expo-router",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#0F1111",
-          "defaultChannel": "default"
-        }
-      ],
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0",
-            "kotlinVersion": "2.0.21"
-          }
-        }
-      ],
-      "expo-web-browser",
-      "expo-asset"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "owner": "rajeshmodi"
-  }
+  "name": "instantllycards",
+  "main": "expo-router/entry",
+  "version": "1.0.49",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "^8.4.4",
+    "@react-native-firebase/app": "^21.14.0",
+    "@react-native-firebase/auth": "^21.14.0",
+    "@react-navigation/material-top-tabs": "^7.4.2",
+    "@react-navigation/native": "^7.1.8",
+    "@tanstack/react-query": "^5.87.4",
+    "axios": "^1.12.1",
+    "expo": "^54.0.23",
+    "expo-application": "^7.0.8",
+    "expo-asset": "~12.0.12",
+    "expo-av": "^16.0.8",
+    "expo-build-properties": "~1.0.9",
+    "expo-constants": "~18.0.8",
+    "expo-contacts": "~15.0.9",
+    "expo-dev-client": "~6.0.17",
+    "expo-device": "~8.0.9",
+    "expo-file-system": "~19.0.21",
+    "expo-font": "~14.0.8",
+    "expo-image-picker": "~17.0.8",
+    "expo-intent-launcher": "~13.0.8",
+    "expo-linear-gradient": "~15.0.7",
+    "expo-linking": "~8.0.8",
+    "expo-location": "~19.0.7",
+    "expo-media-library": "~18.2.1",
+    "expo-notifications": "~0.32.12",
+    "expo-router": "~6.0.14",
+    "expo-sharing": "~14.0.8",
+    "expo-splash-screen": "~31.0.10",
+    "expo-status-bar": "~3.0.8",
+    "expo-web-browser": "~15.0.9",
+    "ionicons": "^8.0.13",
+    "patch-package": "^8.0.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-calendars": "^1.1313.0",
+    "react-native-google-play-install-referrer": "^1.0.0",
+    "react-native-pager-view": "^6.9.1",
+    "react-native-picker-select": "^9.3.1",
+    "react-native-qrcode-svg": "^6.3.15",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-share": "^12.2.1",
+    "react-native-sms-retriever": "^1.1.1",
+    "react-native-svg": "15.12.1",
+    "react-native-tab-view": "^4.2.0",
+    "react-native-web": "~0.21.0",
+    "react-native-webview": "13.15.0",
+    "react-native-worklets": "0.5.1",
+    "socket.io-client": "^4.8.1",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "@types/react-native": "^0.72.8",
+    "ansi-escapes": "^7.1.1",
+    "babel-plugin-module-resolver": "^5.0.2",
+    "react-test-renderer": "19.1.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true,
+  "description": "",
+  "directories": {
+    "lib": "lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DevFarhanCoder/InstantllyCards.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DevFarhanCoder/InstantllyCards/issues"
+  },
+  "homepage": "https://github.com/DevFarhanCoder/InstantllyCards#readme"
 }
