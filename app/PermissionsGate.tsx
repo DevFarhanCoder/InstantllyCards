@@ -109,24 +109,46 @@ export default function PermissionsGate() {
         else router.replace("/(auth)/signup");
     }
 
-    // useEffect(() => {
-    //     checkContacts();
-    //     checkNotifications();
-    // }, []);
     useEffect(() => {
+        let mounted = true;
+        
         (async () => {
+            try {
+                console.log('🔐 [PERMISSIONS-GATE] Checking permissions...');
+                
+                // Add 3-second timeout to prevent hanging
+                const timeoutPromise = new Promise((resolve) => {
+                    setTimeout(() => {
+                        console.log('⏰ [PERMISSIONS-GATE] Timeout - proceeding anyway');
+                        resolve(null);
+                    }, 3000);
+                });
+                
+                const checkPromise = (async () => {
+                    await checkContacts();
+                    await checkNotifications();
 
-            await checkContacts();
-            await checkNotifications();
+                    const c = await Contacts.getPermissionsAsync();
+                    const n = await Notifications.getPermissionsAsync();
 
-            const c = await Contacts.getPermissionsAsync();
-            const n = await Notifications.getPermissionsAsync();
-
-            if (c.status === "granted" && n.status === "granted") {
-                enterApp();
+                    if (c.status === "granted" && n.status === "granted") {
+                        console.log('✅ [PERMISSIONS-GATE] Both permissions granted - navigating');
+                        if (mounted) await enterApp();
+                    } else {
+                        console.log('⚠️ [PERMISSIONS-GATE] Permissions not granted - showing UI');
+                    }
+                })();
+                
+                // Race between permission check and timeout
+                await Promise.race([checkPromise, timeoutPromise]);
+                
+            } catch (error) {
+                console.error('❌ [PERMISSIONS-GATE] Error:', error);
+                // On error, show the permissions UI anyway
             }
-
         })();
+        
+        return () => { mounted = false; };
     }, []);
 
 
