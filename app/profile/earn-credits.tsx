@@ -199,21 +199,34 @@ export default function EarnCreditsScreen() {
         const creditsEarned = response.data.creditsEarned || CREDITS_PER_QUESTION;
         const isCompleted = response.data.completed || false;
         
+        const updatedAnsweredQuestions = response.data.answeredQuestions || [...userProgress.answeredQuestions, questionKey];
+        
         setUserProgress(prev => ({
-          answeredQuestions: response.data.answeredQuestions || [...prev.answeredQuestions, questionKey],
+          answeredQuestions: updatedAnsweredQuestions,
           totalEarned: response.data.totalCreditsFromQuiz || prev.totalEarned + creditsEarned,
         }));
 
-        // Check if quiz is completed (either from backend or if it's the last question)
-        if (isCompleted || currentQuestionIndex >= QUESTIONS.length - 1) {
-          // Last question answered - show final banner then completion
+        // Check if quiz is completed - all 10 questions must be answered
+        const allQuestionsAnswered = updatedAnsweredQuestions.length >= QUESTIONS.length;
+        
+        if (isCompleted || allQuestionsAnswered) {
+          // All questions answered - show final banner then completion
           setShowFinalBanner(true);
           setTimeout(() => {
             showCompletionScreen();
           }, 2000);
         } else {
-          // Move to next question
-          setCurrentQuestionIndex(currentQuestionIndex + 1);
+          // Find next unanswered question
+          const nextUnanswered = QUESTIONS.findIndex(
+            q => !updatedAnsweredQuestions.includes(q.key)
+          );
+          
+          if (nextUnanswered !== -1) {
+            setCurrentQuestionIndex(nextUnanswered);
+          } else {
+            // Fallback: move to next question
+            setCurrentQuestionIndex(currentQuestionIndex + 1);
+          }
           setTextInput('');
         }
       }

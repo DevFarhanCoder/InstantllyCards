@@ -220,12 +220,12 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
         }
       >
         {/* Credits Balance Banner */}
-        <View style={styles.creditsBannerContainer}>
-          <TouchableOpacity 
-            style={styles.creditsBanner}
-            onPress={() => router.push('/referral/credits-history')}
-            activeOpacity={0.7}
-          >
+        <TouchableOpacity 
+          style={styles.creditsBannerContainer}
+          onPress={() => router.push('/referral/credits-history')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.creditsBanner}>
             <View style={styles.creditsContent}>
               <Text style={styles.creditsLabel}>Your Balance</Text>
               <Text style={styles.creditsAmount}>{userCredits.toLocaleString()}</Text>
@@ -234,12 +234,12 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
             <View style={styles.creditsIconCircle}>
               <Ionicons name="wallet" size={32} color="#10B981" />
             </View>
-          </TouchableOpacity>
+          </View>
           <View style={styles.creditsHintContainer}>
             <Ionicons name="information-circle-outline" size={14} color="#9CA3AF" />
             <Text style={styles.creditsHintText}> Tap to view transaction history</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Track Referral Status Button */}
         <TouchableOpacity 
