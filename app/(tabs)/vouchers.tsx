@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import FooterCarousel from '../../components/FooterCarousel';
 
 export default function VouchersScreen() {
   return (
@@ -25,6 +26,9 @@ export default function VouchersScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Footer Carousel */}
+      <FooterCarousel />
     </SafeAreaView>
   );
 }

@@ -47,7 +47,16 @@ type SentCard = {
   cardTitle: string;
   sentAt: string;
   status: 'sent' | 'delivered' | 'viewed';
-  hasMutualExchange?: boolean; // Added to check if recipient has sent a card back
+  hasMutualExchange?: boolean;
+};
+
+type GroupedSentCard = {
+  recipientId: string;
+  recipientName: string;
+  recipientProfilePicture?: string;
+  cardCount: number;
+  latestSentAt: string;
+  cards: SentCard[];
 };
 
 type ReceivedCard = {
@@ -90,11 +99,27 @@ export default function Chats() {
       getCurrentUser().then(setUserData);
     }, []);
   console.log('🏠 Chats tab component rendered');
-  const [activeTab, setActiveTab] = useState<'chats' | 'groups' | 'sent' | 'received'>('groups'); // Start with groups as default
+  
+  // Read incoming deep-link/navigation params from notifications FIRST
+  const params = useLocalSearchParams<{ tab?: string; highlightCardId?: string }>();
+  const incomingTab = params?.tab as string | undefined;
+  const incomingHighlightCardId = params?.highlightCardId as string | undefined;
+  
+  // Set initial tab based on incoming param or default to groups
+  const [activeTab, setActiveTab] = useState<'chats' | 'groups' | 'sent' | 'received'>(
+    (incomingTab as any) || 'groups'
+  );
   
   // Check for tab preference IMMEDIATELY on mount - BEFORE rendering content
   useEffect(() => {
     const checkInitialTab = async () => {
+      // If there's an incoming tab parameter, use it and don't check storage
+      if (incomingTab) {
+        console.log('📍 Using incoming tab parameter:', incomingTab);
+        setInitialTabLoaded(true);
+        return;
+      }
+      
       const savedTab = await AsyncStorage.getItem('chats_active_tab');
       if (savedTab === 'groups') {
         console.log('📌 Keeping Groups tab active');
@@ -106,12 +131,7 @@ export default function Chats() {
       setInitialTabLoaded(true); // Allow rendering
     };
     checkInitialTab();
-  }, []);
-  
-  // Read incoming deep-link/navigation params from notifications
-  const params = useLocalSearchParams<{ tab?: string; highlightCardId?: string }>();
-  const incomingTab = params?.tab as string | undefined;
-  const incomingHighlightCardId = params?.highlightCardId as string | undefined;
+  }, [incomingTab]);
 
   // Local highlight state (used to briefly highlight an item)
   const [highlightId, setHighlightId] = useState<string | undefined>(undefined);
@@ -119,6 +139,7 @@ export default function Chats() {
   // Animation refs for highlight effect
   const highlightAnimation = useRef(new Animated.Value(0)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
+  const [currentUserId, setCurrentUserId] = useState<string>("");
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsSynced, setContactsSynced] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -127,6 +148,22 @@ export default function Chats() {
   const [receivedRefreshing, setReceivedRefreshing] = useState(false);
   const [receivedSearchQuery, setReceivedSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Load current user ID on mount
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const userId = await AsyncStorage.getItem("currentUserId");
+        if (userId) {
+          setCurrentUserId(userId);
+          console.log("🔍 Chats: Current user ID loaded:", userId);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user ID:", error);
+      }
+    };
+    fetchUserId();
+  }, []);
 
   // Normalize and debounce search query for better matching
   useEffect(() => {
@@ -385,10 +422,15 @@ useEffect(() => {
 
   // Handle incoming navigation params from notifications
   useEffect(() => {
-    if (incomingTab) {
-      changeTab(incomingTab as any); // Navigate to tab without animation
+    if (incomingTab && changeTab) {
+      console.log('📍 Navigating to tab:', incomingTab);
+      // Use setTimeout to ensure changeTab is called after component is fully mounted
+      setTimeout(() => {
+        changeTab(incomingTab as any); // Navigate to tab without animation
+      }, 100);
     }
     if (incomingHighlightCardId) {
+      console.log('✨ Setting highlight for card:', incomingHighlightCardId);
       setHighlightId(incomingHighlightCardId);
       
       // Start highlight animation sequence
@@ -427,13 +469,14 @@ useEffect(() => {
           duration: 500,
           useNativeDriver: false,
         }).start(() => {
+          console.log('✅ Clearing highlight');
           setHighlightId(undefined);
         });
       }, 4000);
       
       return () => clearTimeout(t);
     }
-  }, [incomingTab, incomingHighlightCardId]);
+  }, [incomingTab, incomingHighlightCardId, changeTab]);
 
   // Group sharing handlers
   const handleCreateGroupSharing = () => {
@@ -966,7 +1009,8 @@ useEffect(() => {
 
   // Fetch sent cards with INFINITE SCROLL (cursor-based pagination)
   const sentCardsQuery = useInfiniteQuery({
-    queryKey: ["sent-cards"],
+    queryKey: ["sent-cards", currentUserId], // CRITICAL: Include userId to prevent data leakage between accounts
+    enabled: !!currentUserId, // Only fetch when user ID is available
     queryFn: async ({ pageParam = null }) => {
       try {
         const token = await ensureAuth();
@@ -1003,7 +1047,8 @@ useEffect(() => {
 
   // Fetch received cards with INFINITE SCROLL (cursor-based pagination)
   const receivedCardsQuery = useInfiniteQuery({
-    queryKey: ["received-cards", debouncedSearchQuery],
+    queryKey: ["received-cards", currentUserId, debouncedSearchQuery], // CRITICAL: Include userId to prevent data leakage
+    enabled: !!currentUserId, // Only fetch when user ID is available
     queryFn: async ({ pageParam = null }) => {
       try {
         const token = await ensureAuth();
@@ -1087,6 +1132,51 @@ useEffect(() => {
     }, [activeTab, receivedCardsQuery])
   );
 
+  // Helper function: Get date section header (Today, Yesterday, or formatted date)
+  const getDateSection = useCallback((dateString: string): string => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Reset time parts for comparison
+    today.setHours(0, 0, 0, 0);
+    yesterday.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+
+    if (date.getTime() === today.getTime()) {
+      return 'Today';
+    } else if (date.getTime() === yesterday.getTime()) {
+      return 'Yesterday';
+    } else {
+      // Format as "December 13, 2025"
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+  }, []);
+
+  // Helper function: Group cards by date sections with headers
+  const groupCardsByDate = useCallback(<T extends { sentAt?: string; receivedAt?: string }>(
+    cards: T[], 
+    dateField: 'sentAt' | 'receivedAt'
+  ): Array<{ type: 'header'; date: string } | { type: 'card'; data: T }> => {
+    const result: Array<{ type: 'header'; date: string } | { type: 'card'; data: T }> = [];
+    let lastSection = '';
+
+    cards.forEach((card) => {
+      const dateString = card[dateField];
+      if (!dateString) return;
+
+      const section = getDateSection(dateString);
+      if (section !== lastSection) {
+        result.push({ type: 'header', date: section });
+        lastSection = section;
+      }
+      result.push({ type: 'card', data: card });
+    });
+
+    return result;
+  }, [getDateSection]);
+
   // Helper function: Group received cards by sender
   const groupReceivedCardsBySender = useCallback((cards: ReceivedCard[]): GroupedReceivedCard[] => {
     const grouped = cards.reduce((acc, card) => {
@@ -1130,9 +1220,89 @@ useEffect(() => {
     }
   };
 
-  // REMOVED syncContacts() - should only sync once during signup/onboarding
-  // Contact sync is handled in signup flow, NOT here
-  // This screen only LOADS contacts from MongoDB
+  // Manual contact sync function for Chats tab
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  const syncContactsManually = async () => {
+    if (isSyncing) return;
+    
+    try {
+      setIsSyncing(true);
+      console.log('📱 [MANUAL-SYNC] Starting manual contact sync...');
+      
+      // Request contacts permission
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant contacts permission to sync your contacts.');
+        return;
+      }
+      
+      console.log('✅ [MANUAL-SYNC] Contacts permission granted');
+      
+      // Get device contacts
+      const { data: deviceContacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+      });
+      
+      // Extract phone numbers
+      const phoneNumbers = deviceContacts
+        .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
+        .map((contact: any) => ({
+          name: contact.name || 'Unknown Contact',
+          phoneNumber: contact.phoneNumbers[0]?.number?.replace(/\D/g, '') || ''
+        }))
+        .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
+      
+      console.log(`📊 [MANUAL-SYNC] Found ${phoneNumbers.length} valid contacts`);
+      
+      if (phoneNumbers.length === 0) {
+        Alert.alert('No Contacts', 'No valid contacts found to sync.');
+        return;
+      }
+      
+      // Send contacts in batches
+      const BATCH_SIZE = 200;
+      const totalBatches = Math.ceil(phoneNumbers.length / BATCH_SIZE);
+      
+      console.log(`📤 [MANUAL-SYNC] Syncing in ${totalBatches} batch(es)...`);
+      
+      for (let i = 0; i < phoneNumbers.length; i += BATCH_SIZE) {
+        const batch = phoneNumbers.slice(i, i + BATCH_SIZE);
+        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+        
+        console.log(`📤 [MANUAL-SYNC] Batch ${batchNumber}/${totalBatches} (${batch.length} contacts)`);
+        
+        try {
+          await api.post("/contacts/sync-all", { contacts: batch });
+          console.log(`✅ [MANUAL-SYNC] Batch ${batchNumber}/${totalBatches} synced`);
+        } catch (batchError) {
+          console.error(`❌ [MANUAL-SYNC] Batch ${batchNumber} failed:`, batchError);
+        }
+        
+        // Small delay between batches
+        if (i + BATCH_SIZE < phoneNumbers.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      // Save sync timestamp
+      await AsyncStorage.setItem('contactsSyncTimestamp', Date.now().toString());
+      await AsyncStorage.setItem('contactsSynced', 'true');
+      
+      // Refresh contacts query
+      queryClient.invalidateQueries({ queryKey: ["app-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["stored-contacts"] });
+      
+      console.log(`✅ [MANUAL-SYNC] COMPLETE - ${phoneNumbers.length} contacts synced`);
+      Alert.alert('Success', `${phoneNumbers.length} contacts synced successfully!`);
+      
+    } catch (syncError: any) {
+      console.error(`❌ [MANUAL-SYNC] FAILED:`, syncError?.message);
+      Alert.alert('Sync Failed', 'Failed to sync contacts. Please try again.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Helper function to handle phone calls - uses local contact data to avoid API calls
   const handleCall = async (item: SentCard | ReceivedCard, isSentCard: boolean) => {
@@ -1272,22 +1442,42 @@ useEffect(() => {
     const receivedCards = receivedCardsQuery.data?.pages.flatMap(page => page.data) || [];
     const hasMutualExchange = receivedCards.some(card => card.senderId === item.recipientId);
 
+    // Check if this card should be highlighted
+    const isHighlighted = incomingHighlightCardId === item._id || 
+                          incomingHighlightCardId === item.cardId || 
+                          highlightId === item._id || 
+                          highlightId === item.cardId;
+    
+    if (isHighlighted) {
+      console.log('✨ Highlighting sent card:', { 
+        itemId: item._id, 
+        cardId: item.cardId, 
+        highlightId, 
+        incomingHighlightCardId,
+        recipientName: item.recipientName 
+      });
+    }
+
     return (
       <TouchableOpacity
         onPress={() => {
+          // Clear highlight when card is clicked
+          if (isHighlighted) {
+            console.log('🎯 Card clicked - clearing highlight');
+            setHighlightId(undefined);
+            highlightAnimation.setValue(0);
+          }
           router.push({ pathname: `/(main)/card/[id]`, params: { id: item.cardId } } as any);
         }}
       >
         <Animated.View
           style={[
             s.cardItem, 
-            (incomingHighlightCardId === item._id || incomingHighlightCardId === item.cardId || highlightId === item._id) && {
+            isHighlighted && {
               backgroundColor: highlightAnimation.interpolate({
                 inputRange: [0, 1],
                 outputRange: ['#FFFFFF', '#FFE4B5']
               }),
-              borderColor: '#FF6B35',
-              borderWidth: 2,
               transform: [{
                 scale: pulseAnimation
               }],
@@ -1397,14 +1587,14 @@ useEffect(() => {
             // Invalidate ALL received-cards queries (ignore search parameter)
             console.log('🔄 Invalidating ALL received-cards queries...');
             await queryClient.invalidateQueries({ 
-              queryKey: ["received-cards"],
+              queryKey: ["received-cards", currentUserId],
               exact: false, // Invalidate all variations including search queries
               refetchType: 'all'
             });
             
             // Force refetch active queries
             await queryClient.refetchQueries({ 
-              queryKey: ["received-cards"],
+              queryKey: ["received-cards", currentUserId],
               exact: false,
               type: 'active'
             });
@@ -1847,15 +2037,27 @@ useEffect(() => {
   const renderChatsPage = useMemo(() => (
     <View style={[s.page, { width: screenWidth }]}>
       {contactsLoading || !contactsSynced ? (
-        <View style={s.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={s.loadingText}>
-            {contactsLoading ? 'Loading contacts...' : 'Loading ...'}
-          </Text>
-          {!contactsSynced && (
-            <Text style={s.emptySubtext}>
-              If contacts don't load, please sync from Settings
-            </Text>
+        <View style={s.centeredEmptyState}>
+          {isSyncing ? (
+            <>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={s.syncingPlaceholder}>Syncing contacts...</Text>
+              <Text style={s.syncingSubtext}>Please wait while we fetch your contacts</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="people-outline" size={80} color="#D1D5DB" />
+              <Text style={s.emptyText}>No contacts synced</Text>
+              <Text style={s.emptySubtext}>Sync your contacts to start chatting</Text>
+              <TouchableOpacity 
+                onPress={syncContactsManually}
+                disabled={isSyncing}
+                style={s.centeredSyncButton}
+              >
+                <Ionicons name="sync" size={20} color="#FFFFFF" />
+                <Text style={s.centeredSyncButtonText}>Sync Contacts</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       ) : (
@@ -1953,8 +2155,45 @@ useEffect(() => {
       return acc;
     }, [] as Array<{senderId: string; senderName: string; senderProfilePicture?: string}>);
 
-    const priorityOrder = { sent: 0, delivered: 1, viewed: 2 } as any;
-    const ordered = [...sent].sort((a: SentCard, b: SentCard) => (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3));
+    // Group sent cards by recipient and find latest per user
+    const groupedByRecipient = sent.reduce((acc, card) => {
+      const recipientId = card.recipientId;
+      if (!acc[recipientId]) {
+        acc[recipientId] = {
+          recipientId: card.recipientId,
+          recipientName: card.recipientName,
+          recipientProfilePicture: (card as any).recipientProfilePicture,
+          cardCount: 0,
+          latestSentAt: card.sentAt,
+          cards: [],
+        };
+      }
+      acc[recipientId].cardCount++;
+      acc[recipientId].cards.push(card);
+      // Update latest sent time if this card is newer
+      if (new Date(card.sentAt) > new Date(acc[recipientId].latestSentAt)) {
+        acc[recipientId].latestSentAt = card.sentAt;
+      }
+      return acc;
+    }, {} as Record<string, GroupedSentCard>);
+
+    // Convert to array and sort by latest sent time per user
+    const sortedGroups = Object.values(groupedByRecipient).sort((a, b) => 
+      new Date(b.latestSentAt).getTime() - new Date(a.latestSentAt).getTime()
+    );
+
+    // Flatten back to individual cards maintaining the group order
+    const ordered: SentCard[] = [];
+    sortedGroups.forEach(group => {
+      // Sort cards within each group by sent time (latest first)
+      const sortedCards = [...group.cards].sort((a, b) => 
+        new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()
+      );
+      ordered.push(...sortedCards);
+    });
+
+    // Add date section headers
+    const cardsWithHeaders = groupCardsByDate(ordered, 'sentAt');
 
     console.log(`📤 Sent cards: ${sent.length} total, ${sentCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${sentCardsQuery.hasNextPage}`);
     console.log(`🔔 Pending connections: ${sendersWithoutReply.length} people waiting for reply`);
@@ -1994,9 +2233,18 @@ useEffect(() => {
         )}
         
         <FlatList
-          data={ordered}
-          keyExtractor={(item) => item._id}
-          renderItem={renderSentCard}
+          data={cardsWithHeaders}
+          keyExtractor={(item, index) => item.type === 'header' ? `header-${item.date}-${index}` : `card-${item.data._id}`}
+          renderItem={({ item }) => {
+            if (item.type === 'header') {
+              return (
+                <View style={s.dateHeader}>
+                  <Text style={s.dateHeaderText}>{item.date}</Text>
+                </View>
+              );
+            }
+            return renderSentCard({ item: item.data });
+          }}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingVertical: 4, paddingBottom: 140 }}
           removeClippedSubviews={true}
@@ -2031,7 +2279,7 @@ useEffect(() => {
         />
       </View>
     );
-  }, [screenWidth, sentCardsQuery.data, receivedCardsQuery.data, sentCardsQuery.hasNextPage, sentCardsQuery.isFetchingNextPage, sentRefreshing, handleSentRefresh]);
+  }, [screenWidth, sentCardsQuery.data, receivedCardsQuery.data, sentCardsQuery.hasNextPage, sentCardsQuery.isFetchingNextPage, sentRefreshing, handleSentRefresh, groupCardsByDate, renderSentCard]);
 
   const renderReceivedPage = useMemo(() => {
     // Flatten infinite query pages into single array
@@ -2051,6 +2299,11 @@ useEffect(() => {
         )
       : [];
 
+    // Add date section headers for search view
+    const cardsWithHeaders = debouncedSearchQuery.trim() 
+      ? groupCardsByDate(orderedCards, 'receivedAt')
+      : [];
+
     console.log(`📬 Received cards: ${received.length} total, ${groupedCards.length} senders, ${receivedCardsQuery.data?.pages.length || 0} pages loaded, hasNextPage: ${receivedCardsQuery.hasNextPage}`);
 
     const handleLoadMore = () => {
@@ -2061,9 +2314,9 @@ useEffect(() => {
       }
     };
 
-    // Determine data to show: if searching, show individual cards; otherwise show grouped
+    // Determine data to show: if searching, show individual cards with headers; otherwise show grouped
     const isSearching = debouncedSearchQuery.trim().length > 0;
-    const dataToShow = isSearching ? orderedCards : groupedCards;
+    const dataToShow = isSearching ? cardsWithHeaders : groupedCards;
 
     return (
       <View style={[s.page, { width: screenWidth }]}>
@@ -2108,16 +2361,27 @@ useEffect(() => {
         
         <FlatList
           data={dataToShow}
-          keyExtractor={(item) => {
+          keyExtractor={(item, index) => {
             if (isSearching) {
-              return (item as ReceivedCard)._id;
+              const searchItem = item as any;
+              return searchItem.type === 'header' 
+                ? `header-${searchItem.date}-${index}` 
+                : `card-${searchItem.data._id}`;
             } else {
               return (item as GroupedReceivedCard).senderId;
             }
           }}
           renderItem={({ item }) => {
             if (isSearching) {
-              return renderReceivedCard({ item: item as ReceivedCard });
+              const searchItem = item as any;
+              if (searchItem.type === 'header') {
+                return (
+                  <View style={s.dateHeader}>
+                    <Text style={s.dateHeaderText}>{searchItem.date}</Text>
+                  </View>
+                );
+              }
+              return renderReceivedCard({ item: searchItem.data as ReceivedCard });
             } else {
               return renderGroupedReceivedCard({ item: item as GroupedReceivedCard });
             }
@@ -2163,7 +2427,7 @@ useEffect(() => {
         />
       </View>
     );
-  }, [screenWidth, receivedCardsQuery.data, receivedCardsQuery.hasNextPage, receivedCardsQuery.isFetchingNextPage, receivedRefreshing, handleReceivedRefresh, debouncedSearchQuery, receivedSearchQuery, groupReceivedCardsBySender, renderReceivedCard, renderGroupedReceivedCard]);
+  }, [screenWidth, receivedCardsQuery.data, receivedCardsQuery.hasNextPage, receivedCardsQuery.isFetchingNextPage, receivedRefreshing, handleReceivedRefresh, debouncedSearchQuery, receivedSearchQuery, groupReceivedCardsBySender, groupCardsByDate, renderReceivedCard, renderGroupedReceivedCard]);
 
   return (
     <SafeAreaView style={s.root}>
@@ -2452,6 +2716,39 @@ function GroupsFAB({
     fontSize: 24,
     fontWeight: "700",
     color: "#111827",
+  },
+  centeredEmptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  syncingPlaceholder: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+    marginTop: 20,
+  },
+  syncingSubtext: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  centeredSyncButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 24,
+    gap: 8,
+  },
+  centeredSyncButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   tabContainer: {
     flexDirection: "row",
@@ -3127,6 +3424,23 @@ const fabStyles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "transparent",
     zIndex: 55,
+  },
+  dateHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: "#F9FAFB",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    marginTop: 4,
+  },
+  dateHeaderText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 });
 

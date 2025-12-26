@@ -53,6 +53,20 @@ const isURL = (v: string) =>
 const isDigits = (v: string) => /^\d+$/.test(v);
 const minDigits = (v: string, n: number) => isDigits(v) && v.length >= n;
 
+// Helper to convert image paths to full URLs
+const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL or Base64, return as-is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('data:')) {
+        return imagePath;
+    }
+    // If it's a relative path, construct full URL
+    const apiBase = process.env.EXPO_PUBLIC_API_BASE || 'http://192.168.0.104:8080';
+    const cleanBase = apiBase.replace(/\/$/, '');
+    const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+    return `${cleanBase}${cleanPath}`;
+};
+
 // Date helpers: format ISO <-> display (dd-mm-yyyy) and parse
 const pad = (n: number) => String(n).padStart(2, '0');
 const formatIsoToDisplay = (iso: string | null) => {
@@ -96,10 +110,27 @@ export default function Builder() {
     const router = useRouter();
     const { edit } = useLocalSearchParams<{ edit?: string }>();
     const isEditMode = !!edit;
+    const [currentUserId, setCurrentUserId] = useState<string>("");
+
+    // Load current user ID on mount
+    useEffect(() => {
+        const fetchUserId = async () => {
+            try {
+                const userId = await AsyncStorage.getItem("currentUserId");
+                if (userId) {
+                    setCurrentUserId(userId);
+                    console.log("🔍 Builder: Current user ID loaded:", userId);
+                }
+            } catch (error) {
+                console.error("Builder: Failed to fetch user ID:", error);
+            }
+        };
+        fetchUserId();
+    }, []);
     
     // Fetch existing card data if in edit mode
     const cardsQuery = useQuery({
-        queryKey: ["cards"],
+        queryKey: ["cards", currentUserId],
         queryFn: async () => {
             const response = await api.get<{ data: any[] }>("/cards");
             return response.data || [];
@@ -114,18 +145,55 @@ export default function Builder() {
     // Create card mutation
     const createCardMutation = useMutation({
         mutationFn: async (payload: any) => {
+            // Clear draft BEFORE sending create to prevent stale draft
+            try {
+                await AsyncStorage.removeItem('card_draft_new');
+                console.log('🗑️ Draft cleared before create starts');
+            } catch (e) {
+                console.warn('Failed to clear draft before create:', e);
+            }
+            
+            console.log('📤 Builder: Sending card creation payload:', JSON.stringify({ birthdate: payload.birthdate, anniversary: payload.anniversary, name: payload.name }));
             const response = await api.post<{ data: any }>("/cards", payload);
+            console.log('✅ Builder: Card creation response:', JSON.stringify({ birthdate: response.data?.birthdate, anniversary: response.data?.anniversary }));
             return response.data; // Return the data from the response
         },
-        onSuccess: (_data, payload) => {
-            // Log raw server response for debugging date persistence
-            try { console.log('Builder: raw create response:', _data); } catch (e) {}
-            // Invalidate queries to refresh My Cards, Home feed and profile
-            queryClient.invalidateQueries({ queryKey: ["cards"] });
-            queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-            try { queryClient.invalidateQueries({ queryKey: ['contacts-feed'] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
-            // Try to sync certain fields back to the user's profile so Account reflects latest card
-            (async () => {
+        onSuccess: async (_data, payload) => {
+            // ⚡ INSTANT UPDATE: Add card to cache immediately
+            const createdCard = _data && (_data as any).data ? (_data as any).data : _data;
+            if (createdCard) {
+                queryClient.setQueryData(['cards', currentUserId], (old: any) => {
+                    if (!old) return [createdCard];
+                    if (Array.isArray(old)) return [createdCard, ...old];
+                    return old;
+                });
+            }
+
+            // 🔄 CRITICAL: Invalidate and refetch IMMEDIATELY to prevent stale cache
+            await queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
+            await queryClient.refetchQueries({ queryKey: ["cards", currentUserId] });
+            console.log('✅ Cache refreshed with newly created card');
+
+            // ⚡ SHOW SUCCESS IMMEDIATELY - Don't wait for background tasks
+            Alert.alert("Success", "Card saved!", [
+                {
+                    text: "OK", 
+                    onPress: () => {
+                        router.back(); // Navigate back immediately
+                    }
+                }
+            ]);
+
+            // 🔄 Do all heavy operations in BACKGROUND (non-blocking)
+            setTimeout(() => {
+                // Log raw server response for debugging date persistence
+                try { console.log('Builder: raw create response:', _data); } catch (e) {}
+                // Invalidate queries to refresh My Cards, Home feed and profile
+                queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
+                queryClient.invalidateQueries({ queryKey: ["public-feed"] });
+                try { queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
+                // Try to sync certain fields back to the user's profile so Account reflects latest card
+                (async () => {
                 try {
                     const profileable: any = {};
                     // Load existing user from AsyncStorage so we avoid sending an unchanged or conflicting phone
@@ -133,16 +201,13 @@ export default function Builder() {
                     let existingUser: any = null;
                     try { existingUser = existingUserRaw ? JSON.parse(existingUserRaw) : null; } catch (e) { existingUser = null; }
 
-                    ['name','personalPhone','gender','birthdate','anniversary'].forEach(k => {
-                        // map card's personalPhone -> phone for profile but only if it's different from stored user phone
-                        if (k === 'personalPhone' && (payload && (payload as any).personalPhone !== undefined)) {
-                            const newPhone = (payload as any).personalPhone;
-                            const storedPhone = existingUser?.phone || existingUser?.phoneNumber || null;
-                            if (!storedPhone || String(newPhone) !== String(storedPhone)) {
-                                profileable.phone = newPhone;
-                            }
-                        } else if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
+                    ['name','gender','birthdate','anniversary'].forEach(k => {
+                        // Skip personalPhone - don't sync it to user profile to avoid conflicts
+                        // The card's personalPhone is independent of the user's account phone
+                        if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
                     });
+                    
+                    console.log('📱 Profile sync - personalPhone intentionally skipped to avoid conflicts');
                     
                     console.log('📅 Builder: Sending to profile:', {
                         hasBirthdate: !!profileable.birthdate,
@@ -200,43 +265,21 @@ export default function Builder() {
                             }
 
                             // Invalidate profile & card queries so UI refreshes
-                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards'] }); } catch (e) {}
+                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards', currentUserId] }); } catch (e) {}
                             // Persist created card locally so Profile & MyCards can read it immediately
                             try {
                                 const createdCard = _data && (_data as any).data ? ( _data as any).data : _data;
-                                    if (createdCard) {
+                                if (createdCard) {
                                     await AsyncStorage.setItem('default_card', JSON.stringify(createdCard));
                                     console.log('Builder: saved created card to default_card (preview):', createdCard._id || createdCard.id || JSON.stringify(createdCard).slice(0,200));
-                                    try {
-                                        // Update local ['cards'] cache immediately
-                                        queryClient.setQueryData(['cards'], (old: any) => {
-                                            if (!old) return [createdCard];
-                                            if (Array.isArray(old)) return [createdCard, ...old];
-                                            return old;
-                                        });
-                                    } catch (e) {
-                                        console.warn('Builder: failed to setQueryData for created card (cards):', e);
-                                    }
 
-                                    try {
-                                        // Also proactively add to contacts-feed so Home shows the new card even if Home wasn't mounted
-                                        const before = queryClient.getQueryData(['contacts-feed']);
-                                        console.log('Builder: contacts-feed cache before insert length:', Array.isArray(before) ? before.length : typeof before);
-                                        queryClient.setQueryData(['contacts-feed'], (old: any) => {
-                                            if (!old) return [createdCard];
-                                            if (Array.isArray(old)) return [createdCard, ...old];
-                                            return old;
-                                        });
-                                        const after = queryClient.getQueryData(['contacts-feed']);
-                                        console.log('Builder: contacts-feed cache after insert length:', Array.isArray(after) ? after.length : typeof after);
-                                    } catch (e) {
-                                        console.warn('Builder: failed to setQueryData for contacts-feed', e);
-                                    }
+                                    // DO NOT add user's own cards to contacts-feed (home screen should only show other members' cards)
+                                    console.log('Builder: Skipping contacts-feed cache update for user\'s own card (should only show in My Cards)');
 
                                     // Invalidate and request refetch for all queries so any mounted screens refresh
                                     try {
-                                        queryClient.invalidateQueries({ queryKey: ['contacts-feed'], refetchType: 'all' });
-                                        queryClient.invalidateQueries({ queryKey: ['cards'], refetchType: 'all' });
+                                        queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId], refetchType: 'all' });
+                                        queryClient.invalidateQueries({ queryKey: ['cards', currentUserId], refetchType: 'all' });
                                     } catch (e) {
                                         console.warn('Builder: failed to invalidate queries after create', e);
                                     }
@@ -247,14 +290,8 @@ export default function Builder() {
                         }
                     }
                 } catch (e) { console.warn('Builder: unexpected error while syncing profile', e); }
-            })();
-
-            Alert.alert("Success", "Card saved!", [
-                {
-                    text: "OK", 
-                    onPress: () => router.back() // Navigate back to previous screen
-                }
-            ]);
+            })(); // End of async IIFE
+            }, 0); // End of background setTimeout
         },
         onError: (error: any) => {
             Alert.alert("Save failed", error?.message ?? "Unknown error");
@@ -264,32 +301,70 @@ export default function Builder() {
     // Update card mutation
     const updateCardMutation = useMutation({
         mutationFn: async (payload: any) => {
+            // Clear draft BEFORE sending update to prevent stale draft
+            try {
+                const draftKey = `card_draft_${edit}`;
+                await AsyncStorage.removeItem(draftKey);
+                console.log('🗑️ Draft cleared before update starts:', draftKey);
+            } catch (e) {
+                console.warn('Failed to clear draft before update:', e);
+            }
+            
+            console.log('📤 Builder: Sending card UPDATE payload:', JSON.stringify({ birthdate: payload.birthdate, anniversary: payload.anniversary, name: payload.name, gender: payload.gender }));
+            console.log('📤 Builder: FULL UPDATE PAYLOAD:', JSON.stringify(payload, null, 2));
             const response = await api.put<{ data: any }>(`/cards/${edit}`, payload);
+            console.log('✅ Builder: Card UPDATE response:', JSON.stringify({ birthdate: response.data?.birthdate, anniversary: response.data?.anniversary, name: response.data?.name, gender: response.data?.gender }));
+            console.log('✅ Builder: FULL UPDATE RESPONSE:', JSON.stringify(response.data, null, 2));
             return response.data;
         },
-        onSuccess: (_data, payload) => {
-            // Log raw server response for debugging date persistence
-            try { console.log('Builder: raw update response:', _data); } catch (e) {}
-            queryClient.invalidateQueries({ queryKey: ["cards"] });
-            queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-            try { queryClient.invalidateQueries({ queryKey: ['contacts-feed'] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
-            // Sync certain card fields back to profile
-            (async () => {
+        onSuccess: async (_data, payload) => {
+            // ⚡ INSTANT UPDATE: Update card in cache immediately with user-specific key
+            const updatedCard = _data && (_data as any).data ? (_data as any).data : _data;
+            if (updatedCard && currentUserId) {
+                queryClient.setQueryData(['cards', currentUserId], (old: any) => {
+                    if (!old) return [updatedCard];
+                    if (Array.isArray(old)) return old.map((c: any) => (c && (c._id || c.id) === (updatedCard._id || updatedCard.id) ? updatedCard : c));
+                    return old;
+                });
+            }
+
+            // 🔄 CRITICAL: Invalidate and refetch IMMEDIATELY to prevent stale cache
+            await queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
+            await queryClient.refetchQueries({ queryKey: ["cards", currentUserId] });
+            console.log('✅ Cache refreshed with latest data');
+
+            // ⚡ SHOW SUCCESS IMMEDIATELY - Don't wait for background tasks
+            Alert.alert("Success", "Card updated!", [
+                {
+                    text: "OK", 
+                    onPress: () => {
+                        router.back();
+                    }
+                }
+            ]);
+
+            // 🔄 Do all heavy operations in BACKGROUND (non-blocking)
+            setTimeout(() => {
+                // Log raw server response for debugging date persistence
+                try { console.log('Builder: raw update response:', JSON.stringify({ birthdate: _data?.birthdate, anniversary: _data?.anniversary })); } catch (e) {}
+                queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
+                queryClient.invalidateQueries({ queryKey: ["public-feed"] });
+                try { queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
+                // Sync certain card fields back to profile
+                (async () => {
                 try {
                     const profileable: any = {};
                     // Load existing user so we only attempt phone changes when necessary
                     const existingUserRawU = await AsyncStorage.getItem('user');
                     let existingUserU: any = null;
                     try { existingUserU = existingUserRawU ? JSON.parse(existingUserRawU) : null; } catch (e) { existingUserU = null; }
-                    ['name','personalPhone','gender','birthdate','anniversary'].forEach(k => {
-                        if (k === 'personalPhone' && (payload && (payload as any).personalPhone !== undefined)) {
-                            const newPhone = (payload as any).personalPhone;
-                            const storedPhone = existingUserU?.phone || existingUserU?.phoneNumber || null;
-                            if (!storedPhone || String(newPhone) !== String(storedPhone)) {
-                                profileable.phone = newPhone;
-                            }
-                        } else if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
+                    ['name','gender','birthdate','anniversary'].forEach(k => {
+                        // Skip personalPhone - don't sync it to user profile to avoid conflicts
+                        // The card's personalPhone is independent of the user's account phone
+                        if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
                     });
+                    
+                    console.log('📱 Profile sync (update) - personalPhone intentionally skipped to avoid conflicts');
                     // Normalize gender string to profile-friendly values
                     if (profileable.gender && typeof profileable.gender === 'string') {
                         const g = String(profileable.gender).toLowerCase();
@@ -333,7 +408,7 @@ export default function Builder() {
                                     throw err;
                                 }
                             }
-                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards'] }); } catch (e) {}
+                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards', currentUserId] }); } catch (e) {}
                         } catch (e) {
                             console.warn('Builder update:onSuccess failed to sync profile', e);
                         }
@@ -348,33 +423,17 @@ export default function Builder() {
                     if (updatedCard) {
                         await AsyncStorage.setItem('default_card', JSON.stringify(updatedCard));
                         console.log('Builder: saved updated card to default_card (preview):', updatedCard._id || updatedCard.id || JSON.stringify(updatedCard).slice(0,200));
-                        // Update react-query cache for ['cards'] to replace the stale card immediately
-                        try {
-                            queryClient.setQueryData(['cards'], (old: any) => {
-                                if (!old) return [updatedCard];
-                                if (Array.isArray(old)) return old.map((c: any) => (c && (c._id || c.id) === (updatedCard._id || updatedCard.id) ? updatedCard : c));
-                                return old;
-                            });
-                        } catch (e) {
-                            console.warn('Builder: failed to setQueryData for updated card', e);
-                        }
                         // Force refetch of contacts-feed (Home) so update is visible immediately
                         try {
-                            queryClient.invalidateQueries({ queryKey: ['contacts-feed'] });
-                            queryClient.refetchQueries({ queryKey: ['contacts-feed'] });
+                            queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] });
+                            queryClient.refetchQueries({ queryKey: ['contacts-feed', currentUserId] });
                         } catch (e) {
                             console.warn('Builder: failed to refresh contacts-feed after update', e);
                         }
                     }
                 } catch (e) { console.warn('Builder: failed to save default_card after update', e); }
             })();
-
-            Alert.alert("Success", "Card updated!", [
-                {
-                    text: "OK", 
-                    onPress: () => router.back()
-                }
-            ]);
+            }, 0); // End of background setTimeout
         },
         onError: (error: any) => {
             Alert.alert("Update failed", error?.message ?? "Unknown error");
@@ -387,16 +446,27 @@ export default function Builder() {
             await api.del(`/cards/${edit}`);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["cards"] });
-            queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-            try { queryClient.invalidateQueries({ queryKey: ['contacts-feed'] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
+            // Remove the card from cache immediately for instant UI update
+            if (currentUserId) {
+                queryClient.setQueryData(['cards', currentUserId], (old: any) => {
+                    if (!old) return [];
+                    if (Array.isArray(old)) return old.filter((c: any) => (c._id || c.id) !== edit);
+                    return old;
+                });
+            }
             
-            Alert.alert("Success", "Card deleted!", [
-                {
-                    text: "OK", 
-                    onPress: () => router.back()
-                }
-            ]);
+            // Navigate back immediately - don't wait for refetch
+            router.back();
+            
+            // Invalidate in background (non-blocking)
+            setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
+                queryClient.invalidateQueries({ queryKey: ["public-feed"] });
+                queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] });
+                queryClient.invalidateQueries({ queryKey: ['profile'] });
+            }, 100);
+            
+            Alert.alert("Success", "Card deleted!");
         },
         onError: (error: any) => {
             Alert.alert("Delete failed", error?.message ?? "Unknown error");
@@ -517,6 +587,7 @@ export default function Builder() {
     // Keywords state with proper debouncing to fix saving issues
     const [keywords, setKeywords] = useState("");
     const keywordsTimeout = useRef<any>(null);
+    const draftSaveTimeout = useRef<any>(null);
     
     // Debounced keywords handler to prevent saving issues - Memoized to prevent recreation
     const handleKeywordsChange = useCallback((text: string) => {
@@ -541,6 +612,208 @@ export default function Builder() {
             }
         };
     }, []);
+
+    // Save form state as draft (debounced)
+    const saveDraft = useCallback(() => {
+        if (draftSaveTimeout.current) {
+            clearTimeout(draftSaveTimeout.current);
+        }
+        
+        draftSaveTimeout.current = setTimeout(async () => {
+            try {
+                const draftKey = isEditMode ? `card_draft_${edit}` : 'card_draft_new';
+                const draftData = {
+                    name,
+                    birthdate,
+                    anniversary,
+                    birthText,
+                    annivText,
+                    gender,
+                    personalCountryCode,
+                    personalPhone,
+                    email,
+                    location,
+                    mapsLink,
+                    companyName,
+                    designation,
+                    companyCountryCode,
+                    companyPhone,
+                    companyPhones,
+                    companyEmail,
+                    companyWebsite,
+                    companyAddress,
+                    companyMapsLink,
+                    message,
+                    companyPhoto,
+                    keywords,
+                    linkedin,
+                    twitter,
+                    instagram,
+                    facebook,
+                    youtube,
+                    whatsapp,
+                    telegram,
+                    timestamp: Date.now()
+                };
+                await AsyncStorage.setItem(draftKey, JSON.stringify(draftData));
+                console.log('💾 Draft saved:', draftKey);
+            } catch (error) {
+                console.error('Failed to save draft:', error);
+            }
+        }, 1000); // Debounce for 1 second
+    }, [name, birthdate, anniversary, birthText, annivText, gender, personalCountryCode, personalPhone, email, location, mapsLink, companyName, designation, companyCountryCode, companyPhone, companyPhones, companyEmail, companyWebsite, companyAddress, companyMapsLink, message, companyPhoto, keywords, linkedin, twitter, instagram, facebook, youtube, whatsapp, telegram, isEditMode, edit]);
+
+    // Auto-save draft whenever form values change (but not during save/update)
+    useEffect(() => {
+        // Don't auto-save while mutation is in progress
+        if (createCardMutation.isPending || updateCardMutation.isPending) {
+            console.log('⏸️ Skipping draft save - mutation in progress');
+            return;
+        }
+        
+        // CRITICAL: Don't auto-save until form has been populated with existing data
+        // This prevents saving empty drafts that overwrite actual card data
+        if (isEditMode && !formPopulated) {
+            console.log('⏸️ Skipping draft save - form not yet populated with existing card data');
+            return;
+        }
+        
+        saveDraft();
+        
+        return () => {
+            if (draftSaveTimeout.current) {
+                clearTimeout(draftSaveTimeout.current);
+            }
+        };
+    }, [saveDraft, createCardMutation.isPending, updateCardMutation.isPending, isEditMode, formPopulated]);
+
+    // Track if form has been populated to avoid overwriting user changes
+    const [formPopulated, setFormPopulated] = useState(false);
+    const [draftData, setDraftData] = useState<any>(null);
+    const hasFetchedDraft = useRef(false);
+
+    // Reset formPopulated when edit param changes (navigating to different card)
+    useEffect(() => {
+        console.log('🔄 Edit param or existingCard changed, resetting form state');
+        setFormPopulated(false);
+        setDraftData(null);
+        hasFetchedDraft.current = false;
+    }, [edit, existingCard?.updatedAt]); // Reset when card's updatedAt changes (after update)
+
+    // Step 1: Load draft from AsyncStorage on mount
+    useEffect(() => {
+        if (hasFetchedDraft.current) return;
+        
+        const loadDraft = async () => {
+            try {
+                const draftKey = isEditMode ? `card_draft_${edit}` : 'card_draft_new';
+                const draftJson = await AsyncStorage.getItem(draftKey);
+                
+                if (draftJson) {
+                    const draft = JSON.parse(draftJson);
+                    console.log('📂 Found draft:', draftKey);
+                    
+                    // Check if draft is recent (within 24 hours)
+                    const isRecent = draft.timestamp && (Date.now() - draft.timestamp < 24 * 60 * 60 * 1000);
+                    
+                    if (isRecent) {
+                        console.log('✅ Draft is recent, storing for comparison');
+                        setDraftData(draft);
+                    } else {
+                        console.log('⏭️ Draft too old (>24h), ignoring');
+                    }
+                } else {
+                    console.log('📭 No draft found for:', draftKey);
+                }
+                hasFetchedDraft.current = true;
+            } catch (error) {
+                console.error('Failed to load draft:', error);
+                hasFetchedDraft.current = true;
+            }
+        };
+        
+        loadDraft();
+    }, [isEditMode, edit]);
+
+    // Step 2: Once we have both draft and existingCard, decide which to load
+    useEffect(() => {
+        if (formPopulated || !hasFetchedDraft.current) return;
+        
+        // If we have draft data, check if it's newer than existing card
+        if (draftData) {
+            console.log('📂 Draft data found:', {
+                name: draftData.name,
+                email: draftData.email,
+                companyName: draftData.companyName,
+                hasTimestamp: !!draftData.timestamp
+            });
+            
+            let shouldLoadDraft = true;
+            
+            if (isEditMode && existingCard && existingCard.updatedAt) {
+                const cardUpdateTime = new Date(existingCard.updatedAt).getTime();
+                const draftTime = draftData.timestamp;
+                shouldLoadDraft = draftTime > cardUpdateTime;
+                console.log('🕐 Draft timestamp:', new Date(draftTime).toISOString());
+                console.log('🕐 Card updated at:', new Date(cardUpdateTime).toISOString());
+                console.log('🔍 Should load draft:', shouldLoadDraft);
+                
+                // IMPORTANT: If draft is from before card was saved, ignore it
+                if (!shouldLoadDraft) {
+                    console.log('⏭️ Draft is older than saved card - ignoring draft and loading from API');
+                    // Don't load the draft, let the next useEffect load from existingCard
+                    return;
+                }
+            }
+            
+            if (shouldLoadDraft) {
+                console.log('✨ Loading draft data into form...');
+                setName(draftData.name || "");
+                setBirthdate(draftData.birthdate || null);
+                setAnniversary(draftData.anniversary || null);
+                setBirthText(draftData.birthText || "");
+                setAnnivText(draftData.annivText || "");
+                setGender(draftData.gender || "");
+                setPersonalCountryCode(draftData.personalCountryCode || "91");
+                setPersonalPhone(draftData.personalPhone || "");
+                setEmail(draftData.email || "");
+                setLocation(draftData.location || "");
+                setMapsLink(draftData.mapsLink || "");
+                setCompanyName(draftData.companyName || "");
+                setDesignation(draftData.designation || "");
+                setCompanyCountryCode(draftData.companyCountryCode || "91");
+                setCompanyPhone(draftData.companyPhone || "");
+                if (draftData.companyPhones && Array.isArray(draftData.companyPhones)) {
+                    setCompanyPhones(draftData.companyPhones);
+                }
+                setCompanyEmail(draftData.companyEmail || "");
+                setCompanyWebsite(draftData.companyWebsite || "");
+                setCompanyAddress(draftData.companyAddress || "");
+                setCompanyMapsLink(draftData.companyMapsLink || "");
+                setMessage(draftData.message || "");
+                setCompanyPhoto(draftData.companyPhoto || "");
+                setKeywords(draftData.keywords || "");
+                setLinkedin(draftData.linkedin || "");
+                setTwitter(draftData.twitter || "");
+                setInstagram(draftData.instagram || "");
+                setFacebook(draftData.facebook || "");
+                setYoutube(draftData.youtube || "");
+                setWhatsapp(draftData.whatsapp || "");
+                setTelegram(draftData.telegram || "");
+                setFormPopulated(true);
+                console.log('✅ Draft loaded successfully - form populated with unsaved changes');
+                return; // Exit early, don't load from existingCard
+            } else {
+                console.log('⏭️ Draft is older than saved card, will load from API');
+            }
+        }
+        
+        // If no draft or draft is older, load from existingCard
+        if (existingCard && !formPopulated) {
+            console.log('📋 Loading form from existing card (no recent draft)');
+            // The existing card loading logic will handle this in the next useEffect
+        }
+    }, [draftData, existingCard, formPopulated, isEditMode]);
 
     // Social
     const [linkedin, setLinkedin] = useState("");
@@ -590,12 +863,41 @@ export default function Builder() {
         console.log("isEditMode:", isEditMode);
         console.log("edit param:", edit);
         console.log("existingCard:", existingCard);
+        console.log("formPopulated:", formPopulated);
+        console.log("hasFetchedDraft:", hasFetchedDraft.current);
         
-        if (existingCard) {
-            console.log("Populating form with existing card data");
+        // CRITICAL: Wait for draft check to complete before loading existingCard
+        if (!hasFetchedDraft.current) {
+            console.log("⏳ Waiting for draft check to complete before loading card data");
+            return;
+        }
+        
+        if (existingCard && !formPopulated) {
+            console.log("Populating form with existing card data from API");
+            console.log("� Full existingCard data:", JSON.stringify(existingCard, null, 2));
+            console.log("📅 existingCard.birthdate:", existingCard.birthdate);
+            console.log("📅 existingCard.anniversary:", existingCard.anniversary);
+            console.log("📧 existingCard.email:", existingCard.email);
+            console.log("🏢 existingCard.companyName:", existingCard.companyName);
+            console.log("📱 existingCard.personalPhone:", existingCard.personalPhone);
+            console.log("📱 existingCard.companyPhone:", existingCard.companyPhone);
             setName(existingCard.name || "");
-            setBirthdate(existingCard.birthdate || null);
-            setAnniversary(existingCard.anniversary || null);
+            // Handle empty strings as null for date fields
+            const birthdateValue = existingCard.birthdate && existingCard.birthdate !== "" ? existingCard.birthdate : null;
+            const anniversaryValue = existingCard.anniversary && existingCard.anniversary !== "" ? existingCard.anniversary : null;
+            setBirthdate(birthdateValue);
+            setAnniversary(anniversaryValue);
+            // Format display text for date fields
+            if (birthdateValue) {
+                const formatted = formatIsoToDisplay(birthdateValue);
+                setBirthText(formatted);
+                console.log("📅 Loaded birthText:", formatted);
+            }
+            if (anniversaryValue) {
+                const formatted = formatIsoToDisplay(anniversaryValue);
+                setAnnivText(formatted);
+                console.log("📅 Loaded annivText:", formatted);
+            }
             setGender(existingCard.gender || ""); // Load gender
             setPersonalCountryCode(existingCard.personalCountryCode || "91");
             setPersonalPhone(existingCard.personalPhone || "");
@@ -618,7 +920,8 @@ export default function Builder() {
             setCompanyMapsLink(existingCard.companyMapsLink || "");
             setMessage(existingCard.message || "");
             setCompanyPhoto(existingCard.companyPhoto || "");
-            handleKeywordsChange(existingCard.keywords || ""); // Use debounced handler
+            setKeywords(existingCard.keywords || ""); // Directly set keywords without debounce during load
+            console.log("🔍 Loaded keywords:", existingCard.keywords);
             setLinkedin(existingCard.linkedin || "");
             setTwitter(existingCard.twitter || "");
             setInstagram(existingCard.instagram || "");
@@ -626,18 +929,36 @@ export default function Builder() {
             setYoutube(existingCard.youtube || "");
             setWhatsapp(existingCard.whatsapp || "");
             setTelegram(existingCard.telegram || "");
-            // keep text inputs in sync with ISO dates
-            setBirthText(formatIsoToDisplay(existingCard.birthdate || null));
-            setAnnivText(formatIsoToDisplay(existingCard.anniversary || null));
+            setFormPopulated(true);
+            console.log("✅ Form populated with existing card data");
+        } else if (existingCard && formPopulated) {
+            console.log("⏭️ Skipping form population - already populated with draft or existing data");
         }
-    }, [existingCard, isEditMode, edit]);
+    }, [existingCard, isEditMode, edit, formPopulated]);
+
+    // Track company photo changes
+    useEffect(() => {
+        if (companyPhoto) {
+            console.log('📸 Company photo updated:', {
+                type: companyPhoto.startsWith('data:') ? 'Base64' : companyPhoto.startsWith('http') ? 'URL' : 'Path',
+                length: companyPhoto.length,
+                prefix: companyPhoto.substring(0, 50)
+            });
+        } else {
+            console.log('📸 Company photo cleared');
+        }
+    }, [companyPhoto]);
 
     // keep text fields in sync when canonical ISO date changes
     useEffect(() => {
-        setBirthText(formatIsoToDisplay(birthdate));
+        const formatted = formatIsoToDisplay(birthdate);
+        console.log("📅 Setting birthText from birthdate:", birthdate, "->", formatted);
+        setBirthText(formatted);
     }, [birthdate]);
     useEffect(() => {
-        setAnnivText(formatIsoToDisplay(anniversary));
+        const formatted = formatIsoToDisplay(anniversary);
+        console.log("📅 Setting annivText from anniversary:", anniversary, "->", formatted);
+        setAnnivText(formatted);
     }, [anniversary]);
 
     const validate = () => {
@@ -665,7 +986,9 @@ export default function Builder() {
     };
 
     const pickBusinessPhoto = async () => {
+        console.log('📸 Picking business photo...');
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        console.log('📸 Permission status:', perm.status);
         if (perm.status !== "granted") {
             Alert.alert("Permission required", "Please allow photo library access.");
             return;
@@ -675,11 +998,15 @@ export default function Builder() {
             base64: true,
             quality: 0.8,
         });
-        if (!res.canceled) {
+        console.log('📸 Image picker result:', { canceled: res.canceled, hasAssets: !!res.assets });
+        if (!res.canceled && res.assets && res.assets[0]) {
             const a = res.assets[0];
             const mime = a.mimeType || "image/jpeg";
             const dataUri = `data:${mime};base64,${a.base64}`;
+            console.log('📸 Setting company photo, length:', dataUri.length, 'prefix:', dataUri.substring(0, 50));
             setCompanyPhoto(dataUri);
+        } else {
+            console.log('📸 Image picker canceled or no assets');
         }
     };
 
@@ -720,6 +1047,8 @@ export default function Builder() {
         }),
         [
             name,
+            birthdate,
+            anniversary,
             gender,
             personalCountryCode,
             personalPhone,
@@ -770,10 +1099,10 @@ export default function Builder() {
         } catch (e) { /* ignore parsing failure */ }
 
         if (isEditMode) {
-            console.log('Builder: update payload preview', { payload: finalPayload });
+            console.log('🔄 Builder: UPDATE mode - payload preview:', JSON.stringify({ birthdate: finalPayload.birthdate, anniversary: finalPayload.anniversary, name: finalPayload.name }));
             updateCardMutation.mutate(finalPayload);
         } else {
-            console.log('Builder: create payload preview', { payload: finalPayload });
+            console.log('✨ Builder: CREATE mode - payload preview:', JSON.stringify({ birthdate: finalPayload.birthdate, anniversary: finalPayload.anniversary, name: finalPayload.name }));
             createCardMutation.mutate(finalPayload);
         }
     };
@@ -930,9 +1259,8 @@ export default function Builder() {
                                 {/* Birthdate Field */}
                                 <View style={s.formField}>
                                     <Text style={s.enhancedLabel}>Birthdate<Text style={s.requiredIndicator}> *</Text></Text>
-                                    <View style={[s.dateInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                                    <View style={s.dateInput}>
                                         <FormInput
-                                            key="birthdate-input"
                                             value={birthText}
                                             onChangeText={(t: string) => {
                                                 // live-format digits into dd-mm-yyyy
@@ -940,15 +1268,16 @@ export default function Builder() {
                                                 setBirthText(formatted);
                                                 if (errors.birthdate) setErrors(prev => { const c = { ...prev }; delete c.birthdate; return c; });
 
-                                                // if user has entered full 8 digits, auto-apply
-                                                const digits = t.replace(/\D/g, '');
-                                                if (digits.length >= 8) {
-                                                    const parsed = parseDisplayToIso(formatDigitsToDisplay(digits));
-                                                    if (parsed) {
-                                                        setBirthdate(parsed.iso);
-                                                        setBirthYear(parsed.year);
-                                                        setBirthMonth(parsed.month);
-                                                    }
+                                                // Always try to parse and update state in real-time
+                                                const parsed = parseDisplayToIso(formatted);
+                                                if (parsed) {
+                                                    setBirthdate(parsed.iso);
+                                                    setBirthYear(parsed.year);
+                                                    setBirthMonth(parsed.month);
+                                                    console.log('📅 Birthdate updated in real-time:', parsed.iso);
+                                                } else if (formatted === '') {
+                                                    // Clear if empty
+                                                    setBirthdate(null);
                                                 }
                                             }}
                                             onBlur={() => {
@@ -964,104 +1293,34 @@ export default function Builder() {
                                                 }
                                             }}
                                             placeholder={'dd-mm-yyyy'}
-                                            style={{ color: birthText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0, flex: 1 }}
+                                            style={{ color: birthText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0 }}
                                             keyboardType='default'
                                             returnKeyType='done'
                                         />
-                                        <TouchableOpacity onPress={() => setShowBirthdatePicker(true)} style={{ marginLeft: 8 }}>
-                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                                        </TouchableOpacity>
                                     </View>
                                     <Err k="birthdate" />
-                                    {showBirthdatePicker && (
-                                        <View style={{ marginVertical: 10 }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                        <View style={{ minWidth: 160 }}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, -1);
-                                                                    setBirthMonth(newMonth);
-                                                                    setBirthYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-back" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                                <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 120, textAlign: 'center' }}>{MONTHS[birthMonth]}</Text>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, 1);
-                                                                    setBirthMonth(newMonth);
-                                                                    setBirthYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-forward" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                            </View>
-                                                        </View>
-                                                    </View>
-                                                    {/* place year picker at the top-right of the picker header */}
-                                                    <View style={{ minWidth: 90, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <TouchableOpacity onPress={() => setBirthYear(prev => prev - 1)} style={{ padding: 6 }}>
-                                                            <Ionicons name="remove" size={16} color="#374151" />
-                                                        </TouchableOpacity>
-                                                        <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 60, textAlign: 'center' }}>{String(birthYear)}</Text>
-                                                        <TouchableOpacity onPress={() => setBirthYear(prev => prev + 1)} style={{ padding: 6 }}>
-                                                            <Ionicons name="add" size={16} color="#374151" />
-                                                        </TouchableOpacity>
-                                                    </View>
-                                            </View>
-                                            <LocalCalendar
-                                                year={birthYear}
-                                                month={birthMonth}
-                                                selectedIso={birthdate}
-                                                onDayPress={(iso: string) => {
-                                                    setBirthdate(iso);
-                                                    try {
-                                                        const [y, m] = iso.split('T')[0].split('-');
-                                                        const yN = Number(y);
-                                                        const mN = Number(m) - 1;
-                                                        if (!isNaN(yN)) setBirthYear(yN);
-                                                        if (!isNaN(mN)) setBirthMonth(mN);
-                                                            // reflect in typed input
-                                                            setBirthText(formatIsoToDisplay(iso));
-                                                    } catch (e) {}
-                                                    setShowBirthdatePicker(false);
-                                                }}
-                                                onPrev={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, -1);
-                                                    setBirthMonth(newMonth);
-                                                    setBirthYear(newYear);
-                                                }}
-                                                onNext={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(birthMonth, birthYear, 1);
-                                                    setBirthMonth(newMonth);
-                                                    setBirthYear(newYear);
-                                                }}
-                                            />
-                                            <TouchableOpacity onPress={() => setShowBirthdatePicker(false)} style={{ alignItems: 'center', margin: 8 }}>
-                                                <Text style={{ color: '#3B82F6', fontWeight: 'bold' }}>Cancel</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
                                 </View>
 
                                 {/* Anniversary Field */}
                                 <View style={s.formField}>
                                     <Text style={s.enhancedLabel}>Anniversary</Text>
-                                    <View style={[s.dateInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                                    <View style={s.dateInput}>
                                         <FormInput
-                                            key="anniversary-input"
                                             value={annivText}
                                             onChangeText={(t: string) => {
                                                 const formatted = formatDigitsToDisplay(t);
                                                 setAnnivText(formatted);
-
-                                                const digits = t.replace(/\D/g, '');
-                                                if (digits.length >= 8) {
-                                                    const parsed = parseDisplayToIso(formatDigitsToDisplay(digits));
-                                                    if (parsed) {
-                                                        setAnniversary(parsed.iso);
-                                                        setAnnivYear(parsed.year);
-                                                        setAnnivMonth(parsed.month);
-                                                    }
+                                                
+                                                // Always try to parse and update state in real-time
+                                                const parsed = parseDisplayToIso(formatted);
+                                                if (parsed) {
+                                                    setAnniversary(parsed.iso);
+                                                    setAnnivYear(parsed.year);
+                                                    setAnnivMonth(parsed.month);
+                                                    console.log('📅 Anniversary updated in real-time:', parsed.iso);
+                                                } else if (formatted === '') {
+                                                    // Clear if empty
+                                                    setAnniversary(null);
                                                 }
                                             }}
                                             onBlur={() => {
@@ -1077,81 +1336,11 @@ export default function Builder() {
                                                 }
                                             }}
                                             placeholder={'dd-mm-yyyy'}
-                                            style={{ color: annivText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0, flex: 1 }}
+                                            style={{ color: annivText ? '#111827' : '#9CA3AF', fontSize: 16, height: 44, paddingVertical: 0 }}
                                             keyboardType='default'
                                             returnKeyType='done'
                                         />
-                                        <TouchableOpacity onPress={() => setShowAnniversaryPicker(true)} style={{ marginLeft: 8 }}>
-                                            <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-                                        </TouchableOpacity>
                                     </View>
-                                    {showAnniversaryPicker && (
-                                        <View style={{ marginVertical: 10 }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                        <View style={{ minWidth: 160 }}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, -1);
-                                                                    setAnnivMonth(newMonth);
-                                                                    setAnnivYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-back" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                                <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 120, textAlign: 'center' }}>{MONTHS[annivMonth]}</Text>
-                                                                <TouchableOpacity onPress={() => {
-                                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, 1);
-                                                                    setAnnivMonth(newMonth);
-                                                                    setAnnivYear(newYear);
-                                                                }} style={{ padding: 6 }}>
-                                                                    <Ionicons name="chevron-forward" size={18} color="#374151" />
-                                                                </TouchableOpacity>
-                                                            </View>
-                                                        </View>
-                                                </View>
-                                                {/* place year picker at the top-right of the picker header */}
-                                                <View style={{ minWidth: 90, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <TouchableOpacity onPress={() => setAnnivYear(prev => prev - 1)} style={{ padding: 6 }}>
-                                                        <Ionicons name="remove" size={16} color="#374151" />
-                                                    </TouchableOpacity>
-                                                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827', minWidth: 60, textAlign: 'center' }}>{String(annivYear)}</Text>
-                                                    <TouchableOpacity onPress={() => setAnnivYear(prev => prev + 1)} style={{ padding: 6 }}>
-                                                        <Ionicons name="add" size={16} color="#374151" />
-                                                    </TouchableOpacity>
-                                                </View>
-                                            </View>
-                                            <LocalCalendar
-                                                year={annivYear}
-                                                month={annivMonth}
-                                                selectedIso={anniversary}
-                                                onDayPress={(iso: string) => {
-                                                    setAnniversary(iso);
-                                                    try {
-                                                        const [y, m] = iso.split('T')[0].split('-');
-                                                        const yN = Number(y);
-                                                        const mN = Number(m) - 1;
-                                                        if (!isNaN(yN)) setAnnivYear(yN);
-                                                        if (!isNaN(mN)) setAnnivMonth(mN);
-                                                            setAnnivText(formatIsoToDisplay(iso));
-                                                    } catch (e) {}
-                                                    setShowAnniversaryPicker(false);
-                                                }}
-                                                onPrev={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, -1);
-                                                    setAnnivMonth(newMonth);
-                                                    setAnnivYear(newYear);
-                                                }}
-                                                onNext={() => {
-                                                    const { newMonth, newYear } = changeMonthYear(annivMonth, annivYear, 1);
-                                                    setAnnivMonth(newMonth);
-                                                    setAnnivYear(newYear);
-                                                }}
-                                            />
-                                            <TouchableOpacity onPress={() => setShowAnniversaryPicker(false)} style={{ alignItems: 'center', margin: 8 }}>
-                                                <Text style={{ color: '#3B82F6', fontWeight: 'bold' }}>Cancel</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
                                 </View>
 
                                 {/* Gender Dropdown */}
@@ -1375,12 +1564,22 @@ export default function Builder() {
                                             {companyPhoto ? "Change Photo" : "Add Photo"}
                                         </Text>
                                     </TouchableOpacity>
+                                    {companyPhoto && (
+                                        <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                                            Photo loaded: {companyPhoto.startsWith('data:') ? 'Base64' : 'URL'} ({companyPhoto.length} chars)
+                                        </Text>
+                                    )}
                                     <View style={s.photoPreviewContainer}>
                                         {companyPhoto ? (
                                             <Image 
-                                                source={{ uri: companyPhoto }} 
+                                                source={{ uri: getImageUrl(companyPhoto) }} 
                                                 style={s.photoPreview} 
                                                 resizeMode="contain"
+                                                onLoad={() => console.log('✅ Business photo loaded successfully from:', getImageUrl(companyPhoto))}
+                                                onError={(e) => {
+                                                    console.error('❌ Business photo load error:', e.nativeEvent.error);
+                                                    console.error('❌ Failed URL:', getImageUrl(companyPhoto));
+                                                }}
                                             />
                                         ) : (
                                             <BusinessAvatar 

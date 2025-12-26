@@ -1,7 +1,7 @@
 {
   "name": "instantllycards",
   "main": "expo-router/entry",
-  "version": "1.0.41",
+  "version": "1.0.51",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -28,12 +28,14 @@
     "expo-contacts": "~15.0.9",
     "expo-dev-client": "~6.0.17",
     "expo-device": "~8.0.9",
+    "expo-file-system": "~19.0.21",
     "expo-font": "~14.0.8",
     "expo-image-picker": "~17.0.8",
     "expo-intent-launcher": "~13.0.8",
     "expo-linear-gradient": "~15.0.7",
     "expo-linking": "~8.0.8",
     "expo-location": "~19.0.7",
+    "expo-media-library": "~18.2.1",
     "expo-notifications": "~0.32.12",
     "expo-router": "~6.0.14",
     "expo-splash-screen": "~31.0.10",
@@ -45,12 +47,14 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
+    "react-native-google-play-install-referrer": "^1.0.0",
     "react-native-pager-view": "^6.9.1",
     "react-native-picker-select": "^9.3.1",
     "react-native-qrcode-svg": "^6.3.15",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
+    "react-native-share": "^12.2.1",
     "react-native-sms-retriever": "^1.1.1",
     "react-native-svg": "15.12.1",
     "react-native-tab-view": "^4.2.0",
@@ -70,5 +74,20 @@
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "description": "",
+  "directories": {
+    "lib": "lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DevFarhanCoder/InstantllyCards.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DevFarhanCoder/InstantllyCards/issues"
+  },
+  "homepage": "https://github.com/DevFarhanCoder/InstantllyCards#readme"
 }

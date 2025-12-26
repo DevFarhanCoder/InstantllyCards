@@ -10,6 +10,9 @@ import { chatNotificationService } from "@/lib/chat-notifications";
 import { socketService } from "@/lib/socket";
 import { showInAppNotification } from "@/lib/notifications-expo-go";
 import { QueryClientProvider } from "@tanstack/react-query";
+import * as Linking from 'expo-linking';
+import { getPlayStoreReferrer } from "@/lib/playStoreReferrer";
+import { checkAndRefreshCreditsOnUpdate } from "@/lib/creditsRefresh";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -27,75 +30,80 @@ export default function RootLayout() {
   const [latestVersion, setLatestVersion] = useState('1.0.0');
 
   useEffect(() => {
-    // Check for app updates on startup
-    const performVersionCheck = async () => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔍 [VERSION CHECK] Starting version check...');
-      console.log(`📱 Current app version: ${getCurrentAppVersion()}`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
-      try {
-        const versionInfo = await checkAppVersion();
-        
-        console.log('📦 [VERSION CHECK] Response received:', JSON.stringify(versionInfo, null, 2));
-        
-        if (versionInfo && versionInfo.updateRequired) {
-          console.log('⚠️ [VERSION CHECK] UPDATE REQUIRED!');
-          console.log(`   Current: ${versionInfo.currentVersion}`);
-          console.log(`   Minimum: ${versionInfo.minimumVersion}`);
-          console.log(`   Latest: ${versionInfo.latestVersion}`);
-          console.log(`   Update URL: ${versionInfo.updateUrl}`);
-          setUpdateRequired(true);
-          setUpdateUrl(versionInfo.updateUrl);
-          setLatestVersion(versionInfo.latestVersion);
-        } else if (versionInfo === null) {
-          console.log('✅ [VERSION CHECK] No update required (returned null)');
-          setUpdateRequired(false);
-        } else {
-          console.log('✅ [VERSION CHECK] App version is up to date');
-          setUpdateRequired(false);
-        }
-      } catch (error) {
-        console.error('❌ [VERSION CHECK] Error during version check:', error);
-        // Don't show update modal on error
-        setUpdateRequired(false);
-      }
-      
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    };
-
-    performVersionCheck();
-  }, []);
-
-  useEffect(() => {
-    // Initialize notification system and pre-warm server
+    // Single lightweight initialization - everything else runs in background
     const initApp = async () => {
-      console.log('🚀 Initializing app systems...');
+      console.log('🚀 [INIT] App starting (lightweight mode)...');
       
-      // Initialize chat notification service with QueryClient
+      // STEP 1: Check if app was updated and refresh credits if needed
+      checkAndRefreshCreditsOnUpdate().catch(() => {});
+      
+      // STEP 2: Only initialize critical services synchronously
       chatNotificationService.initialize(queryClient);
+      console.log('✅ [INIT] Chat notifications initialized');
       
-      // Start server warmup in background (non-blocking)
-      serverWarmup.preWarmOnAppStart();
+      // STEP 3: All heavy operations run in background after 1 second
+      setTimeout(async () => {
+        console.log('🔄 [BACKGROUND] Starting background tasks...');
+        
+        // Version check (5s timeout, runs in background)
+        setTimeout(async () => {
+          try {
+            console.log('🔍 [VERSION] Checking version...');
+            const timeoutPromise = new Promise<null>((_, reject) => {
+              setTimeout(() => reject(new Error('Version check timeout')), 5000);
+            });
+            const versionInfo = await Promise.race([checkAppVersion(), timeoutPromise]);
+            
+            if (versionInfo && versionInfo.updateRequired) {
+              setUpdateRequired(true);
+              setUpdateUrl(versionInfo.updateUrl);
+              setLatestVersion(versionInfo.latestVersion);
+              console.log('⚠️ [VERSION] Update required!');
+            }
+          } catch (error) {
+            console.log('⚠️ [VERSION] Check failed (non-critical):', error);
+          }
+        }, 2000); // Check version after 2 seconds
+        
+        // Play Store referrer (non-blocking)
+        getPlayStoreReferrer().then(code => {
+          if (code) console.log('🎁 [REFERRER] Captured:', code);
+        }).catch(() => {});
+        
+        // Server warmup (non-blocking, has internal timeout)
+        serverWarmup.preWarmOnAppStart().catch(() => {});
+        
+        // Notifications (15s timeout, non-blocking)
+        setTimeout(() => {
+          const notificationTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Notification timeout')), 15000);
+          });
+          Promise.race([registerForPushNotifications(), notificationTimeout])
+            .then(() => console.log('✅ [NOTIFICATIONS] Registered'))
+            .catch(() => console.log('⚠️ [NOTIFICATIONS] Skipped'));
+        }, 3000); // Wait 3s before notifications
+        
+        // Socket.IO (10s timeout, non-blocking)
+        setTimeout(() => {
+          const socketTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Socket timeout')), 10000);
+          });
+          Promise.race([socketService.connect(), socketTimeout])
+            .then(() => console.log('✅ [SOCKET] Connected'))
+            .catch(() => console.log('⚠️ [SOCKET] Skipped'));
+        }, 4000); // Wait 4s before Socket.IO
+        
+        console.log('🎯 [BACKGROUND] All tasks scheduled');
+      }, 1000); // Start background tasks after 1 second
       
-      // Initialize notifications
-      await registerForPushNotifications();
-      
-      // Set up notification listeners
+      // Setup notification listeners immediately (lightweight)
       const unsubscribe = setupNotificationListeners();
       
-      // Initialize Socket.IO and set up admin transfer listener
-      console.log('🔌 Connecting to Socket.IO...');
-      await socketService.connect();
-      
+      // Setup admin transfer listener immediately (lightweight)
       const unsubscribeAdminTransfer = socketService.onAdminTransfer(async (data) => {
-        console.log('👑 GLOBAL: Received admin transfer notification:', data);
-        
-        // Save notification to AsyncStorage for UI display in group list
         try {
           const existingNotifications = await AsyncStorage.getItem('admin_transfer_notifications');
           const notifications = existingNotifications ? JSON.parse(existingNotifications) : [];
-          
           notifications.push({
             groupId: data.groupId,
             groupName: data.groupName,
@@ -104,15 +112,13 @@ export default function RootLayout() {
             timestamp: data.timestamp || new Date(),
             seen: false
           });
-          
           await AsyncStorage.setItem('admin_transfer_notifications', JSON.stringify(notifications));
-          console.log('💾 Saved admin transfer notification to storage');
         } catch (error) {
           console.error('Error saving notification:', error);
         }
       });
       
-      console.log('✅ App initialization complete');
+      console.log('✅ [INIT] App ready (background tasks running)');
       
       return () => {
         unsubscribe?.();
@@ -121,6 +127,41 @@ export default function RootLayout() {
     };
     
     initApp();
+  }, []);
+
+  // Deep Link Handler for Referral System
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      console.log('🔗 Deep link received:', url);
+      
+      const { path, queryParams } = Linking.parse(url);
+      
+      // Check if it's a signup referral link
+      if (path === 'signup' && queryParams?.ref) {
+        const referralCode = queryParams.ref as string;
+        console.log('🎁 Referral code detected:', referralCode);
+        
+        // Store referral code in AsyncStorage
+        await AsyncStorage.setItem('pending_referral_code', referralCode);
+        console.log('💾 Referral code stored in AsyncStorage');
+      }
+    };
+
+    // Handle initial URL (app opened from link)
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('🔗 Initial URL:', url);
+        handleDeepLink({ url });
+      }
+    });
+
+    // Handle subsequent deep links (app already open)
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   return (

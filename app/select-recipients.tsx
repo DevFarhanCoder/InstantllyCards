@@ -87,16 +87,40 @@ export default function SelectRecipientsScreen() {
       const sendPromises = Array.from(selectedRecipients).map(async (recipientId) => {
         try {
           // Send all cards to this recipient
-          const cardSendPromises = userCards.map((card: any) =>
-            api.post(`/cards/${card._id}/share`, {
-              recipientId: recipientId,
-            })
-          );
-          await Promise.all(cardSendPromises);
-          return { success: true, recipientId };
+          const cardSendPromises = userCards.map(async (card: any) => {
+            try {
+              await api.post(`/cards/${card._id}/share`, {
+                recipientId: recipientId,
+              });
+              return { success: true, cardId: card._id, error: null };
+            } catch (error: any) {
+              // Handle duplicate (409) gracefully - not an error
+              if (error.response?.status === 409) {
+                console.log(`ℹ️ Card ${card._id} already sent to ${recipientId} - skipping`);
+                return { success: true, cardId: card._id, error: 'duplicate' };
+              }
+              // Real errors
+              console.error(`❌ Failed to send card ${card._id} to ${recipientId}:`, error);
+              return { success: false, cardId: card._id, error: error.message };
+            }
+          });
+          
+          const cardResults = await Promise.all(cardSendPromises);
+          const successfulSends = cardResults.filter(r => r.success).length;
+          const realErrors = cardResults.filter(r => !r.success).length;
+          
+          console.log(`📊 Sent ${successfulSends}/${userCards.length} cards to recipient ${recipientId} (${realErrors} real errors)`);
+          
+          // Only mark recipient as failed if ALL cards failed with real errors
+          return { 
+            success: realErrors < userCards.length, // Success if at least 1 card was sent
+            recipientId,
+            sentCount: successfulSends,
+            errorCount: realErrors 
+          };
         } catch (error) {
-          console.error(`Failed to send cards to ${recipientId}:`, error);
-          return { success: false, recipientId };
+          console.error(`❌ Failed to process recipient ${recipientId}:`, error);
+          return { success: false, recipientId, sentCount: 0, errorCount: userCards.length };
         }
       });
 
@@ -106,17 +130,19 @@ export default function SelectRecipientsScreen() {
 
       console.log(`✅ Cards sent successfully to ${successCount} recipients`);
       
-      // Invalidate and refetch queries immediately to show new cards
+      // Invalidate and refetch queries immediately to show new cards at TOP
       console.log('🔄 Invalidating and refetching sent-cards queries...');
-      await queryClient.invalidateQueries({ 
-        queryKey: ["sent-cards"],
-        refetchType: 'active' // Refetch active queries immediately
-      });
+      
+      // CRITICAL: Remove all cached data to force refetch from beginning
+      queryClient.removeQueries({ queryKey: ["sent-cards"] });
+      
+      // Refetch immediately - this will fetch page 1 with newest cards first
       await queryClient.refetchQueries({ 
         queryKey: ["sent-cards"],
         type: 'active'
       });
-      console.log('✅ Sent cards refreshed');
+      
+      console.log('✅ Sent cards refreshed - new cards should appear at top');
 
       setSending(false);
 

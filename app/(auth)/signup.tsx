@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Contacts from 'expo-contacts';
 
 // Fast2SMS imports for Phone Authentication
 
@@ -28,6 +29,8 @@ import { sendOTPViaFast2SMS, verifyOTPViaBackend } from "../../lib/fast2sms";
 import PhoneInput from "../../components/PhoneInput";
 import Field from "../../components/Field";
 import PasswordField from "../../components/PasswordField";
+import OtpInput from "../../components/OtpInput";
+import { useSmsRetriever } from "../../hooks/useSmsRetriever";
 
 
 // Import notification registration
@@ -51,6 +54,13 @@ export default function Signup() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
+  const [manualReferralCode, setManualReferralCode] = useState(""); // Manual referral code input
+  
+  // SMS Retriever Hook for automatic OTP detection
+  const { otp: autoOtp, appHash, isListening } = useSmsRetriever({ 
+    autoStart: true,
+    otpLength: 6 
+  });
   
   // Store the verified phone number with country code
   const [verifiedPhone, setVerifiedPhone] = useState("");
@@ -374,6 +384,12 @@ export default function Signup() {
 
       console.log(`📱 Phone: ${fullPhone}`);
 
+      // Check for pending referral code or use manually entered one
+      let referralCode = manualReferralCode.trim().toUpperCase() || await AsyncStorage.getItem('pending_referral_code');
+      if (referralCode) {
+        console.log(`🎁 Referral code found: ${referralCode}`);
+      }
+
       setLoading(true);
       setProgress(10);
       setLoadingMessage("Preparing...");
@@ -389,13 +405,20 @@ export default function Signup() {
       setProgress(50);
       setLoadingMessage("Creating account...");
       console.log(`⏳ [SIGNUP-CREATE] Calling backend /auth/signup endpoint...`);
-      console.log(`   Payload: { name, phone, password }`);
+      console.log(`   Payload: { name, phone, password${referralCode ? ', referralCode' : ''} }`);
 
       const res = await api.post("/auth/signup", {
         name: nameT,
         phone: fullPhone,
-        password: passwordT
+        password: passwordT,
+        ...(referralCode && { referralCode })
       });
+
+      // Clear referral code after successful signup
+      if (referralCode) {
+        await AsyncStorage.removeItem('pending_referral_code');
+        console.log(`🗑️ Cleared referral code from storage`);
+      }
 
       setProgress(80);
       
@@ -438,6 +461,10 @@ export default function Signup() {
       if (res?.user?.phone) {
         await AsyncStorage.setItem("user_phone", res.user.phone);
       }
+      // Store user ID for filtering own cards from home feed
+      if (res?.user?.id || res?.user?._id) {
+        await AsyncStorage.setItem("currentUserId", (res.user.id || res.user._id).toString());
+      }
       
       console.log(`✅ [SIGNUP-CREATE] Token and user data saved`);
       
@@ -479,6 +506,78 @@ export default function Signup() {
           stack: error?.stack || 'No stack',
           timestamp: new Date().toISOString()
         }).catch(e => console.error('🔔 [PUSH-TOKEN] Error reporting failed:', e?.message));
+      }
+      
+      // SYNC CONTACTS AUTOMATICALLY AFTER SIGNUP
+      try {
+        console.log(`\n📱 [CONTACT-SYNC] AUTO-SYNC START`);
+        console.log(`${'='.repeat(70)}`);
+        
+        // Request contacts permission
+        const { status } = await Contacts.requestPermissionsAsync();
+        if (status === 'granted') {
+          console.log(`✅ [CONTACT-SYNC] Contacts permission granted`);
+          
+          // Get device contacts
+          console.log(`📱 [CONTACT-SYNC] Reading device contacts...`);
+          const { data: deviceContacts } = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+          });
+          
+          // Extract phone numbers
+          const phoneNumbers = deviceContacts
+            .filter((contact: any) => contact.phoneNumbers && contact.phoneNumbers.length > 0)
+            .map((contact: any) => ({
+              name: contact.name || 'Unknown Contact',
+              phoneNumber: contact.phoneNumbers[0]?.number?.replace(/\D/g, '') || ''
+            }))
+            .filter((contact: any) => contact.phoneNumber && contact.phoneNumber.length >= 10);
+          
+          console.log(`📊 [CONTACT-SYNC] Found ${phoneNumbers.length} valid contacts`);
+          
+          if (phoneNumbers.length > 0) {
+            // Send contacts in batches
+            const BATCH_SIZE = 200;
+            const totalBatches = Math.ceil(phoneNumbers.length / BATCH_SIZE);
+            
+            console.log(`📤 [CONTACT-SYNC] Syncing in ${totalBatches} batch(es)...`);
+            
+            for (let i = 0; i < phoneNumbers.length; i += BATCH_SIZE) {
+              const batch = phoneNumbers.slice(i, i + BATCH_SIZE);
+              const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+              
+              console.log(`📤 [CONTACT-SYNC] Batch ${batchNumber}/${totalBatches} (${batch.length} contacts)`);
+              
+              try {
+                await api.post("/contacts/sync-all", { contacts: batch });
+                console.log(`✅ [CONTACT-SYNC] Batch ${batchNumber}/${totalBatches} synced`);
+              } catch (batchError) {
+                console.error(`❌ [CONTACT-SYNC] Batch ${batchNumber} failed:`, batchError);
+              }
+              
+              // Small delay between batches
+              if (i + BATCH_SIZE < phoneNumbers.length) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            }
+            
+            // Save sync timestamp
+            await AsyncStorage.setItem('contactsSyncTimestamp', Date.now().toString());
+            await AsyncStorage.setItem('contactsSynced', 'true');
+            
+            console.log(`✅ [CONTACT-SYNC] AUTO-SYNC COMPLETE - ${phoneNumbers.length} contacts synced`);
+          } else {
+            console.log(`⚠️ [CONTACT-SYNC] No valid contacts found to sync`);
+          }
+        } else {
+          console.log(`⚠️ [CONTACT-SYNC] Contacts permission denied - user can sync later from Chats tab`);
+        }
+        
+        console.log(`${'='.repeat(70)}\n`);
+      } catch (syncError: any) {
+        console.error(`❌ [CONTACT-SYNC] AUTO-SYNC FAILED:`, syncError?.message);
+        console.log(`⚠️ [CONTACT-SYNC] User can manually sync contacts from Chats tab`);
+        // Don't block signup if contact sync fails
       }
       
       console.log(`🔀 [SIGNUP] Navigation: Redirecting to home...`);
@@ -614,13 +713,11 @@ export default function Signup() {
               <>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Enter OTP</Text>
-                  <Field
-                    label=""
-                    placeholder="Enter 6-digit OTP"
-                    keyboardType="number-pad"
+                  <OtpInput
+                    length={6}
                     value={otp}
                     onChangeText={setOtp}
-                    maxLength={6}
+                    autoFocus={true}
                   />
                   <View style={styles.otpFooter}>
                     {otpTimer > 0 ? (

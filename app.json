@@ -2,14 +2,14 @@
   "expo": {
     "name": "Instantlly Cards",
     "slug": "instantllycards",
-    "version": "1.0.41",
+    "version": "1.0.51",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "extra": {
-      "EXPO_PUBLIC_API_BASE": "",
+      "EXPO_PUBLIC_API_BASE": "https://api.instantllycards.com",
       "router": {},
       "eas": {
         "projectId": "2d7524da-4330-496c-816f-4e011831e6f4"
@@ -30,7 +30,7 @@
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 41,
+      "versionCode": 51,
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
@@ -43,7 +43,29 @@
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#FFFFFF",
         "monochromeImage": "./assets/logo.png"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "instantllycards.com",
+              "pathPrefix": "/signup"
+            },
+            {
+              "scheme": "http",
+              "host": "instantllycards.com",
+              "pathPrefix": "/signup"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -74,7 +96,8 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

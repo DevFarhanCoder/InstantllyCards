@@ -4,3 +4,17 @@
 # Allow google-services.json to be uploaded to EAS
 # even though it's in .gitignore
 !google-services.json
+
+# Exclude large files and folders to reduce build size
+*.md
+*.log
+*.aab
+*.apk
+.git/
+.vscode/
+node_modules/.cache/
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx

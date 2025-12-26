@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useQueryClient } from "@tanstack/react-query";
 
 
 
@@ -34,6 +35,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 const { height: screenHeight } = Dimensions.get('window');
 
 export default function Login() {
+  const queryClient = useQueryClient();
   const [countryCode, setCountryCode] = useState("+91"); // Default to India
   const [phoneNumber, setPhoneNumber] = useState("");
   const [forgotPhoneError, setForgotPhoneError] = useState("");
@@ -76,19 +78,42 @@ export default function Login() {
     let mounted = true;
     (async () => {
       try {
+        // Check if password was just reset
+        const justReset = await AsyncStorage.getItem('password_just_reset');
+        if (justReset === 'true') {
+          console.log('🔄 [LOGIN] Password just reset - clearing all cached state');
+          // Clear the flag
+          await AsyncStorage.removeItem('password_just_reset');
+          // Reset all login state
+          setPassword('');
+          setPasswordError('');
+          setForgotPhoneError('');
+          // Clear query cache to prevent stale API responses
+          queryClient.clear();
+        }
+        
         const stored = await AsyncStorage.getItem('login_prefill_phone');
         if (!mounted || !stored) return;
         // Parse stored phone into country code and local 10-digit number
         const raw = stored.toString().trim();
-        const digits = raw.replace(/\D/g, '');
-        if (raw.startsWith('+')) {
-          const m = raw.match(/^\+(\d{1,3})/);
-          const cc = m ? `+${m[1]}` : '+91';
+        
+        // For Indian numbers starting with +91, extract properly
+        if (raw.startsWith('+91')) {
+          const digits = raw.replace(/\D/g, '');
+          const local = digits.slice(-10); // Last 10 digits
+          setCountryCode('+91');
+          setPhoneNumber(local);
+        } else if (raw.startsWith('+')) {
+          // Other country codes
+          const digits = raw.replace(/\D/g, '');
           const local = digits.slice(-10);
-          setCountryCode(cc);
+          // Extract country code (everything except last 10 digits)
+          const ccDigits = digits.slice(0, -10);
+          setCountryCode('+' + ccDigits);
           setPhoneNumber(local);
         } else {
-          // assume India local number if no plus
+          // No + prefix, assume India local number
+          const digits = raw.replace(/\D/g, '');
           const local = digits.slice(-10);
           setCountryCode('+91');
           setPhoneNumber(local);
@@ -151,12 +176,20 @@ export default function Login() {
         throw new Error("Invalid login credentials. Please try again.");
       }
 
+      // CRITICAL: Clear all React Query cache to prevent data leakage from previous account
+      console.log('🧹 Clearing React Query cache before login...');
+      queryClient.clear();
+
       await AsyncStorage.setItem("token", token);
       if (res?.user?.name) {
         await AsyncStorage.setItem("user_name", res.user.name);
       }
       if (res?.user?.phone) {
         await AsyncStorage.setItem("user_phone", res.user.phone);
+      }
+      // Store user ID for filtering own cards from home feed
+      if (res?.user?.id || res?.user?._id) {
+        await AsyncStorage.setItem("currentUserId", (res.user.id || res.user._id).toString());
       }
       
       setProgress(100);

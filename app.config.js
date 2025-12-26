@@ -4,8 +4,8 @@ module.exports = ({ config }) => {
     ...config,
     extra: {
       ...(config.extra || {}),
-      EXPO_PUBLIC_API_BASE: process.env.EXPO_PUBLIC_API_BASE || "https://instantlly-cards-backend-6ki0.onrender.com",
-      API_BASE: process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || "https://instantlly-cards-backend-6ki0.onrender.com",
+      EXPO_PUBLIC_API_BASE: process.env.EXPO_PUBLIC_API_BASE || "http://192.168.0.200:3001",
+      API_BASE: process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || "http://192.168.0.200:3001",
       EXPO_PUBLIC_API_PREFIX: process.env.EXPO_PUBLIC_API_PREFIX || "/api",
       router: {},
       eas: {

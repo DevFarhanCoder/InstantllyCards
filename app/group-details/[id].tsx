@@ -185,13 +185,22 @@ export default function GroupDetailsScreen() {
           
           if (group.members && Array.isArray(group.members)) {
             for (const member of group.members) {
+              // Skip if member doesn't have required properties
+              if (!member || !member._id) {
+                console.log('⚠️ Skipping invalid member:', member);
+                continue;
+              }
+              
+              // Safely get admin ID
+              const adminId = typeof group.admin === 'object' && group.admin ? group.admin._id : group.admin;
+              
               const memberData: GroupMember = {
                 _id: member._id,
                 id: member._id,
                 name: member.name || 'Unknown User',
                 profilePicture: member.profilePicture,
                 phoneNumber: member.phone || member.phoneNumber || 'N/A',
-                isAdmin: (member._id === group.admin._id) || (member._id === group.admin),
+                isAdmin: member._id === adminId,
               };
               
               members.push(memberData);

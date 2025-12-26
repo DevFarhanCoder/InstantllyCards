@@ -7,7 +7,9 @@ import api from '@/lib/api';
 import Field from '@/components/Field';
 import { COLORS } from '@/lib/theme';
 import PasswordField from '@/components/PasswordField';
+import OtpInput from '@/components/OtpInput';
 import { Ionicons } from '@expo/vector-icons';
+import { useSmsRetriever } from '@/hooks/useSmsRetriever';
 
 export default function ResetPassword() {
   const [phone, setPhone] = useState('');
@@ -24,6 +26,12 @@ export default function ResetPassword() {
   const [resendTimer, setResendTimer] = useState(0);
   const [resending, setResending] = useState(false);
   const [resendError, setResendError] = useState('');
+  
+  // SMS Retriever Hook for automatic OTP detection
+  const { otp: autoOtp, appHash } = useSmsRetriever({ 
+    autoStart: true,
+    otpLength: 6 
+  });
 
   const sendOtp = async () => {
     try {
@@ -33,7 +41,9 @@ export default function ResetPassword() {
         return;
       }
       setSending(true);
-      const res = await api.post('/auth/send-reset-otp', { phone: clean });
+      console.log(`📱 [SMS Retriever] App Hash: ${appHash}`);
+      
+      const res = await api.post('/auth/send-reset-otp', { phone: clean, appHash: appHash || '' });
       if (res?.otpSent || res?.data?.otpSent) {
         setStep('verify');
         setResendTimer(60);
@@ -61,6 +71,14 @@ export default function ResetPassword() {
     return `${country} XXX ${last3}`;
   };
 
+  // Auto-fill OTP when detected by SMS Retriever
+  useEffect(() => {
+    if (autoOtp && step === 'verify') {
+      console.log('✅ [Reset Password Auto-Fill] OTP detected:', autoOtp);
+      setOtp(autoOtp);
+    }
+  }, [autoOtp, step]);
+
   // Read persisted phone (if any) set by Login's "Forgot Password" action.
   useEffect(() => {
     let mounted = true;
@@ -72,7 +90,8 @@ export default function ResetPassword() {
         setResendError('');
         // Attempt to send OTP via backend which verifies the phone exists.
         try {
-          const res = await api.post('/auth/send-reset-otp', { phone: stored });
+          console.log("App Hash (auto):", appHash);
+          const res = await api.post('/auth/send-reset-otp', { phone: stored, appHash: appHash || '' });
           if (res?.otpSent || res?.data?.otpSent) {
             setStep('verify');
             setResendTimer(60);
@@ -131,7 +150,8 @@ export default function ResetPassword() {
     try {
       setResendError('');
       setResending(true);
-      const res = await api.post('/auth/send-reset-otp', { phone: phone.trim() });
+      console.log("App Hash (resend):", appHash);
+      const res = await api.post('/auth/send-reset-otp', { phone: phone.trim(), appHash: appHash || '' });
       if (res?.otpSent || res?.data?.otpSent) {
         setResendTimer(60);
       } else {
@@ -171,20 +191,34 @@ export default function ResetPassword() {
       setSending(true);
       const res = await api.post('/auth/reset-password', { resetToken, newPassword: p });
       // On success, navigate to home and show success message
+      
+      // CRITICAL: Clear any cached auth data to prevent stale token issues
+      try {
+        await AsyncStorage.multiRemove(['token', 'user_name', 'user_phone', 'currentUserId', 'reset_phone']);
+        console.log('✅ Cleared cached auth data after password reset');
+      } catch (e) {
+        console.warn('Failed to clear cached auth data', e);
+      }
+      
       // Persist phone to prefill login screen, then navigate to login
       try {
         // phone may be in formats like '+911234567890' or '91234567890' or '1234567890'
         // store as-is so login can parse it
         await AsyncStorage.setItem('login_prefill_phone', phone);
+        await AsyncStorage.setItem('password_just_reset', 'true'); // Flag to clear login state
       } catch (e) {
         console.warn('Failed to set login prefill phone', e);
       }
 
-      Alert.alert('Success', 'Reset password successfully !!', [
-        { text: 'OK', onPress: () => router.replace('/(auth)/login') }
+      Alert.alert('Success', 'Password reset successfully! Please login with your new password.', [
+        { 
+          text: 'OK', 
+          onPress: () => {
+            // Use replace to completely reset navigation state
+            router.replace('/(auth)/login');
+          }
+        }
       ]);
-
-      try { await AsyncStorage.removeItem('reset_phone'); } catch (e) { /* non-fatal */ }
     } catch (e: any) {
       console.error('reset-password error', e);
       const msg = e?.message || (e?.response?.data?.message) || 'Failed to reset password';
@@ -228,13 +262,11 @@ export default function ResetPassword() {
             <Text style={styles.subtitle}>{phone ? `We have sent an OTP to ${maskPhone(phone)}` : 'OTP has been sent to your registered phone number'}</Text>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Enter OTP</Text>
-              <Field
-                label=""
-                placeholder="Enter 6-digit OTP"
-                keyboardType="number-pad"
+              <OtpInput
+                length={6}
                 value={otp}
-                onChangeText={(t) => setOtp(t.replace(/\D/g, '').slice(0, 6))}
-                maxLength={6}
+                onChangeText={setOtp}
+                autoFocus={true}
               />
               <View style={styles.otpFooter}>
                 {resendTimer > 0 ? (

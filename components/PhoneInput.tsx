@@ -325,15 +325,6 @@ onChangeText={(text) => {
           keyboardType="phone-pad"
           maxLength={10}
         />
-
-        {/* Clear Button */}
-        {value.length > 0 && (
-          <Pressable style={styles.clearButton} onPress={handleClear}>
-            <View style={styles.clearCircle}>
-              <Text style={styles.clearText}>✕</Text>
-            </View>
-          </Pressable>
-        )}
       </View>
 
       {/* Country Selection Modal */}

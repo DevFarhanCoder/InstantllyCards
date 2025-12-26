@@ -31,6 +31,10 @@ export default function SignIn() {
       if (data.user?.phone) {
         await AsyncStorage.setItem("user_phone", data.user.phone);
       }
+      // Store user ID for filtering own cards from home feed
+      if (data.user?.id || data.user?._id) {
+        await AsyncStorage.setItem("currentUserId", (data.user.id || data.user._id).toString());
+      }
       
       // Register push token after successful login (non-blocking)
       console.log('🔔 Attempting to register pending push token after sign-in...');

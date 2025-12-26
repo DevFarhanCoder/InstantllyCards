@@ -1,14 +1,15 @@
 ﻿import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl } from "react-native";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl, Modal } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, Link, useFocusEffect } from "expo-router";
 import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
+import ReferralBanner from "../../components/ReferralBanner";
 
 
 
@@ -22,26 +23,113 @@ const handleAdClick = () => {
 };
 
 export default function Home() {
+  console.log("🏠 HOME: Component rendering...");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [userName, setUserName] = React.useState<string>("");
+  const [currentUserId, setCurrentUserId] = React.useState<string>("");
+  const [showVideoTest, setShowVideoTest] = React.useState(false);
+  const [userCredits, setUserCredits] = React.useState<number>(0);
+  const [creditsLoading, setCreditsLoading] = React.useState(true);
   const queryClient = useQueryClient();
 
-  // Fetch user name for profile initial
+  // Fetch user name and ID for profile initial and filtering
   React.useEffect(() => {
-    const fetchUserName = async () => {
+    const fetchUserData = async () => {
       try {
         const name = await AsyncStorage.getItem("user_name");
         if (name) setUserName(name);
+        
+        let userId = await AsyncStorage.getItem("currentUserId");
+        if (userId) {
+          setCurrentUserId(userId);
+          console.log("🔍 Home: Current user ID loaded from storage:", userId);
+        } else {
+          // Fallback: Fetch from profile API if not in storage
+          console.log("⚠️ Home: No user ID in storage, fetching from profile API...");
+          try {
+            const token = await AsyncStorage.getItem("token");
+            if (token) {
+              const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
+              const response = await fetch(`${apiBase}/api/auth/profile`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+              if (response.ok) {
+                const profileData = await response.json();
+                if (profileData._id) {
+                  userId = profileData._id.toString();
+                  await AsyncStorage.setItem("currentUserId", userId);
+                  setCurrentUserId(userId);
+                  console.log("✅ Home: User ID fetched from profile and stored:", userId);
+                }
+              }
+            }
+          } catch (apiError) {
+            console.error("❌ Home: Failed to fetch user ID from profile:", apiError);
+          }
+        }
       } catch (error) {
-        console.error("Error fetching user name:", error);
+        console.error("Error fetching user data:", error);
       }
     };
-    fetchUserName();
+    fetchUserData();
   }, []);
+
+  // Fetch user credits
+  const fetchCredits = React.useCallback(async () => {
+    try {
+      setCreditsLoading(true);
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
+        console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
+        
+        const response = await fetch(`${apiBase}/api/credits/balance`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log("💰 Home: Credits response status:", response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
+          setUserCredits(data.credits || 0);
+          console.log("✅ Home: Credits set to:", data.credits || 0);
+        } else {
+          const errorText = await response.text();
+          console.error("❌ Home: Credits fetch failed:", response.status, errorText);
+        }
+      } else {
+        console.error("❌ Home: No auth token found for credits");
+      }
+    } catch (error) {
+      console.error("❌ Home: Error fetching credits:", error);
+    } finally {
+      setCreditsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchCredits();
+  }, [fetchCredits]);
+
+  // Refetch credits when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("🔄 Home: Screen focused, refreshing credits...");
+      fetchCredits();
+    }, [fetchCredits])
+  );
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
   const feedQ = useQuery({
-    queryKey: ["contacts-feed"],
+    queryKey: ["contacts-feed", currentUserId], // CRITICAL: Include userId to prevent data leakage
+    enabled: !!currentUserId, // Only fetch when user ID is available
     queryFn: async () => {
       console.log("📱 Home: Fetching contacts feed...");
       try {
@@ -72,6 +160,7 @@ export default function Home() {
         console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
         console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
         console.log("📇 Home: Cards count:", result.meta?.totalCards);
+        console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
         
         return result.data || [];
       } catch (error) {
@@ -79,25 +168,57 @@ export default function Home() {
         return [];
       }
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh for 5 mins
-    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 mins
-    refetchOnMount: false, // Don't refetch every time component mounts
-    refetchOnWindowFocus: false, // Don't refetch when app comes to foreground
+    staleTime: 30 * 1000, // 30 seconds - reduced cache time
+    gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 mins
+    refetchOnMount: true, // Refetch when screen loads to get fresh data
+    refetchOnWindowFocus: true, // Refetch when app comes to foreground
     refetchInterval: false, // No auto-refetch - only on manual refresh
   });
 
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
     console.log("🔄 Manual refresh triggered");
-    queryClient.invalidateQueries({ queryKey: ["contacts-feed"] });
-  }, [queryClient]);
+    fetchCredits(); // Also refresh credits
+    queryClient.invalidateQueries({ queryKey: ["contacts-feed", currentUserId] });
+  }, [queryClient, currentUserId, fetchCredits]);
 
-  // Filter cards based on search query
+  // Filter cards: 1) Exclude user's own cards, 2) Deduplicate, 3) Apply search query
   const filteredCards = React.useMemo(() => {
-    if (!searchQuery.trim() || !feedQ.data) return feedQ.data || [];
+    let cards = feedQ.data || [];
+    
+    console.log("🔍 Home Filter - Starting with cards:", cards.length);
+    console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
+    
+    // CRITICAL: Filter out user's own cards (extra safety on client side)
+    if (currentUserId) {
+      const beforeFilter = cards.length;
+      cards = cards.filter((card: any) => {
+        const cardUserId = (card.userId || card.owner || "").toString();
+        const isOwnCard = cardUserId === currentUserId;
+        
+        console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
+        
+        if (isOwnCard) {
+          console.log("🚫 Home: Filtering out user's own card:", card.name);
+        }
+        return !isOwnCard;
+      });
+      console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
+    } else {
+      console.warn("⚠️ Home Filter - No currentUserId set, cannot filter own cards!");
+    }
+    
+    // Deduplicate cards by _id to prevent React key errors
+    const uniqueCards = Array.from(
+      new Map(cards.map((card: any) => [card._id, card])).values()
+    );
+    console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
+    
+    // Apply search filter
+    if (!searchQuery.trim()) return uniqueCards;
     
     const query = searchQuery.toLowerCase();
-    return feedQ.data.filter((card: any) => {
+    return uniqueCards.filter((card: any) => {
       const companyName = (card.companyName || "").toLowerCase();
       const name = (card.name || "").toLowerCase();
       const keywords = (card.keywords || "").toLowerCase();
@@ -108,7 +229,7 @@ export default function Home() {
              keywords.includes(query) ||
              location.includes(query);
     });
-  }, [feedQ.data, searchQuery]);
+  }, [feedQ.data, searchQuery, currentUserId]);
 
   console.log("🎯 Home: Query state:", { 
     isLoading: feedQ.isLoading, 
@@ -117,6 +238,8 @@ export default function Home() {
     dataLength: feedQ.data?.length,
     filteredLength: filteredCards?.length 
   });
+
+  console.log("🎨 HOME: About to render SafeAreaView");
 
   return (
     <SafeAreaView style={s.root}>
@@ -136,6 +259,21 @@ export default function Home() {
             <Text style={s.searchIcon}></Text>
           </TouchableOpacity>
         </View>
+
+        {/* Credits Icon */}
+        <Link href="/referral" asChild>
+          <TouchableOpacity style={s.creditsButton}>
+            <View style={s.creditsIconContainer}>
+              <Text style={s.coinIcon}>🪙</Text>
+              {creditsLoading ? (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              ) : (
+                <Text style={s.creditsCount}>{userCredits}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Link>
+
         <TouchableOpacity 
           style={s.profileButton}
           onPress={() => router.push('/(tabs)/profile')}
@@ -159,8 +297,13 @@ export default function Home() {
         <FlatList
           data={filteredCards}
           keyExtractor={(it: any) => it._id}
-          renderItem={({ item }) => <CardRow c={item} />}
-          contentContainerStyle={{ padding: 16, paddingBottom: 180 }}
+          renderItem={({ item }) => (
+            <View style={{ paddingHorizontal: 16 }}>
+              <CardRow c={item} />
+            </View>
+          )}
+          ListHeaderComponent={<ReferralBanner />}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 180 }}
           ListEmptyComponent={
             <View style={s.empty}>
               <Text style={s.emptyTxt}>No cards yet.</Text>
@@ -236,6 +379,34 @@ const s = StyleSheet.create({
     fontSize: 20,
     color: "#FFFFFF",
   },
+  creditsButton: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  creditsIconContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#F59E0B",
+    justifyContent: "center",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    gap: 3,
+  },
+  creditsCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  coinIcon: {
+    fontSize: 16,
+  },
   profileButton: {
     width: 44,
     height: 44,
@@ -274,4 +445,150 @@ const s = StyleSheet.create({
   empty: { flex: 1, height: 240, alignItems: "center", justifyContent: "center" },
   emptyTxt: { color: "#6B7280", fontSize: 18, textAlign: "center", fontWeight: "500" },
   emptySubTxt: { color: "#9CA3AF", fontSize: 14, textAlign: "center", marginTop: 8 },
+  testButton: {
+    position: "absolute",
+    top: 50,
+    right: 16,
+    backgroundColor: "#3B82F6",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  testButtonText: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "bold",
+    letterSpacing: 3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  videoTestContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    width: "90%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  videoTestTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  videoPlaceholder: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    marginBottom: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    borderStyle: "dashed",
+  },
+  videoPlaceholderText: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  videoPlaceholderSubtext: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  playVideoButton: {
+    backgroundColor: "#10B981",
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#10B981",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  playVideoText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  videoPlayer: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#000000",
+    borderRadius: 12,
+    marginBottom: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  videoOverlay: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  playIcon: {
+    fontSize: 64,
+    color: "#FFFFFF",
+    marginBottom: 8,
+  },
+  playText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  videoTestMessage: {
+    fontSize: 15,
+    color: "#6B7280",
+    lineHeight: 22,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  knowMoreButton: {
+    backgroundColor: "#3B82F6",
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#3B82F6",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  knowMoreText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  closeButton: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  closeButtonText: {
+    color: "#6B7280",
+    fontSize: 15,
+    fontWeight: "500",
+    textAlign: "center",
+  },
 });

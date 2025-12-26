@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import FooterCarousel from "../../../components/FooterCarousel";
 
 export default function Ads() {
   const router = useRouter();
@@ -51,6 +52,9 @@ export default function Ads() {
       >
         <Text style={styles.linkText}>Without Channel</Text>
       </TouchableOpacity>
+
+      {/* Footer Carousel */}
+      <FooterCarousel />
     </View>
   );
 }

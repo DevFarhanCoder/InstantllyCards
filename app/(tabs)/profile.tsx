@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,6 +34,7 @@ interface UserProfile {
 }
 
 export default function Profile() {
+  const queryClient = useQueryClient();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -232,8 +234,22 @@ export default function Profile() {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            await AsyncStorage.removeItem("token");
-            await AsyncStorage.removeItem("contactsSynced"); // Clear sync status on logout
+            // CRITICAL: Clear all cached data to prevent data leakage between accounts
+            console.log('🧹 Clearing all React Query cache...');
+            queryClient.clear(); // Remove all queries from cache
+            
+            // Clear all AsyncStorage auth data
+            await AsyncStorage.multiRemove([
+              "token",
+              "user_name",
+              "user_phone",
+              "currentUserId",
+              "contactsSynced",
+              "login_prefill_phone",
+              "reset_phone"
+            ]);
+            
+            console.log('✅ All cache and storage cleared - redirecting to login');
             router.replace("/(auth)/login");
           }
         }
@@ -345,6 +361,21 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 
+          {/* Referral Program Button */}
+          <TouchableOpacity 
+            style={styles.menuButton} 
+            onPress={() => router.push('/referral' as any)}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="gift-outline" size={22} color="#10B981" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Referral Program</Text>
+              <Text style={styles.menuSubtitle}>Invite friends and earn credits</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+
           {/* Logout Button */}
           <TouchableOpacity 
             style={styles.logoutMenuButton} 
@@ -359,7 +390,9 @@ export default function Profile() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
-        </View>        {/* Bottom spacing for footer carousel */}
+        </View>
+        
+        {/* Bottom spacing for footer carousel */}
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -367,7 +400,9 @@ export default function Profile() {
       <FooterCarousel />
     </SafeAreaView>
   );
-}const styles = StyleSheet.create({
+}
+
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F7FA',
