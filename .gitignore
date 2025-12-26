@@ -3,6 +3,7 @@
 # dependencies
 node_modules/
 assets/videos/
+*.mp4
 
 
 # Expo
