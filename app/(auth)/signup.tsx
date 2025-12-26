@@ -21,7 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // Fast2SMS imports for Phone Authentication
 
 
-import * as SmsRetriever from "expo-sms-retriever";
+// import * as SmsRetriever from "expo-sms-retriever";
 import serverWarmup from "../../lib/serverWarmup";
 import api from "../../lib/api";
 import { sendOTPViaFast2SMS, verifyOTPViaBackend } from "../../lib/fast2sms";
@@ -111,45 +111,45 @@ export default function Signup() {
     }
   }, [otpTimer]);
 
-useEffect(() => {
-  if (step !== "otp") return;
+// useEffect(() => {
+//   if (step !== "otp") return;
 
-  let isMounted = true;
+//   let isMounted = true;
 
-  const start = async () => {
-    try {
-      console.log("📩 Starting SMS Retriever…");
+//   const start = async () => {
+//     try {
+//       console.log("📩 Starting SMS Retriever…");
 
-      const started = await SmsRetriever.start();
-      console.log("SMS Retriever started:", started);
+//       const started = await SmsRetriever.start();
+//       console.log("SMS Retriever started:", started);
 
-      if (started) {
-        SmsRetriever.addListener((event) => {
-          const message = event.value;  // correct for your library
-          console.log("📩 SMS RECEIVED:", message);
+//       if (started) {
+//         SmsRetriever.addListener((event) => {
+//           const message = event.value;  // correct for your library
+//           console.log("📩 SMS RECEIVED:", message);
 
-          const otpMatch = message.match(/\d{4,6}/);
-          if (otpMatch && isMounted) {
-            setOtp(otpMatch[0]);
-          }
+//           const otpMatch = message.match(/\d{4,6}/);
+//           if (otpMatch && isMounted) {
+//             setOtp(otpMatch[0]);
+//           }
 
-          SmsRetriever.removeListener();
-        });
-      }
-    } catch (error) {
-      console.error("SMS Retriever Error:", error);
-    }
-  };
+//           SmsRetriever.removeListener();
+//         });
+//       }
+//     } catch (error) {
+//       console.error("SMS Retriever Error:", error);
+//     }
+//   };
 
-  start();
+//   start();
 
-  return () => {
-    isMounted = false;
-    try {
-      SmsRetriever.removeListener();
-    } catch {}
-  };
-}, [step]);
+//   return () => {
+//     isMounted = false;
+//     try {
+//       SmsRetriever.removeListener();
+//     } catch {}
+//   };
+// }, [step]);
 
 
 
@@ -192,11 +192,11 @@ useEffect(() => {
 
       // First, check if phone number already exists
       console.log(`🔍 [SIGNUP-SEND-OTP] Checking if phone exists: ${fullPhone}`);
-      const appHash = await SmsRetriever.getHash()
-      console.log("App Hash:", appHash);
+      // const appHash = await SmsRetriever.getHash()
+      // console.log("App Hash:", appHash);
       const checkRes = await api.post("/auth/check-phone", {
         phone: fullPhone,
-        appHash: appHash
+        // appHash: appHash
       });
       
       console.log(`✅ [SIGNUP-SEND-OTP] Check phone response - EXISTS: ${checkRes.exists}`);
