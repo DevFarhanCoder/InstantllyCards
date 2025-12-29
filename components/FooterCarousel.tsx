@@ -881,6 +881,285 @@
 // //     </View>
 // //   </View>
 // // </Modal>
+
+
+// ***************************
+// import React, { useEffect, useRef, useState } from 'react';
+// import {
+//   View,
+//   Image,
+//   Dimensions,
+//   StyleSheet,
+//   ScrollView,
+//   Pressable,
+//   Modal,
+//   Text,
+//   ActivityIndicator,
+//   Linking,
+// } from 'react-native';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+// import { Ionicons } from '@expo/vector-icons';
+// import Video from 'react-native-video';
+// import { useAds, Ad } from '../hooks/useAds';
+
+// const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// const API_BASE = 'https://api.instantllycards.com';
+
+// const IMAGE_SCROLL_TIME = 5000;
+// const VIDEO_MIN_TIME = 10000; // 🔥 10 sec
+
+// const FooterCarousel = () => {
+//   const { data: ads = [], isLoading } = useAds();
+//   const scrollRef = useRef<ScrollView>(null);
+
+//   const [activeIndex, setActiveIndex] = useState(1);
+//   const [initialized, setInitialized] = useState(false);
+//   const [showModal, setShowModal] = useState(false);
+//   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+//   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+//   const infiniteAds =
+//     ads.length > 0 ? [ads[ads.length - 1], ...ads, ads[0]] : [];
+
+//   /* ───── Restore position ───── */
+//   useEffect(() => {
+//     if (!ads.length) return;
+
+//     (async () => {
+//       const saved = await AsyncStorage.getItem('footerAdIndex');
+//       const start = saved ? Number(saved) : 1;
+//       setActiveIndex(start);
+
+//       setTimeout(() => {
+//         scrollRef.current?.scrollTo({
+//           x: start * SCREEN_WIDTH,
+//           animated: false,
+//         });
+//         setInitialized(true);
+//       }, 50);
+//     })();
+//   }, [ads.length]);
+
+//   /* ───── Auto scroll with video handling ───── */
+//   useEffect(() => {
+//     if (!initialized || infiniteAds.length <= 1) return;
+
+//     if (timerRef.current) clearTimeout(timerRef.current);
+
+//     const currentAd = infiniteAds[activeIndex];
+//     const isVideo = currentAd?.bottomMediaType === 'video';
+
+//     const delay = isVideo ? VIDEO_MIN_TIME : IMAGE_SCROLL_TIME;
+
+//     timerRef.current = setTimeout(() => {
+//       const next = activeIndex + 1;
+
+//       scrollRef.current?.scrollTo({
+//         x: next * SCREEN_WIDTH,
+//         animated: true,
+//       });
+
+//       if (next === infiniteAds.length - 1) {
+//         setTimeout(() => {
+//           scrollRef.current?.scrollTo({
+//             x: SCREEN_WIDTH,
+//             animated: false,
+//           });
+//           setActiveIndex(1);
+//         }, 300);
+//       } else {
+//         setActiveIndex(next);
+//       }
+//     }, delay);
+
+//     return () => {
+//       if (timerRef.current) clearTimeout(timerRef.current);
+//     };
+//   }, [activeIndex, initialized]);
+
+//   /* ───── Save index ───── */
+//   useEffect(() => {
+//     if (initialized) {
+//       AsyncStorage.setItem('footerAdIndex', String(activeIndex));
+//     }
+//   }, [activeIndex, initialized]);
+
+//   /* ───── Bottom media render ───── */
+//   const renderBottomMedia = (ad: Ad, index: number) => {
+//     let url = ad.bottomMediaUrl;
+//     const type = ad.bottomMediaType;
+
+//     if (!url) return null;
+//     if (!url.startsWith('http')) url = `https://${url}`;
+
+//     const isActive = index === activeIndex;
+
+//     if (type === 'video') {
+//       return (
+//         <Video
+//           source={{ uri: url }}
+//           style={styles.media}
+//           resizeMode="cover"
+//           paused={!isActive}
+//           muted
+//           repeat={true}
+//         />
+//       );
+//     }
+
+//     return <Image source={{ uri: url }} style={styles.media} />;
+//   };
+
+//   /* ───── Fullscreen media render ───── */
+//   const renderFullscreenMedia = (ad: Ad) => {
+//     let url = ad.fullscreenMediaUrl || ad.bottomMediaUrl;
+//     const type = ad.fullscreenMediaType || ad.bottomMediaType;
+
+//     if (!url) return null;
+//     if (!url.startsWith('http')) url = `https://${url}`;
+
+//     if (type === 'video') {
+//       return (
+//         <Video
+//           source={{ uri: url }}
+//           style={styles.fullMedia}
+//           resizeMode="cover"
+//           paused={false}
+//           repeat={true}
+//         />
+//       );
+//     }
+
+//     return <Image source={{ uri: url }} style={styles.fullMedia} />;
+//   };
+
+//   return (
+//     <View style={styles.container}>
+//       {isLoading && (
+//         <View style={styles.center}>
+//           <ActivityIndicator color="#10B981" />
+//         </View>
+//       )}
+
+//       {!isLoading && ads.length > 0 && (
+//         <ScrollView
+//           ref={scrollRef}
+//           horizontal
+//           pagingEnabled
+//           showsHorizontalScrollIndicator={false}
+//           removeClippedSubviews={false}
+//         >
+//           {infiniteAds.map((ad, index) => (
+//             <View key={`${ad.id}-${index}`} style={styles.slide}>
+//               {renderBottomMedia(ad, index)}
+
+//               {/* 🔥 FIX: Transparent press layer */}
+//               <Pressable
+//                 style={StyleSheet.absoluteFill}
+//                 onPress={() => {
+//                   setSelectedAd(ad);
+//                   setShowModal(true);
+//                 }}
+//               />
+
+//               <View style={styles.overlay}>
+//                 <Text style={styles.overlayText}>Tap to know more</Text>
+//               </View>
+//             </View>
+//           ))}
+//         </ScrollView>
+//       )}
+
+//       {/* ───── FULLSCREEN MODAL ───── */}
+//       <Modal visible={showModal} animationType="fade">
+//         <View style={styles.modal}>
+//           {selectedAd && renderFullscreenMedia(selectedAd)}
+
+//           <Pressable
+//             style={styles.close}
+//             onPress={() => setShowModal(false)}
+//           >
+//             <Ionicons name="close" size={28} color="#fff" />
+//           </Pressable>
+
+//           <Pressable
+//             style={styles.cta}
+//             onPress={() => Linking.openURL(`tel:${selectedAd?.phone}`)}
+//           >
+//             <Text style={styles.ctaText}>Call Now</Text>
+//           </Pressable>
+//         </View>
+//       </Modal>
+//     </View>
+//   );
+// };
+
+// export default FooterCarousel;
+
+// /* ───── STYLES ───── */
+// const styles = StyleSheet.create({
+//   container: {
+//     position: 'absolute',
+//     bottom: 0,
+//     height: 100,
+//     width: '100%',
+//     backgroundColor: '#000',
+//   },
+//   slide: {
+//     width: SCREEN_WIDTH,
+//     height: 100,
+//   },
+//   media: {
+//     width: '100%',
+//     height: '100%',
+//   },
+//   fullMedia: {
+//     width: '100%',
+//     height: '100%',
+//   },
+//   overlay: {
+//     position: 'absolute',
+//     bottom: 6,
+//     right: 10,
+//     backgroundColor: 'rgba(0,0,0,0.6)',
+//     paddingHorizontal: 10,
+//     paddingVertical: 4,
+//     borderRadius: 10,
+//   },
+//   overlayText: {
+//     color: '#fff',
+//     fontSize: 12,
+//   },
+//   center: {
+//     flex: 1,
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//   },
+//   modal: {
+//     flex: 1,
+//     backgroundColor: '#000',
+//   },
+//   close: {
+//     position: 'absolute',
+//     top: 40,
+//     right: 20,
+//   },
+//   cta: {
+//     position: 'absolute',
+//     bottom: 40,
+//     alignSelf: 'center',
+//     backgroundColor: '#10B981',
+//     paddingHorizontal: 30,
+//     paddingVertical: 14,
+//     borderRadius: 30,
+//   },
+//   ctaText: {
+//     color: '#fff',
+//     fontWeight: '700',
+//     fontSize: 16,
+//   },
+// });
+
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -888,7 +1167,7 @@ import {
   Dimensions,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   Modal,
   Text,
   ActivityIndicator,
@@ -898,36 +1177,56 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Video from 'react-native-video';
 import { useAds, Ad } from '../hooks/useAds';
+import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE || '';
 
-const AUTO_SCROLL_INTERVAL = 5000;
-const SHOW_ADS = true;
+const IMAGE_TIME = 5000;
+const VIDEO_MIN_TIME = 10000; // 🔥 10 sec mandatory
+
+/* 🔗 URL builder – ONLY http / https */
+
+const buildUrl = (url?: string | null) => {
+  if (!url) return null;
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  // cloudfront or domain without protocol
+  if (url.includes('.')) {
+    const fixed = `https://${url}`;
+    // console.log('🔧 Fixed URL:', fixed);
+    return fixed;
+  }
+
+  console.warn('❌ Invalid media URL:', url);
+  return null;
+};
 
 const FooterCarousel = () => {
-  if (!SHOW_ADS) return null;
-
   const { data: ads = [], isLoading } = useAds();
   const scrollRef = useRef<ScrollView>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [activeIndex, setActiveIndex] = useState(1);
   const [initialized, setInitialized] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
-  /** 🧠 Infinite list */
+  /* 🔁 Infinite list */
   const infiniteAds =
     ads.length > 0 ? [ads[ads.length - 1], ...ads, ads[0]] : [];
 
-  /** 🔁 Restore last index */
+  /* 🔁 Restore last index */
   useEffect(() => {
     if (!ads.length) return;
 
     (async () => {
       const saved = await AsyncStorage.getItem('footerAdIndex');
-      const start = saved ? Math.min(Number(saved), ads.length) : 1;
+      const start = saved ? Number(saved) : 1;
 
+      // console.log('🔁 Restoring index:', start);
       setActiveIndex(start);
 
       setTimeout(() => {
@@ -940,97 +1239,141 @@ const FooterCarousel = () => {
     })();
   }, [ads.length]);
 
-  /** ▶️ Auto scroll */
+  /* ⏱️ Auto scroll with video timing */
   useEffect(() => {
     if (!initialized || infiniteAds.length <= 1) return;
 
-    const timer = setInterval(() => {
-      setActiveIndex((prev) => {
-        const next = prev + 1;
+    if (timerRef.current) clearTimeout(timerRef.current);
 
-        scrollRef.current?.scrollTo({
-          x: next * SCREEN_WIDTH,
-          animated: true,
-        });
+    const currentAd = infiniteAds[activeIndex];
+    const isVideo = currentAd?.bottomMediaType === 'video';
+    const delay = isVideo ? VIDEO_MIN_TIME : IMAGE_TIME;
 
-        if (next === infiniteAds.length - 1) {
-          setTimeout(() => {
-            scrollRef.current?.scrollTo({
-              x: SCREEN_WIDTH,
-              animated: false,
-            });
-          }, 300);
-          return 1;
-        }
-        return next;
+    // console.log('⏱️ Slide timer:', {
+    //   index: activeIndex,
+    //   type: currentAd?.bottomMediaType,
+    //   delay,
+    // });
+
+    timerRef.current = setTimeout(() => {
+      const next = activeIndex + 1;
+
+      scrollRef.current?.scrollTo({
+        x: next * SCREEN_WIDTH,
+        animated: true,
       });
-    }, AUTO_SCROLL_INTERVAL);
 
-    return () => clearInterval(timer);
-  }, [initialized, infiniteAds.length]);
+      if (next === infiniteAds.length - 1) {
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({
+            x: SCREEN_WIDTH,
+            animated: false,
+          });
+          setActiveIndex(1);
+        }, 300);
+      } else {
+        setActiveIndex(next);
+      }
+    }, delay);
 
-  /** 💾 Save index */
-  useEffect(() => {
-    if (!initialized) return;
-    AsyncStorage.setItem('footerAdIndex', String(activeIndex));
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [activeIndex, initialized]);
 
-  /** 🔁 Scroll handling */
-  const onMomentumEnd = (e: any) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-
-    if (index === 0) {
-      scrollRef.current?.scrollTo({
-        x: (infiniteAds.length - 2) * SCREEN_WIDTH,
-        animated: false,
-      });
-      setActiveIndex(infiniteAds.length - 2);
-    } else if (index === infiniteAds.length - 1) {
-      scrollRef.current?.scrollTo({
-        x: SCREEN_WIDTH,
-        animated: false,
-      });
-      setActiveIndex(1);
-    } else {
-      setActiveIndex(index);
+  /* 💾 Save index */
+  useEffect(() => {
+    if (initialized) {
+      AsyncStorage.setItem('footerAdIndex', String(activeIndex));
     }
-  };
+  }, [activeIndex, initialized]);
 
-  /** 🖱️ Click */
-  const onAdPress = (ad: Ad) => {
-    setSelectedAd(ad);
-    setShowModal(true);
-  };
+  /* 🎞️ Bottom media */
+  const renderBottomMedia = (ad: Ad, index: number) => {
+    const url = buildUrl(ad.bottomMediaUrl);
+    const type = ad.bottomMediaType;
+    const isActive = index === activeIndex;
 
-  /** 🎥 Render media */
-  const renderMedia = (ad: Ad, fullscreen = false) => {
-    const type = fullscreen ? ad.fullscreenMediaType : ad.bottomMediaType;
-    const url = fullscreen ? ad.fullscreenMediaUrl : ad.bottomMediaUrl;
+    // console.log('🎬 Bottom media:', {
+    //   id: ad.id,
+    //   type,
+    //   url,
+    //   isActive,
+    // });
 
     if (!url) return null;
-
-    const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
 
     if (type === 'video') {
       return (
         <Video
-          source={{ uri: fullUrl }}
-          style={fullscreen ? styles.fullVideo : styles.media}
+          source={{ uri: url }}
+          style={styles.media}
           resizeMode="cover"
-          repeat
+          paused={!isActive}
           muted
+          repeat
+          onError={(e) =>
+            console.error('❌ Bottom video error', e)
+          }
         />
       );
     }
 
-    return (
-      <Image
-        source={{ uri: fullUrl }}
-        style={fullscreen ? styles.fullImage : styles.media}
-        resizeMode="cover"
-      />
-    );
+    return <Image source={{ uri: url }} style={styles.media} />;
   };
+
+  /* 🖥️ Fullscreen media */
+  const renderFullscreenMedia = (ad: Ad) => {
+    const url = buildUrl(ad.fullscreenMediaUrl || ad.bottomMediaUrl);
+    const type = ad.fullscreenMediaType || ad.bottomMediaType;
+
+    // console.log('🖥️ Fullscreen media:', { type, url });
+
+    if (!url) return null;
+
+    if (type === 'video') {
+      return (
+        <Video
+          source={{ uri: url }}
+          style={styles.fullMedia}
+          resizeMode="cover"
+          paused={false}
+          repeat
+          onError={(e) =>
+            console.error('❌ Fullscreen video error', e)
+          }
+        />
+      );
+    }
+
+    return <Image source={{ uri: url }} style={styles.fullMedia} />;
+  };
+
+  const handleChat = (ad: Ad | null) => {
+    if (!ad?.phone) {
+      console.warn('❌ No phone number for chat');
+      return;
+    }
+
+    // +91 remove + spaces remove
+    const phoneOnly = ad.phone.replace(/\+/g, '').replace(/\s/g, '');
+
+    console.log('💬 Opening chat with:', phoneOnly);
+
+    setShowModal(false);
+
+    router.push({
+      pathname: '/chat/[userId]',
+      params: {
+        userId: phoneOnly,
+        phone: phoneOnly,
+        name: ad.title || phoneOnly,
+        isPhoneOnly: 'true',
+        preFillMessage: 'I am interested in your ad',
+      },
+    });
+  };
+
 
   return (
     <View style={styles.container}>
@@ -1040,32 +1383,32 @@ const FooterCarousel = () => {
         </View>
       )}
 
-      {!isLoading && ads.length === 0 && (
-        <View style={styles.center}>
-          <Text>No ads available</Text>
-        </View>
-      )}
-
       {!isLoading && ads.length > 0 && (
         <ScrollView
           ref={scrollRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onMomentumEnd}
+          removeClippedSubviews={false}
         >
           {infiniteAds.map((ad, index) => (
-            <TouchableOpacity
-              key={`${ad.id}-${index}`}
-              activeOpacity={0.9}
-              onPress={() => onAdPress(ad)}
-              style={styles.slide}
-            >
-              {renderMedia(ad)}
+            <View key={`${ad.id}-${index}`} style={styles.slide}>
+              {renderBottomMedia(ad, index)}
+
+              {/* 🔥 Tap Layer */}
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => {
+                  // console.log('📌 Open fullscreen for ad:', ad.id);
+                  setSelectedAd(ad);
+                  setShowModal(true);
+                }}
+              />
+
               <View style={styles.overlay}>
                 <Text style={styles.overlayText}>Tap to know more</Text>
               </View>
-            </TouchableOpacity>
+            </View>
           ))}
         </ScrollView>
       )}
@@ -1073,21 +1416,34 @@ const FooterCarousel = () => {
       {/* 🔲 FULLSCREEN MODAL */}
       <Modal visible={showModal} animationType="fade">
         <View style={styles.modal}>
-          {selectedAd && renderMedia(selectedAd, true)}
+          {selectedAd && renderFullscreenMedia(selectedAd)}
 
-          <TouchableOpacity
+          {/* ❌ Close */}
+          <Pressable
             style={styles.close}
             onPress={() => setShowModal(false)}
           >
             <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
+          {/* 📞 Call */}
+          <Pressable
             style={styles.cta}
-            onPress={() => Linking.openURL(`tel:${selectedAd?.phone}`)}
+            onPress={() =>
+              Linking.openURL(`tel:${selectedAd?.phone}`)
+            }
           >
             <Text style={styles.ctaText}>Call Now</Text>
-          </TouchableOpacity>
+          </Pressable>
+
+          {/* 💬 Chat (placeholder) */}
+          <Pressable
+            style={[styles.cta, { bottom: 100, backgroundColor: '#3B82F6' }]}
+            onPress={() => handleChat(selectedAd)}
+          >
+            <Text style={styles.ctaText}>Chat</Text>
+          </Pressable>
+
         </View>
       </Modal>
     </View>
@@ -1096,8 +1452,7 @@ const FooterCarousel = () => {
 
 export default FooterCarousel;
 
-/* ───────── STYLES ───────── */
-
+/* ───── STYLES ───── */
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
@@ -1105,13 +1460,16 @@ const styles = StyleSheet.create({
     height: 100,
     width: '100%',
     backgroundColor: '#000',
-    zIndex: 20,
   },
   slide: {
     width: SCREEN_WIDTH,
     height: 100,
   },
   media: {
+    width: '100%',
+    height: '100%',
+  },
+  fullMedia: {
     width: '100%',
     height: '100%',
   },
@@ -1130,20 +1488,12 @@ const styles = StyleSheet.create({
   },
   center: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   modal: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  fullVideo: {
-    width: '100%',
-    height: '100%',
-  },
-  fullImage: {
-    width: '100%',
-    height: '100%',
   },
   close: {
     position: 'absolute',
@@ -1165,5 +1515,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-
-

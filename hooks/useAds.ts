@@ -3,6 +3,8 @@ import api from '../lib/api';
 
 // Ad type definition
 export type Ad = {
+  title: string;
+  fullscreenVideoUrl: any;
   id: number | string;
   image: any;
   phone: string;
@@ -202,3 +204,4 @@ export function useAds() {
     refetchIntervalInBackground: true,
   });
 }
+
