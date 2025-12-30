@@ -86,7 +86,19 @@ export default function RootLayout() {
       
       // Initialize Socket.IO and set up admin transfer listener
       console.log('🔌 Connecting to Socket.IO...');
-      await socketService.connect();
+      try {
+        // Add timeout to prevent hanging
+        await Promise.race([
+          socketService.connect(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Socket connection timeout')), 5000)
+          )
+        ]);
+        console.log('✅ Socket.IO connected successfully');
+      } catch (error) {
+        console.error('⚠️ Socket.IO connection failed (non-blocking):', error);
+        // Continue with app initialization even if socket fails
+      }
       
       const unsubscribeAdminTransfer = socketService.onAdminTransfer(async (data) => {
         console.log('👑 GLOBAL: Received admin transfer notification:', data);

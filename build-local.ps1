@@ -37,7 +37,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.16.8-hotspot"
 # 7. Copy .aab back
 if (Test-Path "$shortPath\android\app\build\outputs\bundle\release\app-release.aab") {
     $timestamp = Get-Date -Format "yyyyMMdd-HHmm"
-    $outputFile = "$sourcePath\app-release-v1.0.41-$timestamp.aab"
+    $outputFile = "$sourcePath\app-release-v1.0.54-$timestamp.aab"
     Copy-Item "$shortPath\android\app\build\outputs\bundle\release\app-release.aab" $outputFile -Force
     Write-Host "Build successful! AAB file saved to:" -ForegroundColor Green
     Write-Host "   $outputFile" -ForegroundColor White
