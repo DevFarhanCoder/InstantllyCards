@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import RNShare from 'react-native-share';
-import RNFS from 'react-native-fs';
+import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
 import api from '@/lib/api';
 
 interface ReferralStats {
@@ -145,34 +145,17 @@ export default function ReferralPage() {
       
       const resolvedImage = Image.resolveAssetSource(imageSource);
       
-      // For Android, we need to copy the asset to a shareable location
+      // Copy the asset to a shareable location using expo-file-system
       const filename = selectedLanguage === 'hindi' ? 'referral_hindi.jpg' : 'referral_english.jpg';
-      const destPath = `${RNFS.CachesDirectoryPath}/${filename}`;
+      const destPath = `${cacheDirectory}${filename}`;
       
-      // Fetch the image and write it to cache directory
-      // This works for both bundled assets and remote images
-      const response = await fetch(resolvedImage.uri);
-      const blob = await response.blob();
-      const reader = new FileReader();
+      // Download the asset to file system
+      await downloadAsync(resolvedImage.uri, destPath);
       
-      await new Promise((resolve, reject) => {
-        reader.onloadend = async () => {
-          try {
-            const base64data = (reader.result as string).split(',')[1];
-            await RNFS.writeFile(destPath, base64data, 'base64');
-            resolve(true);
-          } catch (err) {
-            reject(err);
-          }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      
-      // Share image with text message using file:// protocol
+      // Share image with text message
       const shareOptions = {
         message: message,
-        url: `file://${destPath}`,
+        url: destPath,
         type: 'image/jpeg',
         subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
       };
