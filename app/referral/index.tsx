@@ -11,10 +11,11 @@ import {
   Modal,
   Share,
   Platform,
-  Clipboard
+  Clipboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import api from '@/lib/api';
 
@@ -219,32 +220,39 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
           />
         }
       >
-        {/* Credits Balance Banner */}
+
         <TouchableOpacity 
           style={styles.creditsBannerContainer}
-          onPress={() => router.push('/referral/credits-history')}
+          onPress={() => router.push('/referral/credits-history' as any)}
           activeOpacity={0.7}
         >
-          <View style={styles.creditsBanner}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            style={styles.creditsBanner}
+          >
             <View style={styles.creditsContent}>
-              <Text style={styles.creditsLabel}>Your Balance</Text>
-              <Text style={styles.creditsAmount}>{userCredits.toLocaleString()}</Text>
-              <Text style={styles.creditsUnit}>Credits</Text>
+              <View style={styles.creditsLabelRow}>
+                <Ionicons name="sparkles" size={16} color="#059669" />
+                <Text style={styles.creditsLabel}>Available Balance Credit</Text>
+              </View>
+              <Text style={styles.creditsAmount}>{String(userCredits || 0)}</Text>
+              <Text style={styles.creditsUnit}>Ready to use</Text>
             </View>
             <View style={styles.creditsIconCircle}>
-              <Ionicons name="wallet" size={32} color="#10B981" />
+              <Ionicons name="wallet" size={36} color="#10B981" />
             </View>
-          </View>
+          </LinearGradient>
           <View style={styles.creditsHintContainer}>
-            <Ionicons name="information-circle-outline" size={14} color="#9CA3AF" />
-            <Text style={styles.creditsHintText}> Tap to view transaction history</Text>
+            <Ionicons name="time-outline" size={14} color="#9CA3AF" />
+            <Text style={styles.creditsHintText}> View transaction history</Text>
+            <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
           </View>
         </TouchableOpacity>
 
         {/* Track Referral Status Button */}
         <TouchableOpacity 
           style={styles.trackStatusButton}
-          onPress={() => router.push('/referral/track-status')}
+          onPress={() => router.push('/referral/track-status' as any)}
         >
           <Ionicons name="trending-up" size={20} color="#FFFFFF" />
           <Text style={styles.trackStatusText}>Track Referral Status</Text>
@@ -254,54 +262,74 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="people" size={24} color="#8B5CF6" />
+            <View style={[styles.statIconContainer, { backgroundColor: '#EDE9FE' }]}>
+              <Ionicons name="people" size={26} color="#8B5CF6" />
             </View>
             <Text style={styles.statValue}>{stats?.totalReferrals || 0}</Text>
-            <Text style={styles.statLabel}>Friends Invited</Text>
+            <Text style={styles.statLabel}>Successful</Text>
+            <Text style={styles.statLabel}>Referrals</Text>
           </View>
           
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="gift" size={24} color="#F59E0B" />
+            <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="gift" size={26} color="#F59E0B" />
             </View>
             <Text style={styles.statValue}>{stats?.totalCreditsEarned || 0}</Text>
-            <Text style={styles.statLabel}>Credits Earned</Text>
+            <Text style={styles.statLabel}>Credits</Text>
+            <Text style={styles.statLabel}>Earned</Text>
           </View>
         </View>
 
         {/* Referral Link Card */}
         <View style={styles.referralLinkCard}>
-          <Text style={styles.referralLinkTitle}>Your Referral Link</Text>
-          <Text style={styles.referralLinkSubtitle}>Share this link with friends</Text>
+          <Text style={styles.referralLinkTitle}>Your Unique Code</Text>
+          <Text style={styles.referralLinkSubtitle}>Share with friends to earn rewards</Text>
           
           <View style={styles.codeBox}>
             <View style={styles.codeSection}>
-              <Text style={styles.codeLabel}>CODE:</Text>
+              <Text style={styles.codeLabel}>REFERRAL CODE</Text>
               <Text style={styles.codeText}>
                 {stats?.referralCode ? stats.referralCode : 'Loading...'}
               </Text>
-              <Text style={styles.linkText}>
-                instantllycards.com/signup?ref={stats?.referralCode || 'Loading'}
-              </Text>
+              <View style={styles.linkPreview}>
+                <Ionicons name="link-outline" size={12} color="#8B5CF6" />
+                <Text style={styles.linkText} numberOfLines={1}>
+                  instantllycards.com/signup?ref={stats?.referralCode || '...'}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity onPress={handleCopyLink} style={styles.copyIconButton}>
-              <Ionicons name="link" size={20} color="#8B5CF6" />
+              <View style={styles.copyCircle}>
+                <Ionicons name="copy-outline" size={20} color="#8B5CF6" />
+              </View>
               <Text style={styles.copyText}>Copy</Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={styles.shareButtonMain} onPress={handleShare}>
             <Ionicons name="share-social" size={20} color="#FFFFFF" />
-            <Text style={styles.shareButtonMainText}>Share via WhatsApp, SMS & More</Text>
+            <Text style={styles.shareButtonMainText}>Share Referral Link</Text>
+            <Ionicons name="arrow-forward-circle" size={20} color="#FFFFFF" />
           </TouchableOpacity>
+          
+          <View style={styles.shareHint}>
+            <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
+            <Ionicons name="chatbubbles" size={16} color="#007AFF" />
+            <Ionicons name="mail" size={16} color="#EA4335" />
+            <Text style={styles.shareHintText}>WhatsApp, SMS, Email & more</Text>
+          </View>
         </View>
 
         {/* How It Works */}
         <View style={styles.howItWorksCard}>
           <View style={styles.howItWorksHeader}>
-            <Text style={styles.howItWorksIcon}>💡</Text>
-            <Text style={styles.howItWorksTitle}>How It Works</Text>
+            <View style={styles.howItWorksBadge}>
+              <Text style={styles.howItWorksIcon}>💡</Text>
+            </View>
+            <View>
+              <Text style={styles.howItWorksTitle}>How It Works</Text>
+              <Text style={styles.howItWorksSubtitle}>3 simple steps to earn</Text>
+            </View>
           </View>
           
           <View style={styles.stepsList}>
@@ -309,30 +337,51 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>1</Text>
               </View>
-              <Text style={styles.stepText}>
-                Share your referral link via WhatsApp, SMS, or any app
-              </Text>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Share Your Link</Text>
+                <Text style={styles.stepText}>
+                  Send your unique code to friends via WhatsApp, SMS or any messaging app
+                </Text>
+              </View>
             </View>
+
+            <View style={styles.stepConnector} />
 
             <View style={styles.stepItem}>
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>2</Text>
               </View>
-              <Text style={styles.stepText}>
-                Your friend signs up using your link and gets {config?.signupBonus || 200} credits
-              </Text>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Friend Signs Up</Text>
+                <Text style={styles.stepText}>
+                  They download the app, register and receive <Text style={styles.highlight}>{config?.signupBonus || 200} bonus credits</Text>
+                </Text>
+              </View>
             </View>
+
+            <View style={styles.stepConnector} />
 
             <View style={styles.stepItem}>
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>3</Text>
               </View>
-              <Text style={styles.stepText}>
-                You earn {config?.referralReward || 300} credits for each successful referral
-              </Text>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>You Both Win!</Text>
+                <Text style={styles.stepText}>
+                  You get <Text style={styles.highlight}>{config?.referralReward || 300} credits</Text> instantly when they complete signup
+                </Text>
+              </View>
             </View>
           </View>
+
+          <View style={styles.benefitsBanner}>
+            <Ionicons name="trophy" size={20} color="#F59E0B" />
+            <Text style={styles.benefitsText}>Unlimited referrals = Unlimited earnings!</Text>
+          </View>
         </View>
+
+        {/* Bottom Spacer */}
+        <View style={{ height: 20 }} />
       </ScrollView>
 
       {/* Language Selection Modal */}
@@ -434,132 +483,159 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   creditsBannerContainer: {
-    marginBottom: 20,
+    marginBottom: 18,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderRadius: 18,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
     overflow: 'hidden',
   },
   creditsBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
+    padding: 22,
   },
   creditsHintContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    gap: 4,
   },
   creditsHintText: {
     fontSize: 12,
     color: '#6B7280',
-    marginLeft: 4,
+    fontWeight: '500',
   },
   creditsContent: {
     flex: 1,
   },
+  creditsLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
   creditsLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-    fontWeight: '500',
+    fontSize: 13,
+    color: '#059669',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   creditsAmount: {
-    fontSize: 36,
-    fontWeight: '700',
+    fontSize: 40,
+    fontWeight: '900',
     color: '#10B981',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   creditsUnit: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
+    color: '#059669',
     fontWeight: '500',
   },
   creditsIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#D1FAE5',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   trackStatusButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#8B5CF6',
-    borderRadius: 12,
+    backgroundColor: '#10B981',
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 18,
     gap: 8,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   trackStatusText: {
     flex: 1,
     textAlign: 'center',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   statsContainer: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    gap: 14,
+    marginBottom: 18,
   },
   statCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 18,
+    padding: 22,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   statIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F3F4F6',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   statValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 4,
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6B7280',
     textAlign: 'center',
+    fontWeight: '500',
   },
   referralLinkCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 18,
+    padding: 22,
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   referralLinkTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 4,
   },
   referralLinkSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
-    marginBottom: 16,
+    fontWeight: '500',
+    marginBottom: 20,
   },
   codeBox: {
     flexDirection: 'row',
@@ -568,101 +644,196 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#8B5CF6',
     borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    padding: 18,
     marginBottom: 16,
+    backgroundColor: '#FAF5FF',
   },
   codeSection: {
     flex: 1,
+    paddingRight: 8,
   },
   codeLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6B7280',
-    marginBottom: 4,
-    letterSpacing: 0.5,
+    marginBottom: 6,
+    letterSpacing: 1.2,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   codeText: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#8B5CF6',
     marginBottom: 8,
-    letterSpacing: 1,
+    letterSpacing: 2,
+  },
+  linkPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   linkText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#8B5CF6',
+    fontWeight: '500',
+    flex: 1,
   },
   copyIconButton: {
     alignItems: 'center',
-    paddingLeft: 12,
-    gap: 4,
+    gap: 6,
+  },
+  copyCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EDE9FE',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   copyText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#8B5CF6',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   shareButtonMain: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#8B5CF6',
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
+    borderRadius: 14,
+    padding: 18,
+    gap: 10,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   shareButtonMainText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#FFFFFF',
+  },
+  shareHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    gap: 8,
+  },
+  shareHintText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginLeft: 4,
   },
   howItWorksCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 18,
+    padding: 22,
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   howItWorksHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: 22,
+    gap: 12,
+  },
+  howItWorksBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   howItWorksIcon: {
-    fontSize: 24,
+    fontSize: 26,
   },
   howItWorksTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  howItWorksSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+    fontWeight: '500',
   },
   stepsList: {
-    gap: 16,
+    gap: 0,
   },
   stepItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 16,
+    paddingVertical: 12,
   },
   stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#8B5CF6',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   stepNumberText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
-  stepText: {
+  stepContent: {
     flex: 1,
+    paddingTop: 4,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  stepText: {
     fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-    paddingTop: 6,
+    color: '#6B7280',
+    lineHeight: 21,
+    fontWeight: '400',
+  },
+  stepConnector: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 8,
+    marginLeft: 54,
+  },
+  highlight: {
+    color: '#8B5CF6',
+    fontWeight: '700',
+  },
+  benefitsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 18,
+    gap: 8,
+  },
+  benefitsText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
   },
   // Language Modal Styles
   modalOverlay: {
