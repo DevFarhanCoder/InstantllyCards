@@ -9,14 +9,16 @@ import {
   Alert,
   RefreshControl,
   Modal,
-  Share,
   Platform,
   Clipboard,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import RNShare from 'react-native-share';
+import RNFS from 'react-native-fs';
 import api from '@/lib/api';
 
 interface ReferralStats {
@@ -98,69 +100,84 @@ export default function ReferralPage() {
   };
 
   const handleShareWithLanguage = async () => {
-    if (!selectedLanguage || !stats?.referralCode || !config) return;
+    if (!selectedLanguage || !stats?.referralCode) return;
 
     setLanguageModalVisible(false);
 
     try {
-      // Generate Play Store link with referral code
+      // Include referral code in Play Store URL for tracking
       const playStoreUrl = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
-      
-      const hindiMessage = `🎉 मुझे ₹200 क्रेडिट मिला!
 
-मैंने यह ऐप डाउनलोड किया और मुझे ₹200 क्रेडिट मिला! यह ऐप विजिटिंग कार्ड मैनेजमेंट के लिए बहुत अच्छा है। इसके फायदे नीचे दिए गए वीडियो लिंक में दिखाए गए हैं:
+      const hindiMessage = `*बिना किसी निवेश के रोज़ाना ₹1200 से ₹6000+ कमाने का अवसर*
 
-▪️ आपको ₹200 क्रेडिट मिलेगा - जब आप डाउनलोड करेंगे तो आपको भी ₹300 क्रेडिट मिलेगा।
+▪️ *मुझे ₹200 का क्रेडिट मिला* मैंने यह ऐप डाउनलोड किया और मुझे तुरंत ₹200 का क्रेडिट मिला। विजिटिंग कार्ड मैनेजमेंट के लिए यह ऐप बहुत बेहतरीन है। इसके फायदों को नीचे दिए गए वीडियो लिंक में देखा जा सकता है
+▪️ *आपको भी ₹200 मिलेंगे* जब आप इस ऐप को डाउनलोड करेंगे, तो आपको भी ₹200 का क्रेडिट मिलेगा।
+▪️ *₹300 रेफरल बोनस* आपके डाउनलोड करने पर मुझे ₹300 का क्रेडिट मिलेगा। इसी तरह, जब कोई आपके लिंक से डाउनलोड करेगा, तो आपको भी ₹300 मिलेंगे।
+▪️ *रोज़ाना ₹6000 कैसे कमाएं* यदि आप अपना रेफरल मैसेज 6 ग्रुप्स में भेजते हैं और हर ग्रुप में 500 सदस्य हैं, तो आपका मैसेज 3000 लोगों तक पहुँचेगा। सामान्य तौर पर, कम से कम 20 से 50 लोग ऐप डाउनलोड करते हैं। अगर 20 लोग भी डाउनलोड करते हैं, तो ₹300 के हिसाब से आपकी रोज़ाना की कमाई ₹6000 हो जाएगी।
+▪️ *रेफरल आय के लिए क्या करें?* अपना रेफरल मैसेज और लिंक डाउनलोड करें और इसे अपने व्हाट्सएप ग्रुप्स में शेयर करें।
 
-▪️ रेफरल से प्रतिदिन कितना कमा सकते हैं - अगर आप 6 ग्रुप में रेफरल मैसेज भेजते हैं और प्रत्येक ग्रुप में 500 सदस्य हैं, तो आपका मैसेज 3000 लोगों तक पहुंचेगा। सामान्यतः 20 से 50 लोग मोबाइल ऐप डाउनलोड करते हैं। 20 लोगों पर आपको प्रत्येक से ₹300 मिलेंगे, कुल ₹6000 प्रतिदिन!
+*महत्वपूर्ण लिंक:*
+▪️ *ऐप डाउनलोड करने के लिए यहाँ क्लिक करें* ${playStoreUrl}
+▪️ *ऐप के फायदे और उपयोग जानने के लिए वीडियो* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
+▪️ *सहायता के लिए व्हाट्सएप ग्रुप: यदि आपको कोई समस्या आती है, तो इस ग्रुप से जुड़ें और अपनी समस्या लिखें* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
+▪️ *चैनल पार्टनर बनने की पूरी जानकारी के लिए वीडियो* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
-▪️ रेफरल इनकम प्राप्त करने के लिए क्या करें - रेफरल मैसेज और रेफरल लिंक डाउनलोड करें और इस मैसेज व लिंक को अपने व्हाट्सऐप ग्रुप में भेजें।
+      const englishMessage = `*Without Investment Earning Opportunity of ₹1200 to ₹6000+ per day*
 
-📱 अभी डाउनलोड करें (Play Store):
-${playStoreUrl}
+▪️ *I Got ₹200 Credit* I have downloaded this app & Got ₹200 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below
+▪️ *You will get ₹200 Credit* When you down load you will also get ₹200 Credit.
+▪️ *Referal Bonus ₹300 Credit* When you down load i will also get ₹300 Credit.
+▪️ *How to earn ₹6000 per day* If you send Referal Message to 6 Groups & in each group 500 persons are member then your message will go to 3000 persons & normally 20 to 50 person down load the Mobile App so on 20 Person you get ₹300 each so Total is ₹6000 per day
+▪️ *What to do for Getting Referal Income* Download the Referal Message & Referal Link & Send this Message & Link to your WhatsApp Groups
 
-▪️ एप्लिकेशन के फायदे और इसका उपयोग कैसे करें, देखने के लिए वीडियो:
-https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
-
-▪️ अगर आपको कोई समस्या है तो इस व्हाट्सऐप ग्रुप में जुड़ें और अपनी समस्या लिखें। यदि आपको इस एप्लिकेशन का उपयोग करने में कोई प्रश्न या समस्या है तो आप यहां पूछ सकते हैं:
-https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
-
-▪️ चैनल पार्टनर बनने के लिए वीडियो लिंक:
-https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing
-
-▪️ धन्यवाद`;
-
-      const englishMessage = `🎉 I Got Rs 200 Credit!
-
-I have downloaded this app & Got Rs 200 Credit! The app is very good for Visiting Card Management. Advantages are shown in the video link given below:
-
-▪️ You will get Rs 200 Credit - When you download, you will also get Rs. 300 Credit.
-
-▪️ How much you can earn per day by Referral - If you send Referral Message to 6 Groups & in each group 500 persons are members, then your message will go to 3000 persons. Normally 20 to 50 persons download the Mobile App, so on 20 Persons you get ₹300 each, total is Rs. 6000 per day!
-
-▪️ What to do for Getting Referral Income - Download the Referral Message & Referral Link & Send this Message & Link to your WhatsApp Groups.
-
-📱 Download now (Play Store):
-${playStoreUrl}
-
-▪️ Video to See the Advantage of the Application & How to use it:
-https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
-
-▪️ If you have any problem then join this WhatsApp Group and write the Problem you are getting. If you have any questions or problems in using this application then you can ask here:
-https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
-
-▪️ Video Link for becoming Channel Partner Explanation:
-https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing
-
-▪️ Thank You`;
+*Important Links*
+▪️ *Touch this link to Download the App* ${playStoreUrl}
+▪️ *Video to Know Advantage of the Application & How to use it* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
+▪️ *If you have any problem then join this whatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
+▪️ *Video for Channel Partner Explanation* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
       const message = selectedLanguage === 'hindi' ? hindiMessage : englishMessage;
-
-      // Open share dialog with the message
-      await Share.share({
-        message: message,
-        title: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards'
+      
+      // Get image resource based on language
+      const imageSource = selectedLanguage === 'hindi'
+        ? require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')
+        : require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg');
+      
+      const resolvedImage = Image.resolveAssetSource(imageSource);
+      
+      // For Android, we need to copy the asset to a shareable location
+      const filename = selectedLanguage === 'hindi' ? 'referral_hindi.jpg' : 'referral_english.jpg';
+      const destPath = `${RNFS.CachesDirectoryPath}/${filename}`;
+      
+      // Fetch the image and write it to cache directory
+      // This works for both bundled assets and remote images
+      const response = await fetch(resolvedImage.uri);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      await new Promise((resolve, reject) => {
+        reader.onloadend = async () => {
+          try {
+            const base64data = (reader.result as string).split(',')[1];
+            await RNFS.writeFile(destPath, base64data, 'base64');
+            resolve(true);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
       });
+      
+      // Share image with text message using file:// protocol
+      const shareOptions = {
+        message: message,
+        url: `file://${destPath}`,
+        type: 'image/jpeg',
+        subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
+      };
+      
+      await RNShare.open(shareOptions);
 
     } catch (error: any) {
       if (error?.message !== 'User did not share') {
@@ -410,6 +427,11 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
                 ]}
                 onPress={() => handleLanguageSelect('hindi')}
               >
+                <Image 
+                  source={require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')}
+                  style={styles.languageImage}
+                  resizeMode="cover"
+                />
                 <View style={styles.radioButton}>
                   {selectedLanguage === 'hindi' && <View style={styles.radioButtonInner} />}
                 </View>
@@ -426,6 +448,11 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
                 ]}
                 onPress={() => handleLanguageSelect('english')}
               >
+                <Image 
+                  source={require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg')}
+                  style={styles.languageImage}
+                  resizeMode="cover"
+                />
                 <View style={styles.radioButton}>
                   {selectedLanguage === 'english' && <View style={styles.radioButtonInner} />}
                 </View>
@@ -877,6 +904,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#E5E7EB',
     backgroundColor: '#F9FAFB',
+  },
+  languageImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 12,
   },
   languageOptionSelected: {
     borderColor: '#8B5CF6',
