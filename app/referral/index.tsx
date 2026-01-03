@@ -18,7 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import RNShare from 'react-native-share';
-import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
 import api from '@/lib/api';
 
 interface ReferralStats {
@@ -143,40 +142,22 @@ export default function ReferralPage() {
         ? require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')
         : require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg');
       
+      // Resolve the asset to get its URI
       const resolvedImage = Image.resolveAssetSource(imageSource);
-      
-      console.log('Resolved image:', resolvedImage);
-      console.log('Cache directory:', cacheDirectory);
-      
-      // Copy the asset to a shareable location using expo-file-system
-      const filename = selectedLanguage === 'hindi' ? 'referral_hindi.jpg' : 'referral_english.jpg';
-      const destPath = `${cacheDirectory}${filename}`;
-      
-      console.log('Destination path:', destPath);
-      
-      // Download the asset to file system
-      const downloadResult = await downloadAsync(resolvedImage.uri, destPath);
-      console.log('Download result:', downloadResult);
-      
-      // For Android production, use file:// protocol
-      const shareUrl = Platform.OS === 'android' ? `file://${destPath}` : destPath;
       
       // Share image with text message
       const shareOptions = {
         message: message,
-        url: shareUrl,
+        url: resolvedImage.uri,
         type: 'image/jpeg',
         subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
       };
-      
-      console.log('Share options:', shareOptions);
       
       await RNShare.open(shareOptions);
 
     } catch (error: any) {
       if (error?.message !== 'User did not share') {
         console.error('Error sharing:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
         Alert.alert(
           'Error',
           `Failed to share message: ${error?.message || 'Unknown error'}. Please try again.`,
