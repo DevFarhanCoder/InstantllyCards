@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import RNShare from 'react-native-share';
+import * as FileSystem from 'expo-file-system';
+import { Asset } from 'expo-asset';
 import api from '@/lib/api';
 
 interface ReferralStats {
@@ -142,13 +144,18 @@ export default function ReferralPage() {
         ? require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')
         : require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg');
       
-      // Resolve the asset to get its URI
-      const resolvedImage = Image.resolveAssetSource(imageSource);
+      // Load the asset and get local URI
+      const asset = Asset.fromModule(imageSource);
+      await asset.downloadAsync();
       
-      // Share image with text message
+      if (!asset.localUri) {
+        throw new Error('Failed to load image asset');
+      }
+      
+      // Share image with text message using local file URI
       const shareOptions = {
         message: message,
-        url: resolvedImage.uri,
+        url: asset.localUri,
         type: 'image/jpeg',
         subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
       };
