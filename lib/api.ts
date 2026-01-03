@@ -36,8 +36,9 @@ console.log("🔍 Environment check:", {
   __DEV__: __DEV__
 });
 
-// Optimized timeout for better user experience (15 seconds)
-const TIMEOUT_MS = 15000;
+// Optimized timeout for better user experience
+// Increased to 120 seconds for card operations with images (AWS cold start)
+const TIMEOUT_MS = 120000;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Json = Record<string, any>;

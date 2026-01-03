@@ -250,27 +250,26 @@ export default function Home() {
         <TouchableOpacity 
           style={s.profileButton}
           onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.7}
         >
           <View style={s.profileGradientBorder}>
             <View style={s.profileInner}>
-              <Text style={{fontWeight: 'bold', fontSize: 22, color: '#fff'}}>
-                {userName ? userName.charAt(0).toUpperCase() : ''}
+              <Text style={s.profileInitial}>
+                {userName ? userName.charAt(0).toUpperCase() : 'U'}
               </Text>
             </View>
           </View>
         </TouchableOpacity>
         {/* Title Center */}
         <View style={s.headerTitleLogoContainer}>
-          <View style={s.headerTitleTextWrap}>
-            <Text style={s.headerTitleLogo}>
-              <Text style={s.headerTitleOrange}>Instant</Text>
-              <Text style={s.headerTitleCyan}>lly</Text>
-            </Text>
-          </View>
+          <Text style={s.headerTitleLogo}>
+            <Text style={s.headerTitleOrange}>Instant</Text>
+            <Text style={s.headerTitleCyan}>lly</Text>
+          </Text>
         </View>
         {/* Credits Right */}
         <Link href="/referral" asChild>
-          <TouchableOpacity style={s.creditsButton}>
+          <TouchableOpacity style={s.creditsButton} activeOpacity={0.7}>
             <View style={s.creditsIconContainer}>
               <Text style={s.coinIcon}>🪙</Text>
               {creditsLoading ? (
@@ -286,7 +285,7 @@ export default function Home() {
       {/* Search Bar - Static at the top */}
       <View style={s.searchBarRow}>
         <View style={s.searchBarContainer}>
-          <Ionicons name="search" size={22} color="#9CA3AF" style={{marginLeft: 10, marginRight: 6}} />
+          <Ionicons name="search" size={20} color="#9CA3AF" style={s.searchIcon} />
           <TextInput
             style={s.searchInputModern}
             placeholder="Search business cards"
@@ -294,7 +293,15 @@ export default function Home() {
             onChangeText={setSearchQuery}
             placeholderTextColor="#9CA3AF"
           />
-          {/* Removed scanner and mic icons as requested */}
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => setSearchQuery('')}
+              style={s.clearButton}
+              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+            >
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -315,15 +322,29 @@ export default function Home() {
           ListHeaderComponent={
             <>
               <ReferralBanner />
+              {/* Categories Header with Arrow and Promote Button - Same Line */}
+              <View style={s.categoriesHeaderRow}>
+                <View style={s.categoriesWithArrow}>
+                  <Text style={s.categoriesHeaderText}>Categories</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#EF4444" style={s.categoriesArrow} />
+                </View>
+                <TouchableOpacity
+                  style={s.promoteBusinessButton}
+                  onPress={() => router.push('/business-promotion')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.promoteButtonText}>Promote Business</Text>      
+                </TouchableOpacity>
+              </View>
               <CategoryGrid />
-              <View style={[s.cardsHeadingRow, { marginBottom: 16 }]}> // Added gap below heading
+              <View style={s.cardsHeadingRow}>
                 <View style={s.cardsHeadingLine} />
                 <Text style={s.cardsHeadingText}>Business Cards</Text>
                 <View style={s.cardsHeadingLine} />
               </View>
             </>
           }
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 80 }}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 120 }}
           initialNumToRender={2}
           windowSize={5}
           ListEmptyComponent={
@@ -347,7 +368,7 @@ export default function Home() {
       )}
 
       {/* Footer Carousel */}
-      <FooterCarousel />
+      <FooterCarousel showPromoteButton={true} />
 
       <FAB />
     </SafeAreaView>
@@ -355,58 +376,40 @@ export default function Home() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F6FA" },
+  root: { 
+    flex: 1, 
+    backgroundColor: "#F9FAFB" 
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#fff',
   },
   headerTitleLogoContainer: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 0,
-    gap: 4,
-  },
-  headerLogoImgNoBg: {
-    width: 32,
-    height: 32,
-    marginRight: 8,
-    alignSelf: 'center',
-    backgroundColor: 'transparent',
-  },
-  headerTitleTextWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 32,
   },
   headerTitleLogo: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
     letterSpacing: 0.5,
-    fontFamily: 'System',
-    includeFontPadding: false,
-    paddingTop: 0,
-    lineHeight: 32,
   },
   headerTitleCyan: {
-    color: '#00C3FF', // logo left cyan
+    color: '#00C3FF',
     fontWeight: '900',
-    fontFamily: 'System',
   },
   headerTitleBlue: {
-    color: '#0090FF', // logo right blue
+    color: '#0090FF',
     fontWeight: '900',
-    fontFamily: 'System',
   },
   headerTitleOrange: {
-    color: '#FF9100', // logo orange
+    color: '#FF9100',
     fontWeight: '900',
-    fontFamily: 'System',
   },
   sectionTitle: {
     fontSize: 10,
@@ -420,51 +423,54 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    marginTop: 8,
-    marginBottom: 2,
+    marginTop: 1,
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
   cardsHeadingLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#B0B0B0',
-    marginHorizontal: 8,
+    backgroundColor: '#D1D5DB',
   },
   cardsHeadingText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#1F2937',
     textAlign: 'center',
-    letterSpacing: 1,
-    paddingHorizontal: 8,
-    backgroundColor: 'transparent',
+    paddingHorizontal: 16,
+    letterSpacing: 0.5,
   },
-    searchBarContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#fff',
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: '#2563eb', // Blue border for search bar
-      paddingVertical: 4,
-      marginTop: 0,
-      marginBottom: 0,
-      shadowColor: '#000',
-      shadowOpacity: 0.04,
-      shadowRadius: 2,
-      elevation: 1,
-    },
-    searchInputModern: {
-      flex: 1,
-      fontSize: 18,
-      color: '#6B7280',
-      paddingVertical: 6,
-      paddingHorizontal: 0,
-      backgroundColor: 'transparent',
-    },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInputModern: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+  },
   searchBarRow: {
     marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 12,
+    marginBottom: 12,
   },
   searchWrapper: {
     flex: 1,
@@ -499,7 +505,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  searchIcon: {
+  searchIconWhite: {
     fontSize: 20,
     color: "#FFFFFF",
   },
@@ -510,53 +516,59 @@ const s = StyleSheet.create({
   creditsIconContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#FEF3C7",
     borderWidth: 2,
     borderColor: "#F59E0B",
     justifyContent: "center",
     shadowColor: "#F59E0B",
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 3,
-    gap: 3,
+    gap: 4,
   },
   creditsCount: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#92400E",
   },
   coinIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   profileButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
   profileGradientBorder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 3,
-    borderColor: "#2196F3",
-    backgroundColor: "#D84315",
+    borderColor: "#3B82F6",
+    backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#3B82F6",
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 4,
   },
   profileInner: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#D84315",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
   },
   profileInitial: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#FFFFFF",
   },
@@ -714,5 +726,50 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     textAlign: "center",
+  },
+  categoriesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 1,
+    marginBottom: 8,
+  },
+  categoriesWithArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoriesHeaderText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    letterSpacing: 0.3,
+  },
+  categoriesArrow: {
+    marginTop: 2,
+  },
+  promoteBusinessButton: {
+    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    shadowColor: '#EF4444',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  promoteIcon: {
+    marginRight: 10,
+  },
+  promoteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

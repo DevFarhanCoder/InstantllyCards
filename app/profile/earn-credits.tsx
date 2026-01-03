@@ -44,6 +44,26 @@ const QUESTIONS: Question[] = [
   { id: '8', text: 'What languages can you speak, read, and type?', type: 'multi-select', key: 'languages', icon: 'language', emoji: '🗣️', options: ['English', 'Hindi', 'Marathi', 'Other'] },
   { id: '9', text: 'Are you looking for a job?', type: 'yes-no', key: 'wantJob', icon: 'search', emoji: '🔍' },
   { id: '10', text: 'What is your pincode?', type: 'text', key: 'pincode', icon: 'location', emoji: '📍' },
+  { id: '11', text: 'Do you use social media for business?', type: 'yes-no', key: 'socialMediaBusiness', icon: 'logo-instagram', emoji: '📱' },
+  { id: '12', text: 'Do you have a credit or debit card?', type: 'yes-no', key: 'hasCard', icon: 'card', emoji: '💳' },
+  { id: '13', text: 'Do you invest in stocks, mutual funds, or SIPs?', type: 'yes-no', key: 'invests', icon: 'trending-up', emoji: '📈' },
+  { id: '14', text: 'Do you have health insurance?', type: 'yes-no', key: 'healthInsurance', icon: 'medical', emoji: '🏥' },
+  { id: '15', text: 'Do you own a laptop or desktop computer?', type: 'yes-no', key: 'hasComputer', icon: 'desktop', emoji: '💻' },
+  { id: '16', text: 'Do you work from home or remotely?', type: 'yes-no', key: 'workFromHome', icon: 'home', emoji: '🏠' },
+  { id: '17', text: 'Are you open to part-time or side income opportunities?', type: 'yes-no', key: 'sideIncome', icon: 'cash', emoji: '💰' },
+  { id: '18', text: 'Do you travel outside your city at least once a year?', type: 'yes-no', key: 'travelsYearly', icon: 'airplane', emoji: '✈️' },
+  { id: '19', text: 'Do you shop online at least once a month?', type: 'yes-no', key: 'onlineShopping', icon: 'cart', emoji: '🛒' },
+  { id: '20', text: 'Do you use food delivery apps?', type: 'yes-no', key: 'foodDelivery', icon: 'restaurant', emoji: '🍔' },
+  { id: '21', text: 'Do you use fitness or health-related apps?', type: 'yes-no', key: 'fitnessApps', icon: 'fitness', emoji: '💪' },
+  { id: '22', text: 'Do you have a driving license?', type: 'yes-no', key: 'drivingLicense', icon: 'car-sport', emoji: '🪪' },
+  { id: '23', text: 'Are you interested in starting your own business?', type: 'yes-no', key: 'wantStartBusiness', icon: 'rocket', emoji: '🚀' },
+  { id: '24', text: 'Are you a student looking for part-time work?', type: 'yes-no', key: 'studentPartTime', icon: 'school', emoji: '🎓' },
+  { id: '25', text: 'What is your highest education level?', type: 'multiple-choice', key: 'education', icon: 'book', emoji: '📚', options: ['High School', "Bachelor's", "Master's", 'PhD', 'Other'] },
+  { id: '26', text: 'Do you travel frequently for work?', type: 'yes-no', key: 'travelForWork', icon: 'briefcase', emoji: '💼' },
+  { id: '27', text: 'What is your preferred mode of communication?', type: 'multiple-choice', key: 'communicationMode', icon: 'chatbubbles', emoji: '💬', options: ['Phone Call', 'WhatsApp', 'Email', 'SMS', 'Video Call'] },
+  { id: '28', text: 'What is your monthly income range?', type: 'multiple-choice', key: 'incomeRange', icon: 'wallet', emoji: '💵', options: ['Below 20k', '20k-40k', '40k-60k', '60k-1L', 'Above 1L', 'Prefer not to say'] },
+  { id: '29', text: 'Do you have any pets?', type: 'yes-no', key: 'hasPets', icon: 'paw', emoji: '🐾' },
+  { id: '30', text: 'Are you interested in learning new skills?', type: 'yes-no', key: 'learningSkills', icon: 'bulb', emoji: '💡' },
 ];
 
 const CREDITS_PER_QUESTION = 10;
@@ -128,8 +148,23 @@ export default function EarnCreditsScreen() {
         
         setAnswers(savedAnswers || {});
         
-        // If quiz is completed, show completion screen
-        if (completed) {
+        // Check if ALL 30 questions are actually answered (not just completed flag)
+        const allQuestionsAnswered = answeredQuestions?.length >= QUESTIONS.length;
+        
+        // If marked complete but not all answered, try to fix it automatically
+        if (completed && !allQuestionsAnswered) {
+          try {
+            const fixResponse = await api.post('/quiz/fix-completion');
+            if (fixResponse.success) {
+              console.log('Quiz completion status fixed automatically');
+            }
+          } catch (error) {
+            console.error('Error fixing completion status:', error);
+          }
+        }
+        
+        // If all questions truly answered, show completion screen
+        if (completed && allQuestionsAnswered) {
           setShowCompletionBanner(true);
           return;
         }
@@ -206,7 +241,7 @@ export default function EarnCreditsScreen() {
           totalEarned: response.data.totalCreditsFromQuiz || prev.totalEarned + creditsEarned,
         }));
 
-        // Check if quiz is completed - all 10 questions must be answered
+        // Check if quiz is completed - all questions must be answered
         const allQuestionsAnswered = updatedAnsweredQuestions.length >= QUESTIONS.length;
         
         if (isCompleted || allQuestionsAnswered) {
@@ -216,16 +251,17 @@ export default function EarnCreditsScreen() {
             showCompletionScreen();
           }, 2000);
         } else {
-          // Find next unanswered question
-          const nextUnanswered = QUESTIONS.findIndex(
-            q => !updatedAnsweredQuestions.includes(q.key)
-          );
-          
-          if (nextUnanswered !== -1) {
-            setCurrentQuestionIndex(nextUnanswered);
-          } else {
-            // Fallback: move to next question
+          // Move to next question sequentially
+          if (currentQuestionIndex < QUESTIONS.length - 1) {
             setCurrentQuestionIndex(currentQuestionIndex + 1);
+          } else {
+            // If at last question, go back to first unanswered question
+            const firstUnanswered = QUESTIONS.findIndex(
+              q => !updatedAnsweredQuestions.includes(q.key)
+            );
+            if (firstUnanswered !== -1) {
+              setCurrentQuestionIndex(firstUnanswered);
+            }
           }
           setTextInput('');
         }
@@ -390,7 +426,7 @@ export default function EarnCreditsScreen() {
                 <Text style={styles.completionBonusTitle}>🎊 Congratulations!</Text>
                 <Text style={styles.completionBonusText}>
                   You've completed all questions!{' \n'}
-                  <Text style={styles.bonusAmount}>Total: 100 Credits Earned!</Text>
+                  <Text style={styles.bonusAmount}>Total: 300 Credits Earned!</Text>
                 </Text>
                 <TouchableOpacity
                   style={styles.completionBannerButton}
@@ -465,7 +501,7 @@ export default function EarnCreditsScreen() {
           <View style={[styles.infoTooltip, { backgroundColor: '#E8EAF6' }]}>
             <Ionicons name="information-circle-outline" size={22} color="#673AB7" />
             <Text style={styles.infoTooltipText}>
-             If you  Answer  all the 10 questions you will earn 100 credits!
+             If you  Answer  all the 30 questions you will earn 300 credits!
             </Text>
           </View>
         </View>
@@ -673,7 +709,7 @@ export default function EarnCreditsScreen() {
                         </View>
                       </View>
                     )}
-                    
+                  
                     {selectedLanguages.length > 0 && (
                       <TouchableOpacity
                         style={[styles.submitButton, submitting && styles.submitButtonDisabled]}

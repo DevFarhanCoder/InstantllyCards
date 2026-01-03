@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator, Animated } from "react-native";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { ensureAuth } from "../../../lib/auth";
 import api from "../../../lib/api";
 import BusinessAvatar from "../../../components/BusinessAvatar";
@@ -22,19 +23,28 @@ export default function CardDetail() {
 
   // ⚡ OPTIMIZATION: Memoize calculated values - MUST be before any returns (Rules of Hooks)
   const fullPersonal = useMemo(() => {
-    return card?.personalCountryCode && card?.personalPhone
-      ? `+${card.personalCountryCode}${card.personalPhone}` : "";
+    if (!card?.personalPhone) return "";
+    return card?.personalCountryCode 
+      ? `+${card.personalCountryCode}${card.personalPhone}`
+      : card.personalPhone;
   }, [card?.personalCountryCode, card?.personalPhone]);
 
   const fullCompany = useMemo(() => {
-    return card?.companyCountryCode && card?.companyPhone
-      ? `+${card.companyCountryCode}${card.companyPhone}` : "";
+    if (!card?.companyPhone) return "";
+    return card?.companyCountryCode
+      ? `+${card.companyCountryCode}${card.companyPhone}`
+      : card.companyPhone;
   }, [card?.companyCountryCode, card?.companyPhone]);
 
   // Memoize keywords array
   const keywords = useMemo(() => {
     return card?.keywords ? card.keywords.split(',').map((k: string) => k.trim()) : [];
   }, [card?.keywords]);
+
+  // Memoize services array from servicesOffered string
+  const services = useMemo(() => {
+    return card?.servicesOffered ? card.servicesOffered.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
+  }, [card?.servicesOffered]);
 
   // ⚡ Shimmer animation effect
   useEffect(() => {
@@ -129,6 +139,12 @@ export default function CardDetail() {
             setLoading(false);
             hasInitialized.current = true;
             console.log("✅ Card rendered from cache");
+          }
+          
+          // ⚡ ALWAYS fetch fresh data in background to get updated fields
+          if (id && !isUnmounted.current) {
+            console.log("🔄 Fetching fresh data in background...");
+            await fetchCardById(id);
           }
           return;
         }
@@ -286,8 +302,12 @@ export default function CardDetail() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.back()} style={s.backButton}>
-            <Text style={s.backText}>← Back</Text>
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={s.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
           <Text style={s.headerTitle}>Loading...</Text>
           <View style={{ width: 80 }} />
@@ -339,9 +359,14 @@ export default function CardDetail() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.back()} style={s.backButton}>
-            <Text style={s.backText}>← Back</Text>
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={s.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
+          <Text style={s.headerTitle}>Business Details</Text>
         </View>
         <View style={s.loading}>
           <Text style={s.errorText}>{error || "Card not found"}</Text>
@@ -354,45 +379,101 @@ export default function CardDetail() {
     <SafeAreaView style={s.container}>
       {/* Header with Back Button */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backButton}>
-          <Text style={s.backText}>← Back</Text>
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          style={s.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Business Profile</Text>
-        <View style={{ width: 80 }} />
+        <Text style={s.headerTitle}>Business Details</Text>
+        <View style={s.shareHeaderButton} />
       </View>
 
       <ScrollView style={s.content} showsVerticalScrollIndicator={false}>
-        {/* Business Photo with fallback avatar */}
-        <BusinessAvatar 
-          companyPhoto={card.companyPhoto}
-          companyName={card.companyName}
-          size={200}
-          style={s.photo}
-          backgroundColor="#3B82F6"
-        />
+        {/* Top Section with Avatar */}
+        <View style={s.topSection}>
+          {/* Business Photo with fallback avatar */}
+          <BusinessAvatar 
+            companyPhoto={card.companyPhoto}
+            companyName={card.companyName}
+            size={120}
+            style={s.photo}
+            backgroundColor="#EFF6FF"
+          />
 
-        {/* Company Name */}
-        <Text style={s.companyName}>{card.companyName || card.name}</Text>
+          {/* Company Name */}
+          <Text style={s.companyName}>{card.companyName || card.name}</Text>
 
-        {/* Personal Info */}
-        {card.name && card.name !== card.companyName && (
-          <Text style={s.personName}>{card.name}</Text>
-        )}
-        {card.designation && (
-          <Text style={s.designation}>{card.designation}</Text>
-        )}
-
-        {/* Keywords */}
-        {keywords.length > 0 && (
-          <View style={s.keywordsSection}>
-            <Text style={s.sectionTitle}>Specialties</Text>
-            <View style={s.keywordsContainer}>
-              {keywords.map((keyword: string, index: number) => (
-                <View key={index} style={s.keywordTag}>
-                  <Text style={s.keywordText}>{keyword}</Text>
-                </View>
-              ))}
+          {/* Services as Categories */}
+          {services.length > 0 && (
+            <View style={s.infoRow}>
+              <Text style={s.infoText}>{services.slice(0, 2).join(' • ')}</Text>
             </View>
+          )}
+
+          {/* Established Year */}
+          {card.establishedYear && (
+            <View style={s.ratingRow}>
+              <View style={s.estContainer}>
+                <Ionicons name="calendar" size={16} color="#6B7280" />
+                <Text style={s.estText}>Est. {card.establishedYear}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Quick Action Buttons - Circular */}
+        <View style={s.actionsContainer}>
+          <TouchableOpacity 
+            style={s.actionButton} 
+            onPress={() => handleCall(fullCompany || fullPersonal)}
+          >
+            <View style={[s.actionCircle, s.callCircle]}>
+              <Ionicons name="call" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={s.actionLabel}>Call</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={s.actionButton}
+            onPress={() => handleEmail(card.companyEmail || card.email)}
+          >
+            <View style={[s.actionCircle, s.emailCircle]}>
+              <Ionicons name="mail" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={s.actionLabel}>Email</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={s.actionButton}
+            onPress={() => {
+              const mapsUrl = card.companyMapsLink || card.mapsLink;
+              if (mapsUrl) Linking.openURL(mapsUrl);
+            }}
+          >
+            <View style={[s.actionCircle, s.directionCircle]}>
+              <Ionicons name="navigate" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={s.actionLabel}>Direction</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={s.actionButton}
+            onPress={() => handleWebsite(card.companyWebsite || card.website)}
+          >
+            <View style={[s.actionCircle, s.websiteCircle]}>
+              <Ionicons name="globe" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={s.actionLabel}>Website</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* About Section */}
+        {(card.aboutBusiness || card.message) && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>About</Text>
+            <Text style={s.messageText}>{card.aboutBusiness || card.message}</Text>
           </View>
         )}
 
@@ -400,60 +481,137 @@ export default function CardDetail() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>Contact Information</Text>
           
+          {(() => {
+            console.log('� All Card Data:', {
+              companyEmail: card.companyEmail,
+              email: card.email,
+              companyWebsite: card.companyWebsite,
+              website: card.website,
+              companyAddress: card.companyAddress,
+              location: card.location,
+              businessHours: card.businessHours,
+              servicesOffered: card.servicesOffered,
+              establishedYear: card.establishedYear,
+              aboutBusiness: card.aboutBusiness,
+              message: card.message
+            });
+            return null;
+          })()}
+          
           {(fullCompany || fullPersonal) && (
-            <TouchableOpacity 
-              style={s.contactItem} 
-              onPress={() => handleCall(fullCompany || fullPersonal)}
-            >
-              <Text style={s.contactIcon}>📞</Text>
-              <Text style={s.contactText}>{fullCompany || fullPersonal}</Text>
-            </TouchableOpacity>
+            <View style={s.contactRow}>
+              <View style={s.contactIconContainer}>
+                <Ionicons name="call" size={20} color="#3B82F6" />
+              </View>
+              <View style={s.contactContent}>
+                <Text style={s.contactLabel}>Phone</Text>
+                <TouchableOpacity onPress={() => handleCall(fullCompany || fullPersonal)}>
+                  <Text style={s.contactValue}>{fullCompany || fullPersonal}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
 
           {(card.companyEmail || card.email) && (
-            <TouchableOpacity 
-              style={s.contactItem} 
-              onPress={() => handleEmail(card.companyEmail || card.email)}
-            >
-              <Text style={s.contactIcon}>📧</Text>
-              <Text style={s.contactText}>{card.companyEmail || card.email}</Text>
-            </TouchableOpacity>
+            <View style={s.contactRow}>
+              <View style={s.contactIconContainer}>
+                <Ionicons name="mail" size={20} color="#3B82F6" />
+              </View>
+              <View style={s.contactContent}>
+                <Text style={s.contactLabel}>Email</Text>
+                <TouchableOpacity onPress={() => handleEmail(card.companyEmail || card.email)}>
+                  <Text style={s.contactValue}>{card.companyEmail || card.email}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
 
           {(card.companyWebsite || card.website) && (
-            <TouchableOpacity 
-              style={s.contactItem} 
-              onPress={() => handleWebsite(card.companyWebsite || card.website)}
-            >
-              <Text style={s.contactIcon}>🌐</Text>
-              <Text style={s.contactText}>{card.companyWebsite || card.website}</Text>
-            </TouchableOpacity>
+            <View style={s.contactRow}>
+              <View style={s.contactIconContainer}>
+                <Ionicons name="globe" size={20} color="#3B82F6" />
+              </View>
+              <View style={s.contactContent}>
+                <Text style={s.contactLabel}>Website</Text>
+                <TouchableOpacity onPress={() => handleWebsite(card.companyWebsite || card.website)}>
+                  <Text style={s.contactValue}>{card.companyWebsite || card.website}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
 
-          {card.whatsapp && (
-            <TouchableOpacity 
-              style={s.contactItem} 
-              onPress={() => handleWhatsApp(card.whatsapp)}
-            >
-              <Text style={s.contactIcon}>💬</Text>
-              <Text style={s.contactText}>WhatsApp</Text>
-            </TouchableOpacity>
+          {(card.companyAddress || card.location) && (
+            <View style={s.contactRow}>
+              <View style={s.contactIconContainer}>
+                <Ionicons name="location" size={20} color="#3B82F6" />
+              </View>
+              <View style={s.contactContent}>
+                <Text style={s.contactLabel}>Address</Text>
+                <Text style={s.contactValue}>{card.companyAddress || card.location}</Text>
+              </View>
+            </View>
           )}
+
+          {card.businessHours && (() => {
+            try {
+              const schedule = JSON.parse(card.businessHours);
+              const openDays = Object.entries(schedule).filter(([_, hours]: [string, any]) => hours.open);
+              if (openDays.length > 0) {
+                return (
+                  <View style={s.contactRow}>
+                    <View style={s.contactIconContainer}>
+                      <Ionicons name="time" size={20} color="#3B82F6" />
+                    </View>
+                    <View style={s.contactContent}>
+                      <Text style={s.contactLabel}>Business Hours</Text>
+                      {openDays.map(([day, hours]: [string, any]) => {
+                        const formatTime = (time: string) => {
+                          const [hoursStr] = time.split(':');
+                          const hour = parseInt(hoursStr);
+                          const isPM = hour >= 12;
+                          const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                          return `${displayHour} ${isPM ? 'PM' : 'AM'}`;
+                        };
+                        return (
+                          <Text key={day} style={s.scheduleText}>
+                            {day}: {formatTime(hours.openTime)} - {formatTime(hours.closeTime)}
+                          </Text>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              }
+            } catch (e) {
+              // Fallback for old format
+              return (
+                <View style={s.contactRow}>
+                  <View style={s.contactIconContainer}>
+                    <Ionicons name="time" size={20} color="#3B82F6" />
+                  </View>
+                  <View style={s.contactContent}>
+                    <Text style={s.contactLabel}>Business Hours</Text>
+                    <Text style={s.contactValue}>{card.businessHours}</Text>
+                  </View>
+                </View>
+              );
+            }
+            return null;
+          })()}
         </View>
 
-        {/* Location */}
-        {(card.companyAddress || card.location) && (
+        {/* Services Section */}
+        {services.length > 0 && (
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Location</Text>
-            <Text style={s.locationText}>{card.companyAddress || card.location}</Text>
-          </View>
-        )}
-
-        {/* Message */}
-        {card.message && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>About</Text>
-            <Text style={s.messageText}>{card.message}</Text>
+            <Text style={s.sectionTitle}>Services Offered</Text>
+            <View style={s.servicesContainer}>
+              {services.map((service: string, index: number) => (
+                <View key={index} style={s.serviceChip}>
+                  <Text style={s.checkIcon}>✓</Text>
+                  <Text style={s.serviceText}>{service}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -525,13 +683,14 @@ export default function CardDetail() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F6FA" },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 16,
+    paddingBottom: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
@@ -539,6 +698,7 @@ const s = StyleSheet.create({
   backButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
+    marginRight: 12,
   },
   backText: {
     fontSize: 16,
@@ -549,8 +709,9 @@ const s = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
+    flex: 1,
   },
-  content: { flex: 1, padding: 16 },
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   loading: { 
     flex: 1, 
     justifyContent: "center", 
@@ -564,106 +725,200 @@ const s = StyleSheet.create({
     fontWeight: "500",
   },
   errorText: { fontSize: 16, color: "#DC2626" },
-  photo: {
-    width: "100%",
-    height: 200,
-    borderRadius: 16,
-    marginBottom: 20,
-    backgroundColor: "#E5E7EB",
+  // Top Section with Avatar and Info
+  topSection: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  avatarRow: {
+    alignItems: "center",
+    marginBottom: 16,
   },
   companyName: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#111827",
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1F2937",
     textAlign: "center",
+    marginTop: 12,
     marginBottom: 8,
   },
-  personName: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#374151",
-    textAlign: "center",
-    marginBottom: 4,
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 8,
   },
-  designation: {
-    fontSize: 16,
+  infoText: {
+    fontSize: 14,
     color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 20,
+    fontWeight: "500",
   },
-  keywordsSection: { marginBottom: 24 },
-  section: { marginBottom: 24 },
+  infoDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D1D5DB",
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    marginTop: 8,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  estContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  starIcon: {
+    fontSize: 18,
+    color: "#FBBF24",
+  },
+  ratingCount: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginLeft: 4,
+  },
+  // Circular Action Buttons
+  actionsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 32,
+  },
+  actionButton: {
+    alignItems: "center",
+    gap: 8,
+  },
+  actionIcon: {
+    fontSize: 28,
+  },
+  actionLabel: {
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  // Sections
+  section: { 
+    marginBottom: 28,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
+    color: "#1F2937",
+    marginBottom: 16,
   },
-  keywordsContainer: {
+  // Contact Rows
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  contactIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    marginTop: 2,
+  },
+  contactIconBlue: {
+    fontSize: 24,
+    marginRight: 16,
+    marginTop: 2,
+  },
+  contactContent: {
+    flex: 1,
+  },
+  contactLabel: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    marginBottom: 4,
+    fontWeight: "500",
+  },
+  contactValue: {
+    fontSize: 16,
+    color: "#1F2937",
+    fontWeight: "500",
+  },
+  scheduleText: {
+    fontSize: 15,
+    color: "#1F2937",
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  // Services
+  servicesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
+    marginTop: 8,
   },
-  keywordTag: {
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-  },
-  keywordText: { fontSize: 14, color: "#4338CA", fontWeight: "600" },
-  contactItem: {
+  serviceChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  contactIcon: { fontSize: 20, marginRight: 12 },
-  contactText: { fontSize: 16, color: "#374151", flex: 1 },
-  locationText: {
-    fontSize: 16,
-    color: "#374151",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
+  checkIcon: {
+    fontSize: 14,
+    color: "#10B981",
+    marginRight: 6,
+    fontWeight: "700",
   },
-  messageText: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
+  serviceText: {
+    fontSize: 14,
+    color: "#065F46",
+    fontWeight: "500",
   },
+  // Social Media
   socialContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
   },
   socialButton: {
     backgroundColor: "#3B82F6",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 20,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   socialText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
   },
+  // Bottom Actions
   bottomActions: {
     flexDirection: "row",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: "#fff",
     borderTopWidth: 1,
@@ -672,29 +927,39 @@ const s = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: "#16A34A",
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: "#10B981",
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   primaryButtonText: {
     color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
   },
   secondaryButton: {
     flex: 1,
     backgroundColor: "#3B82F6",
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   secondaryButtonText: {
     color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
   },
   // ⚡ Animated Skeleton loading styles
   skeletonPhoto: {
@@ -758,5 +1023,73 @@ const s = StyleSheet.create({
   loadingCenter: {
     alignItems: "center",
     paddingVertical: 40,
+  },
+  shareHeaderButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  shareIcon: {
+    fontSize: 20,
+    color: "#3B82F6",
+  },
+  backIcon: {
+    fontSize: 20,
+    color: "#3B82F6",
+    fontWeight: "600",
+  },
+  star: {
+    fontSize: 16,
+  },
+  rating: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  reviews: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  calendarIcon: {
+    fontSize: 14,
+  },
+  estText: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  dot: {
+    fontSize: 14,
+    color: "#D1D5DB",
+  },
+  photo: {
+    marginBottom: 8,
+  },
+  messageText: {
+    fontSize: 15,
+    color: "#4B5563",
+    lineHeight: 22,
+  },
+  actionCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  callCircle: {
+    backgroundColor: "#10B981",
+  },
+  emailCircle: {
+    backgroundColor: "#3B82F6",
+  },
+  directionCircle: {
+    backgroundColor: "#F472B6",
+  },
+  websiteCircle: {
+    backgroundColor: "#8B5CF6",
   },
 });

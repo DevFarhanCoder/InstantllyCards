@@ -42,8 +42,108 @@ import {
     TouchableOpacity,
     Animated,
     TextInput,
+    Modal,
+    FlatList,
 } from "react-native";
 import PhoneInput from "@/components/PhoneInput";
+
+// Categories with their subcategories for Services Offered dropdown
+const SERVICE_CATEGORIES = {
+  'Travel': [
+    'Hotels', 'Resorts', 'Hostels', 'PG Accommodations', 'Travel Agents',
+    'Domestic Tours', 'International Tours', 'Visa Assistance',
+    'International Air Ticketing', 'Train Ticketing',
+  ],
+  'Technology': [
+    'CCTV Systems', 'Security Systems', 'Computer Repairs', 'Laptop Repairs',
+    'Mobile & Internet Services', 'Refrigerator Repairs', 'Appliance Repairs',
+    'Computer Training Institutes', 'Website & App Development',
+  ],
+  'Shopping': [
+    'Cake Shops & Bakeries', 'Daily Needs Stores', 'Groceries', 'Florists',
+    'Restaurants', 'Food Delivery Services', 'Online Food Ordering',
+    'Foreign Exchange Services', 'Furniture Stores', 'Wallpapers & Home Decor',
+    'Water Suppliers', 'Medical Stores & Pharmacies', 'Optical Stores',
+    'Pet Shops', 'Pet Care Services', 'Online Shopping', 'T-Shirt Printing',
+  ],
+  'Rentals': [
+    'Bus on Hire', 'Car & Cab Rentals', 'Generators on Hire',
+    'Equipment Rentals', 'Tempos on Hire',
+  ],
+  'Lifestyle': [
+    'Astrologers', 'Beauty Salons', 'Bridal Makeup Artists', 'Makeup Artists',
+    'Dance Classes', 'Music Classes', 'Fitness Centres', 'Gyms',
+    'Photographers & Videographers', 'Tattoo Artists', 'Weight Loss Centres',
+    'Movies', 'Online Movie Platforms', 'Parties & Nightlife',
+  ],
+  'Health': [
+    'General Physicians', 'General Surgeons', 'Cardiologists',
+    'Child Specialists', 'Paediatricians', 'Dentists', 'Dermatologists',
+    'Skin & Hair Specialists', 'ENT Doctors', 'Eye Specialists',
+    'Ophthalmologists', 'Gastroenterologists', 'Gynaecologists & Obstetricians',
+    'Neurologists', 'Orthopaedic Doctors', 'Ayurvedic Doctors',
+    'Homeopathic Doctors', 'Pathology Labs', 'Physiotherapists',
+    'Vaccination Centres', 'Hearing Aids & Solutions',
+  ],
+  'Education': [
+    'Schools & Educational Institutions', 'Playgroups', 'Kindergartens',
+    'Home Tutors', 'Tutorials & Coaching Classes', 'Training Institutes',
+    'Language Classes', 'Motor Training Schools', 'Overseas Education Consultants',
+    'Yoga & Wellness Classes',
+  ],
+  'Construction': [
+    'Borewell Contractors', 'Builders & Contractors', 'Carpentry Contractors',
+    'Civil Contractors', 'Electrical Contractors', 'Electricians',
+    'False Ceiling Contractors', 'Home Services', 'Housekeeping Services',
+    'Modular Kitchen Designers', 'Painting Contractors', 'Plumbers',
+    'Ready Mix Concrete Suppliers', 'Waterproofing Contractors',
+  ],
+  'Automotive': [
+    'Automobile Dealers', 'Car Insurance Agents', 'Car Loans & Finance',
+    'Car Repairs & Services', 'Taxi & Cab Services', 'Towing Services',
+    'Transporters & Logistics',
+  ],
+  'Business': [
+    'Bulk SMS & Digital Marketing', 'Chartered Accountants', 'Business Consultants',
+    'GST Registration Consultants', 'Income Tax Consultants', 'Registration Consultants',
+    'Event Organizers', 'Party Organisers', 'Wedding Planners & Requisites',
+    'Interior Designers', 'Lawyers & Legal Services', 'Logistics & Supply Chain',
+    'Online Passport Agents', 'Packers & Movers', 'Repairs & Maintenance Services',
+    'Website Designers & Developers',
+  ],
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  'Travel': '✈️',
+  'Technology': '💻',
+  'Shopping': '🛒',
+  'Rentals': '🔑',
+  'Lifestyle': '💄',
+  'Health': '⚕️',
+  'Education': '🎓',
+  'Construction': '🔨',
+  'Automotive': '🚗',
+  'Business': '💼',
+};
+
+// Generate time options for time picker (1 AM, 2 AM, 3 AM... style)
+const generateTimeOptions = (): Array<string | { label: string; value: string }> => {
+    const times: Array<string | { label: string; value: string }> = ['24 hours'];
+    for (let hour = 1; hour <= 12; hour++) {
+        // AM times
+        const amHour24 = hour === 12 ? 0 : hour;
+        const amHourStr = amHour24.toString().padStart(2, '0');
+        times.push({ label: `${hour} AM`, value: `${amHourStr}:00` });
+        
+        // PM times
+        const pmHour24 = hour === 12 ? 12 : hour + 12;
+        const pmHourStr = pmHour24.toString().padStart(2, '0');
+        times.push({ label: `${hour} PM`, value: `${pmHourStr}:00` });
+    }
+    return times;
+};
+
+const TIME_OPTIONS = generateTimeOptions();
 
 // ---------- simple validators ----------
 const isNonEmpty = (v: string) => v.trim().length > 0;
@@ -584,10 +684,43 @@ export default function Builder() {
     const [companyMapsLink, setCompanyMapsLink] = useState("");
     const [message, setMessage] = useState("");
     const [companyPhoto, setCompanyPhoto] = useState("");
+    // New business fields
+    const [businessHours, setBusinessHours] = useState("");
+    const [weeklySchedule, setWeeklySchedule] = useState<{[key: string]: {open: boolean, openTime: string, closeTime: string}}>({
+        Sunday: { open: false, openTime: '09:00', closeTime: '18:00' },
+        Monday: { open: false, openTime: '09:00', closeTime: '18:00' },
+        Tuesday: { open: false, openTime: '09:00', closeTime: '18:00' },
+        Wednesday: { open: false, openTime: '09:00', closeTime: '18:00' },
+        Thursday: { open: false, openTime: '09:00', closeTime: '18:00' },
+        Friday: { open: false, openTime: '09:00', closeTime: '18:00' },
+        Saturday: { open: false, openTime: '09:00', closeTime: '18:00' },
+    });
+    const [servicesOffered, setServicesOffered] = useState("");
+    const [selectedServices, setSelectedServices] = useState<string[]>([]);
+    const [servicesModalVisible, setServicesModalVisible] = useState(false);
+    const [servicesSearchQuery, setServicesSearchQuery] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [customServiceInput, setCustomServiceInput] = useState("");
+    const [establishedYear, setEstablishedYear] = useState("");
+    const [aboutBusiness, setAboutBusiness] = useState("");
+    // Time picker modal state
+    const [businessHoursModalVisible, setBusinessHoursModalVisible] = useState(false);
+    const [timePickerVisible, setTimePickerVisible] = useState(false);
+    const [timePickerMode, setTimePickerMode] = useState<'open' | 'close'>('open');
+    const [timePickerDay, setTimePickerDay] = useState<string>('');
     // Keywords state with proper debouncing to fix saving issues
     const [keywords, setKeywords] = useState("");
     const keywordsTimeout = useRef<any>(null);
     const draftSaveTimeout = useRef<any>(null);
+    
+    // Social - moved before saveDraft to avoid "used before declaration" errors
+    const [linkedin, setLinkedin] = useState("");
+    const [twitter, setTwitter] = useState("");
+    const [instagram, setInstagram] = useState("");
+    const [facebook, setFacebook] = useState("");
+    const [youtube, setYoutube] = useState("");
+    const [whatsapp, setWhatsapp] = useState("");
+    const [telegram, setTelegram] = useState("");
     
     // Debounced keywords handler to prevent saving issues - Memoized to prevent recreation
     const handleKeywordsChange = useCallback((text: string) => {
@@ -612,6 +745,20 @@ export default function Builder() {
             }
         };
     }, []);
+
+    // Sync selectedServices array with servicesOffered string
+    useEffect(() => {
+        if (selectedServices.length > 0) {
+            setServicesOffered(selectedServices.join(', '));
+        } else {
+            setServicesOffered('');
+        }
+    }, [selectedServices]);
+
+    // Track if form has been populated to avoid overwriting user changes
+    const [formPopulated, setFormPopulated] = useState(false);
+    const [draftData, setDraftData] = useState<any>(null);
+    const hasFetchedDraft = useRef(false);
 
     // Save form state as draft (debounced)
     const saveDraft = useCallback(() => {
@@ -645,6 +792,10 @@ export default function Builder() {
                     companyMapsLink,
                     message,
                     companyPhoto,
+                    businessHours,
+                    servicesOffered,
+                    establishedYear,
+                    aboutBusiness,
                     keywords,
                     linkedin,
                     twitter,
@@ -661,7 +812,7 @@ export default function Builder() {
                 console.error('Failed to save draft:', error);
             }
         }, 1000); // Debounce for 1 second
-    }, [name, birthdate, anniversary, birthText, annivText, gender, personalCountryCode, personalPhone, email, location, mapsLink, companyName, designation, companyCountryCode, companyPhone, companyPhones, companyEmail, companyWebsite, companyAddress, companyMapsLink, message, companyPhoto, keywords, linkedin, twitter, instagram, facebook, youtube, whatsapp, telegram, isEditMode, edit]);
+    }, [name, birthdate, anniversary, birthText, annivText, gender, personalCountryCode, personalPhone, email, location, mapsLink, companyName, designation, companyCountryCode, companyPhone, companyPhones, companyEmail, companyWebsite, companyAddress, companyMapsLink, message, companyPhoto, businessHours, servicesOffered, establishedYear, aboutBusiness, keywords, linkedin, twitter, instagram, facebook, youtube, whatsapp, telegram, isEditMode, edit]);
 
     // Auto-save draft whenever form values change (but not during save/update)
     useEffect(() => {
@@ -686,11 +837,6 @@ export default function Builder() {
             }
         };
     }, [saveDraft, createCardMutation.isPending, updateCardMutation.isPending, isEditMode, formPopulated]);
-
-    // Track if form has been populated to avoid overwriting user changes
-    const [formPopulated, setFormPopulated] = useState(false);
-    const [draftData, setDraftData] = useState<any>(null);
-    const hasFetchedDraft = useRef(false);
 
     // Reset formPopulated when edit param changes (navigating to different card)
     useEffect(() => {
@@ -792,6 +938,23 @@ export default function Builder() {
                 setCompanyMapsLink(draftData.companyMapsLink || "");
                 setMessage(draftData.message || "");
                 setCompanyPhoto(draftData.companyPhoto || "");
+                // Parse business hours from draft
+                if (draftData.businessHours) {
+                    try {
+                        const parsedSchedule = JSON.parse(draftData.businessHours);
+                        setWeeklySchedule(parsedSchedule);
+                    } catch (error) {
+                        console.log("Could not parse draft business hours:", error);
+                    }
+                }
+                setBusinessHours(draftData.businessHours || "");
+                setServicesOffered(draftData.servicesOffered || "");
+                // Parse services into array
+                if (draftData.servicesOffered) {
+                    setSelectedServices(draftData.servicesOffered.split(',').map((s: string) => s.trim()).filter((s: string) => s));
+                }
+                setEstablishedYear(draftData.establishedYear || "");
+                setAboutBusiness(draftData.aboutBusiness || "");
                 setKeywords(draftData.keywords || "");
                 setLinkedin(draftData.linkedin || "");
                 setTwitter(draftData.twitter || "");
@@ -814,15 +977,6 @@ export default function Builder() {
             // The existing card loading logic will handle this in the next useEffect
         }
     }, [draftData, existingCard, formPopulated, isEditMode]);
-
-    // Social
-    const [linkedin, setLinkedin] = useState("");
-    const [twitter, setTwitter] = useState("");
-    const [instagram, setInstagram] = useState("");
-    const [facebook, setFacebook] = useState("");
-    const [youtube, setYoutube] = useState("");
-    const [whatsapp, setWhatsapp] = useState("");
-    const [telegram, setTelegram] = useState("");
 
     // --- validation messages
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -920,6 +1074,32 @@ export default function Builder() {
             setCompanyMapsLink(existingCard.companyMapsLink || "");
             setMessage(existingCard.message || "");
             setCompanyPhoto(existingCard.companyPhoto || "");
+            // Parse business hours from JSON string to weeklySchedule object
+            if (existingCard.businessHours) {
+                console.log("📅 Raw businessHours from DB:", existingCard.businessHours);
+                try {
+                    const parsedSchedule = JSON.parse(existingCard.businessHours);
+                    console.log("📅 Parsed weeklySchedule:", parsedSchedule);
+                    setWeeklySchedule(parsedSchedule);
+                } catch (error) {
+                    // If parsing fails (old format), keep default schedule
+                    console.log("❌ Could not parse business hours:", error);
+                }
+            }
+            setBusinessHours(existingCard.businessHours || "");
+            setServicesOffered(existingCard.servicesOffered || "");
+            // Parse services into array
+            if (existingCard.servicesOffered) {
+                setSelectedServices(existingCard.servicesOffered.split(',').map((s: string) => s.trim()).filter((s: string) => s));
+            }
+            setEstablishedYear(existingCard.establishedYear || "");
+            setAboutBusiness(existingCard.aboutBusiness || "");
+            console.log("🔧 NEW FIELDS LOADED:", {
+                businessHours: existingCard.businessHours || "",
+                servicesOffered: existingCard.servicesOffered || "",
+                establishedYear: existingCard.establishedYear || "",
+                aboutBusiness: existingCard.aboutBusiness || ""
+            });
             setKeywords(existingCard.keywords || ""); // Directly set keywords without debounce during load
             console.log("🔍 Loaded keywords:", existingCard.keywords);
             setLinkedin(existingCard.linkedin || "");
@@ -1035,6 +1215,10 @@ export default function Builder() {
             companyMapsLink,
             message,
             companyPhoto,
+            businessHours: JSON.stringify(weeklySchedule),
+            servicesOffered,
+            establishedYear,
+            aboutBusiness,
             keywords, // Add keywords to payload
             // Social
             linkedin,
@@ -1066,6 +1250,10 @@ export default function Builder() {
             companyMapsLink,
             message,
             companyPhoto,
+            weeklySchedule,
+            servicesOffered,
+            establishedYear,
+            aboutBusiness,
             keywords, // Add keywords to dependency array
             linkedin,
             twitter,
@@ -1099,10 +1287,22 @@ export default function Builder() {
         } catch (e) { /* ignore parsing failure */ }
 
         if (isEditMode) {
-            console.log('🔄 Builder: UPDATE mode - payload preview:', JSON.stringify({ birthdate: finalPayload.birthdate, anniversary: finalPayload.anniversary, name: finalPayload.name }));
+            console.log('🔄 Builder: UPDATE mode - payload preview:', JSON.stringify({ 
+                name: finalPayload.name,
+                businessHours: finalPayload.businessHours, 
+                servicesOffered: finalPayload.servicesOffered,
+                establishedYear: finalPayload.establishedYear,
+                aboutBusiness: finalPayload.aboutBusiness
+            }));
             updateCardMutation.mutate(finalPayload);
         } else {
-            console.log('✨ Builder: CREATE mode - payload preview:', JSON.stringify({ birthdate: finalPayload.birthdate, anniversary: finalPayload.anniversary, name: finalPayload.name }));
+            console.log('✨ Builder: CREATE mode - payload preview:', JSON.stringify({ 
+                name: finalPayload.name,
+                businessHours: finalPayload.businessHours,
+                servicesOffered: finalPayload.servicesOffered,
+                establishedYear: finalPayload.establishedYear,
+                aboutBusiness: finalPayload.aboutBusiness
+            }));
             createCardMutation.mutate(finalPayload);
         }
     };
@@ -1439,7 +1639,7 @@ export default function Builder() {
                     <Animated.View style={{
                         maxHeight: sectionAnimations.business.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0, 1200]
+                            outputRange: [0, 1800]
                         }),
                         opacity: sectionAnimations.business,
                         overflow: 'hidden'
@@ -1595,12 +1795,81 @@ export default function Builder() {
                                 </View>
 
                                 <FormField
-                                    label="Business Message"
-                                    value={message}
-                                    onChangeText={setMessage}
+                                    label="About Business"
+                                    value={aboutBusiness}
+                                    onChangeText={setAboutBusiness}
                                     multiline
                                     placeholder="Brief description of your business or services"
                                 />
+
+                                {/* Business Hours - Clickable Field */}
+                                <View style={s.formField}>
+                                    <Text style={s.enhancedLabel}>Business Hours</Text>
+                                    <TouchableOpacity 
+                                        style={s.servicesButton}
+                                        onPress={() => {
+                                            console.log('🕐 Opening Business Hours modal');
+                                            console.log('🕐 Current weeklySchedule:', JSON.stringify(weeklySchedule, null, 2));
+                                            setBusinessHoursModalVisible(true);
+                                        }}
+                                    >
+                                        <Text style={(() => {
+                                            const openDays = Object.entries(weeklySchedule).filter(([_, hours]) => hours.open);
+                                            return openDays.length > 0 ? s.servicesButtonTextFilled : s.servicesButtonText;
+                                        })()}>
+                                            {(() => {
+                                                const openDays = Object.entries(weeklySchedule).filter(([_, hours]) => hours.open);
+                                                if (openDays.length === 0) return 'Set business hours';
+                                                if (openDays.length === 7) return 'Open 7 days a week';
+                                                return `Open ${openDays.length} day${openDays.length > 1 ? 's' : ''} a week`;
+                                            })()}
+                                        </Text>
+                                        <Ionicons name="chevron-down" size={20} color="#6B7280" />
+                                    </TouchableOpacity>
+                                </View>
+
+
+                                {/* Services Offered Multi-Select */}
+                                <View style={s.formField}>
+                                    <Text style={s.enhancedLabel}>Services Offered</Text>
+                                    <TouchableOpacity 
+                                        style={s.servicesButton}
+                                        onPress={() => setServicesModalVisible(true)}
+                                    >
+                                        <Text style={selectedServices.length > 0 ? s.servicesButtonTextFilled : s.servicesButtonText}>
+                                            {selectedServices.length > 0 
+                                                ? `${selectedServices.length} service${selectedServices.length > 1 ? 's' : ''} selected` 
+                                                : 'Select services from list'}
+                                        </Text>
+                                        <Ionicons name="chevron-down" size={20} color="#6B7280" />
+                                    </TouchableOpacity>
+                                    {selectedServices.length > 0 && (
+                                        <View style={s.selectedServicesContainer}>
+                                            {selectedServices.map((service, index) => (
+                                                <View key={index} style={s.serviceTag}>
+                                                    <Text style={s.serviceTagText}>{service}</Text>
+                                                    <TouchableOpacity 
+                                                        onPress={() => setSelectedServices(prev => prev.filter(s => s !== service))}
+                                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    >
+                                                        <Ionicons name="close-circle" size={16} color="#6B7280" />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                </View>
+
+                                <FormField
+                                    label="Established Year"
+                                    value={establishedYear}
+                                    onChangeText={setEstablishedYear}
+                                    keyboardType="numeric"
+                                    placeholder="e.g. 2020"
+                                    maxLength={4}
+                                />
+
+                            
                             </View>
                         )}
                     </Animated.View>
@@ -1744,6 +2013,355 @@ export default function Builder() {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Services Selection Modal */}
+            <Modal
+                visible={servicesModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => {
+                    setServicesModalVisible(false);
+                    setSelectedCategory(null);
+                    setServicesSearchQuery('');
+                }}
+            >
+                <View style={s.modalOverlay}>
+                    <View style={s.modalContainer}>
+                        <View style={s.modalHeader}>
+                            {selectedCategory && (
+                                <TouchableOpacity 
+                                    onPress={() => {
+                                        setSelectedCategory(null);
+                                        setServicesSearchQuery('');
+                                    }}
+                                    style={{ paddingRight: 12 }}
+                                >
+                                    <Ionicons name="arrow-back" size={24} color="#374151" />
+                                </TouchableOpacity>
+                            )}
+                            <Text style={s.modalTitle}>
+                                {selectedCategory ? selectedCategory : 'Select Category'}
+                            </Text>
+                            <TouchableOpacity onPress={() => {
+                                setServicesModalVisible(false);
+                                setSelectedCategory(null);
+                                setServicesSearchQuery('');
+                            }}>
+                                <Ionicons name="close" size={28} color="#374151" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Search Bar - only show when in subcategories view */}
+                        {selectedCategory && (
+                            <View style={s.modalSearchContainer}>
+                                <Ionicons name="search" size={20} color="#9CA3AF" style={s.modalSearchIcon} />
+                                <TextInput
+                                    style={s.modalSearchInput}
+                                    placeholder="Search or type custom service..."
+                                    value={servicesSearchQuery}
+                                    onChangeText={setServicesSearchQuery}
+                                    placeholderTextColor="#9CA3AF"
+                                />
+                                {servicesSearchQuery.length > 0 && (
+                                    <TouchableOpacity onPress={() => setServicesSearchQuery('')}>
+                                        <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+
+                        {/* Selected Count - only show when in subcategories view */}
+                        {selectedCategory && (
+                            <View style={s.selectedCountContainer}>
+                                <Text style={s.selectedCountText}>
+                                    {selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} selected
+                                </Text>
+                                {selectedServices.length > 0 && (
+                                    <TouchableOpacity onPress={() => setSelectedServices([])}>
+                                        <Text style={s.clearAllText}>Clear All</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+
+                        {/* Categories or Subcategories List */}
+                        {!selectedCategory ? (
+                            // Show Categories
+                            <FlatList
+                                data={Object.keys(SERVICE_CATEGORIES)}
+                                keyExtractor={(item) => item}
+                                renderItem={({ item: category }) => (
+                                    <TouchableOpacity
+                                        style={s.categoryItem}
+                                        onPress={() => {
+                                            setSelectedCategory(category);
+                                            setServicesSearchQuery('');
+                                            setCustomServiceInput('');
+                                        }}
+                                    >
+                                        <View style={s.categoryItemContent}>
+                                            <Text style={s.categoryIcon}>{CATEGORY_ICONS[category]}</Text>
+                                            <Text style={s.categoryItemText}>{category}</Text>
+                                        </View>
+                                        <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+                                    </TouchableOpacity>
+                                )}
+                                style={s.categoriesList}
+                                contentContainerStyle={{ paddingBottom: 20 }}
+                                showsVerticalScrollIndicator={true}
+                            />
+                        ) : (
+                            // Show Subcategories
+                            <FlatList
+                                data={SERVICE_CATEGORIES[selectedCategory].filter(service => 
+                                    service.toLowerCase().includes(servicesSearchQuery.toLowerCase())
+                                )}
+                                keyExtractor={(item, index) => `${item}-${index}`}
+                                renderItem={({ item }) => {
+                                    const isSelected = selectedServices.includes(item);
+                                    return (
+                                        <TouchableOpacity
+                                            style={[s.serviceItem, isSelected && s.serviceItemSelected]}
+                                            onPress={() => {
+                                                if (isSelected) {
+                                                    setSelectedServices(prev => prev.filter(s => s !== item));
+                                                } else {
+                                                    setSelectedServices(prev => [...prev, item]);
+                                                }
+                                            }}
+                                        >
+                                            <Text style={[s.serviceItemText, isSelected && s.serviceItemTextSelected]}>
+                                                {item}
+                                            </Text>
+                                            {isSelected && (
+                                                <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                }}
+                                style={s.servicesList}
+                                showsVerticalScrollIndicator={true}
+                                ListEmptyComponent={
+                                    <View style={s.emptyContainer}>
+                                        <Text style={s.emptyText}>No services found</Text>
+                                    </View>
+                                }
+                            />
+                        )}
+
+                        {/* Done Button - only show when in subcategories view */}
+                        {selectedCategory && (
+                            <TouchableOpacity
+                                style={s.modalDoneButton}
+                                onPress={() => {
+                                    // Add custom service if search query doesn't match any existing service
+                                    const trimmedQuery = servicesSearchQuery.trim();
+                                    if (trimmedQuery && selectedCategory) {
+                                        const categoryServices = SERVICE_CATEGORIES[selectedCategory];
+                                        const isExistingService = categoryServices.some(
+                                            service => service.toLowerCase() === trimmedQuery.toLowerCase()
+                                        );
+                                        
+                                        // If not an existing service and not already selected, add it
+                                        if (!isExistingService && !selectedServices.includes(trimmedQuery)) {
+                                            setSelectedServices(prev => [...prev, trimmedQuery]);
+                                        }
+                                    }
+                                    
+                                    setServicesModalVisible(false);
+                                    setSelectedCategory(null);
+                                    setServicesSearchQuery('');
+                                }}
+                            >
+                                <Text style={s.modalDoneButtonText}>Done</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Business Hours Modal */}
+            <Modal
+                visible={businessHoursModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setBusinessHoursModalVisible(false)}
+            >
+                <View style={s.modalOverlay}>
+                    <View style={s.modalContainer}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>Business Hours</Text>
+                            <TouchableOpacity onPress={() => setBusinessHoursModalVisible(false)}>
+                                <Ionicons name="close" size={24} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <ScrollView style={s.businessHoursScrollView}>
+                            {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => (
+                                <View key={day} style={s.scheduleRow}>
+                                    <View style={s.dayHeader}>
+                                        <Text style={s.dayName}>{day}</Text>
+                                        <Pressable
+                                            onPress={() => {
+                                                const newOpen = !weeklySchedule[day].open;
+                                                console.log(`⏰ Toggling ${day}: ${weeklySchedule[day].open} -> ${newOpen}`);
+                                                setWeeklySchedule(prev => ({
+                                                    ...prev,
+                                                    [day]: { ...prev[day], open: newOpen }
+                                                }));
+                                            }}
+                                            style={s.toggleContainer}
+                                        >
+                                            <View style={[
+                                                s.toggleSwitch,
+                                                weeklySchedule[day].open && s.toggleSwitchActive
+                                            ]}>
+                                                <View style={[
+                                                    s.toggleThumb,
+                                                    weeklySchedule[day].open && s.toggleThumbActive
+                                                ]} />
+                                            </View>
+                                        </Pressable>
+                                    </View>
+                                    
+                                    {weeklySchedule[day].open ? (
+                                        <View style={s.timePickersContainer}>
+                                            <View style={s.timePickerGroup}>
+                                                <Text style={s.timeLabel}>Opens at</Text>
+                                                <Pressable
+                                                    style={s.timeButton}
+                                                    onPress={() => {
+                                                        setTimePickerDay(day);
+                                                        setTimePickerMode('open');
+                                                        setTimePickerVisible(true);
+                                                    }}
+                                                >
+                                                    <Text style={s.timeButtonText}>{(() => {
+                                                        const time = weeklySchedule[day].openTime;
+                                                        const [hours] = time.split(':');
+                                                        const hour = parseInt(hours);
+                                                        const isPM = hour >= 12;
+                                                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                                                        return `${displayHour} ${isPM ? 'PM' : 'AM'}`;
+                                                    })()}</Text>
+                                                    <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                                                </Pressable>
+                                            </View>
+                                            
+                                            <View style={s.timePickerGroup}>
+                                                <Text style={s.timeLabel}>Closes at</Text>
+                                                <Pressable
+                                                    style={s.timeButton}
+                                                    onPress={() => {
+                                                        setTimePickerDay(day);
+                                                        setTimePickerMode('close');
+                                                        setTimePickerVisible(true);
+                                                    }}
+                                                >
+                                                    <Text style={s.timeButtonText}>{(() => {
+                                                        const time = weeklySchedule[day].closeTime;
+                                                        const [hours] = time.split(':');
+                                                        const hour = parseInt(hours);
+                                                        const isPM = hour >= 12;
+                                                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                                                        return `${displayHour} ${isPM ? 'PM' : 'AM'}`;
+                                                    })()}</Text>
+                                                    <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                                                </Pressable>
+                                            </View>
+                                        </View>
+                                    ) : (
+                                        <Text style={s.closedText}>Closed</Text>
+                                    )}
+                                </View>
+                            ))}
+                        </ScrollView>
+                        
+                        <TouchableOpacity
+                            style={s.modalDoneButton}
+                            onPress={() => {
+                                const openDays = Object.entries(weeklySchedule).filter(([_, hours]) => hours.open);
+                                console.log('⏰ Business Hours Done - Open days:', openDays.length);
+                                console.log('⏰ Weekly schedule:', JSON.stringify(weeklySchedule, null, 2));
+                                
+                                // Force state update to trigger button text re-render
+                                setWeeklySchedule(prev => ({...prev}));
+                                
+                                setBusinessHoursModalVisible(false);
+                            }}
+                        >
+                            <Text style={s.modalDoneButtonText}>Done</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Time Picker Modal */}
+            <Modal
+                visible={timePickerVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setTimePickerVisible(false)}
+            >
+                <View style={s.modalOverlay}>
+                    <View style={s.timePickerModal}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>
+                                {timePickerMode === 'open' ? 'Opens at' : 'Closes at'}
+                            </Text>
+                            <TouchableOpacity onPress={() => setTimePickerVisible(false)}>
+                                <Ionicons name="close" size={24} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+                        <FlatList
+                            data={TIME_OPTIONS}
+                            keyExtractor={(item, index) => index.toString()}
+                            renderItem={({ item }) => {
+                                if (typeof item === 'string') {
+                                    // "24 hours" option
+                                    return (
+                                        <TouchableOpacity
+                                            style={s.timeOption}
+                                            onPress={() => {
+                                                setWeeklySchedule(prev => ({
+                                                    ...prev,
+                                                    [timePickerDay]: {
+                                                        ...prev[timePickerDay],
+                                                        openTime: '00:00',
+                                                        closeTime: '23:59'
+                                                    }
+                                                }));
+                                                setTimePickerVisible(false);
+                                            }}
+                                        >
+                                            <Text style={s.timeOptionText}>{item}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                } else {
+                                    return (
+                                        <TouchableOpacity
+                                            style={s.timeOption}
+                                            onPress={() => {
+                                                setWeeklySchedule(prev => ({
+                                                    ...prev,
+                                                    [timePickerDay]: {
+                                                        ...prev[timePickerDay],
+                                                        [timePickerMode === 'open' ? 'openTime' : 'closeTime']: item.value
+                                                    }
+                                                }));
+                                                setTimePickerVisible(false);
+                                            }}
+                                        >
+                                            <Text style={s.timeOptionText}>{item.label}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                }
+                            }}
+                            style={s.timeOptionsList}
+                        />
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -2055,5 +2673,304 @@ const s = StyleSheet.create({
     selectedDayText: {
         color: '#FFFFFF',
         fontWeight: '700',
+    },
+    // Services Offered styles
+    servicesButton: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        marginTop: 6,
+    },
+    servicesButtonText: {
+        fontSize: 15,
+        color: '#9CA3AF',
+    },
+    servicesButtonTextFilled: {
+        fontSize: 15,
+        color: '#111827',
+        fontWeight: '500',
+    },
+    selectedServicesContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 10,
+    },
+    serviceTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#EEF2FF',
+        borderRadius: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: '#C7D2FE',
+    },
+    serviceTagText: {
+        fontSize: 13,
+        color: '#4338CA',
+        fontWeight: '500',
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContainer: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        height: '85%',
+        paddingTop: 20,
+        flexDirection: 'column',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    modalSearchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginHorizontal: 20,
+        marginTop: 16,
+        marginBottom: 12,
+    },
+    modalSearchIcon: {
+        marginRight: 8,
+    },
+    modalSearchInput: {
+        flex: 1,
+        fontSize: 16,
+        color: '#111827',
+    },
+    selectedCountContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        backgroundColor: '#F9FAFB',
+    },
+    selectedCountText: {
+        fontSize: 14,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    clearAllText: {
+        fontSize: 14,
+        color: '#3B82F6',
+        fontWeight: '600',
+    },
+    servicesList: {
+        flexGrow: 1,
+        flexShrink: 1,
+        paddingHorizontal: 20,
+    },
+    categoriesList: {
+        flexGrow: 1,
+        flexShrink: 1,
+    },
+    categoryItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        backgroundColor: '#FFFFFF',
+    },
+    categoryItemContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    categoryIcon: {
+        fontSize: 24,
+    },
+    categoryItemText: {
+        fontSize: 16,
+        color: '#374151',
+        fontWeight: '600',
+    },
+    serviceItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    serviceItemSelected: {
+        backgroundColor: '#EFF6FF',
+    },
+    serviceItemText: {
+        fontSize: 15,
+        color: '#374151',
+        flex: 1,
+    },
+    serviceItemTextSelected: {
+        color: '#1E40AF',
+        fontWeight: '600',
+    },
+    modalDoneButton: {
+        backgroundColor: '#3B82F6',
+        marginHorizontal: 20,
+        marginVertical: 16,
+        paddingVertical: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+        shadowColor: '#3B82F6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    modalDoneButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    emptyText: {
+        fontSize: 15,
+        color: '#9CA3AF',
+    },
+    // Weekly Schedule Styles
+    businessHoursScrollView: {
+        maxHeight: 500,
+        paddingHorizontal: 20,
+    },
+    weeklyScheduleContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        overflow: 'hidden',
+    },
+    scheduleRow: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+    },
+    dayHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    dayName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    toggleContainer: {
+        padding: 4,
+    },
+    toggleSwitch: {
+        width: 51,
+        height: 31,
+        borderRadius: 16,
+        backgroundColor: '#D1D5DB',
+        padding: 2,
+        justifyContent: 'center',
+    },
+    toggleSwitchActive: {
+        backgroundColor: '#3B82F6',
+    },
+    toggleThumb: {
+        width: 27,
+        height: 27,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    toggleThumbActive: {
+        alignSelf: 'flex-end',
+    },
+    timePickersContainer: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    timePickerGroup: {
+        flex: 1,
+    },
+    timeLabel: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginBottom: 6,
+    },
+    timeButton: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+    },
+    timeButtonText: {
+        fontSize: 15,
+        color: '#111827',
+        fontWeight: '500',
+    },
+    closedText: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        fontStyle: 'italic',
+    },
+    // Time Picker Modal Styles
+    timePickerModal: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: '70%',
+        paddingBottom: 20,
+    },
+    timeOptionsList: {
+        maxHeight: 400,
+    },
+    timeOption: {
+        paddingVertical: 16,
+        paddingHorizontal: 24,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    timeOptionText: {
+        fontSize: 16,
+        color: '#111827',
     },
 });

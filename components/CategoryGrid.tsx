@@ -115,7 +115,8 @@ const constructionSubcategories = [
   'Waterproofing Contractors',
 ];
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import SubCategoryModal from './SubCategoryModal';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 
 const automotiveSubcategories = [
@@ -279,16 +280,11 @@ const styles = StyleSheet.create({
 
 export default function CategoryGrid() {
   const [showMore, setShowMore] = useState(false);
-  const [showAutomotiveSub, setShowAutomotiveSub] = useState(false);
-  const [showBusinessSub, setShowBusinessSub] = useState(false);
-  const [showConstructionSub, setShowConstructionSub] = useState(false);
-  const [showEducationSub, setShowEducationSub] = useState(false);
-  const [showHealthSub, setShowHealthSub] = useState(false);
-  const [showLifestyleSub, setShowLifestyleSub] = useState(false);
-  const [showRentalsSub, setShowRentalsSub] = useState(false);
-  const [showShoppingSub, setShowShoppingSub] = useState(false);
-  const [showTechnologySub, setShowTechnologySub] = useState(false);
-  const [showTravelSub, setShowTravelSub] = useState(false);
+    const [modal, setModal] = useState({
+      visible: false,
+      title: '',
+      subcategories: [] as string[],
+    });
   const initialCount = 5;
   const perRow = 4;
   let displayCategories = [];
@@ -350,72 +346,55 @@ export default function CategoryGrid() {
                   <Text style={styles.label}>Show Less</Text>
                 </TouchableOpacity>
               );
-            } else if (cat.name === 'Automotive' && cat.hasSubcategories) {
+            } else if (cat.hasSubcategories) {
+              let subcategories = [];
+              let title = '';
+              switch (cat.name) {
+                case 'Automotive':
+                  subcategories = automotiveSubcategories;
+                  title = 'Automotive Categories';
+                  break;
+                case 'Business':
+                  subcategories = businessSubcategories;
+                  title = 'Business Categories';
+                  break;
+                case 'Construction':
+                  subcategories = constructionSubcategories;
+                  title = 'Construction Categories';
+                  break;
+                case 'Education':
+                  subcategories = educationSubcategories;
+                  title = 'Education Categories';
+                  break;
+                case 'Health':
+                  subcategories = healthSubcategories;
+                  title = 'Health Categories';
+                  break;
+                case 'Lifestyle':
+                  subcategories = lifestyleSubcategories;
+                  title = 'Lifestyle Categories';
+                  break;
+                case 'Rentals':
+                  subcategories = rentalsSubcategories;
+                  title = 'Rentals Categories';
+                  break;
+                case 'Shopping':
+                  subcategories = shoppingSubcategories;
+                  title = 'Shopping Categories';
+                  break;
+                case 'Technology':
+                  subcategories = technologySubcategories;
+                  title = 'Technology Categories';
+                  break;
+                case 'Travel':
+                  subcategories = travelSubcategories;
+                  title = 'Travel Categories';
+                  break;
+                default:
+                  break;
+              }
               return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowAutomotiveSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Business' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowBusinessSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Construction' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowConstructionSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Education' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowEducationSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Health' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowHealthSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Lifestyle' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowLifestyleSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Rentals' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowRentalsSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Shopping' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowShoppingSub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Technology' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowTechnologySub(true)}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
-                  <Text style={styles.label}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            } else if (cat.name === 'Travel' && cat.hasSubcategories) {
-              return (
-                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setShowTravelSub(true)}>
+                <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setModal({ visible: true, title, subcategories })}>
                   <View style={styles.iconBox}>{cat.icon}</View>
                   <Text style={styles.label}>{cat.name}</Text>
                 </TouchableOpacity>
@@ -435,248 +414,13 @@ export default function CategoryGrid() {
             ))}
         </View>
       ))}
-      {/* Automotive Subcategories Modal */}
-      <Modal
-        visible={showAutomotiveSub}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowAutomotiveSub(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Automotive Categories</Text>
-            {automotiveSubcategories.map((sub, idx) => (
-              <View key={sub} style={styles.subcategoryItem}>
-                <Text style={styles.subcategoryText}>{sub}</Text>
-              </View>
-            ))}
-            <Pressable style={styles.closeButton} onPress={() => setShowAutomotiveSub(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {/* Business Subcategories Modal */}
-      <Modal
-        visible={showBusinessSub}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowBusinessSub(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Business Categories</Text>
-            {businessSubcategories.map((sub, idx) => (
-              <View key={sub} style={styles.subcategoryItem}>
-                <Text style={styles.subcategoryText}>{sub}</Text>
-              </View>
-            ))}
-            <Pressable style={styles.closeButton} onPress={() => setShowBusinessSub(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {/* Construction Subcategories Modal */}
-      <Modal
-        visible={showConstructionSub}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowConstructionSub(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Construction Categories</Text>
-            {constructionSubcategories.map((sub, idx) => (
-              <View key={sub} style={styles.subcategoryItem}>
-                <Text style={styles.subcategoryText}>{sub}</Text>
-              </View>
-            ))}
-            <Pressable style={styles.closeButton} onPress={() => setShowConstructionSub(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {/* Education Subcategories Modal */}
-      <Modal
-        visible={showEducationSub}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowEducationSub(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Education Categories</Text>
-            {educationSubcategories.map((sub, idx) => (
-              <View key={sub} style={styles.subcategoryItem}>
-                <Text style={styles.subcategoryText}>{sub}</Text>
-              </View>
-            ))}
-            <Pressable style={styles.closeButton} onPress={() => setShowEducationSub(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {/* Rentals Subcategories Modal */}
-                <Modal
-                  visible={showRentalsSub}
-                  animationType="slide"
-                  transparent={true}
-                  onRequestClose={() => setShowRentalsSub(false)}
-                >
-                  <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                      <Text style={styles.modalTitle}>Rentals Categories</Text>
-                      {rentalsSubcategories.map((sub, idx) => (
-                        <View key={sub} style={styles.subcategoryItem}>
-                          <Text style={styles.subcategoryText}>{sub}</Text>
-                        </View>
-                      ))}
-                      <Pressable style={styles.closeButton} onPress={() => setShowRentalsSub(false)}>
-                        <Text style={styles.closeButtonText}>Close</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                </Modal>
-                {/* Lifestyle Subcategories Modal */}
-                <Modal
-                  visible={showLifestyleSub}
-                  animationType="slide"
-                  transparent={true}
-                  onRequestClose={() => setShowLifestyleSub(false)}
-                >
-                  <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                      <Text style={styles.modalTitle}>Lifestyle Categories</Text>
-                      {lifestyleSubcategories.map((sub, idx) => (
-                        <View key={sub} style={styles.subcategoryItem}>
-                          <Text style={styles.subcategoryText}>{sub}</Text>
-                        </View>
-                      ))}
-                      <Pressable style={styles.closeButton} onPress={() => setShowLifestyleSub(false)}>
-                        <Text style={styles.closeButtonText}>Close</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                </Modal>
-                {/* Health Subcategories Modal */}
-                <Modal
-                  visible={showHealthSub}
-                  animationType="slide"
-                  transparent={true}
-                  onRequestClose={() => setShowHealthSub(false)}
-                >
-                  <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                      <Text style={styles.modalTitle}>Health Categories</Text>
-                      <ScrollView 
-                        style={{width: '100%', maxHeight: 350, marginBottom: 12}}
-                        contentContainerStyle={{alignItems: 'flex-start', paddingBottom: 0}}
-                        showsVerticalScrollIndicator={true}
-                      >
-                        {healthSubcategories.map((sub, idx) => (
-                          <View key={sub} style={[styles.subcategoryItem, {paddingVertical: 10, borderBottomWidth: idx === healthSubcategories.length - 1 ? 0 : 1}]}> 
-                            <Text style={[styles.subcategoryText, {textAlign: 'left', fontSize: 15}]}>{sub}</Text>
-                          </View>
-                        ))}
-                      </ScrollView>
-                      <View style={{width: '100%', borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 8, paddingTop: 12, alignItems: 'center'}}>
-                        <Pressable style={styles.closeButton} onPress={() => setShowHealthSub(false)}>
-                          <Text style={styles.closeButtonText}>Close</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
-                {/* Shopping Subcategories Modal */}
-                <Modal
-                  visible={showShoppingSub}
-                  animationType="slide"
-                  transparent={true}
-                  onRequestClose={() => setShowShoppingSub(false)}
-                >
-                  <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                      <Text style={styles.modalTitle}>Shopping Categories</Text>
-                      <ScrollView 
-                        style={{width: '100%', maxHeight: 350, marginBottom: 12}}
-                        contentContainerStyle={{alignItems: 'flex-start', paddingBottom: 0}}
-                        showsVerticalScrollIndicator={true}
-                      >
-                        {shoppingSubcategories.map((sub, idx) => (
-                          <View key={sub} style={[styles.subcategoryItem, {paddingVertical: 10, borderBottomWidth: idx === shoppingSubcategories.length - 1 ? 0 : 1}]}> 
-                            <Text style={[styles.subcategoryText, {textAlign: 'left', fontSize: 15}]}>{sub}</Text>
-                          </View>
-                        ))}
-                      </ScrollView>
-                      <View style={{width: '100%', borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 8, paddingTop: 12, alignItems: 'center'}}>
-                        <Pressable style={styles.closeButton} onPress={() => setShowShoppingSub(false)}>
-                          <Text style={styles.closeButtonText}>Close</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
-                 {/* Travel Subcategories Modal */}
-                      <Modal
-                        visible={showTravelSub}
-                        animationType="slide"
-                        transparent={true}
-                        onRequestClose={() => setShowTravelSub(false)}
-                      >
-                        <View style={styles.modalOverlay}>
-                          <View style={styles.modalContent}>
-                            <Text style={styles.modalTitle}>Travel Categories</Text>
-                            <ScrollView 
-                              style={{width: '100%', maxHeight: 350, marginBottom: 12}}
-                              contentContainerStyle={{alignItems: 'flex-start', paddingBottom: 0}}
-                              showsVerticalScrollIndicator={true}
-                            >
-                              {travelSubcategories.map((sub, idx) => (
-                                <View key={sub} style={[styles.subcategoryItem, {paddingVertical: 10, borderBottomWidth: idx === travelSubcategories.length - 1 ? 0 : 1}]}> 
-                                  <Text style={[styles.subcategoryText, {textAlign: 'left', fontSize: 15}]}>{sub}</Text>
-                                </View>
-                              ))}
-                            </ScrollView>
-                            <View style={{width: '100%', borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 8, paddingTop: 12, alignItems: 'center'}}>
-                              <Pressable style={styles.closeButton} onPress={() => setShowTravelSub(false)}>
-                                <Text style={styles.closeButtonText}>Close</Text>
-                              </Pressable>
-                            </View>
-                          </View>
-                        </View>
-                      </Modal>
-                {/* Technology Subcategories Modal */}
-                <Modal
-                  visible={showTechnologySub}
-                  animationType="slide"
-                  transparent={true}
-                  onRequestClose={() => setShowTechnologySub(false)}
-                >
-                  <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                      <Text style={styles.modalTitle}>Technology Categories</Text>
-                      <ScrollView 
-                        style={{width: '100%', maxHeight: 350, marginBottom: 12}}
-                        contentContainerStyle={{alignItems: 'flex-start', paddingBottom: 0}}
-                        showsVerticalScrollIndicator={true}
-                      >
-                        {technologySubcategories.map((sub, idx) => (
-                          <View key={sub} style={[styles.subcategoryItem, {paddingVertical: 10, borderBottomWidth: idx === technologySubcategories.length - 1 ? 0 : 1}]}> 
-                            <Text style={[styles.subcategoryText, {textAlign: 'left', fontSize: 15}]}>{sub}</Text>
-                          </View>
-                        ))}
-                      </ScrollView>
-                      <View style={{width: '100%', borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 8, paddingTop: 12, alignItems: 'center'}}>
-                        <Pressable style={styles.closeButton} onPress={() => setShowTechnologySub(false)}>
-                          <Text style={styles.closeButtonText}>Close</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
+      {/* Full Screen SubCategory Modal with Search */}
+      <SubCategoryModal
+        visible={modal.visible}
+        onClose={() => setModal({ ...modal, visible: false })}
+        title={modal.title}
+        subcategories={modal.subcategories}
+      />
     </View>
   );
 }
