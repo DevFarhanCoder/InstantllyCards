@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import RNShare from 'react-native-share';
-import * as FileSystem from 'expo-file-system';
+import { copyAsync, cacheDirectory } from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import api from '@/lib/api';
 
@@ -152,10 +152,20 @@ export default function ReferralPage() {
         throw new Error('Failed to load image asset');
       }
       
-      // Share image with text message using local file URI
+      // Copy to cache directory for better compatibility
+      const filename = selectedLanguage === 'hindi' ? 'referral_hindi.jpg' : 'referral_english.jpg';
+      const destPath = `${cacheDirectory}${filename}`;
+      
+      // Copy the asset to cache
+      await copyAsync({
+        from: asset.localUri,
+        to: destPath
+      });
+      
+      // Share image with text message using urls array for proper attachment
       const shareOptions = {
         message: message,
-        url: asset.localUri,
+        urls: [destPath],
         type: 'image/jpeg',
         subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
       };
