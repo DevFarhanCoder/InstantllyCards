@@ -108,6 +108,9 @@ export default function ReferralPage() {
     try {
       // Include referral code in Play Store URL for tracking
       const playStoreUrl = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
+      
+      // Direct deep link that will open the app with referral code
+      const appDeepLink = `instantllycards://signup?ref=${stats.referralCode}`;
 
       const hindiMessage = `*बिना किसी निवेश के रोज़ाना ₹1200 से ₹6000+ कमाने का अवसर*
 
@@ -118,7 +121,8 @@ export default function ReferralPage() {
 ▪️ *रेफरल आय के लिए क्या करें?* अपना रेफरल मैसेज और लिंक डाउनलोड करें और इसे अपने व्हाट्सएप ग्रुप्स में शेयर करें।
 
 *महत्वपूर्ण लिंक:*
-▪️ *ऐप डाउनलोड करने के लिए यहाँ क्लिक करें* ${playStoreUrl}
+▪️ *पहले ऐप डाउनलोड करें* ${playStoreUrl}
+▪️ *फिर यहाँ क्लिक करें रेफरल कोड के साथ साइन अप करने के लिए* ${appDeepLink}
 ▪️ *ऐप के फायदे और उपयोग जानने के लिए वीडियो* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
 ▪️ *सहायता के लिए व्हाट्सएप ग्रुप: यदि आपको कोई समस्या आती है, तो इस ग्रुप से जुड़ें और अपनी समस्या लिखें* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
 ▪️ *चैनल पार्टनर बनने की पूरी जानकारी के लिए वीडियो* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
@@ -132,7 +136,8 @@ export default function ReferralPage() {
 ▪️ *What to do for Getting Referal Income* Download the Referal Message & Referal Link & Send this Message & Link to your WhatsApp Groups
 
 *Important Links*
-▪️ *Touch this link to Download the App* ${playStoreUrl}
+▪️ *First Download the App* ${playStoreUrl}
+▪️ *Then Click Here to Sign Up with Referral Code* ${appDeepLink}
 ▪️ *Video to Know Advantage of the Application & How to use it* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
 ▪️ *If you have any problem then join this whatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
 ▪️ *Video for Channel Partner Explanation* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
