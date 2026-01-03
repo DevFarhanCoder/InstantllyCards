@@ -39,9 +39,6 @@ export async function getPlayStoreReferrer(): Promise<string | null> {
     
     console.log('📱 [REFERRER] Raw referrer data:', referrerString);
     
-    if (!referrer || !referrer.installReferrer) {
-    console.log('📱 [REFERRER] Raw referrer data:', referrerString);
-    
     if (!referrerString) {
       console.log('📱 [REFERRER] No install referrer found');
       return null;
