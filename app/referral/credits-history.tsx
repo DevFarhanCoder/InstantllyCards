@@ -229,50 +229,7 @@ export default function CreditsHistoryPage() {
           </View>
         </View>
 
-        {/* Breakdown Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Credits Breakdown</Text>
-            <View style={styles.breakdownBadge}>
-              <Ionicons name="pie-chart" size={16} color="#10B981" />
-              <Text style={styles.breakdownBadgeText}>Overview</Text>
-            </View>
-          </View>
-          
-          <View style={styles.breakdownGrid}>
-            {/* Earnings Section */}
-            <View style={styles.breakdownSection}>
-              <Text style={styles.breakdownSectionTitle}>Earnings</Text>
-              <View style={styles.breakdownCards}>
-                <BreakdownCard
-                  title="Transfer Received"
-                  amount={breakdown.transferReceived}
-                  icon="arrow-down-circle"
-                  color="#10B981"
-                />
-              </View>
-            </View>
-            
-            {/* Spending Section */}
-            <View style={styles.breakdownSection}>
-              <Text style={styles.breakdownSectionTitle}>Spending</Text>
-              <View style={styles.breakdownCards}>
-                <BreakdownCard
-                  title="Transfer Sent"
-                  amount={-breakdown.transferSent}
-                  icon="arrow-up-circle"
-                  color="#EF4444"
-                />
-                <BreakdownCard
-                  title="Ad Deductions"
-                  amount={-breakdown.adDeductions}
-                  icon="megaphone"
-                  color="#DC2626"
-                />
-              </View>
-            </View>
-          </View>
-        </View>
+
 
         {/* Transaction History */}
         <View style={styles.section}>
@@ -304,7 +261,9 @@ export default function CreditsHistoryPage() {
             </View>
           ) : (
             <View style={styles.transactionContainer}>
-              {(showAllTransactions ? transactions : transactions.slice(0, 5)).map((txn, index) => {
+              {(showAllTransactions ? transactions : transactions.slice(0, 5))
+                .filter(txn => txn.type !== 'signup_bonus')
+                .map((txn, index) => {
                 const displayedTransactions = showAllTransactions ? transactions : transactions.slice(0, 5);
                 const isLastItem = index === displayedTransactions.length - 1;
                 return (
