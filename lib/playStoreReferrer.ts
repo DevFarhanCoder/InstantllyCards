@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import InstallReferrer from '@/utils/InstallReferrer';
 
 const REFERRER_KEY = 'play_store_referrer';
 const REFERRER_PROCESSED_KEY = 'referrer_processed';
@@ -25,40 +26,33 @@ export async function getPlayStoreReferrer(): Promise<string | null> {
       return null;
     }
 
-    // Check if the module is available (only in production builds)
-    let RNInstallReferrer;
-    try {
-      RNInstallReferrer = require('react-native-google-play-install-referrer').default;
-    } catch (requireError) {
-      console.log('📱 [REFERRER] Module not available - likely in development build');
-      console.log('📱 [REFERRER] Use deep links or test component for testing');
-      return null;
-    }
-
-    // Check if the function exists
-    if (!RNInstallReferrer || typeof RNInstallReferrer.getInstallReferrer !== 'function') {
-      console.log('📱 [REFERRER] getInstallReferrer not available');
+    // Check if the native module is available
+    if (!InstallReferrer || typeof InstallReferrer.getInstallReferrer !== 'function') {
+      console.log('📱 [REFERRER] Native module not available');
       console.log('📱 [REFERRER] This is normal in Expo Go or development builds');
       console.log('📱 [REFERRER] Play Store referrer only works in production builds');
       return null;
     }
     
     console.log('📱 [REFERRER] Getting install referrer from Play Store...');
-    const referrer = await RNInstallReferrer.getInstallReferrer();
+    const referrerString = await InstallReferrer.getInstallReferrer();
     
-    console.log('📱 [REFERRER] Raw referrer data:', referrer);
+    console.log('📱 [REFERRER] Raw referrer data:', referrerString);
     
     if (!referrer || !referrer.installReferrer) {
+    console.log('📱 [REFERRER] Raw referrer data:', referrerString);
+    
+    if (!referrerString) {
       console.log('📱 [REFERRER] No install referrer found');
       return null;
     }
 
     // Store raw referrer for debugging
-    await AsyncStorage.setItem(REFERRER_KEY, referrer.installReferrer);
+    await AsyncStorage.setItem(REFERRER_KEY, referrerString);
     
     // Extract referral code from utm_campaign parameter
     // Expected format: utm_source=referral&utm_campaign=78ML4ZD6
-    const referralCode = extractReferralCode(referrer.installReferrer);
+    const referralCode = extractReferralCode(referrerString);
     
     if (referralCode) {
       console.log('🎁 [REFERRER] Referral code extracted:', referralCode);
