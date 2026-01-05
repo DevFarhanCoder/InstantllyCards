@@ -2,7 +2,7 @@
   "expo": {
     "name": "Instantlly Cards",
     "slug": "instantllycards",
-    "version": "1.0.57",
+    "version": "1.0.59",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
