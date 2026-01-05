@@ -42,6 +42,7 @@ import {
     TouchableOpacity,
     Animated,
     TextInput,
+    ActivityIndicator,
 } from "react-native";
 import PhoneInput from "@/components/PhoneInput";
 
@@ -453,6 +454,9 @@ export default function Builder() {
                     if (Array.isArray(old)) return old.filter((c: any) => (c._id || c.id) !== edit);
                     return old;
                 });
+                
+                // Force immediate refetch to ensure UI updates
+                queryClient.refetchQueries({ queryKey: ['cards', currentUserId] });
             }
             
             // Navigate back immediately - don't wait for refetch
@@ -615,13 +619,18 @@ export default function Builder() {
 
     // Save form state as draft (debounced)
     const saveDraft = useCallback(() => {
+        // Skip draft saving in edit mode - only save drafts for new cards
+        if (isEditMode) {
+            return;
+        }
+        
         if (draftSaveTimeout.current) {
             clearTimeout(draftSaveTimeout.current);
         }
         
         draftSaveTimeout.current = setTimeout(async () => {
             try {
-                const draftKey = isEditMode ? `card_draft_${edit}` : 'card_draft_new';
+                const draftKey = 'card_draft_new';
                 const draftData = {
                     name,
                     birthdate,
@@ -694,11 +703,14 @@ export default function Builder() {
 
     // Reset formPopulated when edit param changes (navigating to different card)
     useEffect(() => {
-        console.log('🔄 Edit param or existingCard changed, resetting form state');
+        console.log('🔄 Edit param changed, resetting form populated flag');
         setFormPopulated(false);
         setDraftData(null);
         hasFetchedDraft.current = false;
-    }, [edit, existingCard?.updatedAt]); // Reset when card's updatedAt changes (after update)
+        
+        // DON'T clear form states here - let the population effect handle it
+        // This prevents the brief flash of empty form before data loads
+    }, [edit]); // Only depend on edit, not existingCard.updatedAt
 
     // Step 1: Load draft from AsyncStorage on mount
     useEffect(() => {
@@ -706,7 +718,15 @@ export default function Builder() {
         
         const loadDraft = async () => {
             try {
-                const draftKey = isEditMode ? `card_draft_${edit}` : 'card_draft_new';
+                // IMPORTANT: Skip draft loading entirely in edit mode
+                // Always load fresh data from API when editing existing cards
+                if (isEditMode) {
+                    console.log('📝 Edit mode detected - skipping draft, will load from API');
+                    hasFetchedDraft.current = true;
+                    return;
+                }
+                
+                const draftKey = 'card_draft_new';
                 const draftJson = await AsyncStorage.getItem(draftKey);
                 
                 if (draftJson) {
@@ -739,79 +759,49 @@ export default function Builder() {
     useEffect(() => {
         if (formPopulated || !hasFetchedDraft.current) return;
         
-        // If we have draft data, check if it's newer than existing card
-        if (draftData) {
-            console.log('📂 Draft data found:', {
-                name: draftData.name,
-                email: draftData.email,
-                companyName: draftData.companyName,
-                hasTimestamp: !!draftData.timestamp
-            });
-            
-            let shouldLoadDraft = true;
-            
-            if (isEditMode && existingCard && existingCard.updatedAt) {
-                const cardUpdateTime = new Date(existingCard.updatedAt).getTime();
-                const draftTime = draftData.timestamp;
-                shouldLoadDraft = draftTime > cardUpdateTime;
-                console.log('🕐 Draft timestamp:', new Date(draftTime).toISOString());
-                console.log('🕐 Card updated at:', new Date(cardUpdateTime).toISOString());
-                console.log('🔍 Should load draft:', shouldLoadDraft);
-                
-                // IMPORTANT: If draft is from before card was saved, ignore it
-                if (!shouldLoadDraft) {
-                    console.log('⏭️ Draft is older than saved card - ignoring draft and loading from API');
-                    // Don't load the draft, let the next useEffect load from existingCard
-                    return;
-                }
-            }
-            
-            if (shouldLoadDraft) {
-                console.log('✨ Loading draft data into form...');
-                setName(draftData.name || "");
-                setBirthdate(draftData.birthdate || null);
-                setAnniversary(draftData.anniversary || null);
-                setBirthText(draftData.birthText || "");
-                setAnnivText(draftData.annivText || "");
-                setGender(draftData.gender || "");
-                setPersonalCountryCode(draftData.personalCountryCode || "91");
-                setPersonalPhone(draftData.personalPhone || "");
-                setEmail(draftData.email || "");
-                setLocation(draftData.location || "");
-                setMapsLink(draftData.mapsLink || "");
-                setCompanyName(draftData.companyName || "");
-                setDesignation(draftData.designation || "");
-                setCompanyCountryCode(draftData.companyCountryCode || "91");
-                setCompanyPhone(draftData.companyPhone || "");
-                if (draftData.companyPhones && Array.isArray(draftData.companyPhones)) {
-                    setCompanyPhones(draftData.companyPhones);
-                }
-                setCompanyEmail(draftData.companyEmail || "");
-                setCompanyWebsite(draftData.companyWebsite || "");
-                setCompanyAddress(draftData.companyAddress || "");
-                setCompanyMapsLink(draftData.companyMapsLink || "");
-                setMessage(draftData.message || "");
-                setCompanyPhoto(draftData.companyPhoto || "");
-                setKeywords(draftData.keywords || "");
-                setLinkedin(draftData.linkedin || "");
-                setTwitter(draftData.twitter || "");
-                setInstagram(draftData.instagram || "");
-                setFacebook(draftData.facebook || "");
-                setYoutube(draftData.youtube || "");
-                setWhatsapp(draftData.whatsapp || "");
-                setTelegram(draftData.telegram || "");
-                setFormPopulated(true);
-                console.log('✅ Draft loaded successfully - form populated with unsaved changes');
-                return; // Exit early, don't load from existingCard
-            } else {
-                console.log('⏭️ Draft is older than saved card, will load from API');
-            }
+        // EDIT MODE: Always load from API, ignore draft completely
+        if (isEditMode && existingCard) {
+            console.log('📝 Edit mode - loading directly from API (ignoring any draft)');
+            return; // Let the main useEffect handle it
         }
         
-        // If no draft or draft is older, load from existingCard
-        if (existingCard && !formPopulated) {
-            console.log('📋 Loading form from existing card (no recent draft)');
-            // The existing card loading logic will handle this in the next useEffect
+        // NEW CARD MODE: Check for draft
+        if (draftData && !isEditMode) {
+            console.log('📂 New card - loading from draft');
+            setName(draftData.name || "");
+            setBirthdate(draftData.birthdate || null);
+            setAnniversary(draftData.anniversary || null);
+            setBirthText(draftData.birthText || "");
+            setAnnivText(draftData.annivText || "");
+            setGender(draftData.gender || "");
+            setPersonalCountryCode(draftData.personalCountryCode || "91");
+            setPersonalPhone(draftData.personalPhone || "");
+            setEmail(draftData.email || "");
+            setLocation(draftData.location || "");
+            setMapsLink(draftData.mapsLink || "");
+            setCompanyName(draftData.companyName || "");
+            setDesignation(draftData.designation || "");
+            setCompanyCountryCode(draftData.companyCountryCode || "91");
+            setCompanyPhone(draftData.companyPhone || "");
+            if (draftData.companyPhones && Array.isArray(draftData.companyPhones)) {
+                setCompanyPhones(draftData.companyPhones);
+            }
+            setCompanyEmail(draftData.companyEmail || "");
+            setCompanyWebsite(draftData.companyWebsite || "");
+            setCompanyAddress(draftData.companyAddress || "");
+            setCompanyMapsLink(draftData.companyMapsLink || "");
+            setMessage(draftData.message || "");
+            setCompanyPhoto(draftData.companyPhoto || "");
+            setKeywords(draftData.keywords || "");
+            setLinkedin(draftData.linkedin || "");
+            setTwitter(draftData.twitter || "");
+            setInstagram(draftData.instagram || "");
+            setFacebook(draftData.facebook || "");
+            setYoutube(draftData.youtube || "");
+            setWhatsapp(draftData.whatsapp || "");
+            setTelegram(draftData.telegram || "");
+            setFormPopulated(true);
+            console.log('✅ Draft loaded successfully for new card');
         }
     }, [draftData, existingCard, formPopulated, isEditMode]);
 
@@ -866,21 +856,18 @@ export default function Builder() {
         console.log("formPopulated:", formPopulated);
         console.log("hasFetchedDraft:", hasFetchedDraft.current);
         
-        // CRITICAL: Wait for draft check to complete before loading existingCard
-        if (!hasFetchedDraft.current) {
-            console.log("⏳ Waiting for draft check to complete before loading card data");
-            return;
-        }
-        
-        if (existingCard && !formPopulated) {
-            console.log("Populating form with existing card data from API");
-            console.log("� Full existingCard data:", JSON.stringify(existingCard, null, 2));
+        // EDIT MODE: Load immediately when existingCard is available, ignore draft completely
+        if (isEditMode && existingCard && !formPopulated) {
+            console.log("📝 Edit mode - populating form immediately from API");
+            console.log("📊 Full existingCard data:", JSON.stringify(existingCard, null, 2));
             console.log("📅 existingCard.birthdate:", existingCard.birthdate);
             console.log("📅 existingCard.anniversary:", existingCard.anniversary);
             console.log("📧 existingCard.email:", existingCard.email);
             console.log("🏢 existingCard.companyName:", existingCard.companyName);
             console.log("📱 existingCard.personalPhone:", existingCard.personalPhone);
             console.log("📱 existingCard.companyPhone:", existingCard.companyPhone);
+            
+            // Set states DIRECTLY without setTimeout - no delay
             setName(existingCard.name || "");
             // Handle empty strings as null for date fields
             const birthdateValue = existingCard.birthdate && existingCard.birthdate !== "" ? existingCard.birthdate : null;
@@ -892,20 +879,24 @@ export default function Builder() {
                 const formatted = formatIsoToDisplay(birthdateValue);
                 setBirthText(formatted);
                 console.log("📅 Loaded birthText:", formatted);
+            } else {
+                setBirthText("");
             }
             if (anniversaryValue) {
                 const formatted = formatIsoToDisplay(anniversaryValue);
                 setAnnivText(formatted);
                 console.log("📅 Loaded annivText:", formatted);
+            } else {
+                setAnnivText("");
             }
-            setGender(existingCard.gender || ""); // Load gender
+            setGender(existingCard.gender || "");
             setPersonalCountryCode(existingCard.personalCountryCode || "91");
             setPersonalPhone(existingCard.personalPhone || "");
             setEmail(existingCard.email || "");
             setLocation(existingCard.location || "");
             setMapsLink(existingCard.mapsLink || "");
             setCompanyName(existingCard.companyName || "");
-            setDesignation(existingCard.designation || ""); // Load designation in Business section
+            setDesignation(existingCard.designation || "");
             setCompanyCountryCode(existingCard.companyCountryCode || "91");
             setCompanyPhone(existingCard.companyPhone || "");
             // populate multiple phones if available, else fallback to single
@@ -920,7 +911,7 @@ export default function Builder() {
             setCompanyMapsLink(existingCard.companyMapsLink || "");
             setMessage(existingCard.message || "");
             setCompanyPhoto(existingCard.companyPhoto || "");
-            setKeywords(existingCard.keywords || ""); // Directly set keywords without debounce during load
+            setKeywords(existingCard.keywords || "");
             console.log("🔍 Loaded keywords:", existingCard.keywords);
             setLinkedin(existingCard.linkedin || "");
             setTwitter(existingCard.twitter || "");
@@ -931,8 +922,17 @@ export default function Builder() {
             setTelegram(existingCard.telegram || "");
             setFormPopulated(true);
             console.log("✅ Form populated with existing card data");
-        } else if (existingCard && formPopulated) {
-            console.log("⏭️ Skipping form population - already populated with draft or existing data");
+            return; // Exit early for edit mode
+        }
+        
+        // NEW CARD MODE: Wait for draft check before proceeding
+        if (!isEditMode && !hasFetchedDraft.current) {
+            console.log("⏳ Waiting for draft check to complete before loading card data");
+            return;
+        }
+        
+        if (existingCard && formPopulated) {
+            console.log("⏭️ Skipping form population - already populated");
         }
     }, [existingCard, isEditMode, edit, formPopulated]);
 
@@ -949,17 +949,8 @@ export default function Builder() {
         }
     }, [companyPhoto]);
 
-    // keep text fields in sync when canonical ISO date changes
-    useEffect(() => {
-        const formatted = formatIsoToDisplay(birthdate);
-        console.log("📅 Setting birthText from birthdate:", birthdate, "->", formatted);
-        setBirthText(formatted);
-    }, [birthdate]);
-    useEffect(() => {
-        const formatted = formatIsoToDisplay(anniversary);
-        console.log("📅 Setting annivText from anniversary:", anniversary, "->", formatted);
-        setAnnivText(formatted);
-    }, [anniversary]);
+    // NOTE: Removed automatic birthText/annivText sync effects to prevent clearing
+    // during form reset. Text formatting is now handled explicitly when setting dates.
 
     const validate = () => {
         const e: Record<string, string> = {};
@@ -1194,6 +1185,16 @@ export default function Builder() {
             <Err k={errorKey} />
         </View>
     ), [errors]);
+
+    // In edit mode, don't render form until data is loaded
+    if (isEditMode && !formPopulated) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB", justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator size="large" color="#3B82F6" />
+                <Text style={{ marginTop: 12, color: "#6B7280", fontSize: 16 }}>Loading card data...</Text>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }}>

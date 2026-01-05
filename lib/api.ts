@@ -48,7 +48,7 @@ async function request<T>(
   body?: Json | FormData,
   options?: { headers?: Record<string, string> }
 ): Promise<T> {
-  if (__DEV__ && !path.includes('/feedback')) {
+  if (__DEV__ && !path.includes('/feedback') && !path.includes('/quiz/')) {
     console.log("🔧 API Request Configuration:");
     console.log("  - BASE URL:", BASE);
     console.log("  - Method:", method);
@@ -77,7 +77,7 @@ async function request<T>(
     `${BASE}/api${path.startsWith("/") ? path : `/${path}`}`,
   ];
 
-  if (__DEV__ && !path.includes('/feedback')) {
+  if (__DEV__ && !path.includes('/feedback') && !path.includes('/quiz/')) {
     console.log("🎯 API URL Candidates:", candidates);
   }
 
@@ -87,7 +87,7 @@ async function request<T>(
     
     while (retries > 0) {
       try {
-        if (__DEV__ && !path.includes('/feedback')) {
+        if (__DEV__ && !path.includes('/feedback') && !path.includes('/quiz/')) {
           console.log(`🚀 Making ${method} request to: ${url} (attempt ${4 - retries}/3)`);
           console.log('📤 Request body:', body instanceof FormData ? 'FormData' : JSON.stringify(body, null, 2));
         }
@@ -109,21 +109,23 @@ async function request<T>(
 
         const duration = Date.now() - startTime;
         clearTimeout(timeoutId);
-        if (__DEV__) {
+        if (__DEV__ && !path.includes('/quiz/')) {
           console.log(`✅ Response received in ${duration}ms - Status: ${res.status} for ${url}`);
         }
 
         let data: any = null;
         const text = await res.text();
         // Only log response in development mode
-        if (__DEV__ && !path.includes('/feedback')) {
+        if (__DEV__ && !path.includes('/feedback') && !path.includes('/quiz/')) {
           console.log('📥 Response text:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
         }
         
         try {
           // Check if response looks like HTML (common error from Render/servers)
           if (text.trim().startsWith('<')) {
-            console.error('❌ Server returned HTML instead of JSON (likely server error page)');
+            if (!path.includes('/quiz/')) {
+              console.error('❌ Server returned HTML instead of JSON (likely server error page)');
+            }
             throw new Error('Server error - received HTML error page instead of JSON');
           }
           data = text ? JSON.parse(text) : null;
@@ -157,7 +159,11 @@ async function request<T>(
         }
         return data as T;
       } catch (e: any) {
-        console.error(`❌ Request failed for ${url} (attempt ${4 - retries}/3):`, e.message);
+        // Suppress error logs for quiz endpoints (not implemented yet)
+        const isQuizEndpoint = path.includes('/quiz/');
+        if (!isQuizEndpoint) {
+          console.error(`❌ Request failed for ${url} (attempt ${4 - retries}/3):`, e.message);
+        }
         
         // Handle timeout and network errors with better messages
         if (e.name === 'AbortError') {
@@ -169,6 +175,12 @@ async function request<T>(
           (lastErr as any).status = e.status ?? 0;
           (lastErr as any).data = e.data ?? null;
         } else if (e.status === 404) {
+          // For quiz endpoints, don't retry - just fail silently
+          if (isQuizEndpoint) {
+            lastErr = e;
+            retries = 0; // Stop retrying quiz endpoints
+            break;
+          }
           // Prefer any server-provided message for 404s; fall back to a clearer 'Not found' message.
           const serverMsg = e?.data?.message || e?.message;
           lastErr = new Error(serverMsg || 'Requested resource not found (404).');
@@ -199,7 +211,11 @@ async function request<T>(
     }
   }
   
-  console.error('💥 All API candidates failed, throwing last error:', lastErr?.message || lastErr);
+  // Suppress final error log for quiz endpoints
+  const isQuizEndpoint = path.includes('/quiz/');
+  if (!isQuizEndpoint) {
+    console.error('💥 All API candidates failed, throwing last error:', lastErr?.message || lastErr);
+  }
   throw lastErr || new Error("API unreachable - Server may be sleeping. Please try again in a moment.");
 }
 

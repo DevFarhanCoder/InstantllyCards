@@ -66,14 +66,28 @@ export default function ReferralPage() {
       
       console.log('📊 Referral Stats Response:', JSON.stringify(statsResponse, null, 2));
       console.log('🔑 Referral Code:', statsResponse?.referralCode);
-      console.log('🔍 Full stats object:', statsResponse);
       
-      setStats(statsResponse);
+      // If referral code is missing, retry after a short delay (backend generates it on first call)
+      if (!statsResponse?.referralCode) {
+        console.log('⚠️ Referral code missing, retrying in 1 second...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const retryStats = await api.get('/credits/referral-stats');
+        console.log('🔄 Retry Stats Response:', JSON.stringify(retryStats, null, 2));
+        
+        if (retryStats?.referralCode) {
+          setStats(retryStats);
+          console.log('✅ Referral code retrieved on retry:', retryStats.referralCode);
+        } else {
+          // If still no code, use stats but show error
+          setStats(statsResponse);
+          console.error('❌ Referral code still missing after retry');
+        }
+      } else {
+        setStats(statsResponse);
+      }
+      
       setConfig(configResponse.config);
       setUserCredits(creditsResponse.credits || 0);
-      
-      // Force a re-render check
-      console.log('✅ State updated - referralCode should be:', statsResponse?.referralCode);
     } catch (error) {
       console.error('Error loading referral data:', error);
       Alert.alert('Error', 'Failed to load referral information');
@@ -89,7 +103,14 @@ export default function ReferralPage() {
   };
 
   const handleShare = async () => {
-    if (!stats?.referralCode || !config) return;
+    if (!stats?.referralCode || !config) {
+      Alert.alert(
+        'Please Wait',
+        'Your referral code is being generated. Please try again in a moment.',
+        [{ text: 'OK', onPress: handleRefresh }]
+      );
+      return;
+    }
     
     // Reset language selection and show modal
     setSelectedLanguage(null);
@@ -108,9 +129,6 @@ export default function ReferralPage() {
     try {
       // Include referral code in Play Store URL for tracking
       const playStoreUrl = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
-      
-      // Direct deep link that will open the app with referral code
-      const appDeepLink = `instantllycards://signup?ref=${stats.referralCode}`;
 
       const hindiMessage = `*बिना किसी निवेश के रोज़ाना ₹1200 से ₹6000+ कमाने का अवसर*
 
@@ -121,52 +139,50 @@ export default function ReferralPage() {
 ▪️ *रेफरल आय के लिए क्या करें?* अपना रेफरल मैसेज और लिंक डाउनलोड करें और इसे अपने व्हाट्सएप ग्रुप्स में शेयर करें।
 
 *महत्वपूर्ण लिंक:*
-▪️ *पहले ऐप डाउनलोड करें* ${playStoreUrl}
-▪️ *फिर यहाँ क्लिक करें रेफरल कोड के साथ साइन अप करने के लिए* ${appDeepLink}
+▪️ *रेफरल कोड के साथ ऐप डाउनलोड करने के लिए इस लिंक पर टैप करें।* ${playStoreUrl}
 ▪️ *ऐप के फायदे और उपयोग जानने के लिए वीडियो* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
 ▪️ *सहायता के लिए व्हाट्सएप ग्रुप: यदि आपको कोई समस्या आती है, तो इस ग्रुप से जुड़ें और अपनी समस्या लिखें* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
 ▪️ *चैनल पार्टनर बनने की पूरी जानकारी के लिए वीडियो* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
-      const englishMessage = `*Without Investment Earning Opportunity of ₹1200 to ₹6000+ per day*
+      const englishMessage = `*Earn ₹1200 to ₹6000+ per day Without Investment*
 
 ▪️ *I Got ₹200 Credit* I have downloaded this app & Got ₹200 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below
-▪️ *You will get ₹200 Credit* When you down load you will also get ₹200 Credit.
-▪️ *Referal Bonus ₹300 Credit* When you down load i will also get ₹300 Credit.
-▪️ *How to earn ₹6000 per day* If you send Referal Message to 6 Groups & in each group 500 persons are member then your message will go to 3000 persons & normally 20 to 50 person down load the Mobile App so on 20 Person you get ₹300 each so Total is ₹6000 per day
-▪️ *What to do for Getting Referal Income* Download the Referal Message & Referal Link & Send this Message & Link to your WhatsApp Groups
+▪️ *You will get ₹200 Credit* When you download you will also get ₹200 Credit.
+▪️ *Referral Bonus ₹300 Credit* When you download i will also get ₹300 Credit.
+▪️ *How to earn ₹6000 per day* If you send Referral Message to 6 Groups & in each group 500 persons are member then your message will go to 3000 persons & normally 20 to 50 person download the Mobile App so on 20 Person you get ₹300 each so Total is ₹6000 per day
+▪️ *What to do for Getting Referral Income* Download the Referral Message & Referral Link & Send this Message & Link to your WhatsApp Groups
 
 *Important Links*
-▪️ *First Download the App* ${playStoreUrl}
-▪️ *Then Click Here to Sign Up with Referral Code* ${appDeepLink}
+▪️ *Touch this link to Download the App with Referral Code* ${playStoreUrl}
 ▪️ *Video to Know Advantage of the Application & How to use it* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
 ▪️ *If you have any problem then join this whatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
 ▪️ *Video for Channel Partner Explanation* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
       const message = selectedLanguage === 'hindi' ? hindiMessage : englishMessage;
-      
+
       // Get image resource based on language
       const imageSource = selectedLanguage === 'hindi'
         ? require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')
         : require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg');
-      
+
       // Load the asset and get local URI
       const asset = Asset.fromModule(imageSource);
       await asset.downloadAsync();
-      
+
       if (!asset.localUri) {
         throw new Error('Failed to load image asset');
       }
-      
+
       // Copy to cache directory for better compatibility
       const filename = selectedLanguage === 'hindi' ? 'referral_hindi.jpg' : 'referral_english.jpg';
       const destPath = `${cacheDirectory}${filename}`;
-      
+
       // Copy the asset to cache
       await copyAsync({
         from: asset.localUri,
         to: destPath
       });
-      
+
       // Share image with text message using urls array for proper attachment
       const shareOptions = {
         message: message,
@@ -174,7 +190,7 @@ export default function ReferralPage() {
         type: 'image/jpeg',
         subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
       };
-      
+
       await RNShare.open(shareOptions);
 
     } catch (error: any) {
@@ -304,7 +320,7 @@ export default function ReferralPage() {
             <View style={styles.codeSection}>
               <Text style={styles.codeLabel}>REFERRAL CODE</Text>
               <Text style={styles.codeText}>
-                {stats?.referralCode ? stats.referralCode : 'Loading...'}
+                {stats?.referralCode || 'Generating...'}
               </Text>
               <View style={styles.linkPreview}>
                 <Ionicons name="link-outline" size={12} color="#8B5CF6" />
