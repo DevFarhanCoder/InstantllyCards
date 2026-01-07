@@ -593,6 +593,20 @@ export default function Builder() {
     const keywordsTimeout = useRef<any>(null);
     const draftSaveTimeout = useRef<any>(null);
     
+    // Track if form has been populated to avoid overwriting user changes
+    const [formPopulated, setFormPopulated] = useState(false);
+    const [draftData, setDraftData] = useState<any>(null);
+    const hasFetchedDraft = useRef(false);
+    
+    // Social media state
+    const [linkedin, setLinkedin] = useState("");
+    const [twitter, setTwitter] = useState("");
+    const [instagram, setInstagram] = useState("");
+    const [facebook, setFacebook] = useState("");
+    const [youtube, setYoutube] = useState("");
+    const [whatsapp, setWhatsapp] = useState("");
+    const [telegram, setTelegram] = useState("");
+    
     // Debounced keywords handler to prevent saving issues - Memoized to prevent recreation
     const handleKeywordsChange = useCallback((text: string) => {
         setKeywords(text);
@@ -695,11 +709,6 @@ export default function Builder() {
             }
         };
     }, [saveDraft, createCardMutation.isPending, updateCardMutation.isPending, isEditMode, formPopulated]);
-
-    // Track if form has been populated to avoid overwriting user changes
-    const [formPopulated, setFormPopulated] = useState(false);
-    const [draftData, setDraftData] = useState<any>(null);
-    const hasFetchedDraft = useRef(false);
 
     // Reset formPopulated when edit param changes (navigating to different card)
     useEffect(() => {
@@ -804,15 +813,6 @@ export default function Builder() {
             console.log('✅ Draft loaded successfully for new card');
         }
     }, [draftData, existingCard, formPopulated, isEditMode]);
-
-    // Social
-    const [linkedin, setLinkedin] = useState("");
-    const [twitter, setTwitter] = useState("");
-    const [instagram, setInstagram] = useState("");
-    const [facebook, setFacebook] = useState("");
-    const [youtube, setYoutube] = useState("");
-    const [whatsapp, setWhatsapp] = useState("");
-    const [telegram, setTelegram] = useState("");
 
     // --- validation messages
     const [errors, setErrors] = useState<Record<string, string>>({});
