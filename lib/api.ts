@@ -4,15 +4,13 @@ import Constants from 'expo-constants';
 
 // Try multiple sources for the API base URL
 const getApiBase = () => {
-  // For local development - change this to your computer's IP address
-  // To find your IP: Run 'ipconfig' in Windows terminal and look for IPv4 Address
-  const LOCAL_DEV_URL = "http://192.168.0.108:8080"; // Local backend for testing
+  // Production API URL
+  const PRODUCTION_URL = "https://api-test.instantllycards.com";
   
   const sources = [
     process.env.EXPO_PUBLIC_API_BASE,
     Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE,
-    LOCAL_DEV_URL, // Local backend for testing
-    // "https://instantlly-cards-backend-6ki0.onrender.com" // Production fallback (commented out for local dev)
+    PRODUCTION_URL, // Production backend
   ];
   
   for (const source of sources) {
@@ -22,7 +20,7 @@ const getApiBase = () => {
     }
   }
   
-  return LOCAL_DEV_URL;
+  return PRODUCTION_URL;
 };
 
 const BASE = getApiBase();

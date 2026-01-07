@@ -13,7 +13,7 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
-import { router, useLocalSearchParams, Href } from 'expo-router';
+import { router, useLocalSearchParams, Href, useFocusEffect } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import api from '../lib/api';
 
@@ -47,10 +47,6 @@ export default function BusinessCardsScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   // Fetch real business cards from API
-  useEffect(() => {
-    fetchBusinessCards();
-  }, [subcategory]);
-
   const fetchBusinessCards = async () => {
     try {
       setLoading(true);
@@ -86,6 +82,19 @@ export default function BusinessCardsScreen() {
       setLoading(false);
     }
   };
+
+  // Fetch cards on mount and when subcategory changes
+  useEffect(() => {
+    fetchBusinessCards();
+  }, [subcategory]);
+
+  // Refetch cards when screen comes into focus (after delete/edit)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Business cards screen focused - refreshing list');
+      fetchBusinessCards();
+    }, [subcategory])
+  );
 
   const filteredCards = businessCards.filter((card: any) =>
     (card.companyName?.toLowerCase().includes(search.toLowerCase()) ||

@@ -151,22 +151,18 @@ export default function EarnCreditsScreen() {
         // Check if ALL 30 questions are actually answered (not just completed flag)
         const allQuestionsAnswered = answeredQuestions?.length >= QUESTIONS.length;
         
-        // If marked complete but not all answered, try to fix it automatically
-        if (completed && !allQuestionsAnswered) {
-          try {
-            const fixResponse = await api.post('/quiz/fix-completion');
-            if (fixResponse.success) {
-              console.log('Quiz completion status fixed automatically');
-            }
-          } catch (error) {
-            console.error('Error fixing completion status:', error);
-          }
-        }
+        console.log(`📊 Quiz Status: ${answeredQuestions?.length || 0}/30 questions, completed flag: ${completed}`);
         
-        // If all questions truly answered, show completion screen
+        // Only show completion if ALL 30 questions are truly answered
         if (completed && allQuestionsAnswered) {
+          console.log('✅ Quiz truly completed - showing completion banner');
           setShowCompletionBanner(true);
           return;
+        }
+        
+        // If marked complete but not all answered, it will be auto-fixed by backend on next answer
+        if (completed && !allQuestionsAnswered) {
+          console.log(`⚠️ Quiz marked complete but only ${answeredQuestions?.length}/30 answered - will auto-fix on next answer`);
         }
         
         // Find first unanswered question or use saved index
@@ -190,19 +186,6 @@ export default function EarnCreditsScreen() {
 
   const handleAnswer = async (answer: string) => {
     const questionKey = currentQuestion.key;
-    
-    // Check if this question was already answered
-    const alreadyAnswered = userProgress.answeredQuestions.includes(questionKey);
-    
-    // If already answered, show alert and return
-    if (alreadyAnswered) {
-      Alert.alert(
-        'Already Answered',
-        'You have already answered this question. Credits are awarded only once per question.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
     
     // Celebration animation
     Animated.sequence([
@@ -245,7 +228,14 @@ export default function EarnCreditsScreen() {
         const allQuestionsAnswered = updatedAnsweredQuestions.length >= QUESTIONS.length;
         
         if (isCompleted || allQuestionsAnswered) {
-          // All questions answered - show final banner then completion
+          // All questions answered - save progress to create batched transaction
+          try {
+            await api.post('/quiz/save-progress');
+            console.log('✅ Quiz completed - batched transaction created');
+          } catch (error) {
+            console.error('Error saving final quiz progress:', error);
+          }
+          // Show final banner then completion
           setShowFinalBanner(true);
           setTimeout(() => {
             showCompletionScreen();
@@ -304,14 +294,20 @@ export default function EarnCreditsScreen() {
   };
 
   const skipQuestion = async () => {
-    if (currentQuestionIndex < QUESTIONS.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    // Find next unanswered question
+    let nextIndex = currentQuestionIndex + 1;
+    while (nextIndex < QUESTIONS.length && userProgress.answeredQuestions.includes(QUESTIONS[nextIndex].key)) {
+      nextIndex++;
+    }
+    
+    if (nextIndex < QUESTIONS.length) {
+      setCurrentQuestionIndex(nextIndex);
       setTextInput('');
       setSelectedOption('');
       setSelectedLanguages([]);
       setShowOtherInput(false);
     } else {
-      // Save progress before leaving
+      // No more unanswered questions - save and exit
       try {
         await api.post('/quiz/save-progress');
       } catch (error) {
@@ -322,8 +318,14 @@ export default function EarnCreditsScreen() {
   };
 
   const goToPreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    // Find previous unanswered question
+    let prevIndex = currentQuestionIndex - 1;
+    while (prevIndex >= 0 && userProgress.answeredQuestions.includes(QUESTIONS[prevIndex].key)) {
+      prevIndex--;
+    }
+    
+    if (prevIndex >= 0) {
+      setCurrentQuestionIndex(prevIndex);
       setTextInput('');
       setSelectedOption('');
       setSelectedLanguages([]);
@@ -375,13 +377,11 @@ export default function EarnCreditsScreen() {
   };
 
   const handleOptionSelect = (option: string) => {
+    setSelectedOption(option);
     if (option === 'Other') {
-      setSelectedOption(option);
       setShowOtherInput(true);
     } else {
-      setSelectedOption(option);
       setShowOtherInput(false);
-      handleAnswer(option);
     }
   };
 
@@ -607,14 +607,14 @@ export default function EarnCreditsScreen() {
                         key={option}
                         style={styles.optionButton}
                         onPress={() => handleOptionSelect(option)}
-                        disabled={submitting || !!isAnswered}
+                        disabled={submitting}
                         activeOpacity={0.7}
                       >
                         <View style={[styles.optionGradient, { backgroundColor: isSelected ? '#673AB7' : '#fff' }]}>
                           <View style={styles.radioRow}>
                             <View style={styles.radioButton}>
                               {isSelected ? (
-                                <Ionicons name="radio-button-on" size={24} color="#673AB7" />
+                                <Ionicons name="radio-button-on" size={24} color="#fff" />
                               ) : (
                                 <Ionicons name="radio-button-off" size={24} color="#673AB7" />
                               )}
@@ -625,6 +625,26 @@ export default function EarnCreditsScreen() {
                       </TouchableOpacity>
                     );
                   })}
+                  
+                  {selectedOption && !showOtherInput && (
+                    <TouchableOpacity
+                      style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+                      onPress={() => handleAnswer(selectedOption)}
+                      disabled={submitting}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.submitButtonGradient, { backgroundColor: '#673AB7' }]}>
+                        {submitting ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <>
+                            <Text style={styles.submitButtonText}>Submit Answer</Text>
+                            <Ionicons name="arrow-forward-circle" size={22} color="#fff" />
+                          </>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  )}
                   
                   {showOtherInput && (
                     <View style={styles.otherInputWrapper}>

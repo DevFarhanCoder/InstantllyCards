@@ -54,25 +54,56 @@ export default function ReferralPage() {
       }
       
       // Fetch referral stats, credit config, and user balance
-      const [statsResponse, configResponse, creditsResponse] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const [statsResult, configResult, creditsResult] = await Promise.allSettled([
         api.get('/credits/referral-stats'),
         api.get('/credits/config'),
         api.get('/credits/balance')
       ]);
       
-      console.log('📊 Referral Stats Response:', JSON.stringify(statsResponse, null, 2));
-      console.log('🔑 Referral Code:', statsResponse?.referralCode);
-      console.log('🔍 Full stats object:', statsResponse);
+      // Handle stats response
+      if (statsResult.status === 'fulfilled') {
+        console.log('📊 Referral Stats Response:', JSON.stringify(statsResult.value, null, 2));
+        console.log('🔑 Referral Code:', statsResult.value?.referralCode);
+        setStats(statsResult.value);
+      } else {
+        console.error('❌ Failed to load referral stats:', statsResult.reason);
+        console.error('❌ Error details:', {
+          message: statsResult.reason?.message,
+          status: statsResult.reason?.status,
+          data: statsResult.reason?.data
+        });
+        throw new Error('Failed to load referral stats');
+      }
       
-      setStats(statsResponse);
-      setConfig(configResponse.config);
-      setUserCredits(creditsResponse.credits || 0);
+      // Handle config response
+      if (configResult.status === 'fulfilled') {
+        setConfig(configResult.value.config);
+      } else {
+        console.error('❌ Failed to load config:', configResult.reason);
+        // Use default config if API fails
+        setConfig({ signupBonus: 200, referralReward: 300 });
+      }
       
-      // Force a re-render check
-      console.log('✅ State updated - referralCode should be:', statsResponse?.referralCode);
-    } catch (error) {
+      // Handle credits response
+      if (creditsResult.status === 'fulfilled') {
+        setUserCredits(creditsResult.value.credits || 0);
+      } else {
+        console.error('❌ Failed to load credits:', creditsResult.reason);
+        setUserCredits(0);
+      }
+      
+      console.log('✅ Referral data loaded successfully');
+    } catch (error: any) {
       console.error('Error loading referral data:', error);
-      Alert.alert('Error', 'Failed to load referral information');
+      Alert.alert(
+        'Error', 
+        'Failed to load referral information. Please check your connection and try again.',
+        [
+          { text: 'Retry', onPress: () => loadReferralData(false) },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -204,7 +235,12 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Referral Program</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity 
+          onPress={() => router.push('/transfer-credits')} 
+          style={styles.transferButton}
+        >
+          <Ionicons name="swap-horizontal" size={20} color="#8B5CF6" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -418,8 +454,14 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 4,
-  },
-  headerTitle: {
+  },  transferButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3E8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },  headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#000000',

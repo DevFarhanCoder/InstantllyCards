@@ -547,9 +547,9 @@ export default function Signup() {
         // Don't block signup if contact sync fails
       }
       
-      console.log(`🔀 [SIGNUP] Navigation: Redirecting to home...`);
+      console.log(`🔀 [SIGNUP] Navigation: Redirecting to service selection...`);
       console.log(`${'='.repeat(70)}\n`);
-      router.replace("/(tabs)/home");
+      router.replace("/(auth)/service-selection");
     } catch (e: any) {
       const duration = Date.now() - startTime;
       console.error(`\n❌ [SIGNUP-CREATE] EXCEPTION ERROR - ID: ${requestId}`);

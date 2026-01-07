@@ -19,6 +19,8 @@ interface ReferralStats {
 export default function ReferralBanner({ style }: ReferralBannerProps) {
   const [config, setConfig] = useState<{ signupBonus: number; referralReward: number } | null>(null);
   const [stats, setStats] = useState<ReferralStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -26,6 +28,8 @@ export default function ReferralBanner({ style }: ReferralBannerProps) {
 
   const loadData = async () => {
     try {
+      setLoading(true);
+      setError(false);
       const [configResponse, statsResponse] = await Promise.all([
         api.get('/credits/config'),
         api.get('/credits/referral-stats')
@@ -33,7 +37,12 @@ export default function ReferralBanner({ style }: ReferralBannerProps) {
       setConfig(configResponse.config);
       setStats(statsResponse);
     } catch (error) {
-      console.error('Error loading referral data:', error);
+      console.error('Error loading referral banner data:', error);
+      setError(true);
+      // Don't show alert here - banner will just not display
+      // This prevents disrupting user experience on home page
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -47,7 +56,8 @@ export default function ReferralBanner({ style }: ReferralBannerProps) {
     }
   };
 
-  if (!config) return null;
+  // Don't render if loading, error, or no config
+  if (loading || error || !config) return null;
 
   const friendsCount = stats?.totalReferrals || 0;
 

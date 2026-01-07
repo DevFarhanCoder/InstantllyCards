@@ -1,6 +1,6 @@
 'use client'
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -235,7 +235,11 @@ export default function Builder() {
             const response = await api.get<{ data: any[] }>("/cards");
             return response.data || [];
         },
-        enabled: isEditMode,
+        enabled: isEditMode && !!currentUserId,
+        // Prevent automatic refetching while user is editing
+        refetchOnWindowFocus: false,
+        refetchOnMount: true,
+        staleTime: 30000, // Consider data fresh for 30 seconds
     });
     
     const existingCard = isEditMode && cardsQuery.data 
@@ -701,6 +705,7 @@ export default function Builder() {
     const [servicesSearchQuery, setServicesSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [customServiceInput, setCustomServiceInput] = useState("");
+    const [showCustomServiceInput, setShowCustomServiceInput] = useState(false);
     const [establishedYear, setEstablishedYear] = useState("");
     const [aboutBusiness, setAboutBusiness] = useState("");
     // Time picker modal state
@@ -754,6 +759,20 @@ export default function Builder() {
             setServicesOffered('');
         }
     }, [selectedServices]);
+
+    const handleAddCustomService = () => {
+        if (customServiceInput.trim()) {
+            const customService = selectedCategory 
+                ? `${selectedCategory} - ${customServiceInput.trim()}` 
+                : customServiceInput.trim();
+            
+            if (!selectedServices.includes(customService)) {
+                setSelectedServices(prev => [...prev, customService]);
+            }
+            setCustomServiceInput('');
+            setShowCustomServiceInput(false);
+        }
+    };
 
     // Track if form has been populated to avoid overwriting user changes
     const [formPopulated, setFormPopulated] = useState(false);
@@ -839,12 +858,13 @@ export default function Builder() {
     }, [saveDraft, createCardMutation.isPending, updateCardMutation.isPending, isEditMode, formPopulated]);
 
     // Reset formPopulated when edit param changes (navigating to different card)
+    // IMPORTANT: Don't reset on updatedAt changes - that causes form to reload unnecessarily
     useEffect(() => {
-        console.log('🔄 Edit param or existingCard changed, resetting form state');
+        console.log('🔄 Edit param changed, resetting form state');
         setFormPopulated(false);
         setDraftData(null);
         hasFetchedDraft.current = false;
-    }, [edit, existingCard?.updatedAt]); // Reset when card's updatedAt changes (after update)
+    }, [edit]); // Only reset when navigating to different card, NOT on updatedAt changes
 
     // Step 1: Load draft from AsyncStorage on mount
     useEffect(() => {
@@ -853,6 +873,18 @@ export default function Builder() {
         const loadDraft = async () => {
             try {
                 const draftKey = isEditMode ? `card_draft_${edit}` : 'card_draft_new';
+                
+                // 🔥 CRITICAL FIX: In edit mode, ALWAYS delete any existing draft first
+                // This prevents stale drafts from overwriting freshly loaded card data
+                if (isEditMode) {
+                    console.log('🗑️ EDIT MODE: Deleting any stale draft before loading card');
+                    await AsyncStorage.removeItem(draftKey);
+                    hasFetchedDraft.current = true;
+                    console.log('✅ Stale draft deleted - will load fresh from API');
+                    return; // Don't try to load draft in edit mode
+                }
+                
+                // Only load draft for NEW cards
                 const draftJson = await AsyncStorage.getItem(draftKey);
                 
                 if (draftJson) {
@@ -1018,14 +1050,9 @@ export default function Builder() {
         console.log("edit param:", edit);
         console.log("existingCard:", existingCard);
         console.log("formPopulated:", formPopulated);
-        console.log("hasFetchedDraft:", hasFetchedDraft.current);
         
-        // CRITICAL: Wait for draft check to complete before loading existingCard
-        if (!hasFetchedDraft.current) {
-            console.log("⏳ Waiting for draft check to complete before loading card data");
-            return;
-        }
-        
+        // Load existingCard data immediately without waiting for draft check
+        // This fixes the issue where form values don't appear on first load
         if (existingCard && !formPopulated) {
             console.log("Populating form with existing card data from API");
             console.log("� Full existingCard data:", JSON.stringify(existingCard, null, 2));
@@ -2023,6 +2050,8 @@ export default function Builder() {
                     setServicesModalVisible(false);
                     setSelectedCategory(null);
                     setServicesSearchQuery('');
+                    setShowCustomServiceInput(false);
+                    setCustomServiceInput('');
                 }}
             >
                 <View style={s.modalOverlay}>
@@ -2033,6 +2062,8 @@ export default function Builder() {
                                     onPress={() => {
                                         setSelectedCategory(null);
                                         setServicesSearchQuery('');
+                                        setShowCustomServiceInput(false);
+                                        setCustomServiceInput('');
                                     }}
                                     style={{ paddingRight: 12 }}
                                 >
@@ -2046,6 +2077,8 @@ export default function Builder() {
                                 setServicesModalVisible(false);
                                 setSelectedCategory(null);
                                 setServicesSearchQuery('');
+                                setShowCustomServiceInput(false);
+                                setCustomServiceInput('');
                             }}>
                                 <Ionicons name="close" size={28} color="#374151" />
                             </TouchableOpacity>
@@ -2086,34 +2119,139 @@ export default function Builder() {
 
                         {/* Categories or Subcategories List */}
                         {!selectedCategory ? (
-                            // Show Categories
-                            <FlatList
-                                data={Object.keys(SERVICE_CATEGORIES)}
-                                keyExtractor={(item) => item}
-                                renderItem={({ item: category }) => (
+                            <>
+                                {/* Add Custom Category Button - only in categories view */}
+                                {!showCustomServiceInput && (
                                     <TouchableOpacity
-                                        style={s.categoryItem}
-                                        onPress={() => {
-                                            setSelectedCategory(category);
-                                            setServicesSearchQuery('');
-                                            setCustomServiceInput('');
-                                        }}
+                                        style={s.addCustomButton}
+                                        onPress={() => setShowCustomServiceInput(true)}
+                                        activeOpacity={0.7}
                                     >
-                                        <View style={s.categoryItemContent}>
-                                            <Text style={s.categoryIcon}>{CATEGORY_ICONS[category]}</Text>
-                                            <Text style={s.categoryItemText}>{category}</Text>
-                                        </View>
-                                        <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+                                        <Ionicons name="add-circle" size={22} color="#2563EB" />
+                                        <Text style={s.addCustomButtonText}>
+                                            Add Custom Category
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
-                                style={s.categoriesList}
-                                contentContainerStyle={{ paddingBottom: 20 }}
-                                showsVerticalScrollIndicator={true}
-                            />
+
+                                {/* Custom Category Input Form - only in categories view */}
+                                {showCustomServiceInput && (
+                                    <View style={s.customInputContainer}>
+                                        <TextInput
+                                            style={s.customInput}
+                                            placeholder="Enter custom category name"
+                                            placeholderTextColor="#9CA3AF"
+                                            value={customServiceInput}
+                                            onChangeText={setCustomServiceInput}
+                                            autoFocus
+                                        />
+                                        <View style={s.customInputButtons}>
+                                            <TouchableOpacity
+                                                style={s.customInputCancelButton}
+                                                onPress={() => {
+                                                    setShowCustomServiceInput(false);
+                                                    setCustomServiceInput('');
+                                                }}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={s.customInputCancelText}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[
+                                                    s.customInputAddButton,
+                                                    !customServiceInput.trim() && s.customInputAddButtonDisabled
+                                                ]}
+                                                onPress={handleAddCustomService}
+                                                disabled={!customServiceInput.trim()}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={s.customInputAddText}>Add</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* Show Categories List */}
+                                <FlatList
+                                    data={Object.keys(SERVICE_CATEGORIES)}
+                                    keyExtractor={(item) => item}
+                                    renderItem={({ item: category }) => (
+                                        <TouchableOpacity
+                                            style={s.categoryItem}
+                                            onPress={() => {
+                                                setSelectedCategory(category);
+                                                setServicesSearchQuery('');
+                                                setCustomServiceInput('');
+                                            }}
+                                        >
+                                            <View style={s.categoryItemContent}>
+                                                <Text style={s.categoryIcon}>{CATEGORY_ICONS[category]}</Text>
+                                                <Text style={s.categoryItemText}>{category}</Text>
+                                            </View>
+                                            <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+                                        </TouchableOpacity>
+                                    )}
+                                    style={s.categoriesList}
+                                    contentContainerStyle={{ paddingBottom: 20 }}
+                                    showsVerticalScrollIndicator={true}
+                                />
+                            </>
                         ) : (
-                            // Show Subcategories
-                            <FlatList
-                                data={SERVICE_CATEGORIES[selectedCategory].filter(service => 
+                            <>
+                                {/* Add Custom Service Button - only in subcategories view */}
+                                {!showCustomServiceInput && (
+                                    <TouchableOpacity
+                                        style={s.addCustomButton}
+                                        onPress={() => setShowCustomServiceInput(true)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="add-circle" size={22} color="#2563EB" />
+                                        <Text style={s.addCustomButtonText}>
+                                            Add Custom Service
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                {/* Custom Service Input Form - only in subcategories view */}
+                                {showCustomServiceInput && (
+                                    <View style={s.customInputContainer}>
+                                        <TextInput
+                                            style={s.customInput}
+                                            placeholder="Enter custom service name"
+                                            placeholderTextColor="#9CA3AF"
+                                            value={customServiceInput}
+                                            onChangeText={setCustomServiceInput}
+                                            autoFocus
+                                        />
+                                        <View style={s.customInputButtons}>
+                                            <TouchableOpacity
+                                                style={s.customInputCancelButton}
+                                                onPress={() => {
+                                                    setShowCustomServiceInput(false);
+                                                    setCustomServiceInput('');
+                                                }}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={s.customInputCancelText}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[
+                                                    s.customInputAddButton,
+                                                    !customServiceInput.trim() && s.customInputAddButtonDisabled
+                                                ]}
+                                                onPress={handleAddCustomService}
+                                                disabled={!customServiceInput.trim()}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={s.customInputAddText}>Add</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* Show Subcategories List */}
+                                <FlatList
+                                    data={SERVICE_CATEGORIES[selectedCategory].filter(service => 
                                     service.toLowerCase().includes(servicesSearchQuery.toLowerCase())
                                 )}
                                 keyExtractor={(item, index) => `${item}-${index}`}
@@ -2147,6 +2285,7 @@ export default function Builder() {
                                     </View>
                                 }
                             />
+                            </>
                         )}
 
                         {/* Done Button - only show when in subcategories view */}
@@ -2154,23 +2293,11 @@ export default function Builder() {
                             <TouchableOpacity
                                 style={s.modalDoneButton}
                                 onPress={() => {
-                                    // Add custom service if search query doesn't match any existing service
-                                    const trimmedQuery = servicesSearchQuery.trim();
-                                    if (trimmedQuery && selectedCategory) {
-                                        const categoryServices = SERVICE_CATEGORIES[selectedCategory];
-                                        const isExistingService = categoryServices.some(
-                                            service => service.toLowerCase() === trimmedQuery.toLowerCase()
-                                        );
-                                        
-                                        // If not an existing service and not already selected, add it
-                                        if (!isExistingService && !selectedServices.includes(trimmedQuery)) {
-                                            setSelectedServices(prev => [...prev, trimmedQuery]);
-                                        }
-                                    }
-                                    
                                     setServicesModalVisible(false);
                                     setSelectedCategory(null);
                                     setServicesSearchQuery('');
+                                    setShowCustomServiceInput(false);
+                                    setCustomServiceInput('');
                                 }}
                             >
                                 <Text style={s.modalDoneButtonText}>Done</Text>
@@ -2782,6 +2909,80 @@ const s = StyleSheet.create({
         fontSize: 14,
         color: '#3B82F6',
         fontWeight: '600',
+    },
+    addCustomButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#EFF6FF',
+        marginHorizontal: 20,
+        marginBottom: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#BFDBFE',
+        borderStyle: 'dashed',
+    },
+    addCustomButtonText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#2563EB',
+        marginLeft: 8,
+    },
+    customInputContainer: {
+        backgroundColor: '#F9FAFB',
+        marginHorizontal: 20,
+        marginBottom: 12,
+        padding: 16,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    customInput: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        fontSize: 15,
+        color: '#111827',
+        marginBottom: 12,
+    },
+    customInputButtons: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    customInputCancelButton: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        alignItems: 'center',
+    },
+    customInputCancelText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    customInputAddButton: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        backgroundColor: '#2563EB',
+        alignItems: 'center',
+    },
+    customInputAddButtonDisabled: {
+        backgroundColor: '#BFDBFE',
+        opacity: 0.6,
+    },
+    customInputAddText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
     servicesList: {
         flexGrow: 1,
