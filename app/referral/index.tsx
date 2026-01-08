@@ -206,7 +206,7 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
 
   const handleCopyLink = () => {
     if (!stats?.referralCode) return;
-    const referralLink = `instantllycards.com/signup?ref=${stats.referralCode}`;
+    const referralLink = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
     Clipboard.setString(referralLink);
     Alert.alert('Copied!', 'Referral link copied to clipboard');
   };
@@ -318,7 +318,7 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
                 {stats?.referralCode ? stats.referralCode : 'Loading...'}
               </Text>
               <Text style={styles.linkText}>
-                instantllycards.com/signup?ref={stats?.referralCode || 'Loading'}
+                {`https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}` || 'Loading'}
               </Text>
             </View>
             <TouchableOpacity onPress={handleCopyLink} style={styles.copyIconButton}>

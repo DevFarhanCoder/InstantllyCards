@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,28 +7,40 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
-  Modal,
   Dimensions,
   Image,
-  Alert,
+  Animated,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../lib/theme';
 import api from '../lib/api';
 
-const { width} = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// Custom colors not in theme
-const PRIMARY_COLOR = '#7C3AED';
-const SECONDARY_COLOR = '#A78BFA';
-const ACCENT_COLOR = '#EC4899';
-const TEXT_SECONDARY = '#4B5563';
-const TEXT_LIGHT = '#9CA3AF';
-const ERROR_COLOR = '#EF4444';
-const SUCCESS_COLOR = '#10B981';
+// Professional Business Colors
+const COLORS_THEME = {
+  primary: '#1E3A5F',        // Deep Navy Blue
+  primaryLight: '#2D5A87',   // Lighter Navy
+  secondary: '#0A84FF',      // iOS Blue
+  accent: '#34C759',         // Success Green
+  warning: '#FF9500',        // Warning Orange
+  error: '#FF3B30',          // Error Red
+  background: '#F5F7FA',     // Light Gray Background
+  surface: '#FFFFFF',        // White Surface
+  surfaceAlt: '#F8FAFC',     // Alternative Surface
+  text: '#1A1A2E',           // Dark Text
+  textSecondary: '#6B7280',  // Gray Text
+  textMuted: '#9CA3AF',      // Muted Text
+  border: '#E5E7EB',         // Light Border
+  borderFocus: '#0A84FF',    // Focus Border
+  shadow: 'rgba(0, 0, 0, 0.08)',
+  gradient1: '#1E3A5F',
+  gradient2: '#2D5A87',
+  gradient3: '#3B82F6',
+};
 
 interface User {
   _id: string;
@@ -37,31 +49,35 @@ interface User {
   profilePicture?: string;
 }
 
-interface Transaction {
-  id: string;
-  transactionId: string;
-  amount: number;
-  date: string;
-}
-
 export default function TransferCreditsScreen() {
   const [balance, setBalance] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [transaction, setTransaction] = useState<Transaction | null>(null);
-  const [amountError, setAmountError] = useState('');
-  const [isTransferring, setIsTransferring] = useState(false);
+  const [recentContacts, setRecentContacts] = useState<User[]>([]);
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
-  // Fetch user's balance on mount
   useEffect(() => {
     fetchBalance();
+    fetchRecentContacts();
+    
+    // Entry animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const fetchBalance = async () => {
@@ -73,24 +89,27 @@ export default function TransferCreditsScreen() {
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
-      Alert.alert('Error', 'Failed to load your balance');
     } finally {
       setLoadingBalance(false);
     }
   };
 
-  // Search users function with API call
+  const fetchRecentContacts = async () => {
+    try {
+      const response = await api.get('/credits/recent-transfers');
+      if (response.success && response.recentUsers) {
+        setRecentContacts(response.recentUsers.slice(0, 5));
+      }
+    } catch (error) {
+      // Silently fail - recent contacts are optional
+      console.log('No recent contacts available');
+    }
+  };
+
   const searchUsers = async (query: string) => {
-    // Remove spaces and special characters, keep only digits
     const cleanedQuery = query.replace(/[^0-9]/g, '');
     
-    console.log('\n🔍 ========== SEARCH START ==========');
-    console.log('🔍 [FRONTEND] Original query:', query);
-    console.log('🔍 [FRONTEND] Cleaned query:', cleanedQuery);
-    
     if (cleanedQuery.length < 2) {
-      console.log('⚠️ [FRONTEND] Query too short (<2 digits)');
-      console.log('🔍 ========== SEARCH END ==========\n');
       setSearchResults([]);
       return;
     }
@@ -98,60 +117,29 @@ export default function TransferCreditsScreen() {
     setIsSearching(true);
     
     try {
-      console.log('📡 [FRONTEND] Sending POST to /credits/search-users');
-      console.log('📡 [FRONTEND] Request body:', { query: cleanedQuery, phonePrefix: cleanedQuery });
-      
-      // Send both 'query' (new) and 'phonePrefix' (old) for backward compatibility
       const response = await api.post('/credits/search-users', { 
         query: cleanedQuery,
         phonePrefix: cleanedQuery 
       });
       
-      console.log('📥 [FRONTEND] Full Response:', JSON.stringify(response, null, 2));
-      
       if (response.success) {
-        const userCount = response.users?.length || 0;
-        console.log('✅ [FRONTEND] Success! Found', userCount, 'users');
-        if (userCount > 0) {
-          console.log('👥 [FRONTEND] User details:');
-          response.users.forEach((u: any, i: number) => {
-            console.log(`   ${i + 1}. ${u.name} - ${u.phone}`);
-          });
-        } else {
-          console.log('📭 [FRONTEND] No users matched the search');
-        }
         setSearchResults(response.users || []);
       } else {
-        console.log('❌ [FRONTEND] Search failed:', response.message);
         setSearchResults([]);
       }
     } catch (error: any) {
-      console.error('❌❌❌ [FRONTEND] Search error caught!');
-      console.error('Error type:', error.constructor.name);
-      console.error('Error message:', error.message);
-      console.error('Error response:', error.response);
-      console.error('Error response data:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      
-      Alert.alert(
-        'Search Error',
-        `Failed to search users: ${error.message || 'Unknown error'}`,
-        [{ text: 'OK' }]
-      );
+      console.error('Search error:', error);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
-      console.log('🔍 ========== SEARCH END ==========\n');
     }
   };
 
-  // Debounced search
   useEffect(() => {
     if (searchQuery.length >= 2) {
       const timeoutId = setTimeout(() => {
         searchUsers(searchQuery);
-      }, 400); // Faster response
-
+      }, 350);
       return () => clearTimeout(timeoutId);
     } else {
       setSearchResults([]);
@@ -159,1300 +147,698 @@ export default function TransferCreditsScreen() {
   }, [searchQuery]);
 
   const handleSelectUser = (user: User) => {
-    setSelectedUser(user);
-    setSearchQuery('');
-    setSearchResults([]);
-  };
-
-  const handleClearSelection = () => {
-    setSelectedUser(null);
-    setAmount('');
-    setNote('');
-    setAmountError('');
-  };
-
-  const handleAmountChange = (value: string) => {
-    // Only allow numbers
-    const numericValue = value.replace(/[^0-9]/g, '');
-    setAmount(numericValue);
-    
-    // Validate amount
-    const amountNum = parseInt(numericValue);
-    if (numericValue === '') {
-      setAmountError('');
-    } else if (amountNum < 10) {
-      setAmountError('Minimum amount is 10 credits');
-    } else if (amountNum > balance) {
-      setAmountError('Insufficient balance');
-    } else if (amountNum > 10000) {
-      setAmountError('Maximum amount is 10,000 credits');
-    } else {
-      setAmountError('');
-    }
-  };
-
-  const handleQuickAmount = (value: number) => {
-    if (value === -1) {
-      // "All" button
-      handleAmountChange(balance.toString());
-    } else {
-      handleAmountChange(value.toString());
-    }
-  };
-
-  const handleConfirmTransfer = () => {
-    if (!selectedUser || !amount || amountError) {
-      return;
-    }
-    setShowConfirmModal(true);
-  };
-
-  const handleFinalConfirm = async () => {
-    setShowConfirmModal(false);
-    setIsTransferring(true);
-    
-    try {
-      const response = await api.post('/credits/transfer', {
-        toUserId: selectedUser?._id,
-        amount: parseInt(amount),
-        note: note || ''
-      });
-      
-      if (response.success) {
-        // Update balance
-        setBalance(response.newBalance);
-        
-        // Set transaction data from response
-        setTransaction(response.transaction);
-        
-        // Show success modal
-        setTimeout(() => {
-          setIsTransferring(false);
-          setShowSuccessModal(true);
-        }, 300);
-      } else {
-        setIsTransferring(false);
-        Alert.alert('Transfer Failed', response.message || 'Unable to complete transfer');
+    router.push({
+      pathname: '/transfer-to-user',
+      params: {
+        userId: user._id,
+        userName: user.name,
+        userPhone: user.phone,
+        userProfilePicture: user.profilePicture || '',
       }
-    } catch (error: any) {
-      setIsTransferring(false);
-      console.error('Transfer error:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to transfer credits';
-      Alert.alert('Transfer Failed', errorMessage);
+    });
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    if (phone.length === 10) {
+      return `${phone.slice(0, 3)} ${phone.slice(3, 6)} ${phone.slice(6)}`;
     }
+    return phone;
   };
-
-  const handleDone = () => {
-    setShowSuccessModal(false);
-    // Reset form
-    setSelectedUser(null);
-    setAmount('');
-    setNote('');
-    setAmountError('');
-    setTransaction(null);
-  };
-
-  const handleViewHistory = () => {
-    setShowSuccessModal(false);
-    // Navigate to transaction history
-    router.push('/referral/credits-history');
-  };
-
-  const isTransferDisabled = !selectedUser || !amount || !!amountError || parseInt(amount) < 10;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header with Gradient */}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Premium Header with Balance */}
       <LinearGradient
-        colors={['#9333EA', '#7C3AED', '#6D28D9']}
+        colors={[COLORS_THEME.gradient1, COLORS_THEME.gradient2]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={26} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Transfer Credits</Text>
-          <TouchableOpacity onPress={() => router.push('/referral/credits-history')} style={styles.historyIconButton}>
-            <Ionicons name="time-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <SafeAreaView edges={['top']} style={styles.safeHeader}>
+          {/* Top Navigation */}
+          <View style={styles.topNav}>
+            <TouchableOpacity 
+              onPress={() => router.back()} 
+              style={styles.navButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            
+            <Text style={styles.screenTitle}>Transfer Credits</Text>
+            
+            <TouchableOpacity 
+              onPress={() => router.push('/referral/credits-history')} 
+              style={styles.navButton}
+              activeOpacity={0.7}
+            >
+              <Feather name="clock" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Balance Card */}
+          <Animated.View 
+            style={[
+              styles.balanceCard,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <View style={styles.balanceHeader}>
+              <View style={styles.balanceIconBg}>
+                <MaterialCommunityIcons name="wallet-outline" size={24} color={COLORS_THEME.primary} />
+              </View>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
+            </View>
+            
+            <View style={styles.balanceAmountRow}>
+              {loadingBalance ? (
+                <ActivityIndicator size="large" color={COLORS_THEME.primary} />
+              ) : (
+                <>
+                  <Text style={styles.balanceAmount}>{balance.toLocaleString()}</Text>
+                  <Text style={styles.balanceCurrency}>Credits</Text>
+                </>
+              )}
+            </View>
+            
+            <View style={styles.balanceFooter}>
+              <View style={styles.securityBadge}>
+                <Ionicons name="shield-checkmark" size={14} color={COLORS_THEME.accent} />
+                <Text style={styles.securityText}>Secured Transfer</Text>
+              </View>
+            </View>
+          </Animated.View>
+        </SafeAreaView>
       </LinearGradient>
 
+      {/* Main Content */}
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.contentContainer}
       >
-        {/* Balance Card - Always visible at top */}
-        <View style={styles.balanceCardWrapper}>
-          <LinearGradient
-            colors={['#A78BFA', '#8B5CF6', '#7C3AED']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.balanceCard}
-          >
-            <View style={styles.balanceContent}>
-              <View style={styles.balanceIconContainer}>
-                <Ionicons name="wallet" size={32} color="rgba(255,255,255,0.9)" />
-              </View>
-              <View style={styles.balanceTextContainer}>
-                <Text style={styles.balanceLabel}>Available Balance</Text>
-                {loadingBalance ? (
-                  <ActivityIndicator size="small" color="#fff" style={{ marginTop: 8 }} />
-                ) : (
-                  <View style={styles.balanceAmountRow}>
-                    <Text style={styles.balanceAmount}>{balance.toLocaleString()}</Text>
-                    <Text style={styles.balanceUnit}>credits</Text>
-                  </View>
-                )}
-              </View>
+        {/* Search Section */}
+        <View style={styles.searchSection}>
+          <Text style={styles.sectionTitle}>Find Recipient</Text>
+          <Text style={styles.sectionSubtitle}>Enter phone number to search</Text>
+          
+          <View style={[
+            styles.searchBox,
+            searchQuery.length > 0 && styles.searchBoxActive
+          ]}>
+            <View style={styles.searchIconContainer}>
+              <Feather name="search" size={20} color={searchQuery ? COLORS_THEME.secondary : COLORS_THEME.textMuted} />
             </View>
-          </LinearGradient>
+            
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by phone number..."
+              placeholderTextColor={COLORS_THEME.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+            />
+            
+            {isSearching && (
+              <ActivityIndicator size="small" color={COLORS_THEME.secondary} style={styles.searchLoader} />
+            )}
+            
+            {searchQuery.length > 0 && !isSearching && (
+              <TouchableOpacity 
+                onPress={() => setSearchQuery('')} 
+                style={styles.clearButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close-circle-outline" size={22} color={COLORS_THEME.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
-        {/* Search Section - Now First */}
-        {!selectedUser && (
-          <View style={styles.searchSection}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconContainer}>
-                <Ionicons name="search" size={22} color="#7C3AED" />
-              </View>
-              <View>
-                <Text style={styles.searchSectionTitle}>Find Recipient</Text>
-                <Text style={styles.searchSectionSubtitle}>Search by phone number</Text>
-              </View>
-            </View>
-            <View style={[styles.searchContainer, searchQuery.length > 0 && styles.searchContainerActive]}>
-              <View style={styles.phoneIconContainer}>
-                <Ionicons name="call" size={20} color="#7C3AED" />
-              </View>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Enter phone number (e.g., 01712345678)"
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-              />
-              {isSearching && (
-                <ActivityIndicator size="small" color={PRIMARY_COLOR} style={styles.searchLoader} />
-              )}
-              {searchQuery.length > 0 && !isSearching && (
-                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchButton}>
-                  <Ionicons name="close-circle" size={22} color="#9CA3AF" />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <View style={styles.resultsContainer}>
-                <View style={styles.resultsHeader}>
-                  <Text style={styles.resultsLabel}>Search Results</Text>
-                  <View style={styles.resultsCount}>
-                    <Text style={styles.resultsCountText}>{searchResults.length}</Text>
-                  </View>
-                </View>
-                {searchResults.map((user) => (
-                  <TouchableOpacity
-                    key={user._id}
-                    style={styles.userResultCard}
-                    onPress={() => handleSelectUser(user)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.userAvatarContainer}>
-                      <View style={styles.userAvatar}>
-                        {user.profilePicture ? (
-                          <Image source={{ uri: user.profilePicture }} style={styles.avatarImage} />
-                        ) : (
-                          <Ionicons name="person" size={28} color="#7C3AED" />
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.userInfo}>
-                      <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">{user.name}</Text>
-                      <View style={styles.phoneRow}>
-                        <Ionicons name="call" size={14} color="#6B7280" />
-                        <Text style={styles.userPhone}>{user.phone}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.selectButton}>
-                      <Text style={styles.selectButtonText}>Select</Text>
-                      <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
-              <View style={styles.noResults}>
-                <View style={styles.noResultsIconContainer}>
-                  <Ionicons name="search-outline" size={48} color="#9CA3AF" />
-                </View>
-                <Text style={styles.noResultsText}>No users found</Text>
-                <Text style={styles.noResultsSubtext}>Make sure the phone number is registered in the system</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-
-
-        {/* Selected Recipient */}
-        {selectedUser && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconContainer}>
-                <Ionicons name="send" size={22} color="#7C3AED" />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>Recipient</Text>
-                <Text style={styles.sectionSubtitle}>Sending credits to</Text>
-              </View>
-            </View>
-            <View style={styles.selectedUserCard}>
-              <View style={styles.userAvatarContainer}>
-                <View style={styles.userAvatarLarge}>
-                  {selectedUser.profilePicture ? (
-                    <Image source={{ uri: selectedUser.profilePicture }} style={styles.avatarImageLarge} />
-                  ) : (
-                    <Ionicons name="person" size={32} color="#7C3AED" />
-                  )}
-                </View>
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userNameSelected}>{selectedUser.name}</Text>
-                <View style={styles.phoneRow}>
-                  <Ionicons name="call" size={14} color="#6B7280" />
-                  <Text style={styles.userPhone}>{selectedUser.phone}</Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={handleClearSelection} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={28} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Amount Input */}
-        {selectedUser && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconContainer}>
-                <Ionicons name="cash" size={22} color="#7C3AED" />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>Amount</Text>
-                <Text style={styles.sectionSubtitle}>How many credits to send</Text>
-              </View>
-            </View>
-            <View style={[styles.amountContainer, amount && styles.amountContainerFilled]}>
-              <View style={styles.amountInputWrapper}>
-                <TextInput
-                  style={styles.amountInput}
-                  placeholder="0"
-                  placeholderTextColor="#CBD5E1"
-                  value={amount}
-                  onChangeText={handleAmountChange}
-                  keyboardType="numeric"
-                  maxLength={6}
-                />
-                <Text style={styles.amountCurrency}>credits</Text>
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <View style={styles.resultsSection}>
+            <View style={styles.resultsHeader}>
+              <Text style={styles.resultsTitle}>Search Results</Text>
+              <View style={styles.resultsBadge}>
+                <Text style={styles.resultsBadgeText}>{searchResults.length}</Text>
               </View>
             </View>
             
-            {/* Quick Amount Buttons */}
-            <View style={styles.quickAmountContainer}>
-              <TouchableOpacity
-                style={styles.quickAmountButton}
-                onPress={() => handleQuickAmount(100)}
+            {searchResults.map((user, index) => (
+              <Animated.View
+                key={user._id}
+                style={[
+                  styles.userCard,
+                  { opacity: fadeAnim }
+                ]}
               >
-                <Text style={styles.quickAmountText}>100</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.quickAmountButton}
-                onPress={() => handleQuickAmount(500)}
-              >
-                <Text style={styles.quickAmountText}>500</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.quickAmountButton}
-                onPress={() => handleQuickAmount(1000)}
-              >
-                <Text style={styles.quickAmountText}>1000</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.quickAmountButton, styles.allButton]}
-                onPress={() => handleQuickAmount(-1)}
-              >
-                <Text style={[styles.quickAmountText, styles.allButtonText]}>All</Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={styles.userCardContent}
+                  onPress={() => handleSelectUser(user)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.userAvatarSection}>
+                    {user.profilePicture ? (
+                      <Image source={{ uri: user.profilePicture }} style={styles.userAvatar} />
+                    ) : (
+                      <LinearGradient
+                        colors={[COLORS_THEME.primaryLight, COLORS_THEME.primary]}
+                        style={styles.userAvatarPlaceholder}
+                      >
+                        <Text style={styles.userInitials}>{getInitials(user.name)}</Text>
+                      </LinearGradient>
+                    )}
+                    <View style={styles.verifiedBadge}>
+                      <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  
+                  <View style={styles.userDetails}>
+                    <Text style={styles.userName} numberOfLines={1}>{user.name}</Text>
+                    <View style={styles.userPhoneRow}>
+                      <Feather name="phone" size={13} color={COLORS_THEME.textSecondary} />
+                      <Text style={styles.userPhone}>{formatPhoneNumber(user.phone)}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.transferArrow}>
+                    <LinearGradient
+                      colors={[COLORS_THEME.secondary, COLORS_THEME.primary]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.arrowBg}
+                    >
+                      <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                    </LinearGradient>
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </View>
+        )}
 
-            {/* Min/Max Info */}
-            <View style={styles.amountInfoContainer}>
-              <Text style={styles.amountInfoText}>
-                Min: 10 • Max: {Math.min(10000, balance).toLocaleString()}
-              </Text>
+        {/* No Results */}
+        {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Feather name="user-x" size={48} color={COLORS_THEME.textMuted} />
             </View>
+            <Text style={styles.emptyTitle}>No Users Found</Text>
+            <Text style={styles.emptySubtitle}>
+              We couldn't find any registered users{'\n'}with this phone number
+            </Text>
+          </View>
+        )}
 
-            {/* Error Message */}
-            {amountError && (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={16} color={ERROR_COLOR} />
-                <Text style={styles.errorText}>{amountError}</Text>
+        {/* Recent Contacts */}
+        {searchQuery.length === 0 && recentContacts.length > 0 && (
+          <View style={styles.recentSection}>
+            <View style={styles.recentHeader}>
+              <Feather name="clock" size={18} color={COLORS_THEME.textSecondary} />
+              <Text style={styles.recentTitle}>Recent Transfers</Text>
+            </View>
+            
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.recentList}
+            >
+              {recentContacts.map((user) => (
+                <TouchableOpacity
+                  key={user._id}
+                  style={styles.recentCard}
+                  onPress={() => handleSelectUser(user)}
+                  activeOpacity={0.7}
+                >
+                  {user.profilePicture ? (
+                    <Image source={{ uri: user.profilePicture }} style={styles.recentAvatar} />
+                  ) : (
+                    <LinearGradient
+                      colors={[COLORS_THEME.primaryLight, COLORS_THEME.primary]}
+                      style={styles.recentAvatarPlaceholder}
+                    >
+                      <Text style={styles.recentInitials}>{getInitials(user.name)}</Text>
+                    </LinearGradient>
+                  )}
+                  <Text style={styles.recentName} numberOfLines={1}>
+                    {user.name.split(' ')[0]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Quick Tips Section */}
+        {searchQuery.length === 0 && (
+          <View style={styles.tipsSection}>
+            <Text style={styles.tipsTitle}>Quick Tips</Text>
+            
+            <View style={styles.tipCard}>
+              <View style={styles.tipIconBg}>
+                <Ionicons name="flash" size={20} color={COLORS_THEME.warning} />
               </View>
-            )}
-
-            {/* Optional Note */}
-            <View style={styles.noteContainer}>
-              <Text style={styles.noteLabel}>Note (Optional)</Text>
-              <TextInput
-                style={styles.noteInput}
-                placeholder="Add a message..."
-                placeholderTextColor="#9CA3AF"
-                value={note}
-                onChangeText={setNote}
-                multiline
-                maxLength={100}
-              />
+              <View style={styles.tipContent}>
+                <Text style={styles.tipHeading}>Instant Transfer</Text>
+                <Text style={styles.tipText}>Credits are transferred instantly to the recipient's account</Text>
+              </View>
+            </View>
+            
+            <View style={styles.tipCard}>
+              <View style={[styles.tipIconBg, { backgroundColor: '#E8F5E9' }]}>
+                <Ionicons name="shield-checkmark" size={20} color={COLORS_THEME.accent} />
+              </View>
+              <View style={styles.tipContent}>
+                <Text style={styles.tipHeading}>100% Secure</Text>
+                <Text style={styles.tipText}>All transfers are encrypted and protected</Text>
+              </View>
+            </View>
+            
+            <View style={styles.tipCard}>
+              <View style={[styles.tipIconBg, { backgroundColor: '#E3F2FD' }]}>
+                <Ionicons name="document-text" size={20} color={COLORS_THEME.secondary} />
+              </View>
+              <View style={styles.tipContent}>
+                <Text style={styles.tipHeading}>Transaction History</Text>
+                <Text style={styles.tipText}>View all your past transfers in the history section</Text>
+              </View>
             </View>
           </View>
         )}
 
-        {/* Transfer Button */}
-        {selectedUser && (
-          <TouchableOpacity
-            style={[styles.transferButton, isTransferDisabled && styles.transferButtonDisabled]}
-            onPress={handleConfirmTransfer}
-            disabled={isTransferDisabled}
-          >
-            <LinearGradient
-              colors={isTransferDisabled ? ['#ccc', '#999'] : [PRIMARY_COLOR, SECONDARY_COLOR]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.transferButtonGradient}
-            >
-              <Ionicons name="send" size={20} color="#fff" />
-              <Text style={styles.transferButtonText}>Continue</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Confirmation Modal */}
-      <Modal
-        visible={showConfirmModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowConfirmModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🔄 Confirm Transfer</Text>
-            
-            <View style={styles.confirmDetails}>
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>From:</Text>
-                <Text style={styles.confirmValue}>You ({balance.toLocaleString()} credits)</Text>
-              </View>
-              
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>To:</Text>
-                <Text style={styles.confirmValue}>{selectedUser?.name}</Text>
-              </View>
-              
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Amount:</Text>
-                <Text style={[styles.confirmValue, styles.amountHighlight]}>
-                  {amount ? parseInt(amount).toLocaleString() : '0'} credits
-                </Text>
-              </View>
-              
-              {note && (
-                <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>Note:</Text>
-                  <Text style={styles.confirmValue}>{note}</Text>
-                </View>
-              )}
-
-              <View style={styles.feeDivider} />
-              
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabelBold}>You will pay:</Text>
-                <Text style={[styles.confirmValueBold, styles.amountHighlight]}>
-                  {amount ? parseInt(amount).toLocaleString() : '0'} credits
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowConfirmModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={handleFinalConfirm}
-              >
-                <LinearGradient
-                  colors={[PRIMARY_COLOR, SECONDARY_COLOR]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.confirmButtonGradient}
-                >
-                  <Text style={styles.confirmButtonText}>Confirm Transfer</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Success Modal */}
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={handleDone}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.successIconContainer}>
-              <Ionicons name="checkmark-circle" size={80} color={SUCCESS_COLOR} />
-            </View>
-            
-            <Text style={styles.successTitle}>✅ Success!</Text>
-            
-            <Text style={styles.successMessage}>
-              Transferred {transaction?.amount.toLocaleString()} credits
-            </Text>
-            <Text style={styles.successRecipient}>
-              to {selectedUser?.name}
-            </Text>
-            
-            <View style={styles.transactionDetails}>
-              <View style={styles.transactionRow}>
-                <Text style={styles.transactionLabel}>Transaction ID:</Text>
-                <Text style={styles.transactionValue}>#{transaction?.transactionId}</Text>
-              </View>
-              <View style={styles.transactionRow}>
-                <Text style={styles.transactionLabel}>Date:</Text>
-                <Text style={styles.transactionValue}>{transaction?.date}</Text>
-              </View>
-              <View style={styles.transactionRow}>
-                <Text style={styles.transactionLabel}>New Balance:</Text>
-                <Text style={styles.transactionValue}>{balance.toLocaleString()} credits</Text>
-              </View>
-            </View>
-
-            <View style={styles.successButtons}>
-              <TouchableOpacity
-                style={[styles.successButton, styles.historyButton]}
-                onPress={handleViewHistory}
-              >
-                <Ionicons name="time-outline" size={20} color={PRIMARY_COLOR} />
-                <Text style={styles.historyButtonText}>View History</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.successButton, styles.doneButton]}
-                onPress={handleDone}
-              >
-                <LinearGradient
-                  colors={[PRIMARY_COLOR, SECONDARY_COLOR]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.doneButtonGradient}
-                >
-                  <Text style={styles.doneButtonText}>Done</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Loading Modal for Transfer */}
-      <Modal
-        visible={isTransferring}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingVertical: 40 }]}>
-            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-            <Text style={[styles.modalTitle, { marginTop: 20, marginBottom: 0 }]}>
-              Processing Transfer...
-            </Text>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF5FF',
+    backgroundColor: COLORS_THEME.background,
   },
   headerGradient: {
     paddingBottom: 0,
   },
-  header: {
+  safeHeader: {
+    paddingBottom: 20,
+  },
+  topNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  historyIconButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  balanceCardWrapper: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
-  balanceCard: {
-    borderRadius: 32,
-    padding: 0,
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.45,
-    shadowRadius: 25,
-    elevation: 18,
-    overflow: 'hidden',
-  },
-  balanceContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 28,
-    gap: 20,
-  },
-  balanceIconContainer: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  balanceTextContainer: {
-    flex: 1,
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  balanceAmountRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  balanceAmount: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -1,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  balanceUnit: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-  },
-  searchSection: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingTop: 8,
     paddingBottom: 16,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-  },
-  sectionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F3E8FF',
+  navButton: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchSectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1F2937',
-    letterSpacing: 0.3,
-  },
-  searchSectionSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1F2937',
-    letterSpacing: 0.2,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 5,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-  },
-  searchContainerActive: {
-    borderColor: '#7C3AED',
-    shadowColor: '#7C3AED',
-    shadowOpacity: 0.2,
-    backgroundColor: '#FEFEFE',
-    transform: [{ scale: 1.01 }],
-  },
-  phoneIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3E8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  searchLoader: {
-    marginLeft: 12,
-  },
-  clearSearchButton: {
-    marginLeft: 8,
-    padding: 4,
-  },
-  resultsContainer: {
-    marginTop: 20,
-  },
-  resultsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  resultsLabel: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1F2937',
-    letterSpacing: 0.3,
-  },
-  resultsCount: {
-    backgroundColor: '#7C3AED',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
     borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
-  resultsCountText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  userResultCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-    elevation: 5,
-    borderWidth: 2,
-    borderColor: '#F3E8FF',
-  },
-  userAvatarContainer: {
-    marginRight: 14,
-  },
-  userAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#F3E8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: '#DDD6FE',
-  },
-  userAvatarLarge: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#F3E8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#DDD6FE',
-  },
-  avatarImage: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-  },
-  avatarImageLarge: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-  },
-  userInfo: {
-    flex: 1,
-    marginRight: 12,
-    flexShrink: 1,
-  },
-  userName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 6,
-    letterSpacing: 0.1,
-  },
-  userNameSelected: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 6,
-    letterSpacing: 0.1,
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  userPhone: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    flexShrink: 1,
-    flexWrap: 'wrap',
-  },
-  selectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#7C3AED',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    gap: 6,
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-    flexShrink: 0,
-  },
-  selectButtonText: {
-    fontSize: 14,
+  screenTitle: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
-  noResults: {
-    alignItems: 'center',
-    paddingVertical: 50,
-    paddingHorizontal: 20,
-  },
-  noResultsIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  noResultsText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginBottom: 8,
-    letterSpacing: 0.2,
-  },
-  noResultsSubtext: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: '600',
-    marginBottom: 20,
-  },
-  noResultsExample: {
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  noResultsExampleLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#4B5563',
-    marginBottom: 10,
-    letterSpacing: 0.2,
-  },
-  noResultsExampleText: {
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '600',
-    marginVertical: 4,
-    fontFamily: 'monospace',
-  },
-  selectedUserCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  balanceCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    padding: 24,
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
-    borderWidth: 3,
-    borderColor: '#DDD6FE',
-  },
-  clearButton: {
-    padding: 8,
+    marginHorizontal: 20,
     borderRadius: 20,
-    backgroundColor: '#FEF2F2',
-  },
-  amountContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 32,
-    paddingVertical: 36,
-    paddingHorizontal: 28,
-    alignItems: 'center',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 8 },
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
-    elevation: 8,
+    elevation: 12,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  balanceIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F0F7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  balanceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS_THEME.textSecondary,
+    letterSpacing: 0.2,
+  },
+  balanceAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 16,
+  },
+  balanceAmount: {
+    fontSize: 42,
+    fontWeight: '800',
+    color: COLORS_THEME.primary,
+    letterSpacing: -1,
+  },
+  balanceCurrency: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS_THEME.textSecondary,
+    marginLeft: 8,
+  },
+  balanceFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  securityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  securityText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS_THEME.accent,
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingTop: 24,
+  },
+  searchSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS_THEME.text,
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS_THEME.textSecondary,
+    marginBottom: 16,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderWidth: 2,
-    borderColor: '#F3E8FF',
+    borderColor: COLORS_THEME.border,
+    shadowColor: 'rgba(0, 0, 0, 0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  amountContainerFilled: {
-    borderColor: '#A78BFA',
-    shadowColor: '#7C3AED',
-    shadowOpacity: 0.25,
-    backgroundColor: '#FEFEFE',
+  searchBoxActive: {
+    borderColor: COLORS_THEME.secondary,
+    shadowColor: COLORS_THEME.secondary,
+    shadowOpacity: 0.15,
   },
-  amountInputWrapper: {
+  searchIconContainer: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: COLORS_THEME.text,
+    paddingVertical: 0,
+  },
+  searchLoader: {
+    marginLeft: 8,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  resultsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  resultsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS_THEME.text,
+    flex: 1,
+  },
+  resultsBadge: {
+    backgroundColor: COLORS_THEME.secondary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  resultsBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  userCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: 'rgba(0, 0, 0, 0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: COLORS_THEME.border,
+  },
+  userCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  userAvatarSection: {
+    position: 'relative',
+    marginRight: 14,
+  },
+  userAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: COLORS_THEME.border,
+  },
+  userAvatarPlaceholder: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  amountInput: {
-    fontSize: 56,
-    fontWeight: '900',
-    color: '#7C3AED',
-    textAlign: 'center',
-    minWidth: 140,
-    letterSpacing: -1.5,
-    paddingVertical: 10,
+  userInitials: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
-  amountCurrency: {
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS_THEME.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#6B7280',
-    marginTop: 4,
+    color: COLORS_THEME.text,
+    marginBottom: 4,
+  },
+  userPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  userPhone: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS_THEME.textSecondary,
     letterSpacing: 0.5,
   },
-  quickAmountContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-    gap: 10,
+  transferArrow: {
+    marginLeft: 12,
   },
-  quickAmountButton: {
-    flex: 1,
+  arrowBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 50,
+    paddingHorizontal: 40,
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS_THEME.text,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS_THEME.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  recentSection: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  recentTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS_THEME.textSecondary,
+  },
+  recentList: {
+    paddingRight: 20,
+  },
+  recentCard: {
+    alignItems: 'center',
+    marginRight: 20,
+  },
+  recentAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: COLORS_THEME.border,
+  },
+  recentAvatarPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  recentInitials: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  recentName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS_THEME.text,
+    maxWidth: 70,
+    textAlign: 'center',
+  },
+  tipsSection: {
+    paddingHorizontal: 20,
+    marginTop: 8,
+  },
+  tipsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS_THEME.text,
+    marginBottom: 16,
+  },
+  tipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 2.5,
-    borderColor: PRIMARY_COLOR,
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: 'rgba(0, 0, 0, 0.08)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
     elevation: 3,
   },
-  quickAmountText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: PRIMARY_COLOR,
-    letterSpacing: 0.5,
-  },
-  allButton: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  allButtonText: {
-    color: '#fff',
-  },
-  amountInfoContainer: {
-    marginTop: 16,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  amountInfoText: {
-    fontSize: 14,
-    color: '#4B5563',
-    fontWeight: '700',
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FEF2F2',
+  tipIconBg: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
+    backgroundColor: '#FFF8E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
   },
-  errorText: {
-    fontSize: 14,
-    color: ERROR_COLOR,
-    fontWeight: '600',
+  tipContent: {
     flex: 1,
   },
-  noteContainer: {
-    marginTop: 20,
-  },
-  noteLabel: {
+  tipHeading: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 10,
-    letterSpacing: 0.2,
+    color: COLORS_THEME.text,
+    marginBottom: 4,
   },
-  noteInput: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 18,
-    fontSize: 16,
-    color: '#111827',
-    minHeight: 100,
-    textAlignVertical: 'top',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+  tipText: {
+    fontSize: 13,
     fontWeight: '500',
-  },
-  transferButton: {
-    marginHorizontal: 20,
-    marginTop: 32,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 10,
-  },
-  transferButtonDisabled: {
-    opacity: 0.5,
-  },
-  transferButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    gap: 12,
-  },
-  transferButtonText: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 32,
-    padding: 32,
-    width: '100%',
-    maxWidth: 420,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.4,
-    shadowRadius: 30,
-    elevation: 15,
-  },
-  modalTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 32,
-    letterSpacing: 0.5,
-  },
-  confirmDetails: {
-    marginBottom: 28,
-  },
-  confirmRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  confirmLabel: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
-  confirmValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'right',
-    flex: 1,
-    marginLeft: 16,
-  },
-  confirmLabelBold: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#111827',
-    letterSpacing: 0.2,
-  },
-  confirmValueBold: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#111827',
-    textAlign: 'right',
-    flex: 1,
-    marginLeft: 16,
-    letterSpacing: 0.2,
-  },
-  amountHighlight: {
-    color: '#7C3AED',
-  },
-  feeDivider: {
-    height: 2,
-    backgroundColor: '#E8E8E8',
-    marginVertical: 18,
-    borderRadius: 1,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 14,
-  },
-  modalButton: {
-    flex: 1,
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  cancelButton: {
-    backgroundColor: '#F3F4F6',
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-  },
-  cancelButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#4B5563',
-    letterSpacing: 0.3,
-  },
-  confirmButton: {
-    flex: 1,
-  },
-  confirmButtonGradient: {
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmButtonText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.3,
-  },
-  successIconContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 20,
-    letterSpacing: 0.5,
-  },
-  successMessage: {
-    fontSize: 19,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
-  successRecipient: {
-    fontSize: 17,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 28,
-    fontWeight: '600',
-  },
-  transactionDetails: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    padding: 22,
-    marginBottom: 32,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-  },
-  transactionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  transactionLabel: {
-    fontSize: 15,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
-  transactionValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  successButtons: {
-    flexDirection: 'row',
-    gap: 14,
-  },
-  successButton: {
-    flex: 1,
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  historyButton: {
-    backgroundColor: '#F3F4F6',
-    paddingVertical: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-  },
-  historyButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#7C3AED',
-    letterSpacing: 0.3,
-  },
-  doneButton: {
-    flex: 1,
-  },
-  doneButtonGradient: {
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  doneButtonText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.3,
+    color: COLORS_THEME.textSecondary,
+    lineHeight: 18,
   },
 });

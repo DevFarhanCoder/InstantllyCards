@@ -574,9 +574,11 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   breakdownCards: {
-    gap: 6,
+    flexDirection: 'row',
+    gap: 10,
   },
   breakdownCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
