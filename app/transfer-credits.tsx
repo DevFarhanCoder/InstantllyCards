@@ -20,6 +20,15 @@ import api from '../lib/api';
 
 const { width, height } = Dimensions.get('window');
 
+// Responsive scaling functions
+const scale = (size: number) => (width / 375) * size;
+const verticalScale = (size: number) => (height / 812) * size;
+const moderateScale = (size: number, factor = 0.5) => size + (scale(size) - size) * factor;
+
+// Responsive breakpoints
+const isSmallDevice = width < 375;
+const isLargeDevice = width >= 414;
+
 // Professional Business Colors
 const COLORS_THEME = {
   primary: '#1E3A5F',        // Deep Navy Blue
@@ -413,31 +422,31 @@ export default function TransferCreditsScreen() {
             
             <View style={styles.tipCard}>
               <View style={styles.tipIconBg}>
-                <Ionicons name="flash" size={20} color={COLORS_THEME.warning} />
+                <Ionicons name="flash" size={18} color={COLORS_THEME.warning} />
               </View>
               <View style={styles.tipContent}>
                 <Text style={styles.tipHeading}>Instant Transfer</Text>
-                <Text style={styles.tipText}>Credits are transferred instantly to the recipient's account</Text>
+                <Text style={styles.tipText}>Credits are transferred instantly</Text>
               </View>
             </View>
             
             <View style={styles.tipCard}>
               <View style={[styles.tipIconBg, { backgroundColor: '#E8F5E9' }]}>
-                <Ionicons name="shield-checkmark" size={20} color={COLORS_THEME.accent} />
+                <Ionicons name="shield-checkmark" size={18} color={COLORS_THEME.accent} />
               </View>
               <View style={styles.tipContent}>
                 <Text style={styles.tipHeading}>100% Secure</Text>
-                <Text style={styles.tipText}>All transfers are encrypted and protected</Text>
+                <Text style={styles.tipText}>All transfers are encrypted</Text>
               </View>
             </View>
             
             <View style={styles.tipCard}>
               <View style={[styles.tipIconBg, { backgroundColor: '#E3F2FD' }]}>
-                <Ionicons name="document-text" size={20} color={COLORS_THEME.secondary} />
+                <Ionicons name="document-text" size={18} color={COLORS_THEME.secondary} />
               </View>
               <View style={styles.tipContent}>
                 <Text style={styles.tipHeading}>Transaction History</Text>
-                <Text style={styles.tipText}>View all your past transfers in the history section</Text>
+                <Text style={styles.tipText}>View all past transfers</Text>
               </View>
             </View>
           </View>
@@ -459,35 +468,35 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   safeHeader: {
-    paddingBottom: 20,
+    paddingBottom: verticalScale(20),
   },
   topNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
+    paddingHorizontal: scale(16),
+    paddingTop: verticalScale(8),
+    paddingBottom: verticalScale(16),
   },
   navButton: {
-    width: 44,
-    height: 44,
+    width: moderateScale(44),
+    height: moderateScale(44),
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: moderateScale(12),
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   screenTitle: {
-    fontSize: 18,
+    fontSize: moderateScale(18),
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
   balanceCard: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    borderRadius: 20,
-    padding: 24,
+    marginHorizontal: scale(20),
+    borderRadius: moderateScale(20),
+    padding: moderateScale(isSmallDevice ? 18 : 24),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -497,19 +506,19 @@ const styles = StyleSheet.create({
   balanceHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
   balanceIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: moderateScale(44),
+    height: moderateScale(44),
+    borderRadius: moderateScale(12),
     backgroundColor: '#F0F7FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: scale(12),
   },
   balanceLabel: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     fontWeight: '600',
     color: COLORS_THEME.textSecondary,
     letterSpacing: 0.2,
@@ -517,19 +526,19 @@ const styles = StyleSheet.create({
   balanceAmountRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
   balanceAmount: {
-    fontSize: 42,
+    fontSize: moderateScale(isSmallDevice ? 34 : 42),
     fontWeight: '800',
     color: COLORS_THEME.primary,
     letterSpacing: -1,
   },
   balanceCurrency: {
-    fontSize: 16,
+    fontSize: moderateScale(16),
     fontWeight: '600',
     color: COLORS_THEME.textSecondary,
-    marginLeft: 8,
+    marginLeft: scale(8),
   },
   balanceFooter: {
     flexDirection: 'row',
@@ -539,13 +548,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#E8F5E9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
+    borderRadius: moderateScale(20),
+    gap: scale(6),
   },
   securityText: {
-    fontSize: 12,
+    fontSize: moderateScale(12),
     fontWeight: '600',
     color: COLORS_THEME.accent,
   },
@@ -553,32 +562,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingTop: 24,
+    paddingTop: verticalScale(24),
   },
   searchSection: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    paddingHorizontal: scale(20),
+    marginBottom: verticalScale(24),
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: moderateScale(isSmallDevice ? 20 : 22),
     fontWeight: '800',
     color: COLORS_THEME.text,
-    marginBottom: 6,
+    marginBottom: verticalScale(6),
     letterSpacing: 0.2,
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     fontWeight: '500',
     color: COLORS_THEME.textSecondary,
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: moderateScale(16),
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(14),
     borderWidth: 2,
     borderColor: COLORS_THEME.border,
     shadowColor: 'rgba(0, 0, 0, 0.08)',
@@ -593,11 +602,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
   },
   searchIconContainer: {
-    marginRight: 12,
+    marginRight: scale(12),
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: moderateScale(16),
     fontWeight: '500',
     color: COLORS_THEME.text,
     paddingVertical: 0,
@@ -609,35 +618,35 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   resultsSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: scale(20),
+    marginBottom: verticalScale(20),
   },
   resultsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
   resultsTitle: {
-    fontSize: 16,
+    fontSize: moderateScale(16),
     fontWeight: '700',
     color: COLORS_THEME.text,
     flex: 1,
   },
   resultsBadge: {
     backgroundColor: COLORS_THEME.secondary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(4),
+    borderRadius: moderateScale(12),
   },
   resultsBadgeText: {
-    fontSize: 13,
+    fontSize: moderateScale(13),
     fontWeight: '700',
     color: '#FFFFFF',
   },
   userCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: moderateScale(16),
+    marginBottom: verticalScale(12),
     shadowColor: 'rgba(0, 0, 0, 0.08)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
@@ -649,28 +658,28 @@ const styles = StyleSheet.create({
   userCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: moderateScale(16),
   },
   userAvatarSection: {
     position: 'relative',
-    marginRight: 14,
+    marginRight: scale(14),
   },
   userAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: moderateScale(52),
+    height: moderateScale(52),
+    borderRadius: moderateScale(26),
     borderWidth: 2,
     borderColor: COLORS_THEME.border,
   },
   userAvatarPlaceholder: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: moderateScale(52),
+    height: moderateScale(52),
+    borderRadius: moderateScale(26),
     alignItems: 'center',
     justifyContent: 'center',
   },
   userInitials: {
-    fontSize: 18,
+    fontSize: moderateScale(18),
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -678,9 +687,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: moderateScale(18),
+    height: moderateScale(18),
+    borderRadius: moderateScale(9),
     backgroundColor: COLORS_THEME.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -691,154 +700,154 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 16,
+    fontSize: moderateScale(16),
     fontWeight: '700',
     color: COLORS_THEME.text,
-    marginBottom: 4,
+    marginBottom: verticalScale(4),
   },
   userPhoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: scale(6),
   },
   userPhone: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     fontWeight: '500',
     color: COLORS_THEME.textSecondary,
     letterSpacing: 0.5,
   },
   transferArrow: {
-    marginLeft: 12,
+    marginLeft: scale(12),
   },
   arrowBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: moderateScale(40),
+    height: moderateScale(40),
+    borderRadius: moderateScale(12),
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 50,
-    paddingHorizontal: 40,
+    paddingVertical: verticalScale(50),
+    paddingHorizontal: scale(40),
   },
   emptyIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: moderateScale(100),
+    height: moderateScale(100),
+    borderRadius: moderateScale(50),
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: verticalScale(20),
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: moderateScale(18),
     fontWeight: '700',
     color: COLORS_THEME.text,
-    marginBottom: 8,
+    marginBottom: verticalScale(8),
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     fontWeight: '500',
     color: COLORS_THEME.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: moderateScale(22),
   },
   recentSection: {
-    paddingHorizontal: 20,
-    marginBottom: 28,
+    paddingHorizontal: scale(20),
+    marginBottom: verticalScale(28),
   },
   recentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: scale(8),
+    marginBottom: verticalScale(16),
   },
   recentTitle: {
-    fontSize: 16,
+    fontSize: moderateScale(16),
     fontWeight: '700',
     color: COLORS_THEME.textSecondary,
   },
   recentList: {
-    paddingRight: 20,
+    paddingRight: scale(20),
   },
   recentCard: {
     alignItems: 'center',
-    marginRight: 20,
+    marginRight: scale(isSmallDevice ? 16 : 20),
   },
   recentAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginBottom: 8,
+    width: moderateScale(60),
+    height: moderateScale(60),
+    borderRadius: moderateScale(30),
+    marginBottom: verticalScale(8),
     borderWidth: 2,
     borderColor: COLORS_THEME.border,
   },
   recentAvatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: moderateScale(60),
+    height: moderateScale(60),
+    borderRadius: moderateScale(30),
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: verticalScale(8),
   },
   recentInitials: {
-    fontSize: 20,
+    fontSize: moderateScale(20),
     fontWeight: '700',
     color: '#FFFFFF',
   },
   recentName: {
-    fontSize: 13,
+    fontSize: moderateScale(13),
     fontWeight: '600',
     color: COLORS_THEME.text,
-    maxWidth: 70,
+    maxWidth: scale(70),
     textAlign: 'center',
   },
   tipsSection: {
-    paddingHorizontal: 20,
-    marginTop: 8,
+    paddingHorizontal: scale(16),
+    marginTop: verticalScale(4),
   },
   tipsTitle: {
-    fontSize: 18,
+    fontSize: moderateScale(16),
     fontWeight: '700',
-    color: COLORS_THEME.text,
-    marginBottom: 16,
+    color: COLORS_THEME.textSecondary,
+    marginBottom: verticalScale(10),
   },
   tipCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: 'rgba(0, 0, 0, 0.08)',
+    borderRadius: moderateScale(14),
+    paddingVertical: verticalScale(14),
+    paddingHorizontal: scale(16),
+    marginBottom: verticalScale(10),
+    shadowColor: 'rgba(0, 0, 0, 0.06)',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowRadius: 6,
+    elevation: 2,
   },
   tipIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: moderateScale(40),
+    height: moderateScale(40),
+    borderRadius: moderateScale(10),
     backgroundColor: '#FFF8E1',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    marginRight: scale(14),
   },
   tipContent: {
     flex: 1,
   },
   tipHeading: {
-    fontSize: 15,
+    fontSize: moderateScale(14),
     fontWeight: '700',
     color: COLORS_THEME.text,
-    marginBottom: 4,
   },
   tipText: {
-    fontSize: 13,
+    fontSize: moderateScale(12),
     fontWeight: '500',
     color: COLORS_THEME.textSecondary,
-    lineHeight: 18,
+    marginTop: verticalScale(2),
   },
 });
