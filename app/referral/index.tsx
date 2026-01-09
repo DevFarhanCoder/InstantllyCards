@@ -322,19 +322,7 @@ export default function ReferralPage() {
               <Text style={styles.codeText}>
                 {stats?.referralCode || 'Generating...'}
               </Text>
-              <View style={styles.linkPreview}>
-                <Ionicons name="link-outline" size={12} color="#8B5CF6" />
-                <Text style={styles.linkText} numberOfLines={1}>
-                  instantllycards.com/signup?ref={stats?.referralCode || '...'}
-                </Text>
-              </View>
             </View>
-            <TouchableOpacity onPress={handleCopyLink} style={styles.copyIconButton}>
-              <View style={styles.copyCircle}>
-                <Ionicons name="copy-outline" size={20} color="#8B5CF6" />
-              </View>
-              <Text style={styles.copyText}>Copy</Text>
-            </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={styles.shareButtonMain} onPress={handleShare}>
@@ -743,8 +731,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#8B5CF6',
     borderRadius: 14,
-    padding: 18,
-    gap: 10,
+    padding: 22,
+    gap: 12,
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -752,7 +740,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   shareButtonMainText: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '700',
     color: '#FFFFFF',
   },
