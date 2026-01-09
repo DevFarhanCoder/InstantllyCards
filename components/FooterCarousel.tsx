@@ -14,7 +14,7 @@ const SHOW_ADS = true; // Set to false to disable ads, true to enable
 
 const FooterCarousel = () => {
   if (!SHOW_ADS) return null;
-  console.log('🔄 FooterCarousel: Component mounting/re-rendering');
+  // console.log('🔄 FooterCarousel: Component mounting/re-rendering');
   
   // Use shared hook for cached ads (supports 100+ ads smoothly)
   const { data: allAds = [], isLoading } = useAds();
@@ -28,7 +28,7 @@ const FooterCarousel = () => {
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   
-  console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads`);
+  // console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads`);
   
   // Preload banner images for instant display
   useEffect(() => {
@@ -36,11 +36,11 @@ const FooterCarousel = () => {
       allAds.forEach((ad) => {
         if ((ad as any)?.bannerImage?.uri) {
           Image.prefetch((ad as any).bannerImage.uri).catch(() => {
-            console.log('Failed to prefetch banner for ad:', ad.id);
+            // console.log('Failed to prefetch banner for ad:', ad.id);
           });
         }
       });
-      console.log('🖼️ Preloading banner images for', allAds.length, 'ads');
+      // console.log('🖼️ Preloading banner images for', allAds.length, 'ads');
     }
   }, [allAds.length]);
   
@@ -64,9 +64,9 @@ const FooterCarousel = () => {
           // Calculate next ad index (resume from next ad)
           const nextIndex = (parsedIndex % allAds.length) + 1;
           startIndex = nextIndex;
-          console.log(`📺 Resuming ads from index ${nextIndex} (last viewed: ${parsedIndex})`);
+          // console.log(`📺 Resuming ads from index ${nextIndex} (last viewed: ${parsedIndex})`);
         } else {
-          console.log('📺 Starting ads from beginning');
+          // console.log('📺 Starting ads from beginning');
         }
         
         setActiveIndex(startIndex);
@@ -153,7 +153,7 @@ const FooterCarousel = () => {
       
       try {
         await AsyncStorage.setItem('lastFooterAdIndex', adArrayIndex.toString());
-        console.log(`💾 Saved ad position: ${adArrayIndex}`);
+        // console.log(`💾 Saved ad position: ${adArrayIndex}`);
       } catch (error) {
         console.error('Error saving ad position:', error);
       }
@@ -195,12 +195,12 @@ const FooterCarousel = () => {
   };
 
   const handleAdPress = (ad: Ad) => {
-    console.log('👆 Ad pressed:', {
-      id: ad.id,
-      name: ad.name,
-      isFromApi: ad.isFromApi,
-      hasFullBanner: ad.hasFullBanner
-    });
+    // console.log('👆 Ad pressed:', {
+    //   id: ad.id,
+    //   name: ad.name,
+    //   isFromApi: ad.isFromApi,
+    //   hasFullBanner: ad.hasFullBanner
+    // });
     
     setSelectedAd(ad);
     
@@ -227,14 +227,14 @@ const FooterCarousel = () => {
 
       const phoneWithoutPlus = selectedAd.phone.replace('+', '');
       
-      console.log('🔍 Searching for user with phone:', selectedAd.phone);
+      // console.log('🔍 Searching for user with phone:', selectedAd.phone);
 
       try {
         const response = await api.get(`/users/search-by-phone/${phoneWithoutPlus}`);
         
         if (response && response.user) {
           const user = response.user;
-          console.log('✅ Found user in database:', user.name, user._id);
+          // console.log('✅ Found user in database:', user.name, user._id);
           
           setShowModal(false);
           setIsSearching(false);
@@ -250,7 +250,7 @@ const FooterCarousel = () => {
           });
         }
       } catch (error) {
-        console.log('⚠️ User not found in database, opening chat with phone number');
+        // console.log('⚠️ User not found in database, opening chat with phone number');
         
         setShowModal(false);
         setIsSearching(false);
@@ -294,7 +294,7 @@ const FooterCarousel = () => {
       if (token) {
         const phoneWithoutPlus = selectedAd.phone.replace('+', '');
         
-        console.log('📤 Sending default card to advertiser before call:', selectedAd.phone);
+        // console.log('📤 Sending default card to advertiser before call:', selectedAd.phone);
         
         try {
           // Search for user by phone number
@@ -302,7 +302,7 @@ const FooterCarousel = () => {
           
           if (response && response.user) {
             const user = response.user;
-            console.log('✅ Found advertiser in database:', user.name, user._id);
+            // console.log('✅ Found advertiser in database:', user.name, user._id);
             
             // Get user's default card
             const cardsResponse = await api.get('/cards');
@@ -315,13 +315,13 @@ const FooterCarousel = () => {
                 content: 'Here is my card',
                 cardId: defaultCard._id
               });
-              console.log('✅ Default card sent to advertiser');
+              // console.log('✅ Default card sent to advertiser');
             }
           } else {
-            console.log('⚠️ Advertiser not found in database, skipping card send');
+            // console.log('⚠️ Advertiser not found in database, skipping card send');
           }
         } catch (error) {
-          console.log('⚠️ Error sending card, proceeding to call anyway:', error);
+          // console.log('⚠️ Error sending card, proceeding to call anyway:', error);
         }
       }
     } catch (error) {
@@ -381,25 +381,14 @@ const FooterCarousel = () => {
               style={styles.image}
               resizeMode="cover"
               onLoadStart={() => {
-                console.log(`🔄 [IMG LOAD] Starting to load image at index ${index}:`, {
-                  adId: ad.id,
-                  imageUri: ad.image?.uri || 'NO URI',
-                  isFromApi: ad.isFromApi
-                });
+                // Image loading started - silently track
               }}
               onError={(error) => {
-                console.error(`❌ [IMG LOAD ERROR] Failed to load image at index ${index}:`);
-                console.error(`   Ad ID: ${ad.id}`);
-                console.error(`   Image URI: ${ad.image?.uri || 'NO URI'}`);
-                console.error(`   Is from API: ${ad.isFromApi}`);
-                console.error(`   Error:`, error.nativeEvent.error);
+                // Silently handle image load errors (backend GridFS issues)
+                // Don't spam console with 500 errors for missing ad images
               }}
               onLoad={() => {
-                console.log(`✅ [IMG LOAD SUCCESS] Image loaded at index ${index}:`, {
-                  adId: ad.id,
-                  imageUri: ad.image?.uri || 'NO URI',
-                  isFromApi: ad.isFromApi
-                });
+                // Image loaded successfully - silently track
               }}
             />
           </TouchableOpacity>

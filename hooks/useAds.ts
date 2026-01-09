@@ -32,13 +32,13 @@ export function useAds() {
   return useQuery({
     queryKey: ['footer-ads'],
     queryFn: async () => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('� [MOBILE STEP 1] useAds: Fetching ads from API...');
+      // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      // console.log('📡 [MOBILE STEP 1] useAds: Fetching ads from API...');
       
       try {
         const response = await api.get('/ads/active');
         
-        console.log('📥 [MOBILE STEP 2] useAds: API response received');
+        // console.log('📥 [MOBILE STEP 2] useAds: API response received');
         
         // Check if response is valid JSON (not HTML error page)
         if (typeof response === 'string') {
@@ -47,13 +47,13 @@ export function useAds() {
           return [];
         }
         
-        console.log('📊 Response structure:', {
-          success: response?.success,
-          count: response?.count,
-          dataLength: response?.data?.length,
-          imageBaseUrl: response?.imageBaseUrl,
-          timestamp: response?.timestamp
-        });
+        // console.log('📊 Response structure:', {
+        //   success: response?.success,
+        //   count: response?.count,
+        //   dataLength: response?.data?.length,
+        //   imageBaseUrl: response?.imageBaseUrl,
+        //   timestamp: response?.timestamp
+        // });
         
         if (response && response.success && response.data && response.data.length > 0) {
           const defaultImageBase = process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
@@ -63,22 +63,22 @@ export function useAds() {
             console.warn('⚠️ No image base configured. Set EXPO_PUBLIC_API_BASE or API_BASE to construct image URLs from ads response.');
           }
 
-          console.log(`� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
-          console.log('🌐 Image Base URL:', imageBaseUrl || '(none configured)');
+          // console.log(`[MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
+          // console.log('Image Base URL:', imageBaseUrl || '(none configured)');
           
           // Check first ad structure
-          if (response.data[0]) {
-            console.log('📸 [MOBILE STEP 4] First ad structure:', {
-              _id: response.data[0]._id,
-              title: response.data[0].title,
-              bottomImageUrl: response.data[0].bottomImageUrl,
-              fullscreenImageUrl: response.data[0].fullscreenImageUrl,
-              hasBottomImage: response.data[0].hasBottomImage,
-              hasFullscreenImage: response.data[0].hasFullscreenImage,
-              hasLegacyBottomImage: !!response.data[0].bottomImage,
-              hasLegacyFullscreenImage: !!response.data[0].fullscreenImage
-            });
-          }
+          // if (response.data[0]) {
+          //   console.log('First ad structure:', {
+          //     _id: response.data[0]._id,
+          //     title: response.data[0].title,
+          //     bottomImageUrl: response.data[0].bottomImageUrl,
+          //     fullscreenImageUrl: response.data[0].fullscreenImageUrl,
+          //     hasBottomImage: response.data[0].hasBottomImage,
+          //     hasFullscreenImage: response.data[0].hasFullscreenImage,
+          //     hasLegacyBottomImage: !!response.data[0].bottomImage,
+          //     hasLegacyFullscreenImage: !!response.data[0].fullscreenImage
+          //   });
+          // }
           
           // Format ads for carousel - sorted by priority (backend already sorted)
           // ✅ UPDATED: Now using GridFS URLs for images
@@ -103,11 +103,11 @@ export function useAds() {
                 ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
                 : null;
               
-              if (index === 0) {
-                console.log(`🖼️  [MOBILE STEP 5] Constructing URLs for first ad:`);
-                console.log(`   Bottom Image: ${bottomImageUri}`);
-                console.log(`   Fullscreen Image: ${fullscreenImageUri || 'N/A'}`);
-              }
+              // if (index === 0) {
+              //   console.log(`🖼️  [MOBILE STEP 5] Constructing URLs for first ad:`);
+              //   console.log(`   Bottom Image: ${bottomImageUri}`);
+              //   console.log(`   Fullscreen Image: ${fullscreenImageUri || 'N/A'}`);
+              // }
               
               return {
                 id: `api-${ad._id}`,
@@ -123,13 +123,13 @@ export function useAds() {
               };
             });
           
-          console.log(`✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads (filtered out invalid ads)`);
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          // console.log(`✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads (filtered out invalid ads)`);
+          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
           
           return formattedApiAds;
         } else {
-          console.log('⚠️  [MOBILE WARNING] No API ads available in response');
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          // console.log('⚠️  [MOBILE WARNING] No API ads available in response');
+          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
           return [];
         }
       } catch (error) {
@@ -140,7 +140,7 @@ export function useAds() {
             console.error('HTTP status:', (error as any).status);
           }
         }
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         
         // Return empty array instead of throwing to prevent app crash
         return [];
