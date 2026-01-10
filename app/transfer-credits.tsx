@@ -156,15 +156,25 @@ export default function TransferCreditsScreen() {
   }, [searchQuery]);
 
   const handleSelectUser = (user: User) => {
-    router.push({
-      pathname: '/transfer-to-user',
-      params: {
-        userId: user._id,
-        userName: user.name,
-        userPhone: user.phone,
-        userProfilePicture: user.profilePicture || '',
-      }
-    });
+    // Validate user data before navigating
+    if (!user._id || !user.name || !user.phone) {
+      console.error('Invalid user data:', user);
+      return;
+    }
+    
+    try {
+      router.push({
+        pathname: '/transfer-to-user',
+        params: {
+          userId: user._id,
+          userName: user.name,
+          userPhone: user.phone,
+          userProfilePicture: user.profilePicture || '',
+        }
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
   };
 
   const getInitials = (name: string) => {
@@ -198,7 +208,13 @@ export default function TransferCreditsScreen() {
           {/* Top Navigation */}
           <View style={styles.topNav}>
             <TouchableOpacity 
-              onPress={() => router.back()} 
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/');
+                }
+              }} 
               style={styles.navButton}
               activeOpacity={0.7}
             >
@@ -208,7 +224,13 @@ export default function TransferCreditsScreen() {
             <Text style={styles.screenTitle}>Transfer Credits</Text>
             
             <TouchableOpacity 
-              onPress={() => router.push('/referral/credits-history')} 
+              onPress={() => {
+                try {
+                  router.push('/referral/credits-history');
+                } catch (error) {
+                  console.error('Navigation error:', error);
+                }
+              }} 
               style={styles.navButton}
               activeOpacity={0.7}
             >

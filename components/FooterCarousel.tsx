@@ -392,12 +392,9 @@ const FooterCarousel = ({ showPromoteButton = false }: FooterCarouselProps) => {
                   isFromApi: ad.isFromApi
                 });
               }}
-              onError={(error) => {
-                console.error(`❌ [IMG LOAD ERROR] Failed to load image at index ${index}:`);
-                console.error(`   Ad ID: ${ad.id}`);
-                console.error(`   Image URI: ${ad.image?.uri || 'NO URI'}`);
-                console.error(`   Is from API: ${ad.isFromApi}`);
-                console.error(`   Error:`, error.nativeEvent.error);
+              onError={() => {
+                // Silently handle image load errors - don't crash the app
+                console.log(`⚠️ Image failed to load for ad ${ad.id}`);
               }}
               onLoad={() => {
                 console.log(`✅ [IMG LOAD SUCCESS] Image loaded at index ${index}:`, {

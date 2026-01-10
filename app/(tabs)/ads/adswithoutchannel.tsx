@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+﻿import React, { useState, useRef, useEffect } from "react";
 import { 
   View, 
   Text, 
@@ -11,11 +11,15 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  RefreshControl
+  RefreshControl,
+  Linking,
+  Modal
 } from "react-native";
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { getCurrentUserId, getCurrentUserPhone } from '../../../lib/useUser';
 
 const { width } = Dimensions.get("window");
 const API_BASE_URL = "https://api.instantllycards.com/api";
@@ -43,13 +47,24 @@ export default function AdsWithoutChannel() {
   const [endDate, setEndDate] = useState("");
   const [bottomImage, setBottomImage] = useState<any>(null);
   const [fullscreenImage, setFullscreenImage] = useState<any>(null);
+  const [bottomVideo, setBottomVideo] = useState<any>(null);
+  const [fullscreenVideo, setFullscreenVideo] = useState<any>(null);
+  const [adType, setAdType] = useState<'image' | 'video'>('image');
+  const [needsVideoResize, setNeedsVideoResize] = useState<'bottom' | 'fullscreen' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [creditsLoading, setCreditsLoading] = useState(true);
   
   // Status State
   const [myAds, setMyAds] = useState<Ad[]>([]);
   const [isLoadingAds, setIsLoadingAds] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userCredits, setUserCredits] = useState(0);
+
+  // Date Picker State
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [startDateObj, setStartDateObj] = useState<Date>(new Date());
+  const [endDateObj, setEndDateObj] = useState<Date>(new Date());
 
   useEffect(() => {
     loadUserData();
@@ -59,8 +74,9 @@ export default function AdsWithoutChannel() {
   }, [activeTab]);
 
   const loadUserData = async () => {
+    setCreditsLoading(true);
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await AsyncStorage.getItem('token');
       if (token) {
         // Load user credits
         const response = await fetch(`${API_BASE_URL}/credits/balance`, {
@@ -70,17 +86,60 @@ export default function AdsWithoutChannel() {
         });
         const data = await response.json();
         if (data.success) {
-          setUserCredits(data.credits);
+          setUserCredits(data.credits || 0);
+          console.log('✅ Credits loaded:', data.credits);
         }
+      } else {
+        console.log('⚠️ No auth token found');
+        setUserCredits(0);
       }
     } catch (error) {
-      console.error('Load user data error:', error);
+      console.error('❌ Load user data error:', error);
+      setUserCredits(0);
+    } finally {
+      setCreditsLoading(false);
     }
   };
 
   const changeTab = (tab: "create" | "status") => {
     setActiveTab(tab);
     scrollViewRef.current?.scrollTo({ x: tab === "create" ? 0 : width, animated: true });
+  };
+
+  // Date picker handlers
+  const formatDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDisplayDate = (date: Date): string => {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const onStartDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowStartDatePicker(false);
+    }
+    if (selectedDate) {
+      setStartDateObj(selectedDate);
+      setStartDate(formatDate(selectedDate));
+    }
+  };
+
+  const onEndDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowEndDatePicker(false);
+    }
+    if (selectedDate) {
+      setEndDateObj(selectedDate);
+      setEndDate(formatDate(selectedDate));
+    }
   };
 
   const handleScroll = (event: any) => {
@@ -115,6 +174,64 @@ export default function AdsWithoutChannel() {
     }
   };
 
+  const pickVideo = async (type: 'bottom' | 'fullscreen') => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera roll permission is required to select videos');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const video = result.assets[0];
+      const videoWidth = video.width || 0;
+      const videoHeight = video.height || 0;
+      
+      // Required dimensions
+      const requiredWidth = 624;
+      const requiredHeight = type === 'bottom' ? 174 : 1000;
+      const requiredSize = type === 'bottom' ? '624×174' : '624×1000';
+      
+      // Check if video matches required size (with small tolerance)
+      const widthMatch = Math.abs(videoWidth - requiredWidth) <= 10;
+      const heightMatch = Math.abs(videoHeight - requiredHeight) <= 10;
+      
+      if (widthMatch && heightMatch) {
+        // Correct size - accept the video
+        if (type === 'bottom') {
+          setBottomVideo(video);
+        } else {
+          setFullscreenVideo(video);
+        }
+        Alert.alert('✅ Video Accepted!', `Your video is the correct size (${requiredSize} pixels).`);
+      } else {
+        // Wrong size - show alert with WhatsApp option
+        Alert.alert(
+          '⚠️ Incorrect Video Size',
+          `Your video size: ${videoWidth}×${videoHeight} pixels\n\nRequired size: ${requiredSize} pixels\n\nPlease upload a video with the correct dimensions, or contact us for FREE resizing help!`,
+          [
+            {
+              text: 'Try Again',
+              style: 'cancel'
+            },
+            {
+              text: '📱 WhatsApp Help',
+              onPress: () => {
+                const msg = `Hi! I need help resizing my ${type === 'bottom' ? 'Bottom Banner' : 'Fullscreen'} video for ads.%0A%0AMy video size: ${videoWidth}×${videoHeight}%0ARequired size: ${requiredSize} pixels%0A%0APlease help me resize it!`;
+                Linking.openURL(`https://wa.me/919820329571?text=${msg}`);
+              }
+            }
+          ]
+        );
+      }
+    }
+  };
+
   const submitAd = async () => {
     // Validation
     if (!title.trim()) {
@@ -129,9 +246,18 @@ export default function AdsWithoutChannel() {
       Alert.alert('Error', 'Please enter start and end dates');
       return;
     }
-    if (!bottomImage) {
-      Alert.alert('Error', 'Bottom banner image is required');
-      return;
+    
+    // Check for image or video based on adType
+    if (adType === 'image') {
+      if (!bottomImage) {
+        Alert.alert('Error', 'Bottom banner image is required');
+        return;
+      }
+    } else {
+      if (!bottomVideo) {
+        Alert.alert('Error', 'Bottom banner video is required');
+        return;
+      }
     }
 
     // Check credits
@@ -161,33 +287,69 @@ export default function AdsWithoutChannel() {
     setIsSubmitting(true);
 
     try {
-      const userPhone = await AsyncStorage.getItem('user_phone');
+      const token = await AsyncStorage.getItem('token');
+      
+      // Get userId and phone using proper methods from useUser
+      const userId = await getCurrentUserId();
+      const userPhone = await getCurrentUserPhone();
+      
+      console.log('📤 Ad upload - userPhone:', userPhone, 'userId:', userId);
 
       const formData = new FormData();
       formData.append('title', title);
       formData.append('phoneNumber', phoneNumber);
       formData.append('uploaderPhone', userPhone || phoneNumber);
+      formData.append('userId', userId || '');
       formData.append('startDate', startDate);
       formData.append('endDate', endDate);
 
-      // Add bottom image
-      formData.append('images', {
-        uri: bottomImage.uri,
-        type: 'image/jpeg',
-        name: 'bottom.jpg'
-      } as any);
-
-      // Add fullscreen image if selected
-      if (fullscreenImage) {
+      let endpoint = `${API_BASE_URL}/channel-partner/ads`;
+      
+      const headers: any = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      if (adType === 'image') {
+        // Add bottom image
         formData.append('images', {
-          uri: fullscreenImage.uri,
+          uri: bottomImage.uri,
           type: 'image/jpeg',
-          name: 'fullscreen.jpg'
+          name: 'bottom.jpg'
         } as any);
+
+        // Add fullscreen image if selected
+        if (fullscreenImage) {
+          formData.append('images', {
+            uri: fullscreenImage.uri,
+            type: 'image/jpeg',
+            name: 'fullscreen.jpg'
+          } as any);
+        }
+      } else {
+        // Video ad
+        endpoint = `${API_BASE_URL}/channel-partner/ads/video`;
+        
+        // Add bottom video
+        formData.append('videos', {
+          uri: bottomVideo.uri,
+          type: 'video/mp4',
+          name: 'bottom.mp4'
+        } as any);
+
+        // Add fullscreen video if selected
+        if (fullscreenVideo) {
+          formData.append('videos', {
+            uri: fullscreenVideo.uri,
+            type: 'video/mp4',
+            name: 'fullscreen.mp4'
+          } as any);
+        }
       }
 
-      const response = await fetch(`${API_BASE_URL}/channel-partner/ads`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
+        headers: headers,
         body: formData
       });
 
@@ -196,7 +358,7 @@ export default function AdsWithoutChannel() {
       if (response.ok) {
         Alert.alert(
           '✅ Ad Submitted Successfully!',
-          `💳 1020 credits deducted\n📊 Remaining credits: ${data.remainingCredits?.toLocaleString() || 'N/A'}\n\n⏳ Your ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
+          `💳 1020 credits deducted\n📊 Remaining credits: ${data.remainingCredits?.toLocaleString() || 'N/A'}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
           [{ text: 'OK', onPress: () => {
             // Reset form
             setTitle('');
@@ -205,6 +367,8 @@ export default function AdsWithoutChannel() {
             setEndDate('');
             setBottomImage(null);
             setFullscreenImage(null);
+            setBottomVideo(null);
+            setFullscreenVideo(null);
             // Switch to status tab to see the submitted ad
             setActiveTab('status');
             // Reload ads
@@ -311,7 +475,11 @@ export default function AdsWithoutChannel() {
 
           <View style={styles.creditsCard}>
             <Text style={styles.creditsLabel}>Available Credits</Text>
-            <Text style={styles.creditsValue}>{userCredits.toLocaleString()}</Text>
+            {creditsLoading ? (
+              <ActivityIndicator size="small" color="#15803d" />
+            ) : (
+              <Text style={styles.creditsValue}>{userCredits.toLocaleString()}</Text>
+            )}
           </View>
 
           <View style={styles.formGroup}>
@@ -371,26 +539,230 @@ export default function AdsWithoutChannel() {
             <Text style={styles.hint}>Shown when user taps banner</Text>
           </View>
 
+          {/* Bottom Video Upload */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Bottom Video (624×174px)</Text>
+            <TouchableOpacity 
+              style={[styles.videoUploadCard, bottomVideo && styles.videoUploadCardSelected]} 
+              onPress={() => pickVideo('bottom')}
+            >
+              {bottomVideo ? (
+                <View style={styles.videoSelectedCard}>
+                  <View style={styles.videoSelectedIconArea}>
+                    <View style={styles.videoSelectedIconCircle}>
+                      <Ionicons name="videocam" size={32} color="#fff" />
+                    </View>
+                    <View style={styles.videoCheckBadge}>
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  </View>
+                  <View style={styles.videoSelectedDetails}>
+                    <Text style={styles.videoCardTitle}>✓ Video Selected</Text>
+                    <Text style={styles.videoSelectedSize}>{bottomVideo.width}×{bottomVideo.height} pixels</Text>
+                    <Text style={styles.videoCardFileName} numberOfLines={1}>
+                      {bottomVideo.fileName || 'bottom_video.mp4'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.videoRemoveCornerBtn}
+                    onPress={() => setBottomVideo(null)}
+                  >
+                    <Ionicons name="close" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.videoUploadContent}>
+                  <View style={styles.videoUploadIconCircle}>
+                    <Ionicons name="cloud-upload-outline" size={28} color="#0891b2" />
+                  </View>
+                  <Text style={styles.videoUploadTitle}>Upload Bottom Video</Text>
+                  <Text style={styles.videoUploadHint}>Must be exactly 624×174 pixels</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Fullscreen Video Upload */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Fullscreen Video (Optional 624×1000px)</Text>
+            <TouchableOpacity 
+              style={[styles.videoUploadCard, styles.videoUploadCardTall, fullscreenVideo && styles.videoUploadCardSelected]} 
+              onPress={() => pickVideo('fullscreen')}
+            >
+              {fullscreenVideo ? (
+                <View style={styles.videoSelectedCard}>
+                  <View style={styles.videoSelectedIconArea}>
+                    <View style={styles.videoSelectedIconCircle}>
+                      <Ionicons name="videocam" size={32} color="#fff" />
+                    </View>
+                    <View style={styles.videoCheckBadge}>
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  </View>
+                  <View style={styles.videoSelectedDetails}>
+                    <Text style={styles.videoCardTitle}>✓ Video Selected</Text>
+                    <Text style={styles.videoSelectedSize}>{fullscreenVideo.width}×{fullscreenVideo.height} pixels</Text>
+                    <Text style={styles.videoCardFileName} numberOfLines={1}>
+                      {fullscreenVideo.fileName || 'fullscreen_video.mp4'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.videoRemoveCornerBtn}
+                    onPress={() => setFullscreenVideo(null)}
+                  >
+                    <Ionicons name="close" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.videoUploadContent}>
+                  <View style={[styles.videoUploadIconCircle, { backgroundColor: '#f3f4f6' }]}>
+                    <Ionicons name="cloud-upload-outline" size={28} color="#9ca3af" />
+                  </View>
+                  <Text style={[styles.videoUploadTitle, { color: '#6b7280' }]}>Upload Fullscreen Video</Text>
+                  <Text style={styles.videoUploadHint}>Must be exactly 624×1000 pixels</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Help Section */}
+          <View style={styles.videoHelpCard}>
+            <View style={styles.videoHelpHeader}>
+              <Ionicons name="videocam" size={24} color="#0891b2" />
+              <Text style={styles.videoHelpTitle}>Wrong Video Size?</Text>
+            </View>
+            <Text style={styles.videoHelpDesc}>
+              Don't worry! Send us your video and we'll resize it to exact dimensions for FREE.
+            </Text>
+            <View style={styles.videoHelpActions}>
+              <TouchableOpacity 
+                style={styles.videoHelpWhatsApp}
+                onPress={() => Linking.openURL('https://wa.me/919820329571?text=Hi%21%20I%20need%20help%20resizing%20my%20video%20for%20ads.%20Please%20assist%20me.')}
+              >
+                <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+                <Text style={styles.videoHelpBtnText}>WhatsApp</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.videoHelpCall}
+                onPress={() => Linking.openURL('tel:+919820329571')}
+              >
+                <Ionicons name="call" size={20} color="#fff" />
+                <Text style={styles.videoHelpBtnText}>Call Now</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity 
+              style={styles.videoHelpPhoneRow}
+              onPress={() => Linking.openURL('tel:+919820329571')}
+            >
+              <Ionicons name="call-outline" size={16} color="#7c3aed" />
+              <Text style={styles.videoHelpPhoneText}>+91 98203 29571</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.dateRow}>
             <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
               <Text style={styles.label}>Start Date *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                value={startDate}
-                onChangeText={setStartDate}
-              />
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowStartDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color="#7c3aed" />
+                <Text style={[styles.datePickerText, !startDate && styles.datePickerPlaceholder]}>
+                  {startDate ? formatDisplayDate(startDateObj) : 'Select Date'}
+                </Text>
+              </TouchableOpacity>
             </View>
             <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
               <Text style={styles.label}>End Date *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                value={endDate}
-                onChangeText={setEndDate}
-              />
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowEndDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color="#7c3aed" />
+                <Text style={[styles.datePickerText, !endDate && styles.datePickerPlaceholder]}>
+                  {endDate ? formatDisplayDate(endDateObj) : 'Select Date'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
+
+          {/* Start Date Picker */}
+          {showStartDatePicker && (
+            Platform.OS === 'ios' ? (
+              <Modal
+                transparent={true}
+                animationType="slide"
+                visible={showStartDatePicker}
+                onRequestClose={() => setShowStartDatePicker(false)}
+              >
+                <View style={styles.datePickerModal}>
+                  <View style={styles.datePickerContainer}>
+                    <View style={styles.datePickerHeader}>
+                      <Text style={styles.datePickerTitle}>Select Start Date</Text>
+                      <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                        <Text style={styles.datePickerDone}>Done</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={startDateObj}
+                      mode="date"
+                      display="spinner"
+                      onChange={onStartDateChange}
+                      minimumDate={new Date()}
+                      style={styles.datePicker}
+                    />
+                  </View>
+                </View>
+              </Modal>
+            ) : (
+              <DateTimePicker
+                value={startDateObj}
+                mode="date"
+                display="default"
+                onChange={onStartDateChange}
+                minimumDate={new Date()}
+              />
+            )
+          )}
+
+          {/* End Date Picker */}
+          {showEndDatePicker && (
+            Platform.OS === 'ios' ? (
+              <Modal
+                transparent={true}
+                animationType="slide"
+                visible={showEndDatePicker}
+                onRequestClose={() => setShowEndDatePicker(false)}
+              >
+                <View style={styles.datePickerModal}>
+                  <View style={styles.datePickerContainer}>
+                    <View style={styles.datePickerHeader}>
+                      <Text style={styles.datePickerTitle}>Select End Date</Text>
+                      <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
+                        <Text style={styles.datePickerDone}>Done</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={endDateObj}
+                      mode="date"
+                      display="spinner"
+                      onChange={onEndDateChange}
+                      minimumDate={startDateObj || new Date()}
+                      style={styles.datePicker}
+                    />
+                  </View>
+                </View>
+              </Modal>
+            ) : (
+              <DateTimePicker
+                value={endDateObj}
+                mode="date"
+                display="default"
+                onChange={onEndDateChange}
+                minimumDate={startDateObj || new Date()}
+              />
+            )
+          )}
 
           <View style={styles.warningCard}>
             <Ionicons name="warning" size={20} color="#f59e0b" />
@@ -547,6 +919,58 @@ const styles = StyleSheet.create({
   
   dateRow: { flexDirection: 'row' },
   
+  // Date Picker
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    gap: 10,
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  datePickerPlaceholder: {
+    color: '#999',
+  },
+  datePickerModal: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  datePickerContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  datePickerDone: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#7c3aed',
+  },
+  datePicker: {
+    height: 200,
+  },
+  
   // Image picker
   imagePickerBtn: {
     borderWidth: 2,
@@ -643,4 +1067,656 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   pendingNoticeText: { fontSize: 13, color: '#92400e', marginLeft: 6, fontWeight: '500' },
+  
+  // Video section styles
+  sectionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#7c3aed',
+  },
+  
+  // Video Header Banner
+  videoHeaderBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#0891b2',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  videoHeaderLeft: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoHeaderContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  videoHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  videoHeaderSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  
+  // Video Size Cards
+  videoSizeCardsContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 12,
+  },
+  videoSizeCard: {
+    flex: 1,
+    backgroundColor: '#f5f3ff',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
+  },
+  videoSizeIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ede9fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  videoSizeLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  videoSizeValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#5b21b6',
+  },
+  
+  // Label Row
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sizeBadge: {
+    backgroundColor: '#0891b2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  optionalBadge: {
+    backgroundColor: '#9ca3af',
+  },
+  sizeBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  
+  // Video Upload Card
+  videoUploadCard: {
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fafafa',
+  },
+  videoUploadCardSelected: {
+    borderColor: '#0891b2',
+    borderStyle: 'solid',
+    backgroundColor: '#ecfeff',
+  },
+  videoUploadContent: {
+    alignItems: 'center',
+  },
+  videoUploadIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#cffafe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  videoUploadTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0891b2',
+    marginBottom: 4,
+  },
+  videoUploadHint: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  
+  // Video Selected State
+  videoSelectedContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  videoIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#0891b2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoSelectedInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  videoSelectedTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#5b21b6',
+  },
+  videoSelectedName: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  videoRemoveText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 6,
+    textDecorationLine: 'underline',
+  },
+  
+  // Video Not Available Card
+  videoNotAvailableCard: {
+    backgroundColor: '#f5f3ff',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#ddd6fe',
+    borderStyle: 'dashed',
+  },
+  videoNotAvailableIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#ede9fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  videoNotAvailableTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#5b21b6',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  videoNotAvailableDesc: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  videoSizeRequirements: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 14,
+    width: '100%',
+    marginBottom: 16,
+  },
+  videoSizeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  videoSizeText: {
+    fontSize: 14,
+    color: '#4b5563',
+    marginLeft: 10,
+  },
+  videoSizeBold: {
+    fontWeight: '700',
+    color: '#7c3aed',
+  },
+  videoNotAvailableNote: {
+    fontSize: 13,
+    color: '#7c3aed',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  
+  // Professional Help Card
+  proHelpCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  proHelpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  proHelpIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#7c3aed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  proHelpTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginLeft: 12,
+  },
+  proHelpSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 12,
+  },
+  proHelpDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 14,
+  },
+  proHelpDesc: {
+    fontSize: 13,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  proHelpButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  proHelpCallBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0891b2',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  proHelpCallText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 6,
+  },
+  proHelpWhatsAppBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#25D366',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  proHelpWhatsAppText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 6,
+  },
+  proHelpPhone: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  whatsAppHelpBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#25D366',
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  whatsAppHelpText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 8,
+  },
+  
+  // Video Help Card styles
+  videoHelpCard: {
+    backgroundColor: '#ecfeff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#a5f3fc',
+  },
+  videoHelpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  videoHelpTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0891b2',
+    marginLeft: 10,
+  },
+  videoHelpDesc: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  videoHelpActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  videoHelpWhatsApp: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#25D366',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  videoHelpCall: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0891b2',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  videoHelpBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 6,
+  },
+  videoHelpPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+  },
+  videoHelpPhoneText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0891b2',
+    marginLeft: 6,
+  },
+  
+  // Video Thumbnail Preview Styles
+  videoPreviewWrapper: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#f3f4f6',
+  },
+  videoThumbnailTall: {
+    height: 180,
+  },
+  videoThumbnailPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f3ff',
+  },
+  
+  // Video Selected Card Styles
+  videoSelectedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    width: '100%',
+  },
+  videoSelectedIconArea: {
+    position: 'relative',
+    marginRight: 14,
+  },
+  videoSelectedIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#0891b2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoCheckBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  videoSelectedDetails: {
+    flex: 1,
+  },
+  videoCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#22c55e',
+    marginBottom: 4,
+  },
+  videoSelectedSize: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0891b2',
+    marginBottom: 2,
+  },
+  videoCardFileName: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  videoRemoveBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fef2f2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoRemoveCornerBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  videoThumbnailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlayButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: 'rgba(124, 58, 237, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: 3,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  videoInfoBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  videoThumbnailSizeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  videoInfoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  videoReadyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#22c55e',
+    marginLeft: 5,
+  },
+  videoRemoveFloatingBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoRemoveButton: {
+    padding: 2,
+  },
+  videoUploadCardTall: {
+    minHeight: 200,
+  },
+  
+  // Keep old styles for backward compatibility
+  videoInfoCard: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f3ff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
+  },
+  videoInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#5b21b6',
+    marginBottom: 4,
+  },
+  videoInfoText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  videoPickerBtn: {
+    borderColor: '#c4b5fd',
+    backgroundColor: '#faf5ff',
+  },
+  videoSelectedContainer: {
+    alignItems: 'center',
+  },
+  videoSelectedText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#7c3aed',
+  },
+  videoFileName: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  helpCard: {
+    flexDirection: 'row',
+    backgroundColor: '#ecfeff',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 20,
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#a5f3fc',
+  },
+  helpTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0e7490',
+    marginBottom: 6,
+  },
+  helpText: {
+    fontSize: 13,
+    color: '#0891b2',
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#f0fdfa',
+    borderRadius: 6,
+  },
+  contactText: {
+    fontSize: 13,
+    color: '#0e7490',
+    marginLeft: 8,
+    fontWeight: '500',
+    flex: 1,
+  },
+  clickableText: {
+    textDecorationLine: 'underline',
+  },
 });

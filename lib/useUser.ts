@@ -103,6 +103,11 @@ export async function getCurrentUserId(): Promise<string | null> {
   return user ? (user.id || user._id || null) : null;
 }
 
+export async function getCurrentUserPhone(): Promise<string | null> {
+  const user = await getCurrentUser();
+  return user ? user.phone : null;
+}
+
 export async function refreshUserProfile(): Promise<User | null> {
   console.log('🔄 Manually refreshing user profile...');
   

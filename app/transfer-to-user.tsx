@@ -63,11 +63,14 @@ interface Transaction {
 export default function TransferToUserScreen() {
   const params = useLocalSearchParams();
   
-  // Parse user data from params
+  // Validate required params
+  const hasValidParams = params.userId && params.userName && params.userPhone;
+  
+  // Parse user data from params (with fallbacks to prevent crashes)
   const selectedUser = {
-    _id: params.userId as string,
-    name: params.userName as string,
-    phone: params.userPhone as string,
+    _id: (params.userId as string) || '',
+    name: (params.userName as string) || 'Unknown User',
+    phone: (params.userPhone as string) || '',
     profilePicture: params.userProfilePicture as string | undefined,
   };
 
@@ -87,6 +90,27 @@ export default function TransferToUserScreen() {
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
   useEffect(() => {
+    // Redirect if missing required params
+    if (!hasValidParams) {
+      Alert.alert(
+        'Error',
+        'Missing user information. Please select a user first.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/');
+              }
+            }
+          }
+        ]
+      );
+      return;
+    }
+    
     fetchBalance();
     
     // Entry animations
@@ -191,12 +215,28 @@ export default function TransferToUserScreen() {
 
   const handleDone = () => {
     setShowSuccessModal(false);
-    router.back();
+    // Safe navigation back
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/');
+    }
   };
 
   const handleViewHistory = () => {
     setShowSuccessModal(false);
-    router.push('/referral/credits-history');
+    // Navigate to credits history
+    try {
+      router.push('/referral/credits-history');
+    } catch (error) {
+      console.error('Failed to navigate to history:', error);
+      // Fallback to going back
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/');
+      }
+    }
   };
 
   const getInitials = (name: string) => {
