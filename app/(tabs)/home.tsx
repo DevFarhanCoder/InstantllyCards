@@ -275,7 +275,7 @@ export default function Home() {
               {creditsLoading ? (
                 <ActivityIndicator size="small" color="#F59E0B" />
               ) : (
-                <Text style={s.creditsCount}>{userCredits}</Text>
+                <Text style={s.creditsCount}>{userCredits.toLocaleString()}</Text>
               )}
             </View>
           </TouchableOpacity>

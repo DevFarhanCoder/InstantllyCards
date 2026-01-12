@@ -108,6 +108,11 @@ export async function getCurrentUserPhone(): Promise<string | null> {
   return user ? user.phone : null;
 }
 
+export async function getCurrentUserName(): Promise<string | null> {
+  const user = await getCurrentUser();
+  return user ? user.name : null;
+}
+
 export async function refreshUserProfile(): Promise<User | null> {
   console.log('🔄 Manually refreshing user profile...');
   

@@ -19,10 +19,10 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { getCurrentUserId, getCurrentUserPhone } from '../../../lib/useUser';
+import { getCurrentUserId, getCurrentUserPhone, getCurrentUserName } from '../../../lib/useUser';
 
 const { width } = Dimensions.get("window");
-const API_BASE_URL = "https://api.instantllycards.com/api";
+const API_BASE_URL = `${process.env.EXPO_PUBLIC_API_BASE}${process.env.EXPO_PUBLIC_API_PREFIX}`;
 
 interface Ad {
   id: string;
@@ -292,13 +292,15 @@ export default function AdsWithoutChannel() {
       // Get userId and phone using proper methods from useUser
       const userId = await getCurrentUserId();
       const userPhone = await getCurrentUserPhone();
+      const userName = await getCurrentUserName();
       
-      console.log('📤 Ad upload - userPhone:', userPhone, 'userId:', userId);
+      console.log('📤 Ad upload - userPhone:', userPhone, 'userId:', userId, 'userName:', userName);
 
       const formData = new FormData();
       formData.append('title', title);
       formData.append('phoneNumber', phoneNumber);
       formData.append('uploaderPhone', userPhone || phoneNumber);
+      formData.append('uploaderName', userName || 'Mobile User'); // Send uploader name
       formData.append('userId', userId || '');
       formData.append('startDate', startDate);
       formData.append('endDate', endDate);
@@ -347,13 +349,18 @@ export default function AdsWithoutChannel() {
         }
       }
 
+      console.log('🚀 Sending request to:', endpoint);
+      console.log('📦 FormData fields: title, phoneNumber, uploaderPhone, userId, startDate, endDate');
+      
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: headers,
         body: formData
       });
 
+      console.log('📥 Response status:', response.status);
       const data = await response.json();
+      console.log('📥 Response data:', JSON.stringify(data));
 
       if (response.ok) {
         Alert.alert(
@@ -504,8 +511,60 @@ export default function AdsWithoutChannel() {
             <Text style={styles.hint}>For Call/Message buttons in app</Text>
           </View>
 
+          {/* Media Type Selection Toggle */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Bottom Banner Image * (624×174px)</Text>
+            <View style={styles.mediaTypeLabelRow}>
+              <Ionicons name="images-outline" size={18} color="#4F6AF3" />
+              <Text style={styles.label}> Media Type *</Text>
+            </View>
+            <View style={styles.mediaTypeToggle}>
+              <TouchableOpacity
+                style={[
+                  styles.mediaTypeBtn,
+                  adType === 'image' && styles.mediaTypeBtnActive
+                ]}
+                onPress={() => setAdType('image')}
+              >
+                <Ionicons 
+                  name="image-outline" 
+                  size={20} 
+                  color={adType === 'image' ? '#fff' : '#4F6AF3'} 
+                />
+                <Text style={[
+                  styles.mediaTypeBtnText,
+                  adType === 'image' && styles.mediaTypeBtnTextActive
+                ]}>Image</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.mediaTypeBtn,
+                  adType === 'video' && styles.mediaTypeBtnActive
+                ]}
+                onPress={() => setAdType('video')}
+              >
+                <Ionicons 
+                  name="videocam-outline" 
+                  size={20} 
+                  color={adType === 'video' ? '#fff' : '#4F6AF3'} 
+                />
+                <Text style={[
+                  styles.mediaTypeBtnText,
+                  adType === 'video' && styles.mediaTypeBtnTextActive
+                ]}>Video</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.hint}>Select whether your advertisement is an image or video</Text>
+          </View>
+
+          {/* Image Section - Show only when adType is 'image' */}
+          {adType === 'image' && (
+            <>
+              <View style={styles.formGroup}>
+                <View style={styles.mediaTypeLabelRow}>
+                  <Ionicons name="phone-portrait-outline" size={16} color="#666" />
+                  <Text style={styles.label}> Bottom Banner Image * (624×174px)</Text>
+                </View>
+                <Text style={styles.hint}>This image appears in the bottom carousel. Recommended size: 624 × 174 pixels</Text>
             <TouchableOpacity 
               style={styles.imagePickerBtn} 
               onPress={() => pickImage('bottom')}
@@ -514,15 +573,24 @@ export default function AdsWithoutChannel() {
                 <Image source={{ uri: bottomImage.uri }} style={styles.imagePreview} />
               ) : (
                 <>
-                  <Ionicons name="image-outline" size={40} color="#4F6AF3" />
-                  <Text style={styles.imagePickerText}>Select Bottom Banner</Text>
+                  <Ionicons name="cloud-upload-outline" size={40} color="#4F6AF3" />
+                  <Text style={styles.imagePickerText}>Tap to Select Bottom Banner</Text>
+                  <Text style={styles.imagePickerHint}>or click to browse</Text>
                 </>
               )}
             </TouchableOpacity>
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Fullscreen Image (Optional 624×1000px)</Text>
+            <View style={styles.mediaTypeLabelRow}>
+              <Ionicons name="expand-outline" size={16} color="#666" />
+              <Text style={styles.label}> Fullscreen Image (Optional 624×1000px)</Text>
+            </View>
+            <View style={styles.optionalInfoCard}>
+              <Ionicons name="information-circle-outline" size={16} color="#92400e" />
+              <Text style={styles.optionalInfoText}>If not provided, users will see Call/Message buttons when they tap the banner.</Text>
+            </View>
+            <Text style={styles.hint}>This image appears when user taps the bottom banner. Recommended size: 624 × 1000 pixels</Text>
             <TouchableOpacity 
               style={styles.imagePickerBtn} 
               onPress={() => pickImage('fullscreen')}
@@ -531,17 +599,26 @@ export default function AdsWithoutChannel() {
                 <Image source={{ uri: fullscreenImage.uri }} style={styles.imagePreview} />
               ) : (
                 <>
-                  <Ionicons name="image-outline" size={40} color="#999" />
-                  <Text style={styles.imagePickerText}>Select Fullscreen Image</Text>
+                  <Ionicons name="cloud-upload-outline" size={40} color="#999" />
+                  <Text style={styles.imagePickerText}>Tap to Select Fullscreen Image</Text>
+                  <Text style={styles.imagePickerHint}>or click to browse</Text>
                 </>
               )}
             </TouchableOpacity>
-            <Text style={styles.hint}>Shown when user taps banner</Text>
+            <Text style={styles.hint}>This image appears when user taps the bottom banner</Text>
           </View>
+            </>
+          )}
 
-          {/* Bottom Video Upload */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Bottom Video (624×174px)</Text>
+          {/* Video Section - Show only when adType is 'video' */}
+          {adType === 'video' && (
+            <>
+              <View style={styles.formGroup}>
+                <View style={styles.mediaTypeLabelRow}>
+                  <Ionicons name="phone-portrait-outline" size={16} color="#666" />
+                  <Text style={styles.label}> Bottom Banner Video * (624×174px)</Text>
+                </View>
+                <Text style={styles.hint}>This video appears in the bottom carousel. Recommended: MP4 format, max 50MB</Text>
             <TouchableOpacity 
               style={[styles.videoUploadCard, bottomVideo && styles.videoUploadCardSelected]} 
               onPress={() => pickVideo('bottom')}
@@ -584,7 +661,14 @@ export default function AdsWithoutChannel() {
 
           {/* Fullscreen Video Upload */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Fullscreen Video (Optional 624×1000px)</Text>
+            <View style={styles.mediaTypeLabelRow}>
+              <Ionicons name="expand-outline" size={16} color="#666" />
+              <Text style={styles.label}> Fullscreen Video (Optional 624×1000px)</Text>
+            </View>
+            <View style={styles.optionalInfoCard}>
+              <Ionicons name="information-circle-outline" size={16} color="#92400e" />
+              <Text style={styles.optionalInfoText}>If not provided, users will see Call/Message buttons when they tap the banner.</Text>
+            </View>
             <TouchableOpacity 
               style={[styles.videoUploadCard, styles.videoUploadCardTall, fullscreenVideo && styles.videoUploadCardSelected]} 
               onPress={() => pickVideo('fullscreen')}
@@ -623,9 +707,13 @@ export default function AdsWithoutChannel() {
                 </View>
               )}
             </TouchableOpacity>
+            <Text style={styles.hint}>This video appears when user taps the bottom banner. Recommended: MP4 format, max 50MB</Text>
           </View>
+            </>
+          )}
 
-          {/* Help Section */}
+          {/* Help Section - Show only for video */}
+          {adType === 'video' && (
           <View style={styles.videoHelpCard}>
             <View style={styles.videoHelpHeader}>
               <Ionicons name="videocam" size={24} color="#0891b2" />
@@ -658,6 +746,7 @@ export default function AdsWithoutChannel() {
               <Text style={styles.videoHelpPhoneText}>+91 98203 29571</Text>
             </TouchableOpacity>
           </View>
+          )}
 
           <View style={styles.dateRow}>
             <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
@@ -917,6 +1006,57 @@ const styles = StyleSheet.create({
   },
   hint: { fontSize: 12, color: '#666', marginTop: 4 },
   
+  // Media Type Toggle
+  mediaTypeLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  mediaTypeToggle: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#4F6AF3',
+  },
+  mediaTypeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    gap: 8,
+  },
+  mediaTypeBtnActive: {
+    backgroundColor: '#4F6AF3',
+  },
+  mediaTypeBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4F6AF3',
+  },
+  mediaTypeBtnTextActive: {
+    color: '#fff',
+  },
+  
+  // Optional info card
+  optionalInfoCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fef3c7',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  optionalInfoText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#92400e',
+  },
+  
   dateRow: { flexDirection: 'row' },
   
   // Date Picker
@@ -974,16 +1114,17 @@ const styles = StyleSheet.create({
   // Image picker
   imagePickerBtn: {
     borderWidth: 2,
-    borderColor: '#ddd',
+    borderColor: '#4F6AF3',
     borderStyle: 'dashed',
-    borderRadius: 8,
-    padding: 20,
+    borderRadius: 12,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fafafa',
-    minHeight: 120,
+    backgroundColor: '#f8f9ff',
+    minHeight: 130,
   },
-  imagePickerText: { marginTop: 8, fontSize: 14, color: '#666' },
+  imagePickerText: { marginTop: 8, fontSize: 15, fontWeight: '600', color: '#333' },
+  imagePickerHint: { marginTop: 4, fontSize: 13, color: '#666' },
   imagePreview: {
     width: '100%',
     height: 120,

@@ -22,6 +22,7 @@ interface Transaction {
   type: string;
   amount: number;
   description: string;
+  note?: string;
   createdAt: string;
   balanceAfter?: number;
 }
@@ -348,6 +349,9 @@ export default function CreditsHistoryPage() {
                     
                     <View style={styles.transactionInfo}>
                       <Text style={styles.transactionDescription}>{txn.description}</Text>
+                      {txn.note && (
+                        <Text style={styles.transactionNote}>"{txn.note}"</Text>
+                      )}
                       <Text style={styles.transactionDate}>{formatDate(txn.createdAt)}</Text>
                     </View>
                     
@@ -683,6 +687,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
+    marginBottom: 4,
+  },
+  transactionNote: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: '#6B7280',
     marginBottom: 4,
   },
   transactionDate: {
