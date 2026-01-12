@@ -31,9 +31,17 @@ export async function checkAppVersion(): Promise<VersionCheckResponse | null> {
     console.log(`   API Endpoint: /auth/version-check?version=${appVersion}&platform=${platform}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    const response = await api.get<VersionCheckResponse>(
-      `/auth/version-check?version=${appVersion}&platform=${platform}`
-    );
+    // Add 8-second timeout to API call
+    const timeoutPromise = new Promise<VersionCheckResponse>((_, reject) => {
+      setTimeout(() => reject(new Error('Version check API timeout after 8s')), 8000);
+    });
+
+    const response = await Promise.race([
+      api.get<VersionCheckResponse>(
+        `/auth/version-check?version=${appVersion}&platform=${platform}`
+      ),
+      timeoutPromise
+    ]);
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ [VERSION API] Response received:', JSON.stringify(response, null, 2));

@@ -44,6 +44,7 @@ import {
     TextInput,
     Modal,
     FlatList,
+    ActivityIndicator,
 } from "react-native";
 import PhoneInput from "@/components/PhoneInput";
 
@@ -201,8 +202,8 @@ const parseDisplayToIso = (s: string) => {
 const formatDigitsToDisplay = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8); // max 8 digits
     if (digits.length <= 2) return digits;
-    if (digits.length <= 4) return `${digits.slice(0,2)}-${digits.slice(2)}`;
-    return `${digits.slice(0,2)}-${digits.slice(2,4)}-${digits.slice(4)}`;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
 };
 
 export default function Builder() {
@@ -227,7 +228,7 @@ export default function Builder() {
         };
         fetchUserId();
     }, []);
-    
+
     // Fetch existing card data if in edit mode
     const cardsQuery = useQuery({
         queryKey: ["cards", currentUserId],
@@ -241,11 +242,32 @@ export default function Builder() {
         refetchOnMount: true,
         staleTime: 30000, // Consider data fresh for 30 seconds
     });
-    
-    const existingCard = isEditMode && cardsQuery.data 
-        ? cardsQuery.data.find((card: any) => card._id === edit)
-        : null;
-    
+
+    // Single-card query: authoritative source for an individual card when editing
+    const singleCardQuery = useQuery({
+        queryKey: ["card", edit],
+        queryFn: async () => {
+            if (!edit) return null;
+            const resp = await api.get(`/cards/${edit}`);
+            return (resp && resp.data && (resp.data.data ?? resp.data)) || null;
+        },
+        enabled: isEditMode && !!edit,
+        // Use the list cache as a quick initial fallback for UX, but always refetch on mount
+        initialData: () => {
+            try {
+                if (!currentUserId) return undefined;
+                const list = queryClient.getQueryData(["cards", currentUserId]) as any[] | undefined;
+                return list ? list.find((card: any) => (card._id || card.id) === edit) : undefined;
+            } catch (e) {
+                return undefined;
+            }
+        },
+        refetchOnMount: 'always'
+    });
+
+    // Use the single-card query as the authoritative existingCard in edit mode
+    const existingCard = isEditMode ? singleCardQuery.data : null;
+
     // Create card mutation
     const createCardMutation = useMutation({
         mutationFn: async (payload: any) => {
@@ -256,7 +278,7 @@ export default function Builder() {
             } catch (e) {
                 console.warn('Failed to clear draft before create:', e);
             }
-            
+
             console.log('📤 Builder: Sending card creation payload:', JSON.stringify({ birthdate: payload.birthdate, anniversary: payload.anniversary, name: payload.name }));
             const response = await api.post<{ data: any }>("/cards", payload);
             console.log('✅ Builder: Card creation response:', JSON.stringify({ birthdate: response.data?.birthdate, anniversary: response.data?.anniversary }));
@@ -273,6 +295,15 @@ export default function Builder() {
                 });
             }
 
+            // ALSO seed single-card cache so detail/edit reads are immediate
+            try {
+                if (createdCard && createdCard._id) {
+                    queryClient.setQueryData(['card', createdCard._id], createdCard);
+                }
+            } catch (e) {
+                console.warn('Builder: failed to seed single-card cache after create', e);
+            }
+
             // 🔄 CRITICAL: Invalidate and refetch IMMEDIATELY to prevent stale cache
             await queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
             await queryClient.refetchQueries({ queryKey: ["cards", currentUserId] });
@@ -281,7 +312,7 @@ export default function Builder() {
             // ⚡ SHOW SUCCESS IMMEDIATELY - Don't wait for background tasks
             Alert.alert("Success", "Card saved!", [
                 {
-                    text: "OK", 
+                    text: "OK",
                     onPress: () => {
                         router.back(); // Navigate back immediately
                     }
@@ -291,110 +322,120 @@ export default function Builder() {
             // 🔄 Do all heavy operations in BACKGROUND (non-blocking)
             setTimeout(() => {
                 // Log raw server response for debugging date persistence
-                try { console.log('Builder: raw create response:', _data); } catch (e) {}
+                try { console.log('Builder: raw create response:', _data); } catch (e) { }
                 // Invalidate queries to refresh My Cards, Home feed and profile
                 queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
                 queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-                try { queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
+                try { queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) { }
                 // Try to sync certain fields back to the user's profile so Account reflects latest card
                 (async () => {
-                try {
-                    const profileable: any = {};
-                    // Load existing user from AsyncStorage so we avoid sending an unchanged or conflicting phone
-                    const existingUserRaw = await AsyncStorage.getItem('user');
-                    let existingUser: any = null;
-                    try { existingUser = existingUserRaw ? JSON.parse(existingUserRaw) : null; } catch (e) { existingUser = null; }
+                    try {
+                        const profileable: any = {};
+                        // Load existing user from AsyncStorage so we avoid sending an unchanged or conflicting phone
+                        const existingUserRaw = await AsyncStorage.getItem('user');
+                        let existingUser: any = null;
+                        try { existingUser = existingUserRaw ? JSON.parse(existingUserRaw) : null; } catch (e) { existingUser = null; }
 
-                    ['name','gender','birthdate','anniversary'].forEach(k => {
-                        // Skip personalPhone - don't sync it to user profile to avoid conflicts
-                        // The card's personalPhone is independent of the user's account phone
-                        if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
-                    });
-                    
-                    console.log('📱 Profile sync - personalPhone intentionally skipped to avoid conflicts');
-                    
-                    console.log('📅 Builder: Sending to profile:', {
-                        hasBirthdate: !!profileable.birthdate,
-                        hasAnniversary: !!profileable.anniversary,
-                        birthdate: profileable.birthdate,
-                        anniversary: profileable.anniversary,
-                        gender: profileable.gender
-                    });
-                    
-                    // Normalize gender to canonical values
-                    if (profileable.gender && typeof profileable.gender === 'string') {
-                        const g = String(profileable.gender).toLowerCase();
-                        if (g.startsWith('m')) profileable.gender = 'male';
-                        else if (g.startsWith('f')) profileable.gender = 'female';
-                    }
+                        // ['name','gender','birthdate','anniversary'].forEach(k => {
+                        //     // Skip personalPhone - don't sync it to user profile to avoid conflicts
+                        //     // The card's personalPhone is independent of the user's account phone
+                        //     if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
+                        // });
+                        // ✅ ALWAYS derive profile data from backend response, not payload
+                        const createdCard =
+                            _data && (_data as any).data ? (_data as any).data : _data;
 
-                    if (Object.keys(profileable).length > 0) {
-                        try {
-                            try {
-                                const resp = await api.put('/auth/update-profile', profileable);
-                                console.log('Builder: profile sync response', resp);
-                                // update AsyncStorage 'user' if present
-                                try {
-                                    const u = await AsyncStorage.getItem('user');
-                                    if (u) {
-                                        const uu = JSON.parse(u);
-                                        const merged = { ...uu, ...profileable };
-                                        await AsyncStorage.setItem('user', JSON.stringify(merged));
-                                    }
-                                } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage', e); }
-                            } catch (err: any) {
-                                // If phone conflict occurs, retry without phone so other fields update
-                                const msg = String(err?.message || err?.data?.message || '');
-                                if (err?.status === 409 || /phone number already exists/i.test(msg)) {
-                                    console.warn('Builder: profile sync phone conflict, retrying without phone');
-                                    const reduced = { ...profileable };
-                                    delete reduced.phone;
-                                    try {
-                                        const resp2 = await api.put('/auth/update-profile', reduced);
-                                        console.log('Builder: profile sync response (without phone)', resp2);
-                                        try {
-                                            const u = await AsyncStorage.getItem('user');
-                                            if (u) {
-                                                const uu = JSON.parse(u);
-                                                const merged = { ...uu, ...reduced };
-                                                await AsyncStorage.setItem('user', JSON.stringify(merged));
-                                            }
-                                        } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage after retry', e); }
-                                    } catch (e2) {
-                                        console.warn('Builder: retry without phone also failed', e2);
-                                    }
-                                } else {
-                                    throw err;
-                                }
+                        ['name', 'gender', 'birthdate', 'anniversary'].forEach(k => {
+                            if (createdCard && (createdCard as any)[k] !== undefined) {
+                                profileable[k] = (createdCard as any)[k];
                             }
+                        });
 
-                            // Invalidate profile & card queries so UI refreshes
-                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards', currentUserId] }); } catch (e) {}
-                            // Persist created card locally so Profile & MyCards can read it immediately
+
+                        console.log('📱 Profile sync - personalPhone intentionally skipped to avoid conflicts');
+
+                        console.log('📅 Builder: Sending to profile:', {
+                            hasBirthdate: !!profileable.birthdate,
+                            hasAnniversary: !!profileable.anniversary,
+                            birthdate: profileable.birthdate,
+                            anniversary: profileable.anniversary,
+                            gender: profileable.gender
+                        });
+
+                        // Normalize gender to canonical values
+                        if (profileable.gender && typeof profileable.gender === 'string') {
+                            const g = String(profileable.gender).toLowerCase();
+                            if (g.startsWith('m')) profileable.gender = 'male';
+                            else if (g.startsWith('f')) profileable.gender = 'female';
+                        }
+
+                        if (Object.keys(profileable).length > 0) {
                             try {
-                                const createdCard = _data && (_data as any).data ? ( _data as any).data : _data;
-                                if (createdCard) {
-                                    await AsyncStorage.setItem('default_card', JSON.stringify(createdCard));
-                                    console.log('Builder: saved created card to default_card (preview):', createdCard._id || createdCard.id || JSON.stringify(createdCard).slice(0,200));
-
-                                    // DO NOT add user's own cards to contacts-feed (home screen should only show other members' cards)
-                                    console.log('Builder: Skipping contacts-feed cache update for user\'s own card (should only show in My Cards)');
-
-                                    // Invalidate and request refetch for all queries so any mounted screens refresh
+                                try {
+                                    const resp = await api.put('/auth/update-profile', profileable);
+                                    console.log('Builder: profile sync response', resp);
+                                    // update AsyncStorage 'user' if present
                                     try {
-                                        queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId], refetchType: 'all' });
-                                        queryClient.invalidateQueries({ queryKey: ['cards', currentUserId], refetchType: 'all' });
-                                    } catch (e) {
-                                        console.warn('Builder: failed to invalidate queries after create', e);
+                                        const u = await AsyncStorage.getItem('user');
+                                        if (u) {
+                                            const uu = JSON.parse(u);
+                                            const merged = { ...uu, ...profileable };
+                                            await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                        }
+                                    } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage', e); }
+                                } catch (err: any) {
+                                    // If phone conflict occurs, retry without phone so other fields update
+                                    const msg = String(err?.message || err?.data?.message || '');
+                                    if (err?.status === 409 || /phone number already exists/i.test(msg)) {
+                                        console.warn('Builder: profile sync phone conflict, retrying without phone');
+                                        const reduced = { ...profileable };
+                                        delete reduced.phone;
+                                        try {
+                                            const resp2 = await api.put('/auth/update-profile', reduced);
+                                            console.log('Builder: profile sync response (without phone)', resp2);
+                                            try {
+                                                const u = await AsyncStorage.getItem('user');
+                                                if (u) {
+                                                    const uu = JSON.parse(u);
+                                                    const merged = { ...uu, ...reduced };
+                                                    await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                                }
+                                            } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage after retry', e); }
+                                        } catch (e2) {
+                                            console.warn('Builder: retry without phone also failed', e2);
+                                        }
+                                    } else {
+                                        throw err;
                                     }
                                 }
-                            } catch (e) { console.warn('Builder: failed to save default_card', e); }
-                        } catch (e) {
-                            console.warn('Builder: failed to sync profile', e);
+
+                                // Invalidate profile & card queries so UI refreshes
+                                try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards', currentUserId] }); } catch (e) { }
+                                // Persist created card locally so Profile & MyCards can read it immediately
+                                try {
+                                    const createdCard = _data && (_data as any).data ? (_data as any).data : _data;
+                                    if (createdCard) {
+                                        await AsyncStorage.setItem('default_card', JSON.stringify(createdCard));
+                                        console.log('Builder: saved created card to default_card (preview):', createdCard._id || createdCard.id || JSON.stringify(createdCard).slice(0, 200));
+
+                                        // DO NOT add user's own cards to contacts-feed (home screen should only show other members' cards)
+                                        console.log('Builder: Skipping contacts-feed cache update for user\'s own card (should only show in My Cards)');
+
+                                        // Invalidate and request refetch for all queries so any mounted screens refresh
+                                        try {
+                                            queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId], refetchType: 'all' });
+                                            queryClient.invalidateQueries({ queryKey: ['cards', currentUserId], refetchType: 'all' });
+                                        } catch (e) {
+                                            console.warn('Builder: failed to invalidate queries after create', e);
+                                        }
+                                    }
+                                } catch (e) { console.warn('Builder: failed to save default_card', e); }
+                            } catch (e) {
+                                console.warn('Builder: failed to sync profile', e);
+                            }
                         }
-                    }
-                } catch (e) { console.warn('Builder: unexpected error while syncing profile', e); }
-            })(); // End of async IIFE
+                    } catch (e) { console.warn('Builder: unexpected error while syncing profile', e); }
+                })(); // End of async IIFE
             }, 0); // End of background setTimeout
         },
         onError: (error: any) => {
@@ -413,7 +454,7 @@ export default function Builder() {
             } catch (e) {
                 console.warn('Failed to clear draft before update:', e);
             }
-            
+
             console.log('📤 Builder: Sending card UPDATE payload:', JSON.stringify({ birthdate: payload.birthdate, anniversary: payload.anniversary, name: payload.name, gender: payload.gender }));
             console.log('📤 Builder: FULL UPDATE PAYLOAD:', JSON.stringify(payload, null, 2));
             const response = await api.put<{ data: any }>(`/cards/${edit}`, payload);
@@ -432,6 +473,15 @@ export default function Builder() {
                 });
             }
 
+            // ALSO update the single-card cache for immediate authoritative reads
+            try {
+                if (updatedCard) {
+                    queryClient.setQueryData(['card', edit], updatedCard);
+                }
+            } catch (e) {
+                console.warn('Builder: failed to set single-card cache', e);
+            }
+
             // 🔄 CRITICAL: Invalidate and refetch IMMEDIATELY to prevent stale cache
             await queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
             await queryClient.refetchQueries({ queryKey: ["cards", currentUserId] });
@@ -440,7 +490,7 @@ export default function Builder() {
             // ⚡ SHOW SUCCESS IMMEDIATELY - Don't wait for background tasks
             Alert.alert("Success", "Card updated!", [
                 {
-                    text: "OK", 
+                    text: "OK",
                     onPress: () => {
                         router.back();
                     }
@@ -450,93 +500,103 @@ export default function Builder() {
             // 🔄 Do all heavy operations in BACKGROUND (non-blocking)
             setTimeout(() => {
                 // Log raw server response for debugging date persistence
-                try { console.log('Builder: raw update response:', JSON.stringify({ birthdate: _data?.birthdate, anniversary: _data?.anniversary })); } catch (e) {}
+                try { console.log('Builder: raw update response:', JSON.stringify({ birthdate: _data?.birthdate, anniversary: _data?.anniversary })); } catch (e) { }
                 queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
                 queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-                try { queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) {}
+                try { queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] }); queryClient.invalidateQueries({ queryKey: ['profile'] }); } catch (e) { }
                 // Sync certain card fields back to profile
                 (async () => {
-                try {
-                    const profileable: any = {};
-                    // Load existing user so we only attempt phone changes when necessary
-                    const existingUserRawU = await AsyncStorage.getItem('user');
-                    let existingUserU: any = null;
-                    try { existingUserU = existingUserRawU ? JSON.parse(existingUserRawU) : null; } catch (e) { existingUserU = null; }
-                    ['name','gender','birthdate','anniversary'].forEach(k => {
-                        // Skip personalPhone - don't sync it to user profile to avoid conflicts
-                        // The card's personalPhone is independent of the user's account phone
-                        if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
-                    });
-                    
-                    console.log('📱 Profile sync (update) - personalPhone intentionally skipped to avoid conflicts');
-                    // Normalize gender string to profile-friendly values
-                    if (profileable.gender && typeof profileable.gender === 'string') {
-                        const g = String(profileable.gender).toLowerCase();
-                        if (g.startsWith('m')) profileable.gender = 'male';
-                        else if (g.startsWith('f')) profileable.gender = 'female';
-                    }
-                    if (Object.keys(profileable).length > 0) {
-                        try {
-                            try {
-                                const resp = await api.put('/auth/update-profile', profileable);
-                                console.log('Builder update:onSuccess profile sync response', resp);
-                                try {
-                                    const u = await AsyncStorage.getItem('user');
-                                    if (u) {
-                                        const uu = JSON.parse(u);
-                                        const merged = { ...uu, ...profileable };
-                                        await AsyncStorage.setItem('user', JSON.stringify(merged));
-                                    }
-                                } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage', e); }
-                            } catch (err: any) {
-                                const msg = String(err?.message || err?.data?.message || '');
-                                if (err?.status === 409 || /phone number already exists/i.test(msg)) {
-                                    console.warn('Builder update:onSuccess: phone conflict, retrying without phone');
-                                    const reduced = { ...profileable };
-                                    delete reduced.phone;
-                                    try {
-                                        const resp2 = await api.put('/auth/update-profile', reduced);
-                                        console.log('Builder update:onSuccess profile sync response (without phone)', resp2);
-                                        try {
-                                            const u = await AsyncStorage.getItem('user');
-                                            if (u) {
-                                                const uu = JSON.parse(u);
-                                                const merged = { ...uu, ...reduced };
-                                                await AsyncStorage.setItem('user', JSON.stringify(merged));
-                                            }
-                                        } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage after retry', e); }
-                                    } catch (e2) {
-                                        console.warn('Builder update:onSuccess retry without phone failed', e2);
-                                    }
-                                } else {
-                                    throw err;
-                                }
-                            }
-                            try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards', currentUserId] }); } catch (e) {}
-                        } catch (e) {
-                            console.warn('Builder update:onSuccess failed to sync profile', e);
-                        }
-                    }
-                } catch (e) { console.warn('Builder update:onSuccess unexpected', e); }
-            })();
+                    try {
+                        const profileable: any = {};
+                        // Load existing user so we only attempt phone changes when necessary
+                        const existingUserRawU = await AsyncStorage.getItem('user');
+                        let existingUserU: any = null;
+                        try { existingUserU = existingUserRawU ? JSON.parse(existingUserRawU) : null; } catch (e) { existingUserU = null; }
+                        // ['name', 'gender', 'birthdate', 'anniversary'].forEach(k => {
+                        //     // Skip personalPhone - don't sync it to user profile to avoid conflicts
+                        //     // The card's personalPhone is independent of the user's account phone
+                        //     if (payload && (payload as any)[k] !== undefined) profileable[k] = (payload as any)[k];
+                        // });
+                        // ✅ ALWAYS sync profile from UPDATED card response
+                        const updatedCard =
+                            _data && (_data as any).data ? (_data as any).data : _data;
 
-            // Persist updated card locally so Profile & MyCards reflect changes immediately
-            (async () => {
-                try {
-                    const updatedCard = _data && (_data as any).data ? (_data as any).data : _data;
-                    if (updatedCard) {
-                        await AsyncStorage.setItem('default_card', JSON.stringify(updatedCard));
-                        console.log('Builder: saved updated card to default_card (preview):', updatedCard._id || updatedCard.id || JSON.stringify(updatedCard).slice(0,200));
-                        // Force refetch of contacts-feed (Home) so update is visible immediately
-                        try {
-                            queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] });
-                            queryClient.refetchQueries({ queryKey: ['contacts-feed', currentUserId] });
-                        } catch (e) {
-                            console.warn('Builder: failed to refresh contacts-feed after update', e);
+                        ['name', 'gender', 'birthdate', 'anniversary'].forEach(k => {
+                            if (updatedCard && (updatedCard as any)[k] !== undefined) {
+                                profileable[k] = (updatedCard as any)[k];
+                            }
+                        });
+
+
+                        console.log('📱 Profile sync (update) - personalPhone intentionally skipped to avoid conflicts');
+                        // Normalize gender string to profile-friendly values
+                        if (profileable.gender && typeof profileable.gender === 'string') {
+                            const g = String(profileable.gender).toLowerCase();
+                            if (g.startsWith('m')) profileable.gender = 'male';
+                            else if (g.startsWith('f')) profileable.gender = 'female';
                         }
-                    }
-                } catch (e) { console.warn('Builder: failed to save default_card after update', e); }
-            })();
+                        if (Object.keys(profileable).length > 0) {
+                            try {
+                                try {
+                                    const resp = await api.put('/auth/update-profile', profileable);
+                                    console.log('Builder update:onSuccess profile sync response', resp);
+                                    try {
+                                        const u = await AsyncStorage.getItem('user');
+                                        if (u) {
+                                            const uu = JSON.parse(u);
+                                            const merged = { ...uu, ...profileable };
+                                            await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                        }
+                                    } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage', e); }
+                                } catch (err: any) {
+                                    const msg = String(err?.message || err?.data?.message || '');
+                                    if (err?.status === 409 || /phone number already exists/i.test(msg)) {
+                                        console.warn('Builder update:onSuccess: phone conflict, retrying without phone');
+                                        const reduced = { ...profileable };
+                                        delete reduced.phone;
+                                        try {
+                                            const resp2 = await api.put('/auth/update-profile', reduced);
+                                            console.log('Builder update:onSuccess profile sync response (without phone)', resp2);
+                                            try {
+                                                const u = await AsyncStorage.getItem('user');
+                                                if (u) {
+                                                    const uu = JSON.parse(u);
+                                                    const merged = { ...uu, ...reduced };
+                                                    await AsyncStorage.setItem('user', JSON.stringify(merged));
+                                                }
+                                            } catch (e) { console.warn('Builder: failed to merge user into AsyncStorage after retry', e); }
+                                        } catch (e2) {
+                                            console.warn('Builder update:onSuccess retry without phone failed', e2);
+                                        }
+                                    } else {
+                                        throw err;
+                                    }
+                                }
+                                try { queryClient.invalidateQueries({ queryKey: ['profile'] }); queryClient.invalidateQueries({ queryKey: ['cards', currentUserId] }); } catch (e) { }
+                            } catch (e) {
+                                console.warn('Builder update:onSuccess failed to sync profile', e);
+                            }
+                        }
+                    } catch (e) { console.warn('Builder update:onSuccess unexpected', e); }
+                })();
+
+                // Persist updated card locally so Profile & MyCards reflect changes immediately
+                (async () => {
+                    try {
+                        const updatedCard = _data && (_data as any).data ? (_data as any).data : _data;
+                        if (updatedCard) {
+                            await AsyncStorage.setItem('default_card', JSON.stringify(updatedCard));
+                            console.log('Builder: saved updated card to default_card (preview):', updatedCard._id || updatedCard.id || JSON.stringify(updatedCard).slice(0, 200));
+                            // Force refetch of contacts-feed (Home) so update is visible immediately
+                            try {
+                                queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] });
+                                queryClient.refetchQueries({ queryKey: ['contacts-feed', currentUserId] });
+                            } catch (e) {
+                                console.warn('Builder: failed to refresh contacts-feed after update', e);
+                            }
+                        }
+                    } catch (e) { console.warn('Builder: failed to save default_card after update', e); }
+                })();
             }, 0); // End of background setTimeout
         },
         onError: (error: any) => {
@@ -557,11 +617,14 @@ export default function Builder() {
                     if (Array.isArray(old)) return old.filter((c: any) => (c._id || c.id) !== edit);
                     return old;
                 });
+
+                // Force immediate refetch to ensure UI updates
+                queryClient.refetchQueries({ queryKey: ['cards', currentUserId] });
             }
-            
+
             // Navigate back immediately - don't wait for refetch
             router.back();
-            
+
             // Invalidate in background (non-blocking)
             setTimeout(() => {
                 queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
@@ -569,7 +632,7 @@ export default function Builder() {
                 queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] });
                 queryClient.invalidateQueries({ queryKey: ['profile'] });
             }, 100);
-            
+
             Alert.alert("Success", "Card deleted!");
         },
         onError: (error: any) => {
@@ -585,87 +648,87 @@ export default function Builder() {
     const [annivText, setAnnivText] = useState<string>("");
     const [showBirthdatePicker, setShowBirthdatePicker] = useState(false);
     const [showAnniversaryPicker, setShowAnniversaryPicker] = useState(false);
-        const [birthYear, setBirthYear] = useState(new Date().getFullYear());
-        const [birthMonth, setBirthMonth] = useState(new Date().getMonth());
-        const [annivYear, setAnnivYear] = useState(new Date().getFullYear());
-        const [annivMonth, setAnnivMonth] = useState(new Date().getMonth());
+    const [birthYear, setBirthYear] = useState(new Date().getFullYear());
+    const [birthMonth, setBirthMonth] = useState(new Date().getMonth());
+    const [annivYear, setAnnivYear] = useState(new Date().getFullYear());
+    const [annivMonth, setAnnivMonth] = useState(new Date().getMonth());
 
-        // Helper for month navigation
-        const changeMonthYear = (month: number, year: number, delta: number) => {
-            let newMonth = month + delta;
-            let newYear = year;
-            if (newMonth < 0) {
-                newMonth = 11;
-                newYear -= 1;
-            } else if (newMonth > 11) {
-                newMonth = 0;
-                newYear += 1;
-            }
-            return { newMonth, newYear };
-        };
+    // Helper for month navigation
+    const changeMonthYear = (month: number, year: number, delta: number) => {
+        let newMonth = month + delta;
+        let newYear = year;
+        if (newMonth < 0) {
+            newMonth = 11;
+            newYear -= 1;
+        } else if (newMonth > 11) {
+            newMonth = 0;
+            newYear += 1;
+        }
+        return { newMonth, newYear };
+    };
 
-        // Local lightweight calendar component using lucide icons
-        const LocalCalendar = ({ year, month, selectedIso, onDayPress, onPrev, onNext }: any) => {
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const firstWeekday = new Date(year, month, 1).getDay(); // 0=Sun
-            const days = new Date(year, month + 1, 0).getDate();
+    // Local lightweight calendar component using lucide icons
+    const LocalCalendar = ({ year, month, selectedIso, onDayPress, onPrev, onNext }: any) => {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const firstWeekday = new Date(year, month, 1).getDay(); // 0=Sun
+        const days = new Date(year, month + 1, 0).getDate();
 
-            const cells: Array<(number | null)> = [];
-            for (let i = 0; i < firstWeekday; i++) cells.push(null);
-            for (let d = 1; d <= days; d++) cells.push(d);
-            while (cells.length % 7 !== 0) cells.push(null);
+        const cells: Array<(number | null)> = [];
+        for (let i = 0; i < firstWeekday; i++) cells.push(null);
+        for (let d = 1; d <= days; d++) cells.push(d);
+        while (cells.length % 7 !== 0) cells.push(null);
 
-            const selectedDay = selectedIso ? selectedIso.split('T')[0] : null;
+        const selectedDay = selectedIso ? selectedIso.split('T')[0] : null;
 
-            return (
-                <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <TouchableOpacity onPress={onPrev} style={{ padding: 6 }}>
-                            <Ionicons name="chevron-back" size={20} color="#374151" />
-                        </TouchableOpacity>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                            <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>
-                                {MONTHS[month]}
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>{` ${year}`}</Text>
-                            </Text>
-                        </View>
-                        <TouchableOpacity onPress={onNext} style={{ padding: 6 }}>
-                            <Ionicons name="chevron-forward" size={20} color="#374151" />
-                        </TouchableOpacity>
+        return (
+            <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <TouchableOpacity onPress={onPrev} style={{ padding: 6 }}>
+                        <Ionicons name="chevron-back" size={20} color="#374151" />
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>
+                            {MONTHS[month]}
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>{` ${year}`}</Text>
+                        </Text>
                     </View>
-
-                    <View style={s.weekRow}>
-                        {['S','M','T','W','T','F','S'].map((w, i) => (
-                            <Text key={`${w}-${i}`} style={s.weekday}>{w}</Text>
-                        ))}
-                    </View>
-
-                    <View>
-                        {Array.from({ length: cells.length / 7 }).map((_, r) => (
-                            <View key={`row-${r}`} style={s.weekRow}>
-                                {cells.slice(r * 7, r * 7 + 7).map((day, ci) => {
-                                    const isSelected = day && selectedDay === `${year}-${pad(month + 1)}-${pad(day)}`;
-                                    return (
-                                        <TouchableOpacity
-                                            key={`cell-${r}-${ci}-${day ?? 'n'}`}
-                                            disabled={!day}
-                                            onPress={() => {
-                                                if (!day) return;
-                                                const iso = `${year}-${pad(month + 1)}-${pad(day)}T00:00:00.000Z`;
-                                                onDayPress(iso);
-                                            }}
-                                            style={[s.dayCell, isSelected ? s.selectedDay : undefined]}
-                                        >
-                                                <Text style={[s.dayText, isSelected ? s.selectedDayText : undefined]}>{day ?? ''}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                        ))}
-                    </View>
+                    <TouchableOpacity onPress={onNext} style={{ padding: 6 }}>
+                        <Ionicons name="chevron-forward" size={20} color="#374151" />
+                    </TouchableOpacity>
                 </View>
-            );
-        };
+
+                <View style={s.weekRow}>
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((w, i) => (
+                        <Text key={`${w}-${i}`} style={s.weekday}>{w}</Text>
+                    ))}
+                </View>
+
+                <View>
+                    {Array.from({ length: cells.length / 7 }).map((_, r) => (
+                        <View key={`row-${r}`} style={s.weekRow}>
+                            {cells.slice(r * 7, r * 7 + 7).map((day, ci) => {
+                                const isSelected = day && selectedDay === `${year}-${pad(month + 1)}-${pad(day)}`;
+                                return (
+                                    <TouchableOpacity
+                                        key={`cell-${r}-${ci}-${day ?? 'n'}`}
+                                        disabled={!day}
+                                        onPress={() => {
+                                            if (!day) return;
+                                            const iso = `${year}-${pad(month + 1)}-${pad(day)}T00:00:00.000Z`;
+                                            onDayPress(iso);
+                                        }}
+                                        style={[s.dayCell, isSelected ? s.selectedDay : undefined]}
+                                    >
+                                        <Text style={[s.dayText, isSelected ? s.selectedDayText : undefined]}>{day ?? ''}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    ))}
+                </View>
+            </View>
+        );
+    };
     const [gender, setGender] = useState(""); // New gender field
     const [personalCountryCode, setPersonalCountryCode] = useState("91");
     const [personalPhone, setPersonalPhone] = useState("");
@@ -708,6 +771,14 @@ export default function Builder() {
     const [showCustomServiceInput, setShowCustomServiceInput] = useState(false);
     const [establishedYear, setEstablishedYear] = useState("");
     const [aboutBusiness, setAboutBusiness] = useState("");
+    // Social Media
+    const [linkedin, setLinkedin] = useState("");
+    const [twitter, setTwitter] = useState("");
+    const [instagram, setInstagram] = useState("");
+    const [facebook, setFacebook] = useState("");
+    const [youtube, setYoutube] = useState("");
+    const [whatsapp, setWhatsapp] = useState("");
+    const [telegram, setTelegram] = useState("");
     // Time picker modal state
     const [businessHoursModalVisible, setBusinessHoursModalVisible] = useState(false);
     const [timePickerVisible, setTimePickerVisible] = useState(false);
@@ -718,30 +789,21 @@ export default function Builder() {
     const keywordsTimeout = useRef<any>(null);
     const draftSaveTimeout = useRef<any>(null);
     
-    // Social - moved before saveDraft to avoid "used before declaration" errors
-    const [linkedin, setLinkedin] = useState("");
-    const [twitter, setTwitter] = useState("");
-    const [instagram, setInstagram] = useState("");
-    const [facebook, setFacebook] = useState("");
-    const [youtube, setYoutube] = useState("");
-    const [whatsapp, setWhatsapp] = useState("");
-    const [telegram, setTelegram] = useState("");
-    
     // Debounced keywords handler to prevent saving issues - Memoized to prevent recreation
     const handleKeywordsChange = useCallback((text: string) => {
         setKeywords(text);
-        
+
         // Clear existing timeout
         if (keywordsTimeout.current) {
             clearTimeout(keywordsTimeout.current);
         }
-        
+
         // Set new timeout to ensure proper saving
         keywordsTimeout.current = setTimeout(() => {
             console.log('Keywords updated:', text);
         }, 500);
     }, []);
-    
+
     // Clean up timeout on unmount
     useEffect(() => {
         return () => {
@@ -781,13 +843,18 @@ export default function Builder() {
 
     // Save form state as draft (debounced)
     const saveDraft = useCallback(() => {
+        // Skip draft saving in edit mode - only save drafts for new cards
+        if (isEditMode) {
+            return;
+        }
+
         if (draftSaveTimeout.current) {
             clearTimeout(draftSaveTimeout.current);
         }
-        
+
         draftSaveTimeout.current = setTimeout(async () => {
             try {
-                const draftKey = isEditMode ? `card_draft_${edit}` : 'card_draft_new';
+                const draftKey = 'card_draft_new';
                 const draftData = {
                     name,
                     birthdate,
@@ -840,16 +907,16 @@ export default function Builder() {
             console.log('⏸️ Skipping draft save - mutation in progress');
             return;
         }
-        
+
         // CRITICAL: Don't auto-save until form has been populated with existing data
         // This prevents saving empty drafts that overwrite actual card data
         if (isEditMode && !formPopulated) {
             console.log('⏸️ Skipping draft save - form not yet populated with existing card data');
             return;
         }
-        
+
         saveDraft();
-        
+
         return () => {
             if (draftSaveTimeout.current) {
                 clearTimeout(draftSaveTimeout.current);
@@ -860,40 +927,28 @@ export default function Builder() {
     // Reset formPopulated when edit param changes (navigating to different card)
     // IMPORTANT: Don't reset on updatedAt changes - that causes form to reload unnecessarily
     useEffect(() => {
-        console.log('🔄 Edit param changed, resetting form state');
+        console.log('🔄 Edit param or existingCard changed, resetting form state');
         setFormPopulated(false);
         setDraftData(null);
         hasFetchedDraft.current = false;
-    }, [edit]); // Only reset when navigating to different card, NOT on updatedAt changes
+    }, [edit, existingCard?.updatedAt]); // Reset when card's updatedAt changes (after update)
 
     // Step 1: Load draft from AsyncStorage on mount
     useEffect(() => {
         if (hasFetchedDraft.current) return;
-        
+
         const loadDraft = async () => {
             try {
                 const draftKey = isEditMode ? `card_draft_${edit}` : 'card_draft_new';
-                
-                // 🔥 CRITICAL FIX: In edit mode, ALWAYS delete any existing draft first
-                // This prevents stale drafts from overwriting freshly loaded card data
-                if (isEditMode) {
-                    console.log('🗑️ EDIT MODE: Deleting any stale draft before loading card');
-                    await AsyncStorage.removeItem(draftKey);
-                    hasFetchedDraft.current = true;
-                    console.log('✅ Stale draft deleted - will load fresh from API');
-                    return; // Don't try to load draft in edit mode
-                }
-                
-                // Only load draft for NEW cards
                 const draftJson = await AsyncStorage.getItem(draftKey);
-                
+
                 if (draftJson) {
                     const draft = JSON.parse(draftJson);
                     console.log('📂 Found draft:', draftKey);
-                    
+
                     // Check if draft is recent (within 24 hours)
                     const isRecent = draft.timestamp && (Date.now() - draft.timestamp < 24 * 60 * 60 * 1000);
-                    
+
                     if (isRecent) {
                         console.log('✅ Draft is recent, storing for comparison');
                         setDraftData(draft);
@@ -909,7 +964,7 @@ export default function Builder() {
                 hasFetchedDraft.current = true;
             }
         };
-        
+
         loadDraft();
     }, [isEditMode, edit]);
 
@@ -970,23 +1025,6 @@ export default function Builder() {
                 setCompanyMapsLink(draftData.companyMapsLink || "");
                 setMessage(draftData.message || "");
                 setCompanyPhoto(draftData.companyPhoto || "");
-                // Parse business hours from draft
-                if (draftData.businessHours) {
-                    try {
-                        const parsedSchedule = JSON.parse(draftData.businessHours);
-                        setWeeklySchedule(parsedSchedule);
-                    } catch (error) {
-                        console.log("Could not parse draft business hours:", error);
-                    }
-                }
-                setBusinessHours(draftData.businessHours || "");
-                setServicesOffered(draftData.servicesOffered || "");
-                // Parse services into array
-                if (draftData.servicesOffered) {
-                    setSelectedServices(draftData.servicesOffered.split(',').map((s: string) => s.trim()).filter((s: string) => s));
-                }
-                setEstablishedYear(draftData.establishedYear || "");
-                setAboutBusiness(draftData.aboutBusiness || "");
                 setKeywords(draftData.keywords || "");
                 setLinkedin(draftData.linkedin || "");
                 setTwitter(draftData.twitter || "");
@@ -1012,7 +1050,7 @@ export default function Builder() {
 
     // --- validation messages
     const [errors, setErrors] = useState<Record<string, string>>({});
-    
+
     // Section collapse state for better UX
     const [sectionExpanded, setSectionExpanded] = useState({
         personal: true,
@@ -1050,9 +1088,14 @@ export default function Builder() {
         console.log("edit param:", edit);
         console.log("existingCard:", existingCard);
         console.log("formPopulated:", formPopulated);
+        console.log("hasFetchedDraft:", hasFetchedDraft.current);
         
-        // Load existingCard data immediately without waiting for draft check
-        // This fixes the issue where form values don't appear on first load
+        // CRITICAL: Wait for draft check to complete before loading existingCard
+        if (!hasFetchedDraft.current) {
+            console.log("⏳ Waiting for draft check to complete before loading card data");
+            return;
+        }
+        
         if (existingCard && !formPopulated) {
             console.log("Populating form with existing card data from API");
             console.log("� Full existingCard data:", JSON.stringify(existingCard, null, 2));
@@ -1068,28 +1111,18 @@ export default function Builder() {
             const anniversaryValue = existingCard.anniversary && existingCard.anniversary !== "" ? existingCard.anniversary : null;
             setBirthdate(birthdateValue);
             setAnniversary(anniversaryValue);
-            // Format display text for date fields
-            if (birthdateValue) {
-                const formatted = formatIsoToDisplay(birthdateValue);
-                setBirthText(formatted);
-                console.log("📅 Loaded birthText:", formatted);
-            }
-            if (anniversaryValue) {
-                const formatted = formatIsoToDisplay(anniversaryValue);
-                setAnnivText(formatted);
-                console.log("📅 Loaded annivText:", formatted);
-            }
-            setGender(existingCard.gender || ""); // Load gender
+            if (birthdateValue) setBirthText(formatIsoToDisplay(birthdateValue)); else setBirthText("");
+            if (anniversaryValue) setAnnivText(formatIsoToDisplay(anniversaryValue)); else setAnnivText("");
+            setGender(existingCard.gender || "");
             setPersonalCountryCode(existingCard.personalCountryCode || "91");
             setPersonalPhone(existingCard.personalPhone || "");
             setEmail(existingCard.email || "");
             setLocation(existingCard.location || "");
             setMapsLink(existingCard.mapsLink || "");
             setCompanyName(existingCard.companyName || "");
-            setDesignation(existingCard.designation || ""); // Load designation in Business section
+            setDesignation(existingCard.designation || "");
             setCompanyCountryCode(existingCard.companyCountryCode || "91");
             setCompanyPhone(existingCard.companyPhone || "");
-            // populate multiple phones if available, else fallback to single
             if (existingCard.companyPhones && Array.isArray(existingCard.companyPhones) && existingCard.companyPhones.length > 0) {
                 setCompanyPhones(existingCard.companyPhones.map((p: any) => ({ countryCode: p.countryCode || '91', phone: p.phone || '' })));
             } else {
@@ -1101,32 +1134,6 @@ export default function Builder() {
             setCompanyMapsLink(existingCard.companyMapsLink || "");
             setMessage(existingCard.message || "");
             setCompanyPhoto(existingCard.companyPhoto || "");
-            // Parse business hours from JSON string to weeklySchedule object
-            if (existingCard.businessHours) {
-                console.log("📅 Raw businessHours from DB:", existingCard.businessHours);
-                try {
-                    const parsedSchedule = JSON.parse(existingCard.businessHours);
-                    console.log("📅 Parsed weeklySchedule:", parsedSchedule);
-                    setWeeklySchedule(parsedSchedule);
-                } catch (error) {
-                    // If parsing fails (old format), keep default schedule
-                    console.log("❌ Could not parse business hours:", error);
-                }
-            }
-            setBusinessHours(existingCard.businessHours || "");
-            setServicesOffered(existingCard.servicesOffered || "");
-            // Parse services into array
-            if (existingCard.servicesOffered) {
-                setSelectedServices(existingCard.servicesOffered.split(',').map((s: string) => s.trim()).filter((s: string) => s));
-            }
-            setEstablishedYear(existingCard.establishedYear || "");
-            setAboutBusiness(existingCard.aboutBusiness || "");
-            console.log("🔧 NEW FIELDS LOADED:", {
-                businessHours: existingCard.businessHours || "",
-                servicesOffered: existingCard.servicesOffered || "",
-                establishedYear: existingCard.establishedYear || "",
-                aboutBusiness: existingCard.aboutBusiness || ""
-            });
             setKeywords(existingCard.keywords || ""); // Directly set keywords without debounce during load
             console.log("🔍 Loaded keywords:", existingCard.keywords);
             setLinkedin(existingCard.linkedin || "");
@@ -1137,11 +1144,10 @@ export default function Builder() {
             setWhatsapp(existingCard.whatsapp || "");
             setTelegram(existingCard.telegram || "");
             setFormPopulated(true);
-            console.log("✅ Form populated with existing card data");
-        } else if (existingCard && formPopulated) {
-            console.log("⏭️ Skipping form population - already populated with draft or existing data");
+            console.log('Builder: formPopulated set true after successful single-card fetch');
         }
-    }, [existingCard, isEditMode, edit, formPopulated]);
+
+    }, [singleCardQuery.data, singleCardQuery.isSuccess, isEditMode, edit, formPopulated]);
 
     // Track company photo changes
     useEffect(() => {
@@ -1156,17 +1162,8 @@ export default function Builder() {
         }
     }, [companyPhoto]);
 
-    // keep text fields in sync when canonical ISO date changes
-    useEffect(() => {
-        const formatted = formatIsoToDisplay(birthdate);
-        console.log("📅 Setting birthText from birthdate:", birthdate, "->", formatted);
-        setBirthText(formatted);
-    }, [birthdate]);
-    useEffect(() => {
-        const formatted = formatIsoToDisplay(anniversary);
-        console.log("📅 Setting annivText from anniversary:", anniversary, "->", formatted);
-        setAnnivText(formatted);
-    }, [anniversary]);
+    // NOTE: Removed automatic birthText/annivText sync effects to prevent clearing
+    // during form reset. Text formatting is now handled explicitly when setting dates.
 
     const validate = () => {
         const e: Record<string, string> = {};
@@ -1186,8 +1183,8 @@ export default function Builder() {
         });
         if (mapsLink && !isURL(mapsLink)) e.mapsLink = "Invalid link";
         if (companyMapsLink && !isURL(companyMapsLink)) e.companyMapsLink = "Invalid link";
-            // Birthdate is required
-            if (!birthdate) e.birthdate = "Birthdate is required";
+        // Birthdate is required
+        if (!birthdate) e.birthdate = "Birthdate is required";
         setErrors(e);
         return Object.keys(e).length === 0;
     };
@@ -1340,8 +1337,8 @@ export default function Builder() {
             "Are you sure you want to delete this business card?",
             [
                 { text: "Cancel", style: "cancel" },
-                { 
-                    text: "Delete", 
+                {
+                    text: "Delete",
                     style: "destructive",
                     onPress: () => deleteCardMutation.mutate()
                 }
@@ -1354,30 +1351,30 @@ export default function Builder() {
         errors[k] ? <Text style={s.err}>{errors[k]}</Text> : null;
 
     // Enhanced Section Header Component
-    const SectionHeader = ({ 
-        title, 
-        subtitle, 
-        icon, 
-        section, 
-        required = false 
-    }: { 
-        title: string; 
-        subtitle?: string; 
-        icon: any; 
+    const SectionHeader = ({
+        title,
+        subtitle,
+        icon,
+        section,
+        required = false
+    }: {
+        title: string;
+        subtitle?: string;
+        icon: any;
         section: keyof typeof sectionExpanded;
         required?: boolean;
     }) => (
-        <TouchableOpacity 
-            style={s.sectionHeader} 
+        <TouchableOpacity
+            style={s.sectionHeader}
             onPress={() => toggleSection(section)}
             activeOpacity={0.7}
         >
             <View style={s.sectionHeaderLeft}>
                 <View style={[s.sectionIcon, sectionExpanded[section] && s.sectionIconActive]}>
-                    <Ionicons 
-                        name={icon} 
-                        size={20} 
-                        color={sectionExpanded[section] ? "#FFFFFF" : "#3B82F6"} 
+                    <Ionicons
+                        name={icon}
+                        size={20}
+                        color={sectionExpanded[section] ? "#FFFFFF" : "#3B82F6"}
                     />
                 </View>
                 <View style={s.sectionTitleContainer}>
@@ -1388,32 +1385,32 @@ export default function Builder() {
                     {subtitle && <Text style={s.sectionSubtitle}>{subtitle}</Text>}
                 </View>
             </View>
-            <Ionicons 
-                name={sectionExpanded[section] ? "chevron-up" : "chevron-down"} 
-                size={20} 
-                color="#6B7280" 
+            <Ionicons
+                name={sectionExpanded[section] ? "chevron-up" : "chevron-down"}
+                size={20}
+                color="#6B7280"
             />
         </TouchableOpacity>
     );
 
     // Enhanced Form Field Component - Memoized to prevent recreating on each render
-    const FormField = useMemo(() => ({ 
-        label, 
-        value, 
-        onChangeText, 
-        errorKey, 
+    const FormField = useMemo(() => ({
+        label,
+        value,
+        onChangeText,
+        errorKey,
         required = false,
         inputKey,
-        ...props 
+        ...props
     }: any) => (
         <View style={s.formField}>
             <Text style={s.enhancedLabel}>
                 {label}
                 {required && <Text style={s.requiredIndicator}> *</Text>}
             </Text>
-            <FormInput 
+            <FormInput
                 key={inputKey} // Add unique key to prevent TextInput remounting
-                value={value} 
+                value={value}
                 onChangeText={onChangeText}
                 style={[errors[errorKey] && s.inputError]}
                 {...props}
@@ -1422,11 +1419,21 @@ export default function Builder() {
         </View>
     ), [errors]);
 
+    // In edit mode, don't render form until data is loaded
+    if (isEditMode && !formPopulated) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB", justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator size="large" color="#3B82F6" />
+                <Text style={{ marginTop: 12, color: "#6B7280", fontSize: 16 }}>Loading card data...</Text>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-                <ScrollView 
-                    keyboardShouldPersistTaps="handled" 
+                <ScrollView
+                    keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
                     contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
                     showsVerticalScrollIndicator={false}
@@ -1434,20 +1441,20 @@ export default function Builder() {
                     {/* Header with Cancel Button */}
                     <View style={{ marginBottom: 12 }}>
                         {/* Cancel Button */}
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => router.back()}
                             style={s.cancelButton}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                             <Ionicons name="close" size={28} color="#6B7280" />
                         </TouchableOpacity>
-                        
+
                         {/* Title */}
                         <View style={{ alignItems: "center" }}>
                             <Text style={s.h1}>{isEditMode ? "Edit Card" : "Create New Card"}</Text>
                             <Text style={s.subtitle}>
-                                {isEditMode 
-                                    ? "Update your professional details" 
+                                {isEditMode
+                                    ? "Update your professional details"
                                     : "Build your digital business card in minutes"
                                 }
                             </Text>
@@ -1537,7 +1544,7 @@ export default function Builder() {
                                             onChangeText={(t: string) => {
                                                 const formatted = formatDigitsToDisplay(t);
                                                 setAnnivText(formatted);
-                                                
+
                                                 // Always try to parse and update state in real-time
                                                 const parsed = parseDisplayToIso(formatted);
                                                 if (parsed) {
@@ -1581,17 +1588,17 @@ export default function Builder() {
                                             ]}
                                             onPress={() => setGender('Male')}
                                         >
-                                            <Ionicons 
-                                                name="male" 
-                                                size={20} 
-                                                color={gender === 'Male' ? '#FFFFFF' : '#6B7280'} 
+                                            <Ionicons
+                                                name="male"
+                                                size={20}
+                                                color={gender === 'Male' ? '#FFFFFF' : '#6B7280'}
                                             />
                                             <Text style={[
                                                 s.genderButtonText,
                                                 gender === 'Male' && s.genderButtonTextSelected
                                             ]}>Male</Text>
                                         </TouchableOpacity>
-                                        
+
                                         <TouchableOpacity
                                             style={[
                                                 s.genderButton,
@@ -1599,10 +1606,10 @@ export default function Builder() {
                                             ]}
                                             onPress={() => setGender('Female')}
                                         >
-                                            <Ionicons 
-                                                name="female" 
-                                                size={20} 
-                                                color={gender === 'Female' ? '#FFFFFF' : '#6B7280'} 
+                                            <Ionicons
+                                                name="female"
+                                                size={20}
+                                                color={gender === 'Female' ? '#FFFFFF' : '#6B7280'}
                                             />
                                             <Text style={[
                                                 s.genderButtonText,
@@ -1690,7 +1697,7 @@ export default function Builder() {
                                 />
 
                                 <View style={s.formField}>
-                                
+
                                     {companyPhones.map((p, idx) => (
                                         <View key={`company-phone-${idx}`} style={{ marginBottom: 12 }}>
                                             <View style={s.phoneRow}>
@@ -1782,10 +1789,10 @@ export default function Builder() {
                                 <View style={s.photoContainer}>
                                     <Text style={s.enhancedLabel}>Business Photo / Logo</Text>
                                     <TouchableOpacity onPress={pickBusinessPhoto} style={s.pickBtn}>
-                                        <Ionicons 
-                                            name={companyPhoto ? "image" : "camera"} 
-                                            size={20} 
-                                            color="#3B82F6" 
+                                        <Ionicons
+                                            name={companyPhoto ? "image" : "camera"}
+                                            size={20}
+                                            color="#3B82F6"
                                         />
                                         <Text style={s.pickTxt}>
                                             {companyPhoto ? "Change Photo" : "Add Photo"}
@@ -1798,9 +1805,9 @@ export default function Builder() {
                                     )}
                                     <View style={s.photoPreviewContainer}>
                                         {companyPhoto ? (
-                                            <Image 
-                                                source={{ uri: getImageUrl(companyPhoto) }} 
-                                                style={s.photoPreview} 
+                                            <Image
+                                                source={{ uri: getImageUrl(companyPhoto) }}
+                                                style={s.photoPreview}
                                                 resizeMode="contain"
                                                 onLoad={() => console.log('✅ Business photo loaded successfully from:', getImageUrl(companyPhoto))}
                                                 onError={(e) => {
@@ -1809,7 +1816,7 @@ export default function Builder() {
                                                 }}
                                             />
                                         ) : (
-                                            <BusinessAvatar 
+                                            <BusinessAvatar
                                                 companyPhoto=""
                                                 companyName={companyName || "Company"}
                                                 size={120}
@@ -1997,15 +2004,15 @@ export default function Builder() {
                             <View style={s.sectionContent}>
                                 <View style={s.formField}>
                                     <Text style={s.enhancedLabel}>Keywords for Search</Text>
-                                    <FormInput 
+                                    <FormInput
                                         key="keywords-input"
-                                        value={keywords} 
+                                        value={keywords}
                                         onChangeText={handleKeywordsChange}
                                         placeholder="e.g. gym, fitness, training, personal trainer, crossfit"
                                         multiline
                                     />
                                     <Text style={s.helperText}>
-                                        Add keywords to help people find your card when searching. 
+                                        Add keywords to help people find your card when searching.
                                         Separate multiple keywords with commas.
                                     </Text>
                                 </View>
@@ -2015,18 +2022,18 @@ export default function Builder() {
 
                     {/* Action Buttons */}
                     <View style={s.actionContainer}>
-                        <PrimaryButton 
+                        <PrimaryButton
                             title={
-                                (isEditMode ? updateCardMutation.isPending : createCardMutation.isPending) 
-                                    ? "Saving..." 
+                                (isEditMode ? updateCardMutation.isPending : createCardMutation.isPending)
+                                    ? "Saving..."
                                     : isEditMode ? "Update Card" : "Create Card"
-                            } 
-                            onPress={onSave} 
+                            }
+                            onPress={onSave}
                             disabled={isEditMode ? updateCardMutation.isPending : createCardMutation.isPending}
                         />
-                        
+
                         {isEditMode && (
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={s.deleteBtn}
                                 onPress={onDelete}
                                 disabled={deleteCardMutation.isPending}
@@ -2503,9 +2510,9 @@ const s = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: "#F3F4F6",
     },
-    h1: { 
-        fontSize: 28, 
-        fontWeight: "800", 
+    h1: {
+        fontSize: 28,
+        fontWeight: "800",
         marginBottom: 8,
         color: "#111827",
         textAlign: "center"
@@ -2517,17 +2524,17 @@ const s = StyleSheet.create({
         marginBottom: 24,
         lineHeight: 20,
     },
-    sec: { 
-        fontSize: 16, 
-        fontWeight: "800", 
-        marginTop: 14, 
-        marginBottom: 8, 
-        color: "#111827" 
+    sec: {
+        fontSize: 16,
+        fontWeight: "800",
+        marginTop: 14,
+        marginBottom: 8,
+        color: "#111827"
     },
-    label: { 
-        fontSize: 12, 
-        color: "#6B7280", 
-        marginTop: 8 
+    label: {
+        fontSize: 12,
+        color: "#6B7280",
+        marginTop: 8
     },
     enhancedLabel: {
         fontSize: 14,
@@ -2546,27 +2553,27 @@ const s = StyleSheet.create({
         color: "#DC2626",
         fontWeight: "700",
     },
-    err: { 
-        color: "#DC2626", 
-        fontSize: 12, 
+    err: {
+        color: "#DC2626",
+        fontSize: 12,
         marginTop: 4,
         fontWeight: "500"
     },
-    row: { 
-        flexDirection: "row", 
+    row: {
+        flexDirection: "row",
         marginBottom: 16,
     },
-    cc: { 
+    cc: {
         width: 90,
     },
-    flex1: { 
-        flex: 1 
+    flex1: {
+        flex: 1
     },
-    bred: { 
-        borderColor: "#DC2626", 
-        borderWidth: 1.2 
+    bred: {
+        borderColor: "#DC2626",
+        borderWidth: 1.2
     },
-    
+
     // Enhanced Section Styles
     sectionHeader: {
         flexDirection: "row",
@@ -2625,24 +2632,24 @@ const s = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#E5E7EB",
     },
-    
+
     // Photo Selection Styles
     photoContainer: {
         marginBottom: 16,
     },
-    pickBtn: { 
-        backgroundColor: "#EEF2FF", 
-        paddingVertical: 12, 
+    pickBtn: {
+        backgroundColor: "#EEF2FF",
+        paddingVertical: 12,
         paddingHorizontal: 16,
-        borderRadius: 10, 
+        borderRadius: 10,
         alignItems: "center",
         borderWidth: 1,
         borderColor: "#C7D2FE",
         flexDirection: "row",
         justifyContent: "center",
     },
-    pickTxt: { 
-        color: "#3B82F6", 
+    pickTxt: {
+        color: "#3B82F6",
         fontWeight: "600",
         fontSize: 15,
     },
@@ -2659,8 +2666,8 @@ const s = StyleSheet.create({
         justifyContent: "center",
     },
     photoPreview: {
-        width: "100%", 
-        height: "100%", 
+        width: "100%",
+        height: "100%",
         maxWidth: "100%",
         maxHeight: "100%",
     },
@@ -2699,7 +2706,7 @@ const s = StyleSheet.create({
         // center the icon within the touch area
         alignSelf: 'center',
     },
-    
+
     // Gender Selection Styles
     genderContainer: {
         flexDirection: "row",
@@ -2729,7 +2736,7 @@ const s = StyleSheet.create({
     genderButtonTextSelected: {
         color: "#FFFFFF",
     },
-    
+
     // Action Buttons
     actionContainer: {
         marginTop: 24,
@@ -2751,7 +2758,7 @@ const s = StyleSheet.create({
         fontWeight: "700",
         fontSize: 16,
     },
-    
+
     // Helper text
 
     helperText: {

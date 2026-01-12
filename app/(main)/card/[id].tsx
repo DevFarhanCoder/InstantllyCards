@@ -10,7 +10,7 @@ import BusinessAvatar from "../../../components/BusinessAvatar";
 
 
 export default function CardDetail() {
-  const { id, cardData } = useLocalSearchParams<{ id: string; cardData: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [card, setCard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,8 +18,8 @@ export default function CardDetail() {
   // ⚡ Animated shimmer effect for skeleton
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnimation = useRef<Animated.CompositeAnimation | null>(null);
-  const isUnmounted = useRef(false);
-  const hasInitialized = useRef(false);
+  // const isUnmounted = useRef(false);
+  // const hasInitialized = useRef(false);
 
   // ⚡ OPTIMIZATION: Memoize calculated values - MUST be before any returns (Rules of Hooks)
   const fullPersonal = useMemo(() => {
@@ -83,185 +83,211 @@ export default function CardDetail() {
   }, [loading, shimmerAnim]);
 
   // ⚡ RESET state when navigating to new card (prevents stuck screens)
-  useFocusEffect(
-    useCallback(() => {
-      // Reset tracking flags when screen focuses
-      isUnmounted.current = false;
-      hasInitialized.current = false;
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     // Reset tracking flags when screen focuses
+  //     isUnmounted.current = false;
+  //     hasInitialized.current = false;
       
-      // Cleanup when screen loses focus
-      return () => {
-        isUnmounted.current = true;
-        // Stop any ongoing animations
-        if (shimmerAnimation.current) {
-          shimmerAnimation.current.stop();
-          shimmerAnimation.current = null;
-        }
-      };
-    }, [])
-  );
+  //     // Cleanup when screen loses focus
+  //     return () => {
+  //       isUnmounted.current = true;
+  //       // Stop any ongoing animations
+  //       if (shimmerAnimation.current) {
+  //         shimmerAnimation.current.stop();
+  //         shimmerAnimation.current = null;
+  //       }
+  //     };
+  //   }, [])
+  // );
 
   // ⚡ SMOOTH FLOW: Parse card data asynchronously to avoid UI blocking
-  useEffect(() => {
-    // Prevent re-initialization if already done
-    if (hasInitialized.current) {
-      console.log("⏭️ Skipping re-initialization - already loaded");
-      return;
-    }
+  // useEffect(() => {
+  //   // Prevent re-initialization if already done
+  //   if (hasInitialized.current) {
+  //     console.log("⏭️ Skipping re-initialization - already loaded");
+  //     return;
+  //   }
 
-    const initializeCard = async () => {
-      // Early exit if component unmounted
-      if (isUnmounted.current) return;
+  //   const initializeCard = async () => {
+  //     // Early exit if component unmounted
+  //     if (isUnmounted.current) return;
 
-      try {
-        setLoading(true);
-        setError(null);
+  //     try {
+  //       setLoading(true);
+  //       setError(null);
 
-        if (cardData) {
-          console.log("📄 Parsing cached card data...");
+  //       if (cardData) {
+  //         console.log("📄 Parsing cached card data...");
           
-          // ⚡ Defer parsing to prevent blocking
-          await new Promise(resolve => setTimeout(resolve, 0));
+  //         // ⚡ Defer parsing to prevenzt blocking
+  //         await new Promise(resolve => setTimeout(resolve, 0));
           
-          // Check unmount again before parsing
-          if (isUnmounted.current) return;
+  //         // Check unmount again before parsing
+  //         if (isUnmounted.current) return;
           
-          const parsedCard = JSON.parse(cardData);
+  //         const parsedCard = JSON.parse(cardData);
           
-          // Check unmount before updating state
-          if (isUnmounted.current) return;
+  //         // Check unmount before updating state
+  //         if (isUnmounted.current) return;
           
-          // Small delay for smooth transition
-          await new Promise(resolve => setTimeout(resolve, 50));
+  //         // Small delay for smooth transition
+  //         await new Promise(resolve => setTimeout(resolve, 50));
           
-          if (!isUnmounted.current) {
-            setCard(parsedCard);
-            setLoading(false);
-            hasInitialized.current = true;
-            console.log("✅ Card rendered from cache");
-          }
-          
-          // ⚡ ALWAYS fetch fresh data in background to get updated fields
-          if (id && !isUnmounted.current) {
-            console.log("🔄 Fetching fresh data in background...");
-            await fetchCardById(id);
-          }
-          return;
-        }
+  //         if (!isUnmounted.current) {
+  //           setCard(parsedCard);
+  //           setLoading(false);
+  //           hasInitialized.current = true;
+  //           console.log("✅ Card rendered from cache");
+  //         }
+  //         return;
+  //       }
         
-        // No cached data - fetch from server
-        if (id && !isUnmounted.current) {
-          console.log("🔍 No cache - fetching card:", id);
-          await fetchCardById(id);
-          hasInitialized.current = true;
-        } else {
-          if (!isUnmounted.current) {
-            setError("No card ID provided");
-            setLoading(false);
-          }
-        }
-      } catch (parseError) {
-        console.error("❌ Parse error:", parseError);
-        // Fallback to fetching if parse fails
-        if (id && !isUnmounted.current) {
-          await fetchCardById(id);
-          hasInitialized.current = true;
-        } else {
-          if (!isUnmounted.current) {
-            setError("Invalid card data");
-            setLoading(false);
-          }
-        }
-      }
-    };
+  //       // No cached data - fetch from server
+  //       if (id && !isUnmounted.current) {
+  //         console.log("🔍 No cache - fetching card:", id);
+  //         await fetchCardById(id);
+  //         hasInitialized.current = true;
+  //       } else {
+  //         if (!isUnmounted.current) {
+  //           setError("No card ID provided");
+  //           setLoading(false);
+  //         }
+  //       }
+  //     } catch (parseError) {
+  //       console.error("❌ Parse error:", parseError);
+  //       // Fallback to fetching if parse fails
+  //       if (id && !isUnmounted.current) {
+  //         await fetchCardById(id);
+  //         hasInitialized.current = true;
+  //       } else {
+  //         if (!isUnmounted.current) {
+  //           setError("Invalid card data");
+  //           setLoading(false);
+  //         }
+  //       }
+  //     }
+  //   };
 
-    initializeCard();
+  //   initializeCard();
 
-    // Cleanup function
-    return () => {
-      isUnmounted.current = true;
-    };
-  }, [id, cardData]);
+  //   // Cleanup function
+  //   return () => {
+  //     isUnmounted.current = true;
+  //   };
+  // }, [id, cardData]);
+  useEffect(() => {
+  let cancelled = false;
 
-  const fetchCardById = async (cardId: string) => {
+  const load = async () => {
     try {
-      // Early exit if unmounted
-      if (isUnmounted.current) return;
-
       setLoading(true);
       setError(null);
-      
+
       const token = await ensureAuth();
-      if (!token || isUnmounted.current) {
-        if (!isUnmounted.current) {
-          setError("Authentication required");
-          setLoading(false);
-        }
-        return;
-      }
+      if (!token) throw new Error("Auth required");
 
-      console.log("🔍 Fetching card with ID:", cardId);
-      
-      // ⚡ OPTIMIZATION: Fetch from all sources in PARALLEL instead of sequential
-      const [userCardsResult, publicFeedResult, directCardResult] = await Promise.allSettled([
-        api.get('/cards').catch(() => ({ data: [] })),
-        api.get('/cards/feed/public').catch(() => ({ data: [] })),
-        api.get(`/cards/${cardId}`).catch(() => ({ data: null }))
-      ]);
+      const res = await api.get(`/cards/${id}`);
 
-      // Check if component unmounted during fetch
-      if (isUnmounted.current) return;
-
-      let foundCard = null;
-
-      // Check user's cards first
-      if (userCardsResult.status === 'fulfilled' && userCardsResult.value?.data) {
-        const userCards = userCardsResult.value.data || [];
-        foundCard = userCards.find((c: any) => c._id === cardId);
-        if (foundCard) {
-          console.log("✅ Found in user's cards:", foundCard.companyName || foundCard.name);
-          setCard(foundCard);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Check public feed
-      if (publicFeedResult.status === 'fulfilled' && publicFeedResult.value?.data) {
-        const publicCards = publicFeedResult.value.data || [];
-        foundCard = publicCards.find((c: any) => c._id === cardId);
-        if (foundCard) {
-          console.log("✅ Found in public feed:", foundCard.companyName || foundCard.name);
-          setCard(foundCard);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Check direct endpoint
-      if (directCardResult.status === 'fulfilled' && directCardResult.value?.data) {
-        foundCard = directCardResult.value.data;
-        if (foundCard && foundCard._id === cardId) {
-          console.log("✅ Found via direct endpoint:", foundCard.companyName || foundCard.name);
-          setCard(foundCard);
-          setLoading(false);
-          return;
-        }
-      }
-
-      console.log("❌ Card not found in any source");
-      if (!isUnmounted.current) {
-        setError("Card not found or no access");
+      if (!cancelled) {
+        setCard(res.data?.data ?? res.data);
         setLoading(false);
       }
-    } catch (error) {
-      console.error("❌ Error fetching card:", error);
-      if (!isUnmounted.current) {
+    } catch (e) {
+      if (!cancelled) {
         setError("Failed to load card");
         setLoading(false);
       }
     }
   };
+
+  if (id) load();
+
+  return () => {
+    cancelled = true;
+  };
+}, [id]);
+
+
+  // const fetchCardById = async (cardId: string) => {
+  //   try {
+  //     // Early exit if unmounted
+  //     if (isUnmounted.current) return;
+
+  //     setLoading(true);
+  //     setError(null);
+      
+  //     const token = await ensureAuth();
+  //     if (!token || isUnmounted.current) {
+  //       if (!isUnmounted.current) {
+  //         setError("Authentication required");
+  //         setLoading(false);
+  //       }
+  //       return;
+  //     }
+
+  //     console.log("🔍 Fetching card with ID:", cardId);
+      
+  //     // ⚡ OPTIMIZATION: Fetch from all sources in PARALLEL instead of sequential
+  //     const [userCardsResult, publicFeedResult, directCardResult] = await Promise.allSettled([
+  //       api.get('/cards').catch(() => ({ data: [] })),
+  //       api.get('/cards/feed/public').catch(() => ({ data: [] })),
+  //       api.get(`/cards/${cardId}`).catch(() => ({ data: null }))
+  //     ]);
+
+  //     // Check if component unmounted during fetch
+  //     if (isUnmounted.current) return;
+
+  //     let foundCard = null;
+
+  //     // Check user's cards first
+  //     if (userCardsResult.status === 'fulfilled' && userCardsResult.value?.data) {
+  //       const userCards = userCardsResult.value.data || [];
+  //       foundCard = userCards.find((c: any) => c._id === cardId);
+  //       if (foundCard) {
+  //         console.log("✅ Found in user's cards:", foundCard.companyName || foundCard.name);
+  //         setCard(foundCard);
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     }
+
+  //     // Check public feed
+  //     if (publicFeedResult.status === 'fulfilled' && publicFeedResult.value?.data) {
+  //       const publicCards = publicFeedResult.value.data || [];
+  //       foundCard = publicCards.find((c: any) => c._id === cardId);
+  //       if (foundCard) {
+  //         console.log("✅ Found in public feed:", foundCard.companyName || foundCard.name);
+  //         setCard(foundCard);
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     }
+
+  //     // Check direct endpoint
+  //     if (directCardResult.status === 'fulfilled' && directCardResult.value?.data) {
+  //       foundCard = directCardResult.value.data;
+  //       if (foundCard && foundCard._id === cardId) {
+  //         console.log("✅ Found via direct endpoint:", foundCard.companyName || foundCard.name);
+  //         setCard(foundCard);
+  //         setLoading(false);
+  //         return;
+  //       }
+  //     }
+
+  //     console.log("❌ Card not found in any source");
+  //     if (!isUnmounted.current) {
+  //       setError("Card not found or no access");
+  //       setLoading(false);
+  //     }
+  //   } catch (error) {
+  //     console.error("❌ Error fetching card:", error);
+  //     if (!isUnmounted.current) {
+  //       setError("Failed to load card");
+  //       setLoading(false);
+  //     }
+  //   }
+  // };
 
   const handleCall = (phone: string) => {
     if (phone) {

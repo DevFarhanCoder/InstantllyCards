@@ -78,20 +78,49 @@ export default function Login() {
     let mounted = true;
     (async () => {
       try {
+        // Check if password was just reset
+        const justReset = await AsyncStorage.getItem('password_just_reset');
+        if (justReset === 'true') {
+          console.log('🔄 [LOGIN] Password just reset - clearing all cached state');
+          // Clear the flag
+          await AsyncStorage.removeItem('password_just_reset');
+          // Reset all login state
+          setPassword('');
+          setPasswordError('');
+          setForgotPhoneError('');
+          // Clear query cache to prevent stale API responses
+          queryClient.clear();
+        }
+        
         const stored = await AsyncStorage.getItem('login_prefill_phone');
         if (!mounted || !stored) return;
+        
+        console.log('[LOGIN-PREFILL] Stored phone:', stored);
+        
         // Parse stored phone into country code and local 10-digit number
         const raw = stored.toString().trim();
         const digits = raw.replace(/\D/g, '');
+        
+        console.log('[LOGIN-PREFILL] All digits:', digits);
+        console.log('[LOGIN-PREFILL] Digits length:', digits.length);
+        
         if (raw.startsWith('+')) {
-          const m = raw.match(/^\+(\d{1,3})/);
-          const cc = m ? `+${m[1]}` : '+91';
+          // Extract last 10 digits as local number, rest is country code
           const local = digits.slice(-10);
+          const countryDigits = digits.slice(0, -10);
+          const cc = countryDigits ? `+${countryDigits}` : '+91';
+          
+          console.log('[LOGIN-PREFILL] Extracted country code:', cc);
+          console.log('[LOGIN-PREFILL] Extracted local number:', local);
+          console.log('[LOGIN-PREFILL] Local length:', local.length);
+          
           setCountryCode(cc);
           setPhoneNumber(local);
         } else {
-          // assume India local number if no plus
+          // No + prefix, assume India local number
+          const digits = raw.replace(/\D/g, '');
           const local = digits.slice(-10);
+          console.log('[LOGIN-PREFILL] No + prefix, using local:', local);
           setCountryCode('+91');
           setPhoneNumber(local);
         }
@@ -116,6 +145,12 @@ export default function Login() {
       // Remove any non-digit characters from the phone number and combine with country code
       const cleanPhone = phoneT.replace(/\D/g, "");
       const fullPhone = `${countryCode}${cleanPhone}`;
+
+      console.log('[LOGIN-SUBMIT] Country code:', countryCode);
+      console.log('[LOGIN-SUBMIT] Phone number field:', phoneT);
+      console.log('[LOGIN-SUBMIT] Clean phone:', cleanPhone);
+      console.log('[LOGIN-SUBMIT] Full phone:', fullPhone);
+      console.log('[LOGIN-SUBMIT] Full phone length:', fullPhone.length);
 
       // Require exactly 10 digits (local format) like signup
       if (cleanPhone.length !== 10) {

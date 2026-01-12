@@ -157,11 +157,11 @@ export default function TrackStatusPage() {
                   <View style={styles.dateContainer}>
                     <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
                     <Text style={styles.dateText}>
-                      {new Date(referral.createdAt).toLocaleDateString('en-US', {
+                      {referral.createdAt && referral.createdAt !== 'Invalid Date' ? new Date(referral.createdAt).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric'
-                      })}
+                      }) : 'Recently'}
                     </Text>
                   </View>
                   

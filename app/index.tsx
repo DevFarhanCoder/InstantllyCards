@@ -38,16 +38,53 @@
 //   logo:   { width: 300, height: 110 },
 // });
 
-import PermissionsGate from "./PermissionsGate";
+import { useEffect } from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Index() {
-  return <PermissionsGate />;
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        console.log('🔍 [INDEX] Checking authentication...');
+        const token = await AsyncStorage.getItem("token");
+        
+        // Small delay for smooth transition
+        setTimeout(() => {
+          if (token) {
+            console.log('✅ [INDEX] Token found - navigating to home');
+            router.replace("/(tabs)/home");
+          } else {
+            console.log('⚠️ [INDEX] No token - navigating to signup');
+            router.replace("/(auth)/signup");
+          }
+        }, 500);
+      } catch (error) {
+        console.error('❌ [INDEX] Error checking auth:', error);
+        // On error, go to signup
+        router.replace("/(auth)/signup");
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color="#007aff" />
+    </View>
+  );
 }
 
-
-// app/Splash.tsx
-
-// app/Splash.tsx
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF'
+  }
+});
 // import { useEffect, useRef, useState } from "react";
 // import { View, StyleSheet, Animated } from "react-native";
 // import { router, useFocusEffect } from "expo-router";

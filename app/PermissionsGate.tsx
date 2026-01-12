@@ -109,24 +109,29 @@ export default function PermissionsGate() {
         else router.replace("/(auth)/signup");
     }
 
-    // useEffect(() => {
-    //     checkContacts();
-    //     checkNotifications();
-    // }, []);
     useEffect(() => {
+        let mounted = true;
+        
         (async () => {
-
             await checkContacts();
             await checkNotifications();
 
             const c = await Contacts.getPermissionsAsync();
             const n = await Notifications.getPermissionsAsync();
 
+            // Auto-enter app after 5 seconds if user doesn't grant permissions
+            const autoEnterTimeout = setTimeout(() => {
+                console.log('⏰ [PERMISSIONS-GATE] Auto-entering app after timeout');
+                enterApp();
+            }, 5000);
+
             if (c.status === "granted" && n.status === "granted") {
+                clearTimeout(autoEnterTimeout);
                 enterApp();
             }
-
         })();
+        
+        return () => { mounted = false; };
     }, []);
 
 

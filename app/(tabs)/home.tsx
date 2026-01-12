@@ -24,7 +24,7 @@ const handleAdClick = () => {
 };
 
 export default function Home() {
-  console.log("🏠 HOME: Component rendering...");
+  // console.log("🏠 HOME: Component rendering...");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [userName, setUserName] = React.useState<string>("");
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
@@ -43,10 +43,10 @@ export default function Home() {
         let userId = await AsyncStorage.getItem("currentUserId");
         if (userId) {
           setCurrentUserId(userId);
-          console.log("🔍 Home: Current user ID loaded from storage:", userId);
+          // console.log("🔍 Home: Current user ID loaded from storage:", userId);
         } else {
           // Fallback: Fetch from profile API if not in storage
-          console.log("⚠️ Home: No user ID in storage, fetching from profile API...");
+          // console.log("⚠️ Home: No user ID in storage, fetching from profile API...");
           try {
             const token = await AsyncStorage.getItem("token");
             if (token) {
@@ -63,7 +63,7 @@ export default function Home() {
                   userId = profileData._id.toString();
                   await AsyncStorage.setItem("currentUserId", userId);
                   setCurrentUserId(userId);
-                  console.log("✅ Home: User ID fetched from profile and stored:", userId);
+                  // console.log("✅ Home: User ID fetched from profile and stored:", userId);
                 }
               }
             }
@@ -85,7 +85,7 @@ export default function Home() {
       const token = await AsyncStorage.getItem("token");
       if (token) {
         const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
-        console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
+        // console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
         
         const response = await fetch(`${apiBase}/api/credits/balance`, {
           headers: {
@@ -94,13 +94,13 @@ export default function Home() {
           },
         });
         
-        console.log("💰 Home: Credits response status:", response.status);
+        // console.log("💰 Home: Credits response status:", response.status);
         
         if (response.ok) {
           const data = await response.json();
-          console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
+          // console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
           setUserCredits(data.credits || 0);
-          console.log("✅ Home: Credits set to:", data.credits || 0);
+          // console.log("✅ Home: Credits set to:", data.credits || 0);
         } else {
           const errorText = await response.text();
           console.error("❌ Home: Credits fetch failed:", response.status, errorText);
@@ -122,7 +122,7 @@ export default function Home() {
   // Refetch credits when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log("🔄 Home: Screen focused, refreshing credits...");
+      // console.log("🔄 Home: Screen focused, refreshing credits...");
       fetchCredits();
     }, [fetchCredits])
   );
@@ -132,18 +132,18 @@ export default function Home() {
     queryKey: ["contacts-feed", currentUserId], // CRITICAL: Include userId to prevent data leakage
     enabled: !!currentUserId, // Only fetch when user ID is available
     queryFn: async () => {
-      console.log("📱 Home: Fetching contacts feed...");
+      // console.log("📱 Home: Fetching contacts feed...");
       try {
         const token = await AsyncStorage.getItem("token");
         if (!token) {
-          console.log("❌ Home: No auth token found");
+          // console.log("❌ Home: No auth token found");
           return [];
         }
 
         // AWS Cloud primary, Render backup handled by api.ts
         const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
         const url = `${apiBase}/api/cards/feed/contacts`;
-        console.log("🔍 Home: Fetching from URL:", url);
+        // console.log("🔍 Home: Fetching from URL:", url);
         
         const response = await fetch(url, {
           method: 'GET',
@@ -158,10 +158,10 @@ export default function Home() {
         }
         
         const result = await response.json();
-        console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
-        console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
-        console.log("📇 Home: Cards count:", result.meta?.totalCards);
-        console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
+        // console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
+        // console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
+        // console.log("📇 Home: Cards count:", result.meta?.totalCards);
+        // console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
         
         return result.data || [];
       } catch (error) {
@@ -178,7 +178,7 @@ export default function Home() {
 
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
-    console.log("🔄 Manual refresh triggered");
+    // console.log("🔄 Manual refresh triggered");
     fetchCredits(); // Also refresh credits
     queryClient.invalidateQueries({ queryKey: ["contacts-feed", currentUserId] });
   }, [queryClient, currentUserId, fetchCredits]);
@@ -187,8 +187,8 @@ export default function Home() {
   const filteredCards = React.useMemo(() => {
     let cards = feedQ.data || [];
     
-    console.log("🔍 Home Filter - Starting with cards:", cards.length);
-    console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
+    // console.log("🔍 Home Filter - Starting with cards:", cards.length);
+    // console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
     
     // CRITICAL: Filter out user's own cards (extra safety on client side)
     if (currentUserId) {
@@ -197,14 +197,14 @@ export default function Home() {
         const cardUserId = (card.userId || card.owner || "").toString();
         const isOwnCard = cardUserId === currentUserId;
         
-        console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
+        // console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
         
         if (isOwnCard) {
-          console.log("🚫 Home: Filtering out user's own card:", card.name);
+          // console.log("🚫 Home: Filtering out user's own card:", card.name);
         }
         return !isOwnCard;
       });
-      console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
+      // console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
     } else {
       console.warn("⚠️ Home Filter - No currentUserId set, cannot filter own cards!");
     }
@@ -213,7 +213,7 @@ export default function Home() {
     const uniqueCards = Array.from(
       new Map(cards.map((card: any) => [card._id, card])).values()
     );
-    console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
+    // console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
     
     // Apply search filter
     if (!searchQuery.trim()) return uniqueCards;
@@ -232,15 +232,15 @@ export default function Home() {
     });
   }, [feedQ.data, searchQuery, currentUserId]);
 
-  console.log("🎯 Home: Query state:", { 
-    isLoading: feedQ.isLoading, 
-    isRefetching: feedQ.isRefetching,
-    isError: feedQ.isError, 
-    dataLength: feedQ.data?.length,
-    filteredLength: filteredCards?.length 
-  });
+  // console.log("🎯 Home: Query state:", { 
+  //   isLoading: feedQ.isLoading, 
+  //   isRefetching: feedQ.isRefetching,
+  //   isError: feedQ.isError, 
+  //   dataLength: feedQ.data?.length,
+  //   filteredLength: filteredCards?.length 
+  // });
 
-  console.log("🎨 HOME: About to render SafeAreaView");
+  // console.log("🎨 HOME: About to render SafeAreaView");
 
   return (
     <SafeAreaView style={s.root}>

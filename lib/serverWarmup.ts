@@ -40,8 +40,16 @@ class ServerWarmup {
 
       console.log('🌐 Pinging server health via API client...');
 
+      // Add 8-second timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Server warmup timeout after 8s')), 8000);
+      });
+
       // Use the centralized api client so we don't hard-code hosts here
-      const res = await api.get('/health');
+      const res = await Promise.race([
+        api.get('/health'),
+        timeoutPromise
+      ]);
       const duration = Date.now() - startTime;
 
       console.log(`✅ Server warmed up successfully in ${duration}ms (${(duration/1000).toFixed(1)}s)`);

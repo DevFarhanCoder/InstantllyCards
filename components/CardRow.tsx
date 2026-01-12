@@ -60,7 +60,7 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
             // Navigate immediately with card data - skeleton will show while rendering
             router.push({
                 pathname: "/(main)/card/[id]",
-                params: { id: c._id, cardData: JSON.stringify(c) }
+                params: { id: c._id}
             });
         }
     };

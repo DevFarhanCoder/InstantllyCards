@@ -1,7 +1,7 @@
 {
   "name": "instantllycards",
   "main": "expo-router/entry",
-  "version": "1.0.42",
+  "version": "1.0.60",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -10,8 +10,9 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@babel/helper-define-polyfill-provider": "^0.6.5",
     "@expo/metro-runtime": "~6.1.2",
-    "@expo/vector-icons": "^15.0.2",
+    "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "^8.4.4",
     "@react-native-firebase/app": "^21.14.0",
@@ -23,7 +24,10 @@
     "expo": "^54.0.23",
     "expo-application": "^7.0.8",
     "expo-asset": "~12.0.12",
+<<<<<<< HEAD
     "expo-av": "~16.0.8",
+=======
+>>>>>>> f5a9f63dfbc709b155c07525d10e76a2a9006421
     "expo-build-properties": "~1.0.9",
     "expo-constants": "~18.0.8",
     "expo-contacts": "~15.0.9",
@@ -50,14 +54,13 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
-    "react-native-google-play-install-referrer": "^1.0.0",
     "react-native-pager-view": "^6.9.1",
     "react-native-picker-select": "^9.3.1",
     "react-native-qrcode-svg": "^6.3.15",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-share": "^12.2.1",
+    "react-native-share": "^12.2.2",
     "react-native-sms-retriever": "^1.1.1",
     "react-native-svg": "15.12.1",
     "react-native-tab-view": "^4.2.0",
@@ -65,7 +68,7 @@
     "react-native-webview": "13.15.0",
     "react-native-worklets": "0.5.1",
     "socket.io-client": "^4.8.1",
-    "zod": "^4.1.8",
+    "zod": "^3.24.1",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
@@ -76,5 +79,20 @@
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "description": "",
+  "directories": {
+    "lib": "lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DevFarhanCoder/InstantllyCards.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DevFarhanCoder/InstantllyCards/issues"
+  },
+  "homepage": "https://github.com/DevFarhanCoder/InstantllyCards#readme"
 }

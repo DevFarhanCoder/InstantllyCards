@@ -280,6 +280,19 @@ export default function CreditsHistoryPage() {
           </View>
           
           <View style={styles.breakdownGrid}>
+            {/* Earnings Section */}
+            <View style={styles.breakdownSection}>
+              <Text style={styles.breakdownSectionTitle}>Earnings</Text>
+              <View style={styles.breakdownCards}>
+                <BreakdownCard
+                  title="Transfer Received"
+                  amount={breakdown.transferReceived}
+                  icon="arrow-down-circle"
+                  color="#10B981"
+                />
+              </View>
+            </View>
+            
             {/* Spending Section */}
             <View style={styles.breakdownSection}>
               <Text style={styles.breakdownSectionTitle}>Spending</Text>
@@ -331,7 +344,9 @@ export default function CreditsHistoryPage() {
             </View>
           ) : (
             <View style={styles.transactionContainer}>
-              {(showAllTransactions ? transactions : transactions.slice(0, 5)).map((txn, index) => {
+              {(showAllTransactions ? transactions : transactions.slice(0, 5))
+                .filter(txn => txn.type !== 'signup_bonus')
+                .map((txn, index) => {
                 const displayedTransactions = showAllTransactions ? transactions : transactions.slice(0, 5);
                 const isLastItem = index === displayedTransactions.length - 1;
                 return (
