@@ -21,6 +21,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../lib/api';
+import { formatIndianNumber } from '../utils/formatNumber';
 
 const { width, height } = Dimensions.get('window');
 
@@ -160,8 +161,6 @@ export default function TransferToUserScreen() {
       setAmountError('Minimum transfer amount is 10 credits');
     } else if (amountNum > balance) {
       setAmountError('Amount exceeds available balance');
-    } else if (amountNum > 10000) {
-      setAmountError('Maximum transfer is 10,000 credits');
     } else {
       setAmountError('');
     }
@@ -368,7 +367,7 @@ export default function TransferToUserScreen() {
                 {loadingBalance ? (
                   <ActivityIndicator size="small" color={COLORS_THEME.primary} />
                 ) : (
-                  <Text style={styles.balanceValue}>{balance.toLocaleString()} credits</Text>
+                  <Text style={styles.balanceValue}>{formatIndianNumber(balance)} credits</Text>
                 )}
               </View>
 
@@ -419,7 +418,7 @@ export default function TransferToUserScreen() {
               {/* Limits Info */}
               <View style={styles.limitsRow}>
                 <Text style={styles.limitsText}>
-                  Min: 10 • Max: {Math.min(10000, balance).toLocaleString()}
+                  Min: 10 credits
                 </Text>
               </View>
 
@@ -472,13 +471,13 @@ export default function TransferToUserScreen() {
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Transfer Amount</Text>
-                  <Text style={styles.summaryValue}>{parseInt(amount).toLocaleString()} credits</Text>
+                  <Text style={styles.summaryValue}>{formatIndianNumber(parseInt(amount))} credits</Text>
                 </View>
                 <View style={styles.summaryDivider} />
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabelTotal}>Balance After Transfer</Text>
                   <Text style={styles.summaryValueTotal}>
-                    {(balance - parseInt(amount)).toLocaleString()} credits
+                    {formatIndianNumber(balance - parseInt(amount))} credits
                   </Text>
                 </View>
               </View>
@@ -506,7 +505,7 @@ export default function TransferToUserScreen() {
             <Ionicons name="paper-plane" size={20} color="#FFFFFF" />
             <Text style={styles.sendButtonText}>
               {amount && parseInt(amount) >= 10 
-                ? `Send ${parseInt(amount).toLocaleString()} Credits`
+                ? `Send ${formatIndianNumber(parseInt(amount))} Credits`
                 : 'Enter Amount'}
             </Text>
           </LinearGradient>
@@ -541,7 +540,7 @@ export default function TransferToUserScreen() {
               <View style={styles.confirmItem}>
                 <Text style={styles.confirmLabel}>Amount</Text>
                 <Text style={styles.confirmValueHighlight}>
-                  {amount ? parseInt(amount).toLocaleString() : '0'} credits
+                  {amount ? formatIndianNumber(parseInt(amount)) : '0'} credits
                 </Text>
               </View>
               
@@ -604,7 +603,7 @@ export default function TransferToUserScreen() {
             
             <Text style={styles.successTitle}>Transfer Successful!</Text>
             <Text style={styles.successAmount}>
-              {transaction?.amount.toLocaleString()} credits sent
+              {formatIndianNumber(transaction?.amount || 0)} credits sent
             </Text>
             <Text style={styles.successRecipient}>to {selectedUser.name}</Text>
             
@@ -619,7 +618,7 @@ export default function TransferToUserScreen() {
               </View>
               <View style={styles.transactionItem}>
                 <Text style={styles.transactionLabel}>New Balance</Text>
-                <Text style={styles.transactionValueBold}>{balance.toLocaleString()} credits</Text>
+                <Text style={styles.transactionValueBold}>{formatIndianNumber(balance)} credits</Text>
               </View>
             </View>
 

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import api from '@/lib/api';
+import { formatIndianNumber } from '@/utils/formatNumber';
 
 const { width } = Dimensions.get('window');
 
@@ -167,7 +168,7 @@ export default function CreditsHistoryPage() {
         <View style={styles.breakdownInfo}>
           <Text style={styles.breakdownTitle}>{title}</Text>
           <Text style={[styles.breakdownAmount, { color }]}>
-            {amount > 0 ? '+' : ''}{amount.toLocaleString()}
+            {amount > 0 ? '+' : ''}{formatIndianNumber(amount)}
           </Text>
         </View>
       </View>
@@ -237,7 +238,7 @@ export default function CreditsHistoryPage() {
               <View style={styles.currencyBadge}>
                 <Ionicons name="sparkles" size={20} color="#FFD700" />
               </View>
-              <Text style={styles.totalCreditsAmount}>{totalCredits.toLocaleString()}</Text>
+              <Text style={styles.totalCreditsAmount}>{formatIndianNumber(totalCredits)}</Text>
             </View>
             <View style={styles.creditsUnitContainer}>
               <Text style={styles.totalCreditsUnit}>Credits Available</Text>
@@ -375,7 +376,7 @@ export default function CreditsHistoryPage() {
                         styles.transactionAmount,
                         { color: getTransactionColor(txn.type) }
                       ]}>
-                        {txn.amount > 0 ? '+' : ''}{txn.amount.toLocaleString()}
+                        {txn.amount > 0 ? '+' : ''}{formatIndianNumber(txn.amount)}
                       </Text>
                     </View>
                   </View>

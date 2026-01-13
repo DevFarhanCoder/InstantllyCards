@@ -24,10 +24,7 @@
     "expo": "^54.0.23",
     "expo-application": "^7.0.8",
     "expo-asset": "~12.0.12",
-<<<<<<< HEAD
     "expo-av": "~16.0.8",
-=======
->>>>>>> f5a9f63dfbc709b155c07525d10e76a2a9006421
     "expo-build-properties": "~1.0.9",
     "expo-constants": "~18.0.8",
     "expo-contacts": "~15.0.9",

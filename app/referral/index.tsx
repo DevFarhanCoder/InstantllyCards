@@ -12,15 +12,24 @@ import {
   Platform,
   Clipboard,
   Image,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import RNShare from 'react-native-share';
+// Dynamically import react-native-share to prevent crash when native module isn't available
+let RNShare: any = null;
+try {
+  RNShare = require('react-native-share').default;
+} catch (error) {
+  console.log('react-native-share not available, using fallback Share');
+}
+// Import legacy FileSystem APIs
 import { copyAsync, cacheDirectory } from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import api from '@/lib/api';
+import { formatIndianNumber } from '@/utils/formatNumber';
 
 interface ReferralStats {
   referralCode: string;
@@ -46,10 +55,7 @@ export default function ReferralPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<'hindi' | 'english' | null>(null);
-
-  useEffect(() => {
-    loadReferralData();
-  }, []);
+  const [componentError, setComponentError] = useState<string | null>(null);
 
   const loadReferralData = async (isRefreshing = false) => {
     try {
@@ -65,31 +71,70 @@ export default function ReferralPage() {
         api.get('/credits/balance')
       ]);
       
+      // Extract values from settled promises
+      const statsResponse = statsResult.status === 'fulfilled' ? statsResult.value : null;
+      const configResponse = configResult.status === 'fulfilled' ? configResult.value : null;
+      const creditsResponse = creditsResult.status === 'fulfilled' ? creditsResult.value : null;
+      
       console.log('📊 Referral Stats Response:', JSON.stringify(statsResponse, null, 2));
       console.log('🔑 Referral Code:', statsResponse?.referralCode);
       console.log('🔍 Full stats object:', statsResponse);
       
-      setStats(statsResponse);
-      setConfig(configResponse.config);
-      setUserCredits(creditsResponse.credits || 0);
+      if (statsResponse) {
+        setStats(statsResponse);
+      }
+      if (configResponse?.config) {
+        setConfig(configResponse.config);
+      }
+      if (creditsResponse) {
+        setUserCredits(creditsResponse.credits || 0);
+      }
       
       // Force a re-render check
       console.log('✅ State updated - referralCode should be:', statsResponse?.referralCode);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading referral data:', error);
-      Alert.alert(
-        'Error', 
-        'Failed to load referral information. Please check your connection and try again.',
-        [
-          { text: 'Retry', onPress: () => loadReferralData(false) },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
+      setComponentError(error?.message || 'Failed to load referral data');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    loadReferralData();
+  }, []);
+
+  // Error screen
+  if (componentError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Referral Program</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Text style={{ color: '#EF4444', marginTop: 16, textAlign: 'center' }}>
+            {componentError}
+          </Text>
+          <TouchableOpacity 
+            onPress={() => {
+              setComponentError(null);
+              setLoading(true);
+              loadReferralData();
+            }}
+            style={{ marginTop: 16, padding: 12, backgroundColor: '#8B5CF6', borderRadius: 8 }}
+          >
+            <Text style={{ color: '#fff' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -185,7 +230,16 @@ export default function ReferralPage() {
         subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
       };
 
-      await RNShare.open(shareOptions);
+      // Use RNShare if available, otherwise fall back to native Share
+      if (RNShare) {
+        await RNShare.open(shareOptions);
+      } else {
+        // Fallback to React Native's built-in Share (text only)
+        await Share.share({
+          message: message,
+          title: shareOptions.subject,
+        });
+      }
 
     } catch (error: any) {
       if (error?.message !== 'User did not share') {
@@ -265,7 +319,7 @@ export default function ReferralPage() {
                 <Ionicons name="sparkles" size={16} color="#059669" />
                 <Text style={styles.creditsLabel}>Available Balance Credit</Text>
               </View>
-              <Text style={styles.creditsAmount}>{String(userCredits || 0)}</Text>
+              <Text style={styles.creditsAmount}>{formatIndianNumber(userCredits || 0)}</Text>
               <Text style={styles.creditsUnit}>Ready to use</Text>
             </View>
             <View style={styles.creditsIconCircle}>
@@ -291,20 +345,24 @@ export default function ReferralPage() {
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
+          <TouchableOpacity 
+            style={styles.statCard}
+            onPress={() => router.push('/referral/track-status' as any)}
+            activeOpacity={0.7}
+          >
             <View style={[styles.statIconContainer, { backgroundColor: '#EDE9FE' }]}>
               <Ionicons name="people" size={26} color="#8B5CF6" />
             </View>
-            <Text style={styles.statValue}>{stats?.totalReferrals || 0}</Text>
+            <Text style={styles.statValue}>{formatIndianNumber(stats?.totalReferrals || 0)}</Text>
             <Text style={styles.statLabel}>Successful</Text>
             <Text style={styles.statLabel}>Referrals</Text>
-          </View>
+          </TouchableOpacity>
           
           <View style={styles.statCard}>
             <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
               <Ionicons name="gift" size={26} color="#F59E0B" />
             </View>
-            <Text style={styles.statValue}>{stats?.totalCreditsEarned || 0}</Text>
+            <Text style={styles.statValue}>{formatIndianNumber(stats?.totalCreditsEarned || 0)}</Text>
             <Text style={styles.statLabel}>Credits</Text>
             <Text style={styles.statLabel}>Earned</Text>
           </View>
@@ -315,17 +373,15 @@ export default function ReferralPage() {
           <Text style={styles.referralLinkTitle}>Your Unique Code</Text>
           <Text style={styles.referralLinkSubtitle}>Share with friends to earn rewards</Text>
           
-          <View style={styles.codeBox}>
+          <TouchableOpacity style={styles.codeBox} onPress={handleCopyLink} activeOpacity={0.7}>
             <View style={styles.codeSection}>
               <Text style={styles.codeLabel}>REFERRAL CODE</Text>
               <Text style={styles.codeText}>
                 {stats?.referralCode ? stats.referralCode : 'Loading...'}
               </Text>
-              <Text style={styles.linkText}>
-                instantllycards.com/signup?ref={stats?.referralCode || 'Loading'}
-              </Text>
+              <Text style={styles.tapToCopyText}>Tap to copy link</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.shareButtonMain} onPress={handleShare}>
             <Ionicons name="share-social" size={20} color="#FFFFFF" />
@@ -715,6 +771,12 @@ const styles = StyleSheet.create({
     color: '#8B5CF6',
     fontWeight: '500',
     flex: 1,
+  },
+  tapToCopyText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '400',
+    marginTop: 4,
   },
   copyIconButton: {
     alignItems: 'center',

@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getCurrentUserId, getCurrentUserPhone, getCurrentUserName } from '../../../lib/useUser';
+import { formatIndianNumber } from '../../../utils/formatNumber';
 
 const { width } = Dimensions.get("window");
 const API_BASE_URL = `${process.env.EXPO_PUBLIC_API_BASE}${process.env.EXPO_PUBLIC_API_PREFIX}`;
@@ -365,7 +366,7 @@ export default function AdsWithoutChannel() {
       if (response.ok) {
         Alert.alert(
           '✅ Ad Submitted Successfully!',
-          `💳 1020 credits deducted\n📊 Remaining credits: ${data.remainingCredits?.toLocaleString() || 'N/A'}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
+          `💳 1020 credits deducted\n📊 Remaining credits: ${data.remainingCredits ? formatIndianNumber(data.remainingCredits) : 'N/A'}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
           [{ text: 'OK', onPress: () => {
             // Reset form
             setTitle('');
@@ -485,7 +486,7 @@ export default function AdsWithoutChannel() {
             {creditsLoading ? (
               <ActivityIndicator size="small" color="#15803d" />
             ) : (
-              <Text style={styles.creditsValue}>{userCredits.toLocaleString()}</Text>
+              <Text style={styles.creditsValue}>{formatIndianNumber(userCredits)}</Text>
             )}
           </View>
 

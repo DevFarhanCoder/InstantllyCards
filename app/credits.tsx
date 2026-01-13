@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { scaleFontSize, scaleSize, moderateScale } from "@/lib/responsive";
 import api from "@/lib/api";
+import { formatIndianNumber } from "@/utils/formatNumber";
 
 export default function Credits() {
   const [loading, setLoading] = useState(true);
@@ -55,7 +56,7 @@ export default function Credits() {
         
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Available Credits</Text>
-          <Text style={styles.creditAmount}>{credits}</Text>
+          <Text style={styles.creditAmount}>{formatIndianNumber(credits)}</Text>
           <Text style={styles.cardSubtitle}>credits remaining</Text>
         </View>
 

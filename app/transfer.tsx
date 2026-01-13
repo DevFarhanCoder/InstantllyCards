@@ -74,7 +74,6 @@ export default function Transfer() {
           <Text style={styles.infoText}>
             • Transfers are instant and cannot be reversed{'\n'}
             • Minimum transfer: 10 credits{'\n'}
-            • Maximum transfer: 10,000 credits{'\n'}
             • Verify recipient phone number before transfer
           </Text>
         </View>

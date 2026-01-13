@@ -17,6 +17,7 @@ import { router } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../lib/api';
+import { formatIndianNumber } from '../utils/formatNumber';
 
 const { width, height } = Dimensions.get('window');
 
@@ -260,7 +261,7 @@ export default function TransferCreditsScreen() {
                 <ActivityIndicator size="large" color={COLORS_THEME.primary} />
               ) : (
                 <>
-                  <Text style={styles.balanceAmount}>{balance.toLocaleString()}</Text>
+                  <Text style={styles.balanceAmount}>{formatIndianNumber(balance)}</Text>
                   <Text style={styles.balanceCurrency}>Credits</Text>
                 </>
               )}

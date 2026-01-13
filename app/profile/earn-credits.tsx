@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../lib/theme';
 import api from '../../lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatIndianNumber } from '../../utils/formatNumber';
 
 const { width } = Dimensions.get('window');
 
@@ -593,7 +594,7 @@ export default function EarnCreditsScreen() {
 
           <View style={[styles.creditsDisplay, { backgroundColor: '#673AB7' }]}>
             <Ionicons name="gift" size={18} color="#fff" />
-            <Text style={styles.creditsText}>{userProgress.totalEarned}</Text>
+            <Text style={styles.creditsText}>{formatIndianNumber(userProgress.totalEarned)}</Text>
           </View>
         </View>
 

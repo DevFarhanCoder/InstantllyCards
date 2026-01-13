@@ -11,6 +11,8 @@ import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
 import ReferralBanner from "../../components/ReferralBanner";
 import CategoryGrid from "../../components/CategoryGrid";
+import { FEATURE_FLAGS } from "../../lib/featureFlags";
+import { formatIndianNumber } from "../../utils/formatNumber";
 
 
 
@@ -275,7 +277,7 @@ export default function Home() {
               {creditsLoading ? (
                 <ActivityIndicator size="small" color="#F59E0B" />
               ) : (
-                <Text style={s.creditsCount}>{userCredits.toLocaleString()}</Text>
+                <Text style={s.creditsCount}>{formatIndianNumber(userCredits)}</Text>
               )}
             </View>
           </TouchableOpacity>
@@ -323,20 +325,24 @@ export default function Home() {
             <>
               <ReferralBanner />
               {/* Categories Header with Arrow and Promote Button - Same Line */}
-              <View style={s.categoriesHeaderRow}>
-                <View style={s.categoriesWithArrow}>
-                  <Text style={s.categoriesHeaderText}>Categories</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#EF4444" style={s.categoriesArrow} />
+              {FEATURE_FLAGS.SHOW_CATEGORIES && (
+                <View style={s.categoriesHeaderRow}>
+                  <View style={s.categoriesWithArrow}>
+                    <Text style={s.categoriesHeaderText}>Categories</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#EF4444" style={s.categoriesArrow} />
+                  </View>
+                  {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS && (
+                    <TouchableOpacity
+                      style={s.promoteBusinessButton}
+                      onPress={() => router.push('/business-promotion')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={s.promoteButtonText}>Promote Business</Text>      
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <TouchableOpacity
-                  style={s.promoteBusinessButton}
-                  onPress={() => router.push('/business-promotion')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.promoteButtonText}>Promote Business</Text>      
-                </TouchableOpacity>
-              </View>
-              <CategoryGrid />
+              )}
+              {FEATURE_FLAGS.SHOW_CATEGORIES && <CategoryGrid />}
               <View style={s.cardsHeadingRow}>
                 <View style={s.cardsHeadingLine} />
                 <Text style={s.cardsHeadingText}>Business Cards</Text>
