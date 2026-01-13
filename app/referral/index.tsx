@@ -417,7 +417,7 @@ export default function ReferralPage() {
               <View style={styles.stepContent}>
                 <Text style={styles.stepTitle}>Share Your Link</Text>
                 <Text style={styles.stepText}>
-                  Send your unique code to friends via WhatsApp, SMS or any messaging app
+                  Click on the share referral link button to share your unique code with your friends via any Platform 
                 </Text>
               </View>
             </View>
