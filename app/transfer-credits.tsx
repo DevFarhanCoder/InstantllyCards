@@ -11,6 +11,9 @@ import {
   Image,
   Animated,
   StatusBar,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -157,6 +160,9 @@ export default function TransferCreditsScreen() {
   }, [searchQuery]);
 
   const handleSelectUser = (user: User) => {
+    // Dismiss keyboard when user is selected
+    Keyboard.dismiss();
+    
     // Validate user data before navigating
     if (!user._id || !user.name || !user.phone) {
       console.error('Invalid user data:', user);
@@ -198,7 +204,7 @@ export default function TransferCreditsScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      {/* Premium Header with Balance */}
+      {/* Fixed Top Navigation Only */}
       <LinearGradient
         colors={[COLORS_THEME.gradient1, COLORS_THEME.gradient2]}
         start={{ x: 0, y: 0 }}
@@ -238,58 +244,70 @@ export default function TransferCreditsScreen() {
               <Feather name="clock" size={22} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
+        </SafeAreaView>
+      </LinearGradient>
 
-          {/* Balance Card */}
+      {/* Main Content - Everything scrollable */}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.contentContainer}
+        >
+          {/* Balance Card - Now Scrollable */}
           <Animated.View 
             style={[
-              styles.balanceCard,
+              styles.balanceCardScrollable,
               {
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }]
               }
             ]}
           >
-            <View style={styles.balanceHeader}>
-              <View style={styles.balanceIconBg}>
-                <MaterialCommunityIcons name="wallet-outline" size={24} color={COLORS_THEME.primary} />
+            <LinearGradient
+              colors={[COLORS_THEME.gradient1, COLORS_THEME.gradient2]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.balanceCardInner}
+            >
+              <View style={styles.balanceHeader}>
+                <View style={styles.balanceIconBgWhite}>
+                  <MaterialCommunityIcons name="wallet-outline" size={24} color={COLORS_THEME.primary} />
+                </View>
+                <Text style={styles.balanceLabelWhite}>Available Balance</Text>
               </View>
-              <Text style={styles.balanceLabel}>Available Balance</Text>
-            </View>
-            
-            <View style={styles.balanceAmountRow}>
-              {loadingBalance ? (
-                <ActivityIndicator size="large" color={COLORS_THEME.primary} />
-              ) : (
-                <>
-                  <Text style={styles.balanceAmount}>{formatIndianNumber(balance)}</Text>
-                  <Text style={styles.balanceCurrency}>Credits</Text>
-                </>
-              )}
-            </View>
-            
-            <View style={styles.balanceFooter}>
-              <View style={styles.securityBadge}>
-                <Ionicons name="shield-checkmark" size={14} color={COLORS_THEME.accent} />
-                <Text style={styles.securityText}>Secured Transfer</Text>
+              
+              <View style={styles.balanceAmountRow}>
+                {loadingBalance ? (
+                  <ActivityIndicator size="large" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.balanceAmountWhite}>{formatIndianNumber(balance)}</Text>
+                    <Text style={styles.balanceCurrencyWhite}>Credits</Text>
+                  </>
+                )}
               </View>
-            </View>
+              
+              <View style={styles.balanceFooter}>
+                <View style={styles.securityBadgeWhite}>
+                  <Ionicons name="shield-checkmark" size={14} color="#10B981" />
+                  <Text style={styles.securityTextWhite}>Secured Transfer</Text>
+                </View>
+              </View>
+            </LinearGradient>
           </Animated.View>
-        </SafeAreaView>
-      </LinearGradient>
 
-      {/* Main Content */}
-      <ScrollView 
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.contentContainer}
-      >
-        {/* Search Section */}
-        <View style={styles.searchSection}>
-          <Text style={styles.sectionTitle}>Find Recipient</Text>
-          <Text style={styles.sectionSubtitle}>Enter phone number to search</Text>
-          
-          <View style={[
+          {/* Search Section */}
+          <View style={styles.searchSection}>
+            <Text style={styles.sectionTitle}>Find Recipient</Text>
+            <Text style={styles.sectionSubtitle}>Enter phone number to search</Text>
+            
+            <View style={[
             styles.searchBox,
             searchQuery.length > 0 && styles.searchBoxActive
           ]}>
@@ -383,6 +401,9 @@ export default function TransferCreditsScreen() {
                 </TouchableOpacity>
               </Animated.View>
             ))}
+            
+            {/* Extra padding when keyboard is open */}
+            <View style={{ height: 200 }} />
           </View>
         )}
 
@@ -396,6 +417,8 @@ export default function TransferCreditsScreen() {
             <Text style={styles.emptySubtitle}>
               We couldn't find any registered users{'\n'}with this phone number
             </Text>
+            {/* Extra padding when keyboard is open */}
+            <View style={{ height: 200 }} />
           </View>
         )}
 
@@ -476,8 +499,9 @@ export default function TransferCreditsScreen() {
         )}
 
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -491,7 +515,7 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   safeHeader: {
-    paddingBottom: verticalScale(20),
+    paddingBottom: verticalScale(8),
   },
   topNav: {
     flexDirection: 'row',
@@ -581,11 +605,68 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS_THEME.accent,
   },
+  // New scrollable balance card styles
+  balanceCardScrollable: {
+    marginHorizontal: scale(20),
+    marginBottom: verticalScale(20),
+    borderRadius: moderateScale(20),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 12,
+    overflow: 'hidden',
+  },
+  balanceCardInner: {
+    padding: moderateScale(isSmallDevice ? 18 : 24),
+    borderRadius: moderateScale(20),
+  },
+  balanceIconBgWhite: {
+    width: moderateScale(44),
+    height: moderateScale(44),
+    borderRadius: moderateScale(12),
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: scale(12),
+  },
+  balanceLabelWhite: {
+    fontSize: moderateScale(14),
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    letterSpacing: 0.2,
+  },
+  balanceAmountWhite: {
+    fontSize: moderateScale(isSmallDevice ? 34 : 42),
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+  },
+  balanceCurrencyWhite: {
+    fontSize: moderateScale(16),
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginLeft: scale(8),
+  },
+  securityBadgeWhite: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
+    borderRadius: moderateScale(20),
+    gap: scale(6),
+  },
+  securityTextWhite: {
+    fontSize: moderateScale(12),
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   content: {
     flex: 1,
   },
   contentContainer: {
-    paddingTop: verticalScale(24),
+    paddingTop: verticalScale(16),
   },
   searchSection: {
     paddingHorizontal: scale(20),
