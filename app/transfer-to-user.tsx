@@ -194,7 +194,8 @@ export default function TransferToUserScreen() {
       
       if (response.success) {
         setBalance(response.newBalance);
-        setTransaction(response.transaction);
+        // Backend returns 'transfer' not 'transaction'
+        setTransaction(response.transfer || response.transaction);
         
         setTimeout(() => {
           setIsTransferring(false);
