@@ -5,15 +5,15 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const SIZE = 64;
-const AD_HEIGHT = 100; // Height of the ad section
-const SPACING = 16; // Decent spacing above the ad
+const AD_HEIGHT = 60; // Reduced height
+const SPACING = 8; // Reduced spacing
 
 export default function FAB() {
   const tabH = useBottomTabBarHeight();          // actual measured bar height
   const insets = useSafeAreaInsets();
 
-  // Place the FAB just above the ad with decent spacing
-  const bottom = AD_HEIGHT + SPACING;
+  // Place the FAB just above the tab bar
+  const bottom = tabH + 16;
 
   return (
     <Pressable

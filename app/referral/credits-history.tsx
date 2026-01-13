@@ -8,11 +8,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import api from '@/lib/api';
+import { formatIndianNumber } from '@/utils/formatNumber';
 
 const { width } = Dimensions.get('window');
 
@@ -21,6 +23,7 @@ interface Transaction {
   type: string;
   amount: number;
   description: string;
+  note?: string;
   createdAt: string;
   balanceAfter?: number;
 }
@@ -64,19 +67,37 @@ export default function CreditsHistoryPage() {
       // Fetch credits history (includes balance, breakdown, and transactions)
       const historyResponse = await api.get('/credits/history?limit=100');
 
-      setTotalCredits(historyResponse.totalCredits || 0);
-      setBreakdown(historyResponse.breakdown || {
-        quizCredits: 0,
-        referralCredits: 0,
-        signupBonus: 0,
-        selfDownloadCredits: 0,
-        transferReceived: 0,
-        transferSent: 0,
-        adDeductions: 0,
-      });
-      setTransactions(historyResponse.transactions || []);
-    } catch (error) {
+      if (historyResponse.success) {
+        setTotalCredits(historyResponse.totalCredits || 0);
+        setBreakdown(historyResponse.breakdown || {
+          quizCredits: 0,
+          referralCredits: 0,
+          signupBonus: 0,
+          selfDownloadCredits: 0,
+          transferReceived: 0,
+          transferSent: 0,
+          adDeductions: 0,
+        });
+        setTransactions(historyResponse.transactions || []);
+      } else {
+        console.error('Failed to load credits history:', historyResponse.message);
+        Alert.alert(
+          'Unable to Load',
+          historyResponse.message || 'Failed to load credits history. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
       console.error('Error loading credits history:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Network error occurred';
+      Alert.alert(
+        'Connection Error',
+        `Could not load your credits history. ${errorMessage}`,
+        [
+          { text: 'Retry', onPress: () => loadCreditsHistory(isRefreshing) },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -147,7 +168,7 @@ export default function CreditsHistoryPage() {
         <View style={styles.breakdownInfo}>
           <Text style={styles.breakdownTitle}>{title}</Text>
           <Text style={[styles.breakdownAmount, { color }]}>
-            {amount > 0 ? '+' : ''}{amount.toLocaleString()}
+            {amount > 0 ? '+' : ''}{formatIndianNumber(amount)}
           </Text>
         </View>
       </View>
@@ -217,7 +238,7 @@ export default function CreditsHistoryPage() {
               <View style={styles.currencyBadge}>
                 <Ionicons name="sparkles" size={20} color="#FFD700" />
               </View>
-              <Text style={styles.totalCreditsAmount}>{totalCredits.toLocaleString()}</Text>
+              <Text style={styles.totalCreditsAmount}>{formatIndianNumber(totalCredits)}</Text>
             </View>
             <View style={styles.creditsUnitContainer}>
               <Text style={styles.totalCreditsUnit}>Credits Available</Text>
@@ -229,7 +250,70 @@ export default function CreditsHistoryPage() {
           </View>
         </View>
 
+        {/* Transfer Credits Button */}
+        <View style={styles.transferCreditsSection}>
+          <TouchableOpacity 
+            style={styles.transferCreditsButton}
+            onPress={() => router.push('/transfer-credits')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.transferButtonGradient}>
+              <View style={styles.transferIconContainer}>
+                <Ionicons name="swap-horizontal" size={24} color="#10B981" />
+              </View>
+              <View style={styles.transferButtonContent}>
+                <Text style={styles.transferButtonTitle}>Transfer Credits</Text>
+                <Text style={styles.transferButtonSubtitle}>Send credits to other users instantly</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#10B981" />
+            </View>
+          </TouchableOpacity>
+        </View>
 
+        {/* Breakdown Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Credits Breakdown</Text>
+            <View style={styles.breakdownBadge}>
+              <Ionicons name="pie-chart" size={16} color="#10B981" />
+              <Text style={styles.breakdownBadgeText}>Overview</Text>
+            </View>
+          </View>
+          
+          <View style={styles.breakdownGrid}>
+            {/* Earnings Section */}
+            <View style={styles.breakdownSection}>
+              <Text style={styles.breakdownSectionTitle}>Earnings</Text>
+              <View style={styles.breakdownCards}>
+                <BreakdownCard
+                  title="Transfer Received"
+                  amount={breakdown.transferReceived}
+                  icon="arrow-down-circle"
+                  color="#10B981"
+                />
+              </View>
+            </View>
+            
+            {/* Spending Section */}
+            <View style={styles.breakdownSection}>
+              <Text style={styles.breakdownSectionTitle}>Spending</Text>
+              <View style={styles.breakdownCards}>
+                <BreakdownCard
+                  title="Transfer Sent"
+                  amount={-breakdown.transferSent}
+                  icon="arrow-up-circle"
+                  color="#EF4444"
+                />
+                <BreakdownCard
+                  title="Ad Deductions"
+                  amount={-breakdown.adDeductions}
+                  icon="megaphone"
+                  color="#DC2626"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/* Transaction History */}
         <View style={styles.section}>
@@ -281,6 +365,9 @@ export default function CreditsHistoryPage() {
                     
                     <View style={styles.transactionInfo}>
                       <Text style={styles.transactionDescription}>{txn.description}</Text>
+                      {txn.note && (
+                        <Text style={styles.transactionNote}>"{txn.note}"</Text>
+                      )}
                       <Text style={styles.transactionDate}>{formatDate(txn.createdAt)}</Text>
                     </View>
                     
@@ -289,7 +376,7 @@ export default function CreditsHistoryPage() {
                         styles.transactionAmount,
                         { color: getTransactionColor(txn.type) }
                       ]}>
-                        {txn.amount > 0 ? '+' : ''}{txn.amount.toLocaleString()}
+                        {txn.amount > 0 ? '+' : ''}{formatIndianNumber(txn.amount)}
                       </Text>
                     </View>
                   </View>
@@ -507,9 +594,11 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   breakdownCards: {
-    gap: 6,
+    flexDirection: 'row',
+    gap: 10,
   },
   breakdownCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
@@ -616,6 +705,12 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 4,
   },
+  transactionNote: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
   transactionDate: {
     fontSize: 13,
     color: '#9CA3AF',
@@ -678,5 +773,50 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#10B981',
+  },
+  transferCreditsSection: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  transferCreditsButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: '#10B98120',
+  },
+  transferButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  transferIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F0FDF4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  transferButtonContent: {
+    flex: 1,
+  },
+  transferButtonTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  transferButtonSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
   },
 });

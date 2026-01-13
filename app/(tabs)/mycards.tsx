@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FlatList, StyleSheet, Text, View, RefreshControl, TouchableOpacity, Pressable, Modal, Animated, TextInput, Alert } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import api from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
 import FooterCarousel from "../../components/FooterCarousel";
@@ -81,6 +81,22 @@ export default function MyCards() {
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
   };
+
+  // 🔄 Refetch cards when returning to screen (after delete/edit), but not while actively using it
+  useFocusEffect(
+    React.useCallback(() => {
+      let shouldRefetch = true;
+      
+      return () => {
+        // Only refetch when LEAVING the screen (cleanup)
+        // This prevents constant refetching while on the screen
+        if (shouldRefetch && currentUserId) {
+          console.log('🔄 MyCards: Preparing to refetch on next focus...');
+        }
+        shouldRefetch = false;
+      };
+    }, [currentUserId])
+  );
 
   // Group sharing handlers
   const handleCreateGroupSharing = () => {

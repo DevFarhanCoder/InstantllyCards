@@ -4,12 +4,15 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, Activity
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { router, Link, useFocusEffect } from "expo-router";
 import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
 import ReferralBanner from "../../components/ReferralBanner";
+import CategoryGrid from "../../components/CategoryGrid";
+import { FEATURE_FLAGS } from "../../lib/featureFlags";
+import { formatIndianNumber } from "../../utils/formatNumber";
 
 
 
@@ -243,49 +246,65 @@ export default function Home() {
 
   return (
     <SafeAreaView style={s.root}>
-      {/* Search Header */}
-      <View style={s.searchContainer}>
-        <View style={s.searchWrapper}>
-          <View style={s.searchBox}>
-            <TextInput
-              style={s.searchInput}
-              placeholder="Search..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#9CA3AF"
-            />
+      {/* Custom Header */}
+      <View style={s.headerRow}>
+        {/* Profile Left */}
+        <TouchableOpacity 
+          style={s.profileButton}
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.7}
+        >
+          <View style={s.profileGradientBorder}>
+            <View style={s.profileInner}>
+              <Text style={s.profileInitial}>
+                {userName ? userName.charAt(0).toUpperCase() : 'U'}
+              </Text>
+            </View>
           </View>
-          <TouchableOpacity style={s.searchButton}>
-            <Text style={s.searchIcon}></Text>
-          </TouchableOpacity>
+        </TouchableOpacity>
+        {/* Title Center */}
+        <View style={s.headerTitleLogoContainer}>
+          <Text style={s.headerTitleLogo}>
+            <Text style={s.headerTitleOrange}>Instant</Text>
+            <Text style={s.headerTitleCyan}>lly</Text>
+          </Text>
         </View>
-
-        {/* Credits Icon */}
+        {/* Credits Right */}
         <Link href="/referral" asChild>
-          <TouchableOpacity style={s.creditsButton}>
+          <TouchableOpacity style={s.creditsButton} activeOpacity={0.7}>
             <View style={s.creditsIconContainer}>
               <Text style={s.coinIcon}>🪙</Text>
               {creditsLoading ? (
                 <ActivityIndicator size="small" color="#F59E0B" />
               ) : (
-                <Text style={s.creditsCount}>{userCredits}</Text>
+                <Text style={s.creditsCount}>{formatIndianNumber(userCredits)}</Text>
               )}
             </View>
           </TouchableOpacity>
         </Link>
+      </View>
 
-        <TouchableOpacity 
-          style={s.profileButton}
-          onPress={() => router.push('/(tabs)/profile')}
-        >
-          <View style={s.profileGradientBorder}>
-            <View style={s.profileInner}>
-              <Text style={s.profileInitial}>
-                {userName ? userName.charAt(0).toUpperCase() : "U"}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+      {/* Search Bar - Static at the top */}
+      <View style={s.searchBarRow}>
+        <View style={s.searchBarContainer}>
+          <Ionicons name="search" size={20} color="#9CA3AF" style={s.searchIcon} />
+          <TextInput
+            style={s.searchInputModern}
+            placeholder="Search business cards"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor="#9CA3AF"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => setSearchQuery('')}
+              style={s.clearButton}
+              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+            >
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Main Content */}
@@ -302,8 +321,38 @@ export default function Home() {
               <CardRow c={item} />
             </View>
           )}
-          ListHeaderComponent={<ReferralBanner />}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 180 }}
+          ListHeaderComponent={
+            <>
+              <ReferralBanner />
+              {/* Categories Header with Arrow and Promote Button - Same Line */}
+              {FEATURE_FLAGS.SHOW_CATEGORIES && (
+                <View style={s.categoriesHeaderRow}>
+                  <View style={s.categoriesWithArrow}>
+                    <Text style={s.categoriesHeaderText}>Categories</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#EF4444" style={s.categoriesArrow} />
+                  </View>
+                  {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS && (
+                    <TouchableOpacity
+                      style={s.promoteBusinessButton}
+                      onPress={() => router.push('/business-promotion')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={s.promoteButtonText}>Promote Business</Text>      
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+              {FEATURE_FLAGS.SHOW_CATEGORIES && <CategoryGrid />}
+              <View style={s.cardsHeadingRow}>
+                <View style={s.cardsHeadingLine} />
+                <Text style={s.cardsHeadingText}>Business Cards</Text>
+                <View style={s.cardsHeadingLine} />
+              </View>
+            </>
+          }
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 120 }}
+          initialNumToRender={2}
+          windowSize={5}
           ListEmptyComponent={
             <View style={s.empty}>
               <Text style={s.emptyTxt}>No cards yet.</Text>
@@ -325,7 +374,7 @@ export default function Home() {
       )}
 
       {/* Footer Carousel */}
-      <FooterCarousel />
+      <FooterCarousel showPromoteButton={true} />
 
       <FAB />
     </SafeAreaView>
@@ -333,29 +382,116 @@ export default function Home() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F6FA" },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  root: { 
+    flex: 1, 
+    backgroundColor: "#F9FAFB" 
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#fff',
+  },
+  headerTitleLogoContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleLogo: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  headerTitleCyan: {
+    color: '#00C3FF',
+    fontWeight: '900',
+  },
+  headerTitleBlue: {
+    color: '#0090FF',
+    fontWeight: '900',
+  },
+  headerTitleOrange: {
+    color: '#FF9100',
+    fontWeight: '900',
+  },
+  sectionTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginTop: 18,
+    marginBottom: 8,
+    marginLeft: 18,
+  },
+  cardsHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 1,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+  },
+  cardsHeadingLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#D1D5DB',
+  },
+  cardsHeadingText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+    letterSpacing: 0.5,
+  },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInputModern: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  searchBarRow: {
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    gap: 12,
+    marginTop: 12,
+    marginBottom: 12,
   },
   searchWrapper: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3B82F6",
+    marginHorizontal: 16,
     borderRadius: 30,
     padding: 2,
-    shadowColor: "#000",
+    fontSize: 18,
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 5,
   },
   searchBox: {
-    flex: 1,
+    lineHeight: 20,
     backgroundColor: "#FFFFFF",
     borderRadius: 26,
     paddingHorizontal: 20,
@@ -375,7 +511,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  searchIcon: {
+  searchIconWhite: {
     fontSize: 20,
     color: "#FFFFFF",
   },
@@ -386,53 +522,59 @@ const s = StyleSheet.create({
   creditsIconContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#FEF3C7",
     borderWidth: 2,
     borderColor: "#F59E0B",
     justifyContent: "center",
     shadowColor: "#F59E0B",
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 3,
-    gap: 3,
+    gap: 4,
   },
   creditsCount: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#92400E",
   },
   coinIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   profileButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
   profileGradientBorder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 3,
-    borderColor: "#2196F3",
-    backgroundColor: "#D84315",
+    borderColor: "#3B82F6",
+    backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#3B82F6",
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 4,
   },
   profileInner: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#D84315",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
   },
   profileInitial: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#FFFFFF",
   },
@@ -590,5 +732,50 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     textAlign: "center",
+  },
+  categoriesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 1,
+    marginBottom: 8,
+  },
+  categoriesWithArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoriesHeaderText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    letterSpacing: 0.3,
+  },
+  categoriesArrow: {
+    marginTop: 2,
+  },
+  promoteBusinessButton: {
+    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    shadowColor: '#EF4444',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  promoteIcon: {
+    marginRight: 10,
+  },
+  promoteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

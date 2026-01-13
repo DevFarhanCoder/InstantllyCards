@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Image, Dimensions, StyleSheet, ScrollView, Animated, TouchableOpacity, Modal, Text, Linking, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ad, useAds } from '../hooks/useAds';
 import { ensureAuth } from '../lib/auth';
@@ -12,7 +12,11 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const SHOW_ADS = true; // Set to false to disable ads, true to enable
 
-const FooterCarousel = () => {
+interface FooterCarouselProps {
+  showPromoteButton?: boolean;
+}
+
+const FooterCarousel = ({ showPromoteButton = false }: FooterCarouselProps) => {
   if (!SHOW_ADS) return null;
   // console.log('🔄 FooterCarousel: Component mounting/re-rendering');
   
@@ -340,14 +344,15 @@ const FooterCarousel = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Show loading state */}
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#10B981" />
-          <Text style={styles.loadingText}>Loading ads...</Text>
-        </View>
-      )}
+    <>
+      <View style={styles.container}>
+        {/* Show loading state */}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#10B981" />
+            <Text style={styles.loadingText}>Loading ads...</Text>
+          </View>
+        )}
       
       {/* Show empty state if no ads */}
       {!isLoading && allAds.length === 0 && (
@@ -383,7 +388,7 @@ const FooterCarousel = () => {
               onLoadStart={() => {
                 // Image loading started - silently track
               }}
-              onError={(error) => {
+              onError={() => {
                 // Silently handle image load errors (backend GridFS issues)
                 // Don't spam console with 500 errors for missing ad images
               }}
@@ -502,7 +507,7 @@ const FooterCarousel = () => {
         </TouchableOpacity>
       </Modal>
     </View>
-
+    </>
   );
 };
 
@@ -513,8 +518,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 100,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     zIndex: 10,
+    marginBottom: 0,
+    paddingBottom: 0,
   },
   loadingContainer: {
     flex: 1,

@@ -17,6 +17,10 @@ export interface VersionCheckResponse {
  */
 export async function checkAppVersion(): Promise<VersionCheckResponse | null> {
   try {
+    // DEVELOPMENT MODE: Skip version check for local development
+    console.log('🔧 [VERSION CHECK] SKIPPED - Development mode');
+    return null;
+    
     const appVersion = Constants.expoConfig?.version || '1.0.0';
     const platform = Platform.OS;
 

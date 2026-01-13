@@ -1,16 +1,31 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import api from "../lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import BusinessAvatar from "./BusinessAvatar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function CardRow({ c, showEditButton = false, onRefresh }: { c: any; showEditButton?: boolean; onRefresh?: () => void }) {
     const queryClient = useQueryClient();
     const [shareModalVisible, setShareModalVisible] = useState(false);
     const [menuModalVisible, setMenuModalVisible] = useState(false);
     const [scaleAnim] = useState(new Animated.Value(1));
+    const [currentUserId, setCurrentUserId] = useState<string>("");
+    
+    // Get current user ID for proper cache invalidation
+    useEffect(() => {
+        const fetchUserId = async () => {
+            try {
+                const userId = await AsyncStorage.getItem("currentUserId");
+                if (userId) setCurrentUserId(userId);
+            } catch (error) {
+                console.error("CardRow: Failed to fetch user ID:", error);
+            }
+        };
+        fetchUserId();
+    }, []);
     
     const companyName = c.companyName || c.name || "Business";
     const ownerName = c.name && c.name !== c.companyName ? c.name : (c.designation || "Business Owner");
@@ -75,54 +90,120 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            // Delete from server FIRST to check if card exists
-                            await api.del(`/cards/${c._id}`);
+                            console.log('🗑️ Starting delete for card:', c._id);
                             
-                            // ⚡ INSTANT UPDATE: Remove card from cache after successful delete
-                            queryClient.setQueryData(['cards'], (old: any) => {
-                                if (!old) return [];
-                                if (Array.isArray(old)) {
-                                    return old.filter((card: any) => (card._id || card.id) !== c._id);
-                                }
-                                return old;
+                            // 🚀 OPTIMISTIC UPDATE: Remove from UI immediately
+                            console.log('⚡ Optimistic removal: Updating cache before API call...');
+                            queryClient.setQueryData<any[]>(["cards", currentUserId], (oldCards) => {
+                                if (!oldCards) return oldCards;
+                                const filtered = oldCards.filter((card: any) => card._id !== c._id);
+                                console.log(`📊 Optimistic: Removed card from cache (${oldCards.length} → ${filtered.length})`);
+                                return filtered;
                             });
                             
-                            // Invalidate related queries in background (non-blocking)
-                            setTimeout(() => {
-                                queryClient.invalidateQueries({ queryKey: ["cards"] });
-                                queryClient.invalidateQueries({ queryKey: ["public-feed"] });
-                                queryClient.invalidateQueries({ queryKey: ['contacts-feed'] });
-                                queryClient.invalidateQueries({ queryKey: ['profile'] });
-                            }, 100);
+                            let deletionSuccessful = false;
                             
-                            Alert.alert("Success", "Card deleted successfully");
+                            try {
+                                // Delete from server
+                                await api.del(`/cards/${c._id}`);
+                                console.log('✅ Server confirmed deletion (200 OK)');
+                                
+                                // 🔥 PRODUCTION FIX: Verify deletion worked
+                                console.log('🔍 Verifying card was actually deleted from database...');
+                                await new Promise(resolve => setTimeout(resolve, 800)); // Wait 800ms for DB sync
+                                
+                                try {
+                                    const verifyResponse = await api.get(`/cards`);
+                                    const stillExists = verifyResponse?.data?.find((card: any) => card._id === c._id);
+                                    
+                                    if (stillExists) {
+                                        console.log('❌ PRODUCTION BUG: Card still exists after delete! Attempting second delete...');
+                                        
+                                        // Try delete again
+                                        await api.del(`/cards/${c._id}`);
+                                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait longer
+                                        
+                                        // Check again
+                                        const recheckResponse = await api.get(`/cards`);
+                                        const stillExistsAgain = recheckResponse?.data?.find((card: any) => card._id === c._id);
+                                        
+                                        if (stillExistsAgain) {
+                                            console.log('❌❌ Still exists after 2 deletes. Trying third time...');
+                                            await api.del(`/cards/${c._id}`);
+                                            await new Promise(resolve => setTimeout(resolve, 1000));
+                                            
+                                            // Final check
+                                            const finalCheck = await api.get(`/cards`);
+                                            const stillExistsFinal = finalCheck?.data?.find((card: any) => card._id === c._id);
+                                            
+                                            if (stillExistsFinal) {
+                                                // Rollback optimistic update
+                                                console.log('🔄 Rolling back optimistic update...');
+                                                queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
+                                                throw new Error('Production server failed to delete card after 3 attempts. Please try again or contact support.');
+                                            }
+                                        }
+                                        
+                                        console.log('✅ Card deleted after multiple attempts!');
+                                    } else {
+                                        console.log('✅ Verified: Card successfully deleted from database');
+                                    }
+                                } catch (verifyError) {
+                                    console.log('ℹ️ Could not verify deletion (network error), trusting optimistic update');
+                                }
+                                
+                                deletionSuccessful = true;
+                            } catch (deleteError: any) {
+                                // 404 means card already deleted = SUCCESS
+                                if (deleteError?.message?.includes("Not found") || 
+                                    deleteError?.message?.includes("already been deleted") ||
+                                    deleteError?.status === 404) {
+                                    console.log('✅ Card already deleted (404) - treating as success');
+                                    deletionSuccessful = true;
+                                } else {
+                                    // Real error - rollback optimistic update
+                                    console.log('❌ Real delete error, rolling back...');
+                                    queryClient.invalidateQueries({ queryKey: ["cards", currentUserId] });
+                                    throw deleteError;
+                                }
+                            }
+                            
+                            // If deletion successful, keep optimistic update and mark queries stale
+                            if (deletionSuccessful) {
+                                // DON'T refetch immediately - production DB has lag
+                                // Just mark queries as stale so next navigation refetches
+                                console.log('✅ Keeping optimistic update, marking queries stale for next refetch');
+                                queryClient.invalidateQueries({ 
+                                    queryKey: ["cards", currentUserId],
+                                    refetchType: 'none' // Mark stale but don't refetch now
+                                });
+                                queryClient.invalidateQueries({ 
+                                    queryKey: ["cards"],
+                                    refetchType: 'none'
+                                });
+                                
+                                // Invalidate related queries in background
+                                setTimeout(() => {
+                                    queryClient.invalidateQueries({ queryKey: ["public-feed"] });
+                                    queryClient.invalidateQueries({ queryKey: ['contacts-feed', currentUserId] });
+                                    queryClient.invalidateQueries({ queryKey: ['profile'] });
+                                }, 100);
+                                
+                                // Show success message
+                                Alert.alert("Success", "Card deleted successfully");
+                                console.log('✅✅✅ Card deletion complete - UI should update now');
+                            }
                         } catch (error: any) {
-                            console.error("Delete error:", error);
+                            console.error("❌ REAL Delete error:", error);
                             console.error("Card ID:", c._id);
                             console.error("Card userId:", c.userId);
                             
-                            // Better error messages based on error type
+                            // Only show error for real failures (not 404)
                             let errorMessage = "Failed to delete card";
-                            if (error?.message?.includes("Not found") || error?.status === 404) {
-                                errorMessage = "Cannot delete this card. It may have already been deleted or you don't have permission.";
-                                // Remove from cache anyway since it doesn't exist or isn't accessible
-                                queryClient.setQueryData(['cards'], (old: any) => {
-                                    if (!old) return [];
-                                    if (Array.isArray(old)) {
-                                        return old.filter((card: any) => (card._id || card.id) !== c._id);
-                                    }
-                                    return old;
-                                });
-                                // Force refetch to get accurate list
-                                setTimeout(() => {
-                                    queryClient.invalidateQueries({ queryKey: ["cards"] });
-                                }, 500);
-                            } else if (error?.message?.includes("Network") || error?.message?.includes("timeout")) {
-                                errorMessage = "Network error. Please check your connection and try again.";
-                                // Don't remove from cache on network errors
-                            } else {
-                                // For other errors, refetch to ensure consistency
-                                queryClient.invalidateQueries({ queryKey: ["cards"] });
+                            if (error?.message?.includes("permission") || error?.message?.includes("403")) {
+                                errorMessage = "You don't have permission to delete this card.";
+                            } else if (error?.message?.includes("network") || error?.message?.includes("Network")) {
+                                errorMessage = "Network error. Please check your connection.";
                             }
                             
                             Alert.alert("Error", errorMessage);

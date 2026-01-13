@@ -12,7 +12,7 @@ import FooterCarousel from "../../../components/FooterCarousel";
 
 export default function Ads() {
   const router = useRouter();
-
+  
   // With Channel → external website
   const handleWithChannel = async () => {
     const url = "https://instantllychannelpatner.vercel.app/";
@@ -29,32 +29,31 @@ export default function Ads() {
     }
   };
 
-  // Without Channel → navigate inside app
-  const handleWithoutChannel = () => {
-    router.push("/ads/adswithoutchannel");
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.subtitle}>
-        Here you can manage and view your active ads 📢
-      </Text>
+      <View style={styles.contentContainer}>
+        <Text style={styles.subtitle}>
+          Here you can manage and view your active ads 📢
+        </Text>
 
-      {/* With Channel */}
-      <TouchableOpacity style={styles.button} onPress={handleWithChannel}>
-        <Text style={styles.buttonText}>With Channel</Text>
-      </TouchableOpacity>
+        {/* With Channel */}
+        <TouchableOpacity style={styles.button} onPress={handleWithChannel}>
+          <Text style={styles.buttonText}>With Channel</Text>
+        </TouchableOpacity>
 
-      {/* Without Channel */}
-      <TouchableOpacity
-        style={styles.linkContainer}
-        onPress={handleWithoutChannel}
-      >
-        <Text style={styles.linkText}>Without Channel</Text>
-      </TouchableOpacity>
+        {/* Without Channel - Using router.push */}
+        <TouchableOpacity 
+          style={styles.linkContainer}
+          onPress={() => router.push("/(tabs)/ads/adswithoutchannel")}
+        >
+          <Text style={styles.linkText}>Without Channel</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Footer Carousel */}
-      <FooterCarousel />
+      <View style={styles.footerCarouselContainer}>
+        <FooterCarousel />
+      </View>
     </View>
   );
 }
@@ -65,8 +64,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingTop: 20,
-    justifyContent: "center",
-    alignItems: "center",
   },
   subtitle: {
     fontSize: 16,
@@ -74,6 +71,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 30,
     marginTop: 10,
+    flex: 0,
+  },
+  contentContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   button: {
     backgroundColor: "#4F6AF3",
@@ -96,5 +99,11 @@ const styles = StyleSheet.create({
     color: "#4F6AF3",
     fontWeight: "500",
     textDecorationLine: "underline",
+  },
+  footerCarouselContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });

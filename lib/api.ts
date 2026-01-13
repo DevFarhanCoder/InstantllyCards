@@ -3,17 +3,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from 'expo-constants';
 
 // Try multiple sources for the API base URL
+const PRODUCTION_URL = "https://instantlly-cards-backend-6ki0.onrender.com";
+
 const getApiBase = () => {
   // For local development - change this to your computer's IP address
   // To find your IP: Run 'ipconfig' in Windows terminal and look for IPv4 Address
   const LOCAL_DEV_URL = "http://192.168.0.108:8080"; // Local backend for testing
-  const PRODUCTION_URL = "https://api.instantllycards.com"; // Production backend
   
   const sources = [
     process.env.EXPO_PUBLIC_API_BASE,
     Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE,
-    PRODUCTION_URL, // Production fallback
     LOCAL_DEV_URL, // Local backend for testing
+    // "https://instantlly-cards-backend-6ki0.onrender.com" // Production fallback (commented out for local dev)
   ];
   
   for (const source of sources) {
@@ -23,7 +24,7 @@ const getApiBase = () => {
     }
   }
   
-  return LOCAL_DEV_URL;
+  return PRODUCTION_URL;
 };
 
 const BASE = getApiBase();
@@ -37,8 +38,9 @@ console.log("🔍 Environment check:", {
   __DEV__: __DEV__
 });
 
-// Optimized timeout for better user experience (15 seconds)
-const TIMEOUT_MS = 15000;
+// Optimized timeout for better user experience
+// Increased to 120 seconds for card operations with images (AWS cold start)
+const TIMEOUT_MS = 120000;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Json = Record<string, any>;
