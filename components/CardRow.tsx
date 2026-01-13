@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import BusinessAvatar from "./BusinessAvatar";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import BusinessCardTemplate from "./BusinessCardTemplate";
+import { generateAndShareCardImage } from "../utils/cardImageGenerator";
 
 export default function CardRow({ c, showEditButton = false, onRefresh }: { c: any; showEditButton?: boolean; onRefresh?: () => void }) {
     const queryClient = useQueryClient();
@@ -13,6 +15,10 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
     const [menuModalVisible, setMenuModalVisible] = useState(false);
     const [scaleAnim] = useState(new Animated.Value(1));
     const [currentUserId, setCurrentUserId] = useState<string>("");
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [imagesLoaded, setImagesLoaded] = useState(false);
+    const [userReferralCode, setUserReferralCode] = useState<string>('');
+    const cardTemplateRef = useRef(null);
     
     // Get current user ID for proper cache invalidation
     useEffect(() => {
@@ -36,6 +42,35 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
         ? `+${c.personalCountryCode}${c.personalPhone}` : "";
     const fullCompany = c.companyCountryCode && c.companyPhone
         ? `+${c.companyCountryCode}${c.companyPhone}` : "";
+
+    // Fetch user's referral code on component mount
+    useEffect(() => {
+        const fetchUserReferralCode = async () => {
+            try {
+                // Fetch referral code from API
+                const response = await api.get('/credits/referral-stats');
+                if (response.success && response.referralCode) {
+                    setUserReferralCode(response.referralCode);
+                    console.log('🎁 User referral code loaded:', response.referralCode);
+                }
+            } catch (error) {
+                console.error('Error fetching user referral code:', error);
+                // Fallback: try to get from AsyncStorage
+                try {
+                    const userStr = await AsyncStorage.getItem('user');
+                    if (userStr) {
+                        const user = JSON.parse(userStr);
+                        if (user.referralCode) {
+                            setUserReferralCode(user.referralCode);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error fetching from AsyncStorage:', err);
+                }
+            }
+        };
+        fetchUserReferralCode();
+    }, []);
 
     const handleCardPress = () => {
         // ⚡ OPTIMIZATION: Immediate animation feedback
@@ -215,85 +250,55 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
     };
 
     const shareViaApp = async (method: string) => {
-        // Build WhatsApp message with all card details in key-value format
-        let whatsappMessage = `*This is My Visiting Card*\n\n`;
-        
-        // Personal Details Section - Only include if at least one field exists
-        const hasPersonalDetails = c.name || fullPersonal || c.email || c.website || c.location || c.mapsLink;
-        if (hasPersonalDetails) {
-            whatsappMessage += `*Personal*\n`;
-            if (c.name) whatsappMessage += `*Name* - ${c.name}\n`;
-            if (fullPersonal) whatsappMessage += `*Mob No* - ${fullPersonal}\n`;
-            if (c.email) whatsappMessage += `*Email ID* - ${c.email}\n`;
-            if (c.website) whatsappMessage += `*Website* - ${c.website}\n`;
-            if (c.location) whatsappMessage += `*Address* - ${c.location}\n`;
-            if (c.mapsLink) whatsappMessage += `*Google Map* - ${c.mapsLink}\n`;
-        }
-        
-        // Company Details Section - Only include if at least one field exists
-        const hasCompanyDetails = c.companyName || c.designation || fullCompany || c.companyEmail || c.companyWebsite || c.companyAddress || c.companyMapsLink || c.message;
-        if (hasCompanyDetails) {
-            whatsappMessage += `\n*Company*\n`;
-            if (c.companyName) whatsappMessage += `*Company Name* - ${c.companyName}\n`;
-            if (c.designation) whatsappMessage += `*Designation* - ${c.designation}\n`;
-            if (fullCompany) whatsappMessage += `*Mob No* - ${fullCompany}\n`;
-            if (c.companyEmail) whatsappMessage += `*Email ID* - ${c.companyEmail}\n`;
-            if (c.companyWebsite) whatsappMessage += `*Website* - ${c.companyWebsite}\n`;
-            if (c.companyAddress) whatsappMessage += `*Address* - ${c.companyAddress}\n`;
-            if (c.companyMapsLink) whatsappMessage += `*Google Map* - ${c.companyMapsLink}\n`;
-            if (c.message) whatsappMessage += `*About Business* - ${c.message}\n`;
-        }
-        
-        // Social Media Section - Only include if at least one field exists
-        const hasSocialMedia = c.linkedin || c.facebook || c.instagram || c.twitter || c.youtube || c.telegram;
-        if (hasSocialMedia) {
-            whatsappMessage += `\n*Social Media*\n`;
-            if (c.linkedin) whatsappMessage += `*LinkedIn* - ${c.linkedin}\n`;
-            if (c.facebook) whatsappMessage += `*Facebook* - ${c.facebook}\n`;
-            if (c.instagram) whatsappMessage += `*Instagram* - ${c.instagram}\n`;
-            if (c.twitter) whatsappMessage += `*Twitter* - ${c.twitter}\n`;
-            if (c.youtube) whatsappMessage += `*YouTube* - ${c.youtube}\n`;
-            if (c.telegram) whatsappMessage += `*Telegram* - ${c.telegram}\n`;
-        }
-        
-        // Keywords section if available
-        if (c.keywords && c.keywords.trim()) {
-            whatsappMessage += `\n*Keywords/Services*\n`;
-            whatsappMessage += `${c.keywords}\n`;
-        }
-        
-        // App Promotion
-        whatsappMessage += `\nI have created this *Digital Visiting Card FREE From Instantlly Cards From Play Store* & Shared Google Play Store Link so you can also download and Create Your Visiting Card & you can send me your Card also, so I do not have to type all your information and i will get Full Details of your in Instantlly Cards.\n\n`;
-        whatsappMessage += `*Google Play Store Link*\nhttps://play.google.com/store/apps/details?id=com.instantllycards.www.twa`;
-
-        const shareContent = {
-            title: `${companyName}'s Business Card`,
-            message: whatsappMessage,
-            url: `https://instantllycards.com/card/${c._id}`
-        };
-
         try {
-            switch (method) {
-                case 'native':
-                    await Share.share({
-                        message: shareContent.message,
-                        title: shareContent.title,
-                    });
-                    break;
-                case 'whatsapp':
-                    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(shareContent.message)}`;
-                    await Linking.openURL(whatsappUrl);
-                    break;
-                default:
-                    await Share.share({
-                        message: shareContent.message,
-                        title: shareContent.title,
-                    });
+            setIsGeneratingImage(true);
+            setImagesLoaded(false);
+            
+            console.log('📸 Generating business card image...');
+            console.log('⏳ Waiting for images to load...');
+            
+            // Wait longer for network images and logo to load
+            // This ensures both profile photo and logo are rendered
+            await new Promise(resolve => setTimeout(resolve, 2500));
+            
+            console.log('✅ Images should be loaded now');
+            
+            // Add referral code to card data
+            const cardDataWithReferral = {
+                ...c,
+                referralCode: userReferralCode || 'INSTANTLLY'
+            };
+            
+            // Generate and share the card image
+            const result = await generateAndShareCardImage(
+                cardTemplateRef,
+                cardDataWithReferral,
+                method as 'native' | 'whatsapp'
+            );
+            
+            if (result.success) {
+                console.log('✅ Card image shared successfully');
+                setShareModalVisible(false);
+            } else if (result.error !== 'cancelled') {
+                // User didn't cancel, show error
+                Alert.alert(
+                    'Share Failed',
+                    'Failed to generate card image. Please try again.',
+                    [{ text: 'OK' }]
+                );
             }
+            
         } catch (error) {
-            console.error('Error sharing:', error);
+            console.error('❌ Error sharing card:', error);
+            Alert.alert(
+                'Error',
+                'Failed to share card. Please try again.',
+                [{ text: 'OK' }]
+            );
+        } finally {
+            setIsGeneratingImage(false);
+            setImagesLoaded(false);
         }
-        setShareModalVisible(false);
     };
 
     return (
@@ -344,14 +349,49 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                 </TouchableOpacity>
             </Animated.View>
 
+        {/* Hidden Card Template for Image Generation - Using opacity instead of off-screen positioning */}
+        <View style={{ 
+            position: 'absolute', 
+            left: 0, 
+            top: 0, 
+            opacity: 0, 
+            zIndex: -1,
+            pointerEvents: 'none'
+        }}>
+            <View ref={cardTemplateRef} collapsable={false}>
+                <BusinessCardTemplate
+                    name={c.name || ''}
+                    designation={c.designation || ''}
+                    companyName={c.companyName || c.name || 'Company'}
+                    personalPhone={fullPersonal}
+                    companyPhone={fullCompany}
+                    email={c.email}
+                    companyEmail={c.companyEmail}
+                    website={c.website}
+                    companyWebsite={c.companyWebsite}
+                    address={c.location || c.companyAddress}
+                    companyAddress={c.companyAddress}
+                    companyPhoto={c.companyPhoto}
+                />
+            </View>
+        </View>
+
         <Modal
             animationType="slide"
             transparent={true}
             visible={shareModalVisible}
-            onRequestClose={() => setShareModalVisible(false)}
+            onRequestClose={() => !isGeneratingImage && setShareModalVisible(false)}
         >
             <View style={s.modalOverlay}>
                 <View style={s.modalContent}>
+                    {isGeneratingImage && (
+                        <View style={s.loadingContainer}>
+                            <ActivityIndicator size="large" color="#3B82F6" />
+                            <Text style={s.loadingText}>Generating card image...</Text>
+                            <Text style={s.loadingSubtext}>Loading profile photo and logo</Text>
+                        </View>
+                    )}
+                    
                     <Pressable 
                         onPress={() => {
                             setShareModalVisible(false);
@@ -359,19 +399,32 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                             router.push(`/contacts/select?cardId=${c._id}&cardTitle=${encodeURIComponent(companyName)}` as any);
                         }} 
                         style={[s.shareOption, s.shareWithinAppOption]}
+                        disabled={isGeneratingImage}
                     >
-                        <Text style={[s.shareOptionText, s.shareWithinAppText]}>📱 Share Within App</Text>
+                        <Text style={[s.shareOptionText, s.shareWithinAppText]}>📱 Share within App</Text>
                     </Pressable>
                     
-                    <Pressable onPress={() => shareViaApp('whatsapp')} style={s.shareOption}>
-                        <Text style={s.shareOptionText}>Share to WhatsApp</Text>
+                    <Pressable 
+                        onPress={() => shareViaApp('whatsapp')} 
+                        style={s.shareOption}
+                        disabled={isGeneratingImage}
+                    >
+                        <Text style={s.shareOptionText}>💬 Share to WhatsApp</Text>
                     </Pressable>
                     
-                    <Pressable onPress={() => shareViaApp('native')} style={s.shareOption}>
-                        <Text style={s.shareOptionText}>Share Via</Text>
+                    <Pressable 
+                        onPress={() => shareViaApp('native')} 
+                        style={s.shareOption}
+                        disabled={isGeneratingImage}
+                    >
+                        <Text style={s.shareOptionText}>🔗 Share Via</Text>
                     </Pressable>
                     
-                    <Pressable onPress={() => setShareModalVisible(false)} style={[s.shareOption, s.cancelOption]}>
+                    <Pressable 
+                        onPress={() => setShareModalVisible(false)} 
+                        style={[s.shareOption, s.cancelOption]}
+                        disabled={isGeneratingImage}
+                    >
                         <Text style={[s.shareOptionText, s.cancelText]}>Cancel</Text>
                     </Pressable>
                 </View>
@@ -556,5 +609,21 @@ const s = StyleSheet.create({
     shareWithinAppText: {
         color: '#3B82F6',
         fontWeight: '700',
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        paddingVertical: 20,
+        marginBottom: 15,
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 14,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    loadingSubtext: {
+        marginTop: 5,
+        fontSize: 12,
+        color: '#9CA3AF',
     },
 });
