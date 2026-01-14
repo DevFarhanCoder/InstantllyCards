@@ -78,6 +78,14 @@ export default function CreditsHistoryPage() {
           transferSent: 0,
           adDeductions: 0,
         });
+        
+        // DEBUG: Log transaction amounts
+        console.log('📊 Transaction data received:', historyResponse.transactions?.slice(0, 3).map((t: any) => ({
+          type: t.type,
+          description: t.description,
+          amount: t.amount
+        })));
+        
         setTransactions(historyResponse.transactions || []);
       } else {
         console.error('Failed to load credits history:', historyResponse.message);

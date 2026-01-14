@@ -111,10 +111,9 @@ export default function TransferCreditsScreen() {
 
   const fetchRecentContacts = async () => {
     try {
-      const response = await api.get('/credits/recent-transfers');
-      if (response.success && response.recentUsers) {
-        setRecentContacts(response.recentUsers.slice(0, 5));
-      }
+      // Recent contacts feature disabled - endpoint not yet implemented
+      // Will be added in a future update
+      setRecentContacts([]);
     } catch (error) {
       // Silently fail - recent contacts are optional
       console.log('No recent contacts available');
