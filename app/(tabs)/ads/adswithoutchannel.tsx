@@ -721,7 +721,7 @@ export default function AdsWithoutChannel() {
               <Text style={styles.videoHelpTitle}>Wrong Video Size?</Text>
             </View>
             <Text style={styles.videoHelpDesc}>
-              Don't worry! Send us your video and we'll resize it to exact dimensions for FREE.
+              Don't worry! Send us your video and we'll resize it to exact dimensions.
             </Text>
             <View style={styles.videoHelpActions}>
               <TouchableOpacity 
@@ -743,8 +743,6 @@ export default function AdsWithoutChannel() {
               style={styles.videoHelpPhoneRow}
               onPress={() => Linking.openURL('tel:+919820329571')}
             >
-              <Ionicons name="call-outline" size={16} color="#7c3aed" />
-              <Text style={styles.videoHelpPhoneText}>+91 98203 29571</Text>
             </TouchableOpacity>
           </View>
           )}
