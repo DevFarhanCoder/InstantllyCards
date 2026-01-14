@@ -171,8 +171,8 @@ export default function ReferralPage() {
 
       const hindiMessage = `*बिना किसी निवेश के रोज़ाना ₹1200 से ₹6000+ कमाने का अवसर*
 
-▪️ *मुझे ₹200 का क्रेडिट मिला* मैंने यह ऐप डाउनलोड किया और मुझे तुरंत ₹200 का क्रेडिट मिला। विजिटिंग कार्ड मैनेजमेंट के लिए यह ऐप बहुत बेहतरीन है। इसके फायदों को नीचे दिए गए वीडियो लिंक में देखा जा सकता है
-▪️ *आपको भी ₹200 मिलेंगे* जब आप इस ऐप को डाउनलोड करेंगे, तो आपको भी ₹200 का क्रेडिट मिलेगा।
+▪️ *मुझे ₹300 का क्रेडिट मिला* मैंने यह ऐप डाउनलोड किया और मुझे तुरंत ₹300 का क्रेडिट मिला। विजिटिंग कार्ड मैनेजमेंट के लिए यह ऐप बहुत बेहतरीन है। इसके फायदों को नीचे दिए गए वीडियो लिंक में देखा जा सकता है
+▪️ *आपको भी ₹300 मिलेंगे* जब आप इस ऐप को डाउनलोड करेंगे, तो आपको भी ₹300 का क्रेडिट मिलेगा।
 ▪️ *₹300 रेफरल बोनस* आपके डाउनलोड करने पर मुझे ₹300 का क्रेडिट मिलेगा। इसी तरह, जब कोई आपके लिंक से डाउनलोड करेगा, तो आपको भी ₹300 मिलेंगे।
 ▪️ *रोज़ाना ₹6000 कैसे कमाएं* यदि आप अपना रेफरल मैसेज 6 ग्रुप्स में भेजते हैं और हर ग्रुप में 500 सदस्य हैं, तो आपका मैसेज 3000 लोगों तक पहुँचेगा। सामान्य तौर पर, कम से कम 20 से 50 लोग ऐप डाउनलोड करते हैं। अगर 20 लोग भी डाउनलोड करते हैं, तो ₹300 के हिसाब से आपकी रोज़ाना की कमाई ₹6000 हो जाएगी।
 ▪️ *रेफरल आय के लिए क्या करें?* अपना रेफरल मैसेज और लिंक डाउनलोड करें और इसे अपने व्हाट्सएप ग्रुप्स में शेयर करें।
@@ -185,8 +185,8 @@ export default function ReferralPage() {
 
       const englishMessage = `*Earn ₹1200 to ₹6000+ per day Without Investment*
 
-▪️ *I Got ₹200 Credit* I have downloaded this app & Got ₹200 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below
-▪️ *You will get ₹200 Credit* When you download you will also get ₹200 Credit.
+▪️ *I Got ₹300 Credit* I have downloaded this app & Got ₹300 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below
+▪️ *You will get ₹300 Credit* When you download you will also get ₹300 Credit.
 ▪️ *Referral Bonus ₹300 Credit* When you download i will also get ₹300 Credit.
 ▪️ *How to earn ₹6000 per day* If you send Referral Message to 6 Groups & in each group 500 persons are member then your message will go to 3000 persons & normally 20 to 50 person download the Mobile App so on 20 Person you get ₹300 each so Total is ₹6000 per day
 ▪️ *What to do for Getting Referral Income* Download the Referral Message & Referral Link & Send this Message & Link to your WhatsApp Groups
@@ -417,7 +417,7 @@ export default function ReferralPage() {
               <View style={styles.stepContent}>
                 <Text style={styles.stepTitle}>Share Your Link</Text>
                 <Text style={styles.stepText}>
-                  Send your unique code to friends via WhatsApp, SMS or any messaging app
+                  Click on the share referral link button to share your unique code with your friends via any Platform 
                 </Text>
               </View>
             </View>

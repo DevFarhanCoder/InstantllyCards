@@ -8,7 +8,11 @@ export const formatIndianNumber = (num: number | string | undefined | null): str
   const numValue = typeof num === 'string' ? parseFloat(num) : num;
   if (isNaN(numValue)) return '0';
   
-  const numStr = Math.floor(numValue).toString();
+  // Handle negative numbers
+  const isNegative = numValue < 0;
+  const absValue = Math.abs(numValue);
+  
+  const numStr = Math.floor(absValue).toString();
   let result = '';
   let count = 0;
   
@@ -23,7 +27,7 @@ export const formatIndianNumber = (num: number | string | undefined | null): str
     }
   }
   
-  return result;
+  return isNegative ? '-' + result : result;
 };
 
 export default formatIndianNumber;

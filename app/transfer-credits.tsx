@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -69,6 +70,7 @@ export default function TransferCreditsScreen() {
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [recentContacts, setRecentContacts] = useState<User[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -109,13 +111,26 @@ export default function TransferCreditsScreen() {
 
   const fetchRecentContacts = async () => {
     try {
-      const response = await api.get('/credits/recent-transfers');
-      if (response.success && response.recentUsers) {
-        setRecentContacts(response.recentUsers.slice(0, 5));
-      }
+      // Recent contacts feature disabled - endpoint not yet implemented
+      // Will be added in a future update
+      setRecentContacts([]);
     } catch (error) {
       // Silently fail - recent contacts are optional
       console.log('No recent contacts available');
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchBalance(),
+        fetchRecentContacts()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -258,6 +273,14 @@ export default function TransferCreditsScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS_THEME.primary}
+              colors={[COLORS_THEME.primary, COLORS_THEME.secondary]}
+            />
+          }
         >
           {/* Balance Card - Now Scrollable */}
           <Animated.View 

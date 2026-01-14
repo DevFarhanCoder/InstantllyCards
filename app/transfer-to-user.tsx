@@ -194,7 +194,8 @@ export default function TransferToUserScreen() {
       
       if (response.success) {
         setBalance(response.newBalance);
-        setTransaction(response.transaction);
+        // Backend returns 'transfer' not 'transaction'
+        setTransaction(response.transfer || response.transaction);
         
         setTimeout(() => {
           setIsTransferring(false);
@@ -224,11 +225,11 @@ export default function TransferToUserScreen() {
 
   const handleViewHistory = () => {
     setShowSuccessModal(false);
-    // Navigate to credits history
+    // Navigate to referral program page
     try {
-      router.push('/referral/credits-history');
+      router.push('/referral');
     } catch (error) {
-      console.error('Failed to navigate to history:', error);
+      console.error('Failed to navigate to referral page:', error);
       // Fallback to going back
       if (router.canGoBack()) {
         router.back();
@@ -280,7 +281,7 @@ export default function TransferToUserScreen() {
             <Text style={styles.screenTitle}>Send Credits</Text>
             
             <TouchableOpacity 
-              onPress={() => router.push('/referral/credits-history')} 
+              onPress={() => router.push('/referral')} 
               style={styles.navButton}
               activeOpacity={0.7}
             >

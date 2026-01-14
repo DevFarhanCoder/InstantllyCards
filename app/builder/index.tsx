@@ -839,7 +839,7 @@ export default function Builder() {
     // Track if form has been populated to avoid overwriting user changes
     const [formPopulated, setFormPopulated] = useState(false);
     const [draftData, setDraftData] = useState<any>(null);
-    const hasFetchedDraft = useRef(false);
+    const [hasFetchedDraft, setHasFetchedDraft] = useState(false);
 
     // Save form state as draft (debounced)
     const saveDraft = useCallback(() => {
@@ -930,12 +930,12 @@ export default function Builder() {
         console.log('🔄 Edit param or existingCard changed, resetting form state');
         setFormPopulated(false);
         setDraftData(null);
-        hasFetchedDraft.current = false;
-    }, [edit, existingCard?.updatedAt]); // Reset when card's updatedAt changes (after update)
+        setHasFetchedDraft(false);
+    }, [edit]); // Only reset when edit param changes, not on updatedAt
 
     // Step 1: Load draft from AsyncStorage on mount
     useEffect(() => {
-        if (hasFetchedDraft.current) return;
+        if (hasFetchedDraft) return;
 
         const loadDraft = async () => {
             try {
@@ -958,10 +958,10 @@ export default function Builder() {
                 } else {
                     console.log('📭 No draft found for:', draftKey);
                 }
-                hasFetchedDraft.current = true;
+                setHasFetchedDraft(true);
             } catch (error) {
                 console.error('Failed to load draft:', error);
-                hasFetchedDraft.current = true;
+                setHasFetchedDraft(true);
             }
         };
 
@@ -970,7 +970,7 @@ export default function Builder() {
 
     // Step 2: Once we have both draft and existingCard, decide which to load
     useEffect(() => {
-        if (formPopulated || !hasFetchedDraft.current) return;
+        if (formPopulated || !hasFetchedDraft) return;
         
         // If we have draft data, check if it's newer than existing card
         if (draftData) {
@@ -1046,7 +1046,7 @@ export default function Builder() {
             console.log('📋 Loading form from existing card (no recent draft)');
             // The existing card loading logic will handle this in the next useEffect
         }
-    }, [draftData, existingCard, formPopulated, isEditMode]);
+    }, [draftData, existingCard, formPopulated, isEditMode, hasFetchedDraft]);
 
     // --- validation messages
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1088,10 +1088,10 @@ export default function Builder() {
         console.log("edit param:", edit);
         console.log("existingCard:", existingCard);
         console.log("formPopulated:", formPopulated);
-        console.log("hasFetchedDraft:", hasFetchedDraft.current);
+        console.log("hasFetchedDraft:", hasFetchedDraft);
         
         // CRITICAL: Wait for draft check to complete before loading existingCard
-        if (!hasFetchedDraft.current) {
+        if (!hasFetchedDraft) {
             console.log("⏳ Waiting for draft check to complete before loading card data");
             return;
         }
@@ -1147,7 +1147,7 @@ export default function Builder() {
             console.log('Builder: formPopulated set true after successful single-card fetch');
         }
 
-    }, [singleCardQuery.data, singleCardQuery.isSuccess, isEditMode, edit, formPopulated]);
+    }, [singleCardQuery.data, singleCardQuery.isSuccess, isEditMode, edit, formPopulated, hasFetchedDraft]);
 
     // Track company photo changes
     useEffect(() => {

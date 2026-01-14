@@ -364,8 +364,15 @@ export default function EarnCreditsScreen() {
           text: 'Quit',
           style: 'destructive',
           onPress: async () => {
-            // Save progress to local storage before quitting
+            // Save progress to backend to create transaction
             try {
+              if (questionsAnswered > 0) {
+                // Create transaction for credits earned so far
+                await api.post('/quiz/save-progress');
+                console.log('✅ Quiz progress saved - transaction created for', earnedSoFar, 'credits');
+              }
+              
+              // Also save progress to local storage before quitting
               const progressData = {
                 answeredQuestions: userProgress.answeredQuestions,
                 totalEarned: userProgress.totalEarned,
@@ -374,7 +381,8 @@ export default function EarnCreditsScreen() {
               };
               await AsyncStorage.setItem('quiz_progress', JSON.stringify(progressData));
             } catch (error) {
-              // Silently handle save errors
+              console.error('Error saving quiz progress on quit:', error);
+              // Continue quitting even if save fails
             }
             router.back();
           },
@@ -399,6 +407,12 @@ export default function EarnCreditsScreen() {
     } else {
       // Save progress before leaving
       try {
+        // Create transaction if user has answered any questions
+        if (userProgress.answeredQuestions.length > 0) {
+          await api.post('/quiz/save-progress');
+          console.log('✅ Quiz progress saved on skip - transaction created');
+        }
+        
         const progressData = {
           answeredQuestions: userProgress.answeredQuestions,
           totalEarned: userProgress.totalEarned,
@@ -407,7 +421,8 @@ export default function EarnCreditsScreen() {
         };
         await AsyncStorage.setItem('quiz_progress', JSON.stringify(progressData));
       } catch (error) {
-        // Silently handle save errors
+        console.error('Error saving quiz progress on skip:', error);
+        // Continue even if save fails
       }
       router.back();
     }

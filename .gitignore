@@ -44,3 +44,7 @@ google-services.json
 # generated native folders
 /ios
 /android
+
+# APK and AAB files
+*.apk
+*.aab
