@@ -1,4 +1,4 @@
-// lib/auth.ts v1.0.62
+// lib/auth.ts v1.0.63
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./api";
 
