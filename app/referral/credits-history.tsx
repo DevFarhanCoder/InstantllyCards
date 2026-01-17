@@ -16,6 +16,8 @@ import { router } from 'expo-router';
 import api from '@/lib/api';
 import { formatIndianNumber } from '@/utils/formatNumber';
 import { socketService } from '@/lib/socket';
+import FooterCarousel from '@/components/FooterCarousel';
+import CustomTabBar from '@/components/CustomTabBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCredits } from '@/contexts/CreditsContext';
 
@@ -422,7 +424,16 @@ export default function CreditsHistoryPage() {
             </View>
           )}
         </View>
+
+        {/* Bottom spacing for footer carousel */}
+        <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* Footer Carousel - Fixed at bottom */}
+      <FooterCarousel withCustomTabBar={true} />
+      
+      {/* Bottom Tab Navigation */}
+      <CustomTabBar />
     </SafeAreaView>
   );
 }

@@ -14,9 +14,11 @@ const SHOW_ADS = true; // Set to false to disable ads, true to enable
 
 interface FooterCarouselProps {
   showPromoteButton?: boolean;
+  addTabBarSpacing?: boolean; // Add spacing to simulate tab bar presence on non-tab screens
+  withCustomTabBar?: boolean; // When true, positions directly above CustomTabBar (bottom: 64px)
 }
 
-const FooterCarousel = ({ showPromoteButton = false }: FooterCarouselProps) => {
+const FooterCarousel = ({ showPromoteButton = false, addTabBarSpacing = false, withCustomTabBar = false }: FooterCarouselProps) => {
   if (!SHOW_ADS) return null;
   // console.log('🔄 FooterCarousel: Component mounting/re-rendering');
   
@@ -345,7 +347,11 @@ const FooterCarousel = ({ showPromoteButton = false }: FooterCarouselProps) => {
 
   return (
     <>
-      <View style={styles.container}>
+      <View style={[
+        styles.container, 
+        addTabBarSpacing && { bottom: 65 },
+        withCustomTabBar && { bottom: 56 + 8 } // Tab bar base (56) + padding (8)
+      ]}>
         {/* Show loading state */}
         {isLoading && (
           <View style={styles.loadingContainer}>

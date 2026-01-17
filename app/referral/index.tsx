@@ -30,6 +30,8 @@ import { copyAsync, cacheDirectory } from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import api from '@/lib/api';
 import { formatIndianNumber } from '@/utils/formatNumber';
+import FooterCarousel from '@/components/FooterCarousel';
+import CustomTabBar from '@/components/CustomTabBar';
 import { useCredits } from '@/contexts/CreditsContext';
 
 interface ReferralStats {
@@ -277,8 +279,9 @@ export default function ReferralPage() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
@@ -456,17 +459,24 @@ export default function ReferralPage() {
           </View>
         </View>
 
-        {/* Bottom Spacer */}
-        <View style={{ height: 20 }} />
+        {/* Bottom Spacer for footer carousel */}
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Language Selection Modal */}
-      <Modal
-        visible={languageModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setLanguageModalVisible(false)}
-      >
+      {/* Footer Carousel - Fixed at bottom */}
+      <FooterCarousel withCustomTabBar={true} />
+      
+      {/* Bottom Tab Navigation */}
+      <CustomTabBar />
+    </SafeAreaView>
+
+    {/* Language Selection Modal */}
+    <Modal
+      visible={languageModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setLanguageModalVisible(false)}
+    >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -534,7 +544,7 @@ export default function ReferralPage() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </>
   );
 }
 

@@ -23,6 +23,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import api from '../lib/api';
 import { formatIndianNumber } from '../utils/formatNumber';
 import { socketService } from '../lib/socket';
+import FooterCarousel from '../components/FooterCarousel';
+import CustomTabBar from '../components/CustomTabBar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCredits } from '../contexts/CreditsContext';
 
@@ -510,10 +512,16 @@ export default function TransferCreditsScreen() {
           </View>
         )}
 
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
+        {/* Bottom spacing for footer carousel */}
+        <View style={{ height: 120 }} />
+      </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Footer Carousel - Fixed at bottom */}
+      <FooterCarousel withCustomTabBar={true} />
+      
+      {/* Bottom Tab Navigation */}
+      <CustomTabBar />
     </View>
   );
 }
