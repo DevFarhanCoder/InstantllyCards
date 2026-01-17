@@ -319,11 +319,12 @@ export default function ReferralPage() {
                 <Ionicons name="sparkles" size={16} color="#059669" />
                 <Text style={styles.creditsLabel}>Available Balance Credit</Text>
               </View>
-              <Text style={styles.creditsAmount}>{formatIndianNumber(userCredits || 0)}</Text>
+              <View style={styles.creditsAmountRow}>
+                <Text style={styles.creditsAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                  ₹{formatIndianNumber(userCredits || 0)}
+                </Text>
+              </View>
               <Text style={styles.creditsUnit}>Ready to use</Text>
-            </View>
-            <View style={styles.creditsIconCircle}>
-              <Ionicons name="wallet" size={36} color="#10B981" />
             </View>
           </LinearGradient>
           <View style={styles.creditsHintContainer}>
@@ -624,11 +625,17 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
+  creditsAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 4,
+    width: '100%',
+  },
   creditsAmount: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: '900',
     color: '#10B981',
-    marginBottom: 4,
+    flexShrink: 1,
   },
   creditsUnit: {
     fontSize: 13,

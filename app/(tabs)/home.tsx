@@ -12,7 +12,7 @@ import FAB from "../../components/FAB";
 import ReferralBanner from "../../components/ReferralBanner";
 import CategoryGrid from "../../components/CategoryGrid";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
-import { formatIndianNumber } from "../../utils/formatNumber";
+import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
 
 
 
@@ -87,22 +87,24 @@ export default function Home() {
       const token = await AsyncStorage.getItem("token");
       if (token) {
         const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
-        // console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
+        console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
         
-        const response = await fetch(`${apiBase}/api/credits/balance`, {
+        // Add cache busting to force fresh data
+        const response = await fetch(`${apiBase}/api/credits/balance?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
         
-        // console.log("💰 Home: Credits response status:", response.status);
+        console.log("💰 Home: Credits response status:", response.status);
         
         if (response.ok) {
           const data = await response.json();
-          // console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
+          console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
+          console.log("💰 Home: Raw credits value:", data.credits);
           setUserCredits(data.credits || 0);
-          // console.log("✅ Home: Credits set to:", data.credits || 0);
+          console.log("✅ Home: Credits set to:", data.credits || 0);
         } else {
           const errorText = await response.text();
           console.error("❌ Home: Credits fetch failed:", response.status, errorText);
@@ -271,13 +273,25 @@ export default function Home() {
         </View>
         {/* Credits Right */}
         <Link href="/referral" asChild>
-          <TouchableOpacity style={s.creditsButton} activeOpacity={0.7}>
+          <TouchableOpacity 
+            style={s.creditsButton} 
+            activeOpacity={0.7}
+            onPress={() => {
+              console.log("🪙 Credits button pressed - Current value:", userCredits);
+              console.log("🪙 Formatted value:", formatAmount(userCredits));
+            }}
+          >
             <View style={s.creditsIconContainer}>
               <Text style={s.coinIcon}>🪙</Text>
               {creditsLoading ? (
                 <ActivityIndicator size="small" color="#F59E0B" />
               ) : (
-                <Text style={s.creditsCount}>{formatIndianNumber(userCredits)}</Text>
+                <Text style={s.creditsCount}>
+                  {(() => {
+                    console.log("💰 Rendering credits - Raw:", userCredits, "Formatted:", formatAmount(userCredits));
+                    return formatAmount(userCredits);
+                  })()}
+                </Text>
               )}
             </View>
           </TouchableOpacity>
@@ -414,7 +428,7 @@ const s = StyleSheet.create({
     fontWeight: '900',
   },
   headerTitleOrange: {
-    color: '#FF9100',
+    color: '#151C32',
     fontWeight: '900',
   },
   sectionTitle: {
