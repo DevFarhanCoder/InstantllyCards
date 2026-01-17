@@ -42,12 +42,26 @@ import { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { checkAndHandleVersionChange } from "../lib/versionCheck";
 
 export default function Index() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
         console.log('🔍 [INDEX] Checking authentication...');
+        
+        // FIRST: Check if app version changed and handle logout if needed
+        const wasLoggedOut = await checkAndHandleVersionChange();
+        
+        if (wasLoggedOut) {
+          console.log('🚪 [INDEX] User was logged out due to app update - redirecting to signup');
+          setTimeout(() => {
+            router.replace("/(auth)/signup");
+          }, 500);
+          return;
+        }
+        
+        // THEN: Check for existing token
         const token = await AsyncStorage.getItem("token");
         
         // Small delay for smooth transition
