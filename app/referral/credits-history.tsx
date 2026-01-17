@@ -15,6 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import api from '@/lib/api';
 import { formatIndianNumber } from '@/utils/formatNumber';
+import { socketService } from '@/lib/socket';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCredits } from '@/contexts/CreditsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -39,9 +42,10 @@ interface CreditBreakdown {
 }
 
 export default function CreditsHistoryPage() {
+  // Use global credits context
+  const { credits: totalCredits, refreshCredits } = useCredits();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [totalCredits, setTotalCredits] = useState(0);
   const [breakdown, setBreakdown] = useState<CreditBreakdown>({
     quizCredits: 0,
     referralCredits: 0,
@@ -68,7 +72,8 @@ export default function CreditsHistoryPage() {
       const historyResponse = await api.get('/credits/history?limit=100');
 
       if (historyResponse.success) {
-        setTotalCredits(historyResponse.totalCredits || 0);
+        // Refresh global credits
+        await refreshCredits();
         setBreakdown(historyResponse.breakdown || {
           quizCredits: 0,
           referralCredits: 0,
@@ -131,7 +136,11 @@ export default function CreditsHistoryPage() {
     return iconMap[type] || 'wallet';
   };
 
-  const getTransactionColor = (type: string): string => {
+  const getTransactionColor = (type: string, amount?: number): string => {
+    // If amount is negative, always show red
+    if (amount !== undefined && amount < 0) {
+      return '#EF4444';
+    }
     const deductionTypes = ['transfer_sent', 'ad_deduction'];
     return deductionTypes.includes(type) ? '#EF4444' : '#10B981';
   };
@@ -305,7 +314,7 @@ export default function CreditsHistoryPage() {
             {/* Spending Section */}
             <View style={styles.breakdownSection}>
               <Text style={styles.breakdownSectionTitle}>Spending</Text>
-              <View style={styles.breakdownCards}>
+              <View style={styles.spendingCardsHorizontal}>
                 <BreakdownCard
                   title="Transfer Sent"
                   amount={-breakdown.transferSent}
@@ -362,12 +371,12 @@ export default function CreditsHistoryPage() {
                   <View key={txn._id} style={[styles.transactionCard, isLastItem && styles.lastTransactionCard]}>
                     <View style={[
                       styles.transactionIconContainer,
-                      { backgroundColor: getTransactionColor(txn.type) + '15' }
+                      { backgroundColor: getTransactionColor(txn.type, txn.amount) + '15' }
                     ]}>
                       <Ionicons 
                         name={getTransactionIcon(txn.type) as any} 
                         size={22} 
-                        color={getTransactionColor(txn.type)} 
+                        color={getTransactionColor(txn.type, txn.amount)} 
                       />
                     </View>
                     
@@ -382,7 +391,7 @@ export default function CreditsHistoryPage() {
                     <View style={styles.transactionAmountContainer}>
                       <Text style={[
                         styles.transactionAmount,
-                        { color: getTransactionColor(txn.type) }
+                        { color: getTransactionColor(txn.type, txn.amount) }
                       ]}>
                         {txn.amount > 0 ? '+' : ''}{formatIndianNumber(txn.amount)}
                       </Text>
@@ -603,6 +612,10 @@ const styles = StyleSheet.create({
   },
   breakdownCards: {
     flexDirection: 'row',
+    gap: 10,
+  },
+  spendingCardsHorizontal: {
+    flexDirection: 'column',
     gap: 10,
   },
   breakdownCard: {

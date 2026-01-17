@@ -30,6 +30,7 @@ import { copyAsync, cacheDirectory } from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import api from '@/lib/api';
 import { formatIndianNumber } from '@/utils/formatNumber';
+import { useCredits } from '@/contexts/CreditsContext';
 
 interface ReferralStats {
   referralCode: string;
@@ -50,7 +51,7 @@ interface CreditConfig {
 export default function ReferralPage() {
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [config, setConfig] = useState<CreditConfig | null>(null);
-  const [userCredits, setUserCredits] = useState<number>(0);
+  const { credits: userCredits, refreshCredits } = useCredits();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
@@ -63,18 +64,16 @@ export default function ReferralPage() {
         setLoading(true);
       }
       
-      // Fetch referral stats, credit config, and user balance
+      // Fetch referral stats and credit config
       // Use Promise.allSettled to handle partial failures gracefully
-      const [statsResult, configResult, creditsResult] = await Promise.allSettled([
+      const [statsResult, configResult] = await Promise.allSettled([
         api.get('/credits/referral-stats'),
-        api.get('/credits/config'),
-        api.get('/credits/balance')
+        api.get('/credits/config')
       ]);
       
       // Extract values from settled promises
       const statsResponse = statsResult.status === 'fulfilled' ? statsResult.value : null;
       const configResponse = configResult.status === 'fulfilled' ? configResult.value : null;
-      const creditsResponse = creditsResult.status === 'fulfilled' ? creditsResult.value : null;
       
       console.log('📊 Referral Stats Response:', JSON.stringify(statsResponse, null, 2));
       console.log('🔑 Referral Code:', statsResponse?.referralCode);
@@ -86,9 +85,9 @@ export default function ReferralPage() {
       if (configResponse?.config) {
         setConfig(configResponse.config);
       }
-      if (creditsResponse) {
-        setUserCredits(creditsResponse.credits || 0);
-      }
+      
+      // Refresh credits from global context
+      await refreshCredits();
       
       // Force a re-render check
       console.log('✅ State updated - referralCode should be:', statsResponse?.referralCode);

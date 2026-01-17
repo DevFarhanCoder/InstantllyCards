@@ -13,6 +13,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from 'expo-linking';
 import { getPlayStoreReferrer } from "@/lib/playStoreReferrer";
 import { checkAndRefreshCreditsOnUpdate } from "@/lib/creditsRefresh";
+import { CreditsProvider } from "@/contexts/CreditsContext";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -166,13 +167,15 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ForceUpdateModal
-        visible={updateRequired}
-        updateUrl={updateUrl}
-        currentVersion={getCurrentAppVersion()}
-        latestVersion={latestVersion}
-      />
-      <Stack screenOptions={{ headerShown: false }} />
+      <CreditsProvider>
+        <ForceUpdateModal
+          visible={updateRequired}
+          updateUrl={updateUrl}
+          currentVersion={getCurrentAppVersion()}
+          latestVersion={latestVersion}
+        />
+        <Stack screenOptions={{ headerShown: false }} />
+      </CreditsProvider>
     </QueryClientProvider>
   );
 }

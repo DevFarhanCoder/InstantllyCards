@@ -382,7 +382,7 @@ export default function TransferToUserScreen() {
                   value={amount}
                   onChangeText={handleAmountChange}
                   keyboardType="numeric"
-                  maxLength={6}
+                  maxLength={9}
                 />
                 <Text style={styles.amountSuffix}>credits</Text>
               </View>

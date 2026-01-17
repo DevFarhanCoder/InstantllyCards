@@ -13,6 +13,8 @@ import ReferralBanner from "../../components/ReferralBanner";
 import CategoryGrid from "../../components/CategoryGrid";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
 import { formatIndianNumber } from "../../utils/formatNumber";
+import { socketService } from "../../lib/socket";
+import { useCredits } from "@/contexts/CreditsContext";
 
 
 
@@ -31,9 +33,10 @@ export default function Home() {
   const [userName, setUserName] = React.useState<string>("");
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [showVideoTest, setShowVideoTest] = React.useState(false);
-  const [userCredits, setUserCredits] = React.useState<number>(0);
-  const [creditsLoading, setCreditsLoading] = React.useState(true);
   const queryClient = useQueryClient();
+  
+  // Use global credits context
+  const { credits: userCredits, loading: creditsLoading, refreshCredits } = useCredits();
 
   // Fetch user name and ID for profile initial and filtering
   React.useEffect(() => {
@@ -80,53 +83,12 @@ export default function Home() {
     fetchUserData();
   }, []);
 
-  // Fetch user credits
-  const fetchCredits = React.useCallback(async () => {
-    try {
-      setCreditsLoading(true);
-      const token = await AsyncStorage.getItem("token");
-      if (token) {
-        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
-        // console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
-        
-        const response = await fetch(`${apiBase}/api/credits/balance`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        // console.log("💰 Home: Credits response status:", response.status);
-        
-        if (response.ok) {
-          const data = await response.json();
-          // console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
-          setUserCredits(data.credits || 0);
-          // console.log("✅ Home: Credits set to:", data.credits || 0);
-        } else {
-          const errorText = await response.text();
-          console.error("❌ Home: Credits fetch failed:", response.status, errorText);
-        }
-      } else {
-        console.error("❌ Home: No auth token found for credits");
-      }
-    } catch (error) {
-      console.error("❌ Home: Error fetching credits:", error);
-    } finally {
-      setCreditsLoading(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    fetchCredits();
-  }, [fetchCredits]);
-
   // Refetch credits when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       // console.log("🔄 Home: Screen focused, refreshing credits...");
-      fetchCredits();
-    }, [fetchCredits])
+      refreshCredits();
+    }, [refreshCredits])
   );
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
@@ -181,9 +143,9 @@ export default function Home() {
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
     // console.log("🔄 Manual refresh triggered");
-    fetchCredits(); // Also refresh credits
+    refreshCredits(); // Also refresh credits
     queryClient.invalidateQueries({ queryKey: ["contacts-feed", currentUserId] });
-  }, [queryClient, currentUserId, fetchCredits]);
+  }, [queryClient, currentUserId, refreshCredits]);
 
   // Filter cards: 1) Exclude user's own cards, 2) Deduplicate, 3) Apply search query
   const filteredCards = React.useMemo(() => {

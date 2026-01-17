@@ -22,6 +22,9 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../lib/api';
 import { formatIndianNumber } from '../utils/formatNumber';
+import { socketService } from '../lib/socket';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCredits } from '../contexts/CreditsContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -64,8 +67,8 @@ interface User {
 }
 
 export default function TransferCreditsScreen() {
-  const [balance, setBalance] = useState(0);
-  const [loadingBalance, setLoadingBalance] = useState(true);
+  // Use global credits context
+  const { credits: balance, loading: loadingBalance, refreshCredits } = useCredits();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -77,7 +80,7 @@ export default function TransferCreditsScreen() {
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    fetchBalance();
+    refreshCredits();
     fetchRecentContacts();
     
     // Entry animation
@@ -95,20 +98,6 @@ export default function TransferCreditsScreen() {
     ]).start();
   }, []);
 
-  const fetchBalance = async () => {
-    try {
-      setLoadingBalance(true);
-      const response = await api.get('/credits/balance');
-      if (response.success) {
-        setBalance(response.credits || 0);
-      }
-    } catch (error) {
-      console.error('Failed to fetch balance:', error);
-    } finally {
-      setLoadingBalance(false);
-    }
-  };
-
   const fetchRecentContacts = async () => {
     try {
       // Recent contacts feature disabled - endpoint not yet implemented
@@ -124,7 +113,7 @@ export default function TransferCreditsScreen() {
     setRefreshing(true);
     try {
       await Promise.all([
-        fetchBalance(),
+        refreshCredits(),
         fetchRecentContacts()
       ]);
     } catch (error) {
