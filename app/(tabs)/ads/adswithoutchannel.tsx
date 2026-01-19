@@ -262,15 +262,15 @@ export default function AdsWithoutChannel() {
     }
 
     // Check credits
-    if (userCredits < 1020) {
-      Alert.alert('Insufficient Credits', `You need 1020 credits to create an ad. Current balance: ${userCredits}`);
+    if (userCredits < 1200) {
+      Alert.alert('Insufficient Credits', `You need 1200 credits to create an ad. Current balance: ${userCredits}`);
       return;
     }
 
     // Confirm ad submission with cost breakdown
     Alert.alert(
       '📢 Ad Submission Cost',
-      `💳 Credits: 1020 (will be deducted now)\n💵 Cash Payment: ₹180 (after admin approval)\n📊 Total Cost: 1020 credits + ₹180\n\n⚠️ Admin will review your ad. After approval, you will be contacted to pay ₹180.\n\nDo you want to proceed?`,
+      `💳 Credits: 1200 (will be deducted now)\n💵 Cash Payment: ₹180 (after admin approval)\n📊 Total Cost: 1200 credits + ₹180\n\n⚠️ Admin will review your ad. After approval, you will be contacted to pay ₹180.\n\nDo you want to proceed?`,
       [
         {
           text: 'Cancel',
@@ -366,7 +366,7 @@ export default function AdsWithoutChannel() {
       if (response.ok) {
         Alert.alert(
           '✅ Ad Submitted Successfully!',
-          `💳 1020 credits deducted\n📊 Remaining credits: ${data.remainingCredits ? formatIndianNumber(data.remainingCredits) : 'N/A'}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
+          `💳 1200 credits deducted\n📊 Remaining credits: ${data.remainingCredits ? formatIndianNumber(data.remainingCredits) : 'N/A'}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
           [{ text: 'OK', onPress: () => {
             // Reset form
             setTitle('');
@@ -477,7 +477,7 @@ export default function AdsWithoutChannel() {
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={24} color="#4F6AF3" />
             <Text style={styles.infoText}>
-              Create an ad for 1020 credits. Your ad will be reviewed by admin before appearing in the app.
+              Create an ad for 1200 credits. Your ad will be reviewed by admin before appearing in the app.
             </Text>
           </View>
 
@@ -587,10 +587,6 @@ export default function AdsWithoutChannel() {
               <Ionicons name="expand-outline" size={16} color="#666" />
               <Text style={styles.label}> Fullscreen Image (Optional 624×1000px)</Text>
             </View>
-            <View style={styles.optionalInfoCard}>
-              <Ionicons name="information-circle-outline" size={16} color="#92400e" />
-              <Text style={styles.optionalInfoText}>If not provided, users will see Call/Message buttons when they tap the banner.</Text>
-            </View>
             <Text style={styles.hint}>This image appears when user taps the bottom banner. Recommended size: 624 × 1000 pixels</Text>
             <TouchableOpacity 
               style={styles.imagePickerBtn} 
@@ -665,10 +661,6 @@ export default function AdsWithoutChannel() {
             <View style={styles.mediaTypeLabelRow}>
               <Ionicons name="expand-outline" size={16} color="#666" />
               <Text style={styles.label}> Fullscreen Video (Optional 624×1000px)</Text>
-            </View>
-            <View style={styles.optionalInfoCard}>
-              <Ionicons name="information-circle-outline" size={16} color="#92400e" />
-              <Text style={styles.optionalInfoText}>If not provided, users will see Call/Message buttons when they tap the banner.</Text>
             </View>
             <TouchableOpacity 
               style={[styles.videoUploadCard, styles.videoUploadCardTall, fullscreenVideo && styles.videoUploadCardSelected]} 
@@ -855,7 +847,7 @@ export default function AdsWithoutChannel() {
           <View style={styles.warningCard}>
             <Ionicons name="warning" size={20} color="#f59e0b" />
             <Text style={styles.warningText}>
-              1020 credits will be deducted upon submission
+              1200 credits will be deducted upon submission
             </Text>
           </View>
 
@@ -869,7 +861,7 @@ export default function AdsWithoutChannel() {
             ) : (
               <>
                 <Ionicons name="paper-plane" size={20} color="#fff" />
-                <Text style={styles.submitBtnText}>Submit Ad (1020 Credits)</Text>
+                <Text style={styles.submitBtnText}>Submit Ad (1200 Credits)</Text>
               </>
             )}
           </TouchableOpacity>

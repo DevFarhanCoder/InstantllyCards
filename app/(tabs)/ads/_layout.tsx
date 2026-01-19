@@ -38,13 +38,22 @@ export default function AdsStackLayout() {
           headerShown: true,
         }}
       />
+
+      <Stack.Screen
+        name="adquestionnaire"
+        options={{
+          headerTitle: "Ad Preferences",
+          headerShown: true,
+          headerBackVisible: true,
+        }}
+      />
       
       <Stack.Screen
         name="adswithoutchannel"
         options={{
-          headerTitle: "Advertisements",
+          headerTitle: "Create Advertisement",
           headerShown: true,
-          headerBackVisible: false,
+          headerBackVisible: true,
         }}
       />
     </Stack>

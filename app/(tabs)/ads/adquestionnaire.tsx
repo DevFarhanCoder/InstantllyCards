@@ -271,12 +271,6 @@ export default function AdQuestionnaire() {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         <View style={styles.card}>
-          {/* Back Button */}
-          <TouchableOpacity style={styles.backButton} onPress={handleBackToQuestionnaire}>
-            <Ionicons name="arrow-back" size={20} color="#4F6AF3" />
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-
           {/* Header with Icon */}
           <View style={styles.formHeader}>
             <View style={styles.formIconContainer}>

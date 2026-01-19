@@ -10,6 +10,7 @@ import { chatNotificationService } from "@/lib/chat-notifications";
 import { socketService } from "@/lib/socket";
 import { showInAppNotification } from "@/lib/notifications-expo-go";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { CreditsProvider } from "../contexts/CreditsContext";
 
 // Import the appropriate notification system based on environment
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -90,13 +91,15 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ForceUpdateModal
-        visible={updateRequired}
-        updateUrl={updateUrl}
-        currentVersion={getCurrentAppVersion()}
-        latestVersion={latestVersion}
-      />
-      <Stack screenOptions={{ headerShown: false }} />
+      <CreditsProvider>
+        <ForceUpdateModal
+          visible={updateRequired}
+          updateUrl={updateUrl}
+          currentVersion={getCurrentAppVersion()}
+          latestVersion={latestVersion}
+        />
+        <Stack screenOptions={{ headerShown: false }} />
+      </CreditsProvider>
     </QueryClientProvider>
   );
 }
