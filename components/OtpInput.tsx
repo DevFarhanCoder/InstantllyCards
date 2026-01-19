@@ -1,93 +1,101 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 
 interface OtpInputProps {
-  length?: number;
+  length: number;
   value: string;
   onChangeText: (text: string) => void;
   autoFocus?: boolean;
 }
 
-export default function OtpInput({ 
-  length = 6, 
-  value, 
-  onChangeText,
-  autoFocus = true 
-}: OtpInputProps) {
-  const [otp, setOtp] = useState<string[]>(Array(length).fill(''));
+export default function OtpInput({ length, value, onChangeText, autoFocus = false }: OtpInputProps) {
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
-  // Sync external value changes to internal state
   useEffect(() => {
-    if (value) {
-      const newOtp = value.split('').slice(0, length);
-      while (newOtp.length < length) {
-        newOtp.push('');
-      }
-      setOtp(newOtp);
-    } else {
-      setOtp(Array(length).fill(''));
+    if (autoFocus && inputRefs.current[0]) {
+      inputRefs.current[0].focus();
     }
-  }, [value, length]);
+  }, [autoFocus]);
 
   const handleChange = (text: string, index: number) => {
-    // Only allow single digit
-    const digit = text.slice(-1);
+    // Only allow digits
+    const sanitized = text.replace(/[^0-9]/g, '');
     
-    if (digit && !/^\d$/.test(digit)) {
-      return; // Only allow numbers
-    }
-
-    const newOtp = [...otp];
-    newOtp[index] = digit;
-    setOtp(newOtp);
-
-    // Notify parent
-    const otpString = newOtp.join('');
-    onChangeText(otpString);
-
-    // Auto focus next input
-    if (digit && index < length - 1) {
-      inputRefs.current[index + 1]?.focus();
+    if (sanitized.length === 0) {
+      // Handle deletion
+      const newValue = value.split('');
+      newValue[index] = '';
+      onChangeText(newValue.join(''));
+      
+      // Move to previous input
+      if (index > 0 && inputRefs.current[index - 1]) {
+        inputRefs.current[index - 1]?.focus();
+      }
+    } else if (sanitized.length === 1) {
+      // Single digit entered
+      const newValue = value.split('');
+      newValue[index] = sanitized;
+      onChangeText(newValue.join(''));
+      
+      // Move to next input if not at the end
+      if (index < length - 1 && inputRefs.current[index + 1]) {
+        inputRefs.current[index + 1]?.focus();
+      }
+    } else if (sanitized.length > 1) {
+      // Multiple digits pasted
+      const digits = sanitized.slice(0, length).split('');
+      const newValue = value.split('');
+      
+      digits.forEach((digit, i) => {
+        if (index + i < length) {
+          newValue[index + i] = digit;
+        }
+      });
+      
+      onChangeText(newValue.join(''));
+      
+      // Focus on the last filled input or the next empty one
+      const nextIndex = Math.min(index + digits.length, length - 1);
+      if (inputRefs.current[nextIndex]) {
+        inputRefs.current[nextIndex]?.focus();
+      }
     }
   };
 
   const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace') {
-      if (!otp[index] && index > 0) {
-        // If current box is empty, go to previous box
-        inputRefs.current[index - 1]?.focus();
-      }
+    if (e.nativeEvent.key === 'Backspace' && !value[index] && index > 0) {
+      // If current box is empty and backspace pressed, move to previous
+      inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleBoxPress = (index: number) => {
-    inputRefs.current[index]?.focus();
+  const handleFocus = (index: number) => {
+    // Select all text on focus for easier editing
+    const input = inputRefs.current[index];
+    if (input) {
+      setTimeout(() => input.setNativeProps({ selection: { start: 0, end: 1 } }), 10);
+    }
   };
 
   return (
     <View style={styles.container}>
-      {otp.map((digit, index) => (
-        <Pressable 
-          key={index} 
-          onPress={() => handleBoxPress(index)}
-          style={styles.boxWrapper}
-        >
-          <TextInput
-            ref={(ref) => (inputRefs.current[index] = ref)}
-            style={[
-              styles.box,
-              digit ? styles.boxFilled : styles.boxEmpty
-            ]}
-            value={digit}
-            onChangeText={(text) => handleChange(text, index)}
-            onKeyPress={(e) => handleKeyPress(e, index)}
-            keyboardType="number-pad"
-            maxLength={1}
-            autoFocus={index === 0 && autoFocus}
-            selectTextOnFocus
-          />
-        </Pressable>
+      {Array.from({ length }, (_, index) => (
+        <TextInput
+          key={index}
+          ref={(ref) => (inputRefs.current[index] = ref)}
+          style={[
+            styles.input,
+            value[index] && styles.inputFilled,
+          ]}
+          value={value[index] || ''}
+          onChangeText={(text) => handleChange(text, index)}
+          onKeyPress={(e) => handleKeyPress(e, index)}
+          onFocus={() => handleFocus(index)}
+          keyboardType="number-pad"
+          maxLength={1}
+          selectTextOnFocus
+          autoComplete="sms-otp"
+        />
       ))}
     </View>
   );
@@ -96,30 +104,24 @@ export default function OtpInput({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
-  boxWrapper: {
-    flex: 1,
-    maxWidth: 50,
-  },
-  box: {
-    width: '100%',
+  input: {
+    width: 48,
     height: 56,
     borderWidth: 2,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '600',
     textAlign: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#F9FAFB',
+    color: '#111827',
   },
-  boxEmpty: {
-    borderColor: '#E0E0E0',
-    color: '#333',
-  },
-  boxFilled: {
-    borderColor: '#FF6B6B',
-    color: '#FF6B6B',
+  inputFilled: {
+    borderColor: '#F97316',
+    backgroundColor: '#FFF7ED',
   },
 });
