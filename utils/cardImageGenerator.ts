@@ -81,25 +81,68 @@ export async function generateAndShareCardImage(
     const buildCardDetails = () => {
       let details = 'This is My Digital Visiting Card -\n\n';
       
+      // Personal Information
       if (cardData.name) details += `👤 Name: ${cardData.name}\n`;
       if (cardData.designation) details += `💼 Designation: ${cardData.designation}\n`;
-      if (cardData.companyName) details += `🏢 Company: ${cardData.companyName}\n`;
       
-      const phone = cardData.companyPhone || cardData.personalPhone;
-      if (phone) {
-        // Remove + and country code prefix for cleaner display
-        const cleanPhone = phone.replace(/^\+\d+/, '').trim();
-        details += `📞 Phone: ${cleanPhone}\n`;
+      // Personal Contact
+      const personalPhone = cardData.contact || cardData.personalPhone;
+      if (personalPhone) {
+        const cleanPhone = personalPhone.replace(/^\+\d+/, '').trim();
+        details += `📱 Personal Phone: ${cleanPhone}\n`;
       }
       
-      const email = cardData.companyEmail || cardData.email;
-      if (email) details += `📧 Email: ${email}\n`;
+      const personalEmail = cardData.email;
+      if (personalEmail) details += `📧 Personal Email: ${personalEmail}\n`;
       
-      const website = cardData.companyWebsite || cardData.website;
-      if (website) details += `🌐 Website: ${website}\n`;
+      const personalWebsite = cardData.website;
+      if (personalWebsite) details += `🌐 Personal Website: ${personalWebsite}\n`;
       
-      const address = cardData.companyAddress || cardData.location;
-      if (address) details += `📍 Address: ${address}\n`;
+      const personalLocation = cardData.location;
+      if (personalLocation) details += `📍 Personal Location: ${personalLocation}\n`;
+      
+      const personalMapsLink = cardData.mapsLink;
+      if (personalMapsLink) details += `🗺️ Personal Maps: ${personalMapsLink}\n`;
+      
+      // Business Information
+      if (cardData.companyName) details += `🏢 Company: ${cardData.companyName}\n`;
+      
+      const companyPhone = cardData.companyContact || cardData.companyPhone;
+      if (companyPhone) {
+        const cleanPhone = companyPhone.replace(/^\+\d+/, '').trim();
+        details += `☎️ Company Phone: ${cleanPhone}\n`;
+      }
+      
+      const companyEmail = cardData.companyEmail;
+      if (companyEmail) details += `📨 Company Email: ${companyEmail}\n`;
+      
+      const companyWebsite = cardData.companyWebsite;
+      if (companyWebsite) details += `🌍 Company Website: ${companyWebsite}\n`;
+      
+      const companyAddress = cardData.companyAddress;
+      if (companyAddress) details += `🏭 Company Address: ${companyAddress}\n`;
+      
+      const companyMapsLink = cardData.companyMapsLink;
+      if (companyMapsLink) details += `🗺️ Company Maps: ${companyMapsLink}\n`;
+      
+      const message = cardData.message;
+      if (message) details += `💬 Message: ${message}\n`;
+      
+      // Social Media Links
+      let socialAdded = false;
+      if (cardData.linkedin || cardData.twitter || cardData.instagram || 
+          cardData.facebook || cardData.youtube || cardData.whatsapp || cardData.telegram) {
+        details += `\n🔗 Social Media:\n`;
+        socialAdded = true;
+      }
+      
+      if (cardData.linkedin) details += `   LinkedIn: ${cardData.linkedin}\n`;
+      if (cardData.twitter) details += `   Twitter: ${cardData.twitter}\n`;
+      if (cardData.instagram) details += `   Instagram: ${cardData.instagram}\n`;
+      if (cardData.facebook) details += `   Facebook: ${cardData.facebook}\n`;
+      if (cardData.youtube) details += `   YouTube: ${cardData.youtube}\n`;
+      if (cardData.whatsapp) details += `   WhatsApp: ${cardData.whatsapp}\n`;
+      if (cardData.telegram) details += `   Telegram: ${cardData.telegram}\n`;
       
       return details;
     };

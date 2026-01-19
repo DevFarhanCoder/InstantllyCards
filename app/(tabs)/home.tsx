@@ -12,7 +12,7 @@ import FAB from "../../components/FAB";
 import ReferralBanner from "../../components/ReferralBanner";
 import CategoryGrid from "../../components/CategoryGrid";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
-import { formatIndianNumber } from "../../utils/formatNumber";
+import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
 import { socketService } from "../../lib/socket";
 import { useCredits } from "@/contexts/CreditsContext";
 
@@ -233,13 +233,25 @@ export default function Home() {
         </View>
         {/* Credits Right */}
         <Link href="/referral" asChild>
-          <TouchableOpacity style={s.creditsButton} activeOpacity={0.7}>
+          <TouchableOpacity 
+            style={s.creditsButton} 
+            activeOpacity={0.7}
+            onPress={() => {
+              console.log("🪙 Credits button pressed - Current value:", userCredits);
+              console.log("🪙 Formatted value:", formatAmount(userCredits));
+            }}
+          >
             <View style={s.creditsIconContainer}>
               <Text style={s.coinIcon}>🪙</Text>
               {creditsLoading ? (
                 <ActivityIndicator size="small" color="#F59E0B" />
               ) : (
-                <Text style={s.creditsCount}>{formatIndianNumber(userCredits)}</Text>
+                <Text style={s.creditsCount}>
+                  {(() => {
+                    console.log("💰 Rendering credits - Raw:", userCredits, "Formatted:", formatAmount(userCredits));
+                    return formatAmount(userCredits);
+                  })()}
+                </Text>
               )}
             </View>
           </TouchableOpacity>
@@ -376,7 +388,7 @@ const s = StyleSheet.create({
     fontWeight: '900',
   },
   headerTitleOrange: {
-    color: '#FF9100',
+    color: '#151C32',
     fontWeight: '900',
   },
   sectionTitle: {

@@ -1,6 +1,9 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from './api';
+
+const APP_VERSION_KEY = 'app_version_stored';
 
 export interface VersionCheckResponse {
   success: boolean;
@@ -81,5 +84,94 @@ export function getAppStoreUrl(): string {
   } else {
     // Update with your iOS App Store ID when available
     return 'https://apps.apple.com/app/YOUR_APP_ID';
+  }
+}
+
+/**
+ * Check if the app version has changed since last launch.
+ * If version changed, clear all auth data (logout) and update stored version.
+ * This ensures users start fresh after updating the app.
+ * 
+ * @returns {Promise<boolean>} Returns true if user was logged out due to version change
+ */
+export async function checkAndHandleVersionChange(): Promise<boolean> {
+  try {
+    // Get current app version from app.json
+    const currentVersion = Constants.expoConfig?.version || '1.0.0';
+    console.log(`📱 [VERSION CHECK] Current app version: ${currentVersion}`);
+
+    // Get previously stored version
+    const storedVersion = await AsyncStorage.getItem(APP_VERSION_KEY);
+    console.log(`💾 [VERSION CHECK] Stored app version: ${storedVersion || 'none'}`);
+
+    // If no stored version, this is first launch - just save current version
+    if (!storedVersion) {
+      console.log(`✨ [VERSION CHECK] First launch detected - storing version ${currentVersion}`);
+      await AsyncStorage.setItem(APP_VERSION_KEY, currentVersion);
+      return false;
+    }
+
+    // If versions match, no action needed
+    if (storedVersion === currentVersion) {
+      console.log(`✅ [VERSION CHECK] Version unchanged - no logout needed`);
+      return false;
+    }
+
+    // Version changed - user updated the app!
+    console.log(`🔄 [VERSION CHECK] App updated from ${storedVersion} to ${currentVersion}`);
+    console.log(`🚪 [VERSION CHECK] Logging out user to clear cached data...`);
+
+    // Clear all authentication and user data
+    await AsyncStorage.multiRemove([
+      'token',
+      'user',
+      'user_name',
+      'user_phone',
+      'currentUserId',
+      'contactsSynced',
+      'contactsSyncTimestamp',
+      'login_prefill_phone',
+      'reset_phone',
+      'password_just_reset',
+      'pendingPushToken',
+      'adminAuthToken',
+    ]);
+
+    console.log(`🧹 [VERSION CHECK] Auth data cleared`);
+
+    // Update stored version to current version
+    await AsyncStorage.setItem(APP_VERSION_KEY, currentVersion);
+    console.log(`💾 [VERSION CHECK] Version updated to ${currentVersion}`);
+
+    console.log(`✅ [VERSION CHECK] User logged out successfully due to app update`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [VERSION CHECK] Error during version check:`, error);
+    // On error, don't logout - better to keep user logged in than fail
+    return false;
+  }
+}
+
+/**
+ * Get the current stored app version
+ */
+export async function getStoredAppVersion(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(APP_VERSION_KEY);
+  } catch (error) {
+    console.error('Error getting stored app version:', error);
+    return null;
+  }
+}
+
+/**
+ * Manually clear the stored app version (for testing)
+ */
+export async function clearStoredAppVersion(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(APP_VERSION_KEY);
+    console.log('✅ Stored app version cleared');
+  } catch (error) {
+    console.error('Error clearing stored app version:', error);
   }
 }
