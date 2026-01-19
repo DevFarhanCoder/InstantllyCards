@@ -32,6 +32,7 @@ interface Ad {
   startDate: string;
   endDate: string;
   status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
   createdAt: string;
   hasBottomImage: boolean;
   hasFullscreenImage: boolean;
@@ -60,6 +61,12 @@ export default function AdsWithoutChannel() {
   const [isLoadingAds, setIsLoadingAds] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userCredits, setUserCredits] = useState(0);
+  
+  // Filter State
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | '1month' | '3months'>('all');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
 
   // Date Picker State
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -441,6 +448,39 @@ export default function AdsWithoutChannel() {
   const onRefresh = () => {
     setRefreshing(true);
     loadMyAds();
+  };
+
+  const getFilteredAds = () => {
+    let filtered = [...myAds];
+
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(ad => ad.status === statusFilter);
+    }
+
+    // Filter by date
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      filtered = filtered.filter(ad => {
+        const adDate = new Date(ad.createdAt);
+        switch (dateFilter) {
+          case 'today':
+            return adDate.toDateString() === now.toDateString();
+          case '1month':
+            const oneMonthAgo = new Date(now);
+            oneMonthAgo.setMonth(now.getMonth() - 1);
+            return adDate >= oneMonthAgo;
+          case '3months':
+            const threeMonthsAgo = new Date(now);
+            threeMonthsAgo.setMonth(now.getMonth() - 3);
+            return adDate >= threeMonthsAgo;
+          default:
+            return true;
+        }
+      });
+    }
+
+    return filtered;
   };
 
   const getStatusColor = (status: string) => {
@@ -865,6 +905,145 @@ export default function AdsWithoutChannel() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
+          {/* Filters */}
+          <View style={styles.filtersContainer}>
+            <Text style={styles.filterLabel}>Filters</Text>
+            
+            <View style={styles.filterRow}>
+              {/* Status Filter Dropdown */}
+              <View style={styles.filterDropdownWrapper}>
+                <Text style={styles.filterGroupLabel}>Status</Text>
+                <View>
+                  <TouchableOpacity 
+                    style={styles.dropdown}
+                    onPress={() => {
+                      setShowStatusDropdown(!showStatusDropdown);
+                      setShowDateDropdown(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>
+                      {statusFilter === 'all' ? 'All' : 
+                       statusFilter === 'pending' ? 'Pending' :
+                       statusFilter === 'approved' ? 'Approved' : 'Rejected'}
+                    </Text>
+                    <Ionicons name={showStatusDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6b7280" />
+                  </TouchableOpacity>
+                  
+                  {showStatusDropdown && (
+                    <View style={styles.dropdownMenu}>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setStatusFilter('all');
+                          setShowStatusDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, statusFilter === 'all' && styles.dropdownItemTextActive]}>All</Text>
+                        {statusFilter === 'all' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setStatusFilter('pending');
+                          setShowStatusDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, statusFilter === 'pending' && styles.dropdownItemTextActive]}>Pending</Text>
+                        {statusFilter === 'pending' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setStatusFilter('approved');
+                          setShowStatusDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, statusFilter === 'approved' && styles.dropdownItemTextActive]}>Approved</Text>
+                        {statusFilter === 'approved' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setStatusFilter('rejected');
+                          setShowStatusDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, statusFilter === 'rejected' && styles.dropdownItemTextActive]}>Rejected</Text>
+                        {statusFilter === 'rejected' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Date Filter Dropdown */}
+              <View style={styles.filterDropdownWrapper}>
+                <Text style={styles.filterGroupLabel}>Date Range</Text>
+                <View>
+                  <TouchableOpacity 
+                    style={styles.dropdown}
+                    onPress={() => {
+                      setShowDateDropdown(!showDateDropdown);
+                      setShowStatusDropdown(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>
+                      {dateFilter === 'all' ? 'All Time' : 
+                       dateFilter === 'today' ? 'Today' :
+                       dateFilter === '1month' ? '1 Month' : '3 Months'}
+                    </Text>
+                    <Ionicons name={showDateDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6b7280" />
+                  </TouchableOpacity>
+                  
+                  {showDateDropdown && (
+                    <View style={styles.dropdownMenu}>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setDateFilter('all');
+                          setShowDateDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, dateFilter === 'all' && styles.dropdownItemTextActive]}>All Time</Text>
+                        {dateFilter === 'all' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setDateFilter('today');
+                          setShowDateDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, dateFilter === 'today' && styles.dropdownItemTextActive]}>Today</Text>
+                        {dateFilter === 'today' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setDateFilter('1month');
+                          setShowDateDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, dateFilter === '1month' && styles.dropdownItemTextActive]}>1 Month</Text>
+                        {dateFilter === '1month' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setDateFilter('3months');
+                          setShowDateDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.dropdownItemText, dateFilter === '3months' && styles.dropdownItemTextActive]}>3 Months</Text>
+                        {dateFilter === '3months' && <Ionicons name="checkmark" size={20} color="#4F6AF3" />}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+
           {isLoadingAds ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#4F6AF3" />
@@ -876,8 +1055,14 @@ export default function AdsWithoutChannel() {
               <Text style={styles.emptyText}>No ads yet</Text>
               <Text style={styles.emptySubtext}>Create your first ad in the Create tab</Text>
             </View>
+          ) : getFilteredAds().length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="funnel-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No ads found</Text>
+              <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
+            </View>
           ) : (
-            myAds.map((ad, index) => (
+            getFilteredAds().map((ad, index) => (
               <View key={ad.id} style={styles.adCard}>
                 <View style={styles.adHeader}>
                   <Text style={styles.adTitle}>{ad.title}</Text>
@@ -925,7 +1110,14 @@ export default function AdsWithoutChannel() {
                 {ad.status === 'rejected' && (
                   <View style={[styles.pendingNotice, { backgroundColor: '#fee2e2' }]}>
                     <Ionicons name="close-circle" size={16} color="#ef4444" />
-                    <Text style={[styles.pendingNoticeText, { color: '#991b1b' }]}>Rejected - Contact admin</Text>
+                    <View style={{ flex: 1, marginLeft: 6 }}>
+                      <Text style={[styles.pendingNoticeText, { color: '#991b1b', marginBottom: 4 }]}>Rejected by Admin</Text>
+                      {ad.rejectionReason && (
+                        <Text style={[styles.pendingNoticeText, { color: '#991b1b', fontSize: 12, fontWeight: '400' }]}>
+                          Reason: {ad.rejectionReason}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 )}
               </View>
@@ -950,6 +1142,85 @@ const styles = StyleSheet.create({
   activeTabText: { color: "#4F6AF3", fontWeight: "600" },
   page: { flex: 1 },
   pageContent: { padding: 16, paddingBottom: 40 },
+  
+  // Filters
+  filtersContainer: {
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  filterDropdownWrapper: {
+    flex: 1,
+    zIndex: 1,
+  },
+  filterGroupLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  dropdownText: {
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: '500',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 42,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  dropdownItemTextActive: {
+    color: '#4F6AF3',
+    fontWeight: '600',
+  },
   
   // Info cards
   infoCard: {
