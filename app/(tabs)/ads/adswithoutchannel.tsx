@@ -295,7 +295,12 @@ export default function AdsWithoutChannel() {
       const userPhone = await getCurrentUserPhone();
       const userName = await getCurrentUserName();
       
-      console.log('📤 Ad upload - userPhone:', userPhone, 'userId:', userId, 'userName:', userName);
+      console.log('📤 ======= AD UPLOAD DEBUG =======');
+      console.log('📤 userPhone:', userPhone);
+      console.log('📤 userId:', userId);
+      console.log('📤 userName:', userName);
+      console.log('📤 phoneNumber (ad contact):', phoneNumber);
+      console.log('📤 ================================');
 
       const formData = new FormData();
       formData.append('title', title);
@@ -397,17 +402,36 @@ export default function AdsWithoutChannel() {
   const loadMyAds = async () => {
     setIsLoadingAds(true);
     try {
-      const userPhone = await AsyncStorage.getItem('user_phone');
-      if (!userPhone) return;
+      const userPhone = await getCurrentUserPhone();
+      if (!userPhone) {
+        console.log('⚠️ No user phone found');
+        return;
+      }
 
-      const response = await fetch(`${API_BASE_URL}/channel-partner/ads?phone=${userPhone}`);
+      console.log('📋 ======= LOADING STATUS TAB =======');
+      console.log('📋 Query phone:', userPhone);
+      
+      // Properly encode phone number for URL (+ becomes %2B)
+      const encodedPhone = encodeURIComponent(userPhone);
+      console.log('📋 Encoded phone:', encodedPhone);
+      console.log('📋 API URL:', `${API_BASE_URL}/channel-partner/ads?phone=${encodedPhone}`);
+      
+      const response = await fetch(`${API_BASE_URL}/channel-partner/ads?phone=${encodedPhone}`);
       const data = await response.json();
+      
+      console.log('📋 Response status:', response.status);
+      console.log('📋 Response data:', JSON.stringify(data, null, 2));
+      console.log('📋 Found ads count:', data.ads?.length || 0);
+      console.log('📋 ===================================');
       
       if (data.ads) {
         setMyAds(data.ads);
+      } else {
+        console.log('⚠️ No ads array in response');
+        setMyAds([]);
       }
     } catch (error) {
-      console.error('Load ads error:', error);
+      console.error('❌ Load ads error:', error);
     } finally {
       setIsLoadingAds(false);
       setRefreshing(false);
@@ -703,40 +727,6 @@ export default function AdsWithoutChannel() {
             <Text style={styles.hint}>This video appears when user taps the bottom banner. Recommended: MP4 format, max 50MB</Text>
           </View>
             </>
-          )}
-
-          {/* Help Section - Show only for video */}
-          {adType === 'video' && (
-          <View style={styles.videoHelpCard}>
-            <View style={styles.videoHelpHeader}>
-              <Ionicons name="videocam" size={24} color="#0891b2" />
-              <Text style={styles.videoHelpTitle}>Wrong Video Size?</Text>
-            </View>
-            <Text style={styles.videoHelpDesc}>
-              Don't worry! Send us your video and we'll resize it to exact dimensions.
-            </Text>
-            <View style={styles.videoHelpActions}>
-              <TouchableOpacity 
-                style={styles.videoHelpWhatsApp}
-                onPress={() => Linking.openURL('https://wa.me/919820329571?text=Hi%21%20I%20need%20help%20resizing%20my%20video%20for%20ads.%20Please%20assist%20me.')}
-              >
-                <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-                <Text style={styles.videoHelpBtnText}>WhatsApp</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.videoHelpCall}
-                onPress={() => Linking.openURL('tel:+919820329571')}
-              >
-                <Ionicons name="call" size={20} color="#fff" />
-                <Text style={styles.videoHelpBtnText}>Call Now</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity 
-              style={styles.videoHelpPhoneRow}
-              onPress={() => Linking.openURL('tel:+919820329571')}
-            >
-            </TouchableOpacity>
-          </View>
           )}
 
           <View style={styles.dateRow}>
