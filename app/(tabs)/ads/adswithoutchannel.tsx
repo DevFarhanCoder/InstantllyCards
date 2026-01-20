@@ -34,8 +34,15 @@ interface Ad {
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
   createdAt: string;
+  adType?: 'image' | 'video';
   hasBottomImage: boolean;
   hasFullscreenImage: boolean;
+  hasBottomVideo?: boolean;
+  hasFullscreenVideo?: boolean;
+  bottomImageId?: string;
+  fullscreenImageId?: string;
+  bottomVideoId?: string;
+  fullscreenVideoId?: string;
 }
 
 export default function AdsWithoutChannel() {
@@ -67,6 +74,10 @@ export default function AdsWithoutChannel() {
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | '1month' | '3months'>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
+  
+  // Image Modal State
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedAdImages, setSelectedAdImages] = useState<{adId: string, hasBottomImage: boolean, hasFullscreenImage: boolean, title: string} | null>(null);
 
   // Date Picker State
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -372,7 +383,35 @@ export default function AdsWithoutChannel() {
       });
 
       console.log('📥 Response status:', response.status);
-      const data = await response.json();
+      
+      // Handle 413 Payload Too Large error
+      if (response.status === 413) {
+        Alert.alert(
+          '❌ File Too Large',
+          'Your video file is too large. Please:\n\n1. Compress your video\n2. Reduce video quality\n3. Keep videos under 80MB\n\nTip: Use a video compressor app to reduce file size.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const responseText = await response.text();
+      console.log('📥 Response text:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
+        Alert.alert(
+          '❌ Server Error',
+          response.status === 413 
+            ? 'Video file is too large. Please compress it and try again.'
+            : 'Server returned an error. Please try again or contact support.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+      
       console.log('📥 Response data:', JSON.stringify(data));
 
       if (response.ok) {
@@ -498,6 +537,20 @@ export default function AdsWithoutChannel() {
       case 'pending': return 'time';
       case 'rejected': return 'close-circle';
       default: return 'help-circle';
+    }
+  };
+
+  const openImageModal = (ad: Ad) => {
+    if (ad.hasBottomImage || ad.hasFullscreenImage) {
+      setSelectedAdImages({
+        adId: ad.id,
+        hasBottomImage: ad.hasBottomImage,
+        hasFullscreenImage: ad.hasFullscreenImage,
+        title: ad.title
+      });
+      setShowImageModal(true);
+    } else {
+      Alert.alert('No Images', 'This ad does not have any images.');
     }
   };
 
@@ -1063,7 +1116,12 @@ export default function AdsWithoutChannel() {
             </View>
           ) : (
             getFilteredAds().map((ad, index) => (
-              <View key={ad.id} style={styles.adCard}>
+              <TouchableOpacity 
+                key={ad.id} 
+                style={styles.adCard}
+                onPress={() => openImageModal(ad)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.adHeader}>
                   <Text style={styles.adTitle}>{ad.title}</Text>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ad.status) }]}>
@@ -1086,9 +1144,12 @@ export default function AdsWithoutChannel() {
                     </Text>
                   </View>
                   <View style={styles.adDetailRow}>
-                    <Ionicons name="images" size={16} color="#666" />
+                    <Ionicons name={ad.adType === 'video' ? 'videocam' : 'images'} size={16} color="#666" />
                     <Text style={styles.adDetailText}>
-                      {ad.hasFullscreenImage ? 'Bottom + Fullscreen' : 'Bottom only'}
+                      {ad.adType === 'video' 
+                        ? (ad.hasFullscreenVideo ? 'Bottom + Fullscreen Videos' : 'Bottom Video only')
+                        : (ad.hasFullscreenImage ? 'Bottom + Fullscreen' : 'Bottom only')
+                      }
                     </Text>
                   </View>
                 </View>
@@ -1120,11 +1181,65 @@ export default function AdsWithoutChannel() {
                     </View>
                   </View>
                 )}
-              </View>
+                
+                {/* Tap to view hint */}
+                <View style={styles.tapHint}>
+                  <Ionicons name="eye-outline" size={14} color="#4F6AF3" />
+                  <Text style={styles.tapHintText}>Tap to view images</Text>
+                </View>
+              </TouchableOpacity>
             ))
           )}
         </ScrollView>
       </ScrollView>
+
+      {/* Image Modal */}
+      <Modal
+        visible={showImageModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowImageModal(false)}
+      >
+        <View style={styles.imageModalOverlay}>
+          <View style={styles.imageModalContent}>
+            {/* Modal Header */}
+            <View style={styles.imageModalHeader}>
+              <Text style={styles.imageModalTitle}>{selectedAdImages?.title}</Text>
+              <TouchableOpacity
+                onPress={() => setShowImageModal(false)}
+                style={styles.imageModalCloseBtn}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Images Container */}
+            <ScrollView style={styles.imageModalScroll}>
+              {selectedAdImages?.hasBottomImage && (
+                <View style={styles.imageSection}>
+                  <Text style={styles.imageSectionLabel}>Bottom Banner Image</Text>
+                  <Image
+                    source={{ uri: `${API_BASE_URL}/ads/image/${selectedAdImages.adId}/bottom` }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+
+              {selectedAdImages?.hasFullscreenImage && (
+                <View style={styles.imageSection}>
+                  <Text style={styles.imageSectionLabel}>Full Screen Image</Text>
+                  <Image
+                    source={{ uri: `${API_BASE_URL}/ads/image/${selectedAdImages.adId}/fullscreen` }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1450,6 +1565,22 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   adDetailText: { fontSize: 14, color: '#666', marginLeft: 8 },
+  
+  tapHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  tapHintText: {
+    fontSize: 13,
+    color: '#4F6AF3',
+    marginLeft: 6,
+    fontWeight: '500',
+  },
   
   pendingNotice: {
     flexDirection: 'row',
@@ -2111,5 +2242,63 @@ const styles = StyleSheet.create({
   },
   clickableText: {
     textDecorationLine: 'underline',
+  },
+  
+  // Image Modal Styles
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '90%',
+    maxHeight: '85%',
+    overflow: 'hidden',
+  },
+  imageModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  imageModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    flex: 1,
+    marginRight: 12,
+  },
+  imageModalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageModalScroll: {
+    padding: 16,
+  },
+  imageSection: {
+    marginBottom: 20,
+  },
+  imageSectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4F6AF3',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  modalImage: {
+    width: '100%',
+    height: 250,
+    borderRadius: 12,
+    backgroundColor: '#f9fafb',
   },
 });
