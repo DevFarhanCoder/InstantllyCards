@@ -7,6 +7,9 @@ import { formatIndianNumber } from "@/utils/formatNumber";
 export default function Credits() {
   const [loading, setLoading] = useState(true);
   const [credits, setCredits] = useState(0);
+  const [expiryDate, setExpiryDate] = useState<string | null>(null);
+  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+  const [isExpired, setIsExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,9 +20,12 @@ export default function Credits() {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get('/auth/profile');
-      if (response?.user?.credits !== undefined) {
-        setCredits(response.user.credits);
+      const response = await api.get('/credits/balance');
+      if (response?.success) {
+        setCredits(response.credits || 0);
+        setExpiryDate(response.creditsExpiryDate);
+        setDaysRemaining(response.daysRemaining);
+        setIsExpired(response.isExpired || false);
       }
     } catch (err: any) {
       console.error('Error fetching credits:', err);
@@ -58,6 +64,30 @@ export default function Credits() {
           <Text style={styles.cardTitle}>Available Credits</Text>
           <Text style={styles.creditAmount}>{formatIndianNumber(credits)}</Text>
           <Text style={styles.cardSubtitle}>credits remaining</Text>
+          
+          {expiryDate && (
+            <View style={[styles.expiryBanner, isExpired && styles.expiredBanner]}>
+              <Text style={[styles.expiryIcon, isExpired && styles.expiredIcon]}>
+                {isExpired ? '⚠️' : '⏰'}
+              </Text>
+              <View style={styles.expiryTextContainer}>
+                {isExpired ? (
+                  <Text style={styles.expiredText}>Credits Expired</Text>
+                ) : (
+                  <>
+                    <Text style={styles.expiryText}>
+                      Expires on: <Text style={styles.expiryDate}>31 March 2026</Text>
+                    </Text>
+                    {daysRemaining !== null && (
+                      <Text style={styles.daysRemaining}>
+                        {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} remaining
+                      </Text>
+                    )}
+                  </>
+                )}
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.infoSection}>
@@ -66,7 +96,7 @@ export default function Credits() {
             • Credits are used to post advertisements{'\n'}
             • Each ad costs a certain number of credits{'\n'}
             • Purchase credits to continue posting ads{'\n'}
-            • Credits never expire
+            • All credits expire on 31 March 2026
           </Text>
         </View>
 
@@ -142,6 +172,51 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: scaleFontSize(14),
     color: "#9CA3AF",
+  },
+  expiryBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    borderRadius: moderateScale(12),
+    padding: scaleSize(16),
+    marginTop: scaleSize(20),
+    width: "100%",
+    borderLeftWidth: 4,
+    borderLeftColor: "#F59E0B",
+  },
+  expiredBanner: {
+    backgroundColor: "#FEE2E2",
+    borderLeftColor: "#EF4444",
+  },
+  expiryIcon: {
+    fontSize: scaleFontSize(32),
+    marginRight: scaleSize(12),
+  },
+  expiredIcon: {
+    fontSize: scaleFontSize(32),
+  },
+  expiryTextContainer: {
+    flex: 1,
+  },
+  expiryText: {
+    fontSize: scaleFontSize(14),
+    color: "#92400E",
+    fontWeight: "600",
+  },
+  expiryDate: {
+    fontSize: scaleFontSize(14),
+    color: "#B45309",
+    fontWeight: "700",
+  },
+  daysRemaining: {
+    fontSize: scaleFontSize(12),
+    color: "#92400E",
+    marginTop: scaleSize(4),
+  },
+  expiredText: {
+    fontSize: scaleFontSize(16),
+    color: "#991B1B",
+    fontWeight: "700",
   },
   infoSection: {
     backgroundColor: "#FFFFFF",
