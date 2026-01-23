@@ -29,6 +29,17 @@ interface BusinessCardTemplateProps {
   address?: string;
   companyAddress?: string;
   companyPhoto?: string;
+  location?: string;
+  mapsLink?: string;
+  companyMapsLink?: string;
+  message?: string;
+  linkedin?: string;
+  twitter?: string;
+  instagram?: string;
+  facebook?: string;
+  youtube?: string;
+  whatsapp?: string;
+  telegram?: string;
   onImageLoad?: () => void;
 }
 
@@ -45,6 +56,17 @@ export default function BusinessCardTemplate({
   address,
   companyAddress,
   companyPhoto,
+  location,
+  mapsLink,
+  companyMapsLink,
+  message,
+  linkedin,
+  twitter,
+  instagram,
+  facebook,
+  youtube,
+  whatsapp,
+  telegram,
   onImageLoad
 }: BusinessCardTemplateProps) {
   // Use the best available data for each field
