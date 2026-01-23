@@ -10,6 +10,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -243,30 +244,37 @@ export default function CreditsHistoryPage() {
       >
         {/* Total Credits Banner */}
         <View style={styles.totalCreditsBanner}>
-          <View style={styles.bannerBackground}>
-            <View style={styles.bannerGlowEffect} />
-          </View>
-          <View style={styles.totalCreditsContent}>
-            <View style={styles.totalCreditsIconCircle}>
-              <View style={styles.iconGlow}>
-                <Ionicons name="wallet" size={42} color="#FFFFFF" />
+          <LinearGradient
+            colors={['#D1FAE5', '#A7F3D0']}
+            style={styles.bannerGradient}
+          >
+            <View style={styles.totalCreditsContent}>
+              <View style={styles.creditsLabelRow}>
+                <Ionicons name="sparkles" size={16} color="#047857" />
+                <Text style={styles.totalCreditsLabel}>Your Total Balance</Text>
+              </View>
+              <View style={styles.creditsAmountRow}>
+                <Text style={styles.totalCreditsAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                  ₹{formatIndianNumber(totalCredits)}
+                </Text>
+              </View>
+              <Text style={styles.creditsUnit}>Credits Available</Text>
+              
+              {/* Credit Expiry Info */}
+              <View style={styles.expiryInfoContainer}>
+                <Ionicons name="time-outline" size={14} color="#F97316" />
+                <Text style={styles.expiryInfoText}>
+                  Expires: <Text style={styles.expiryInfoDate}>31 March 2026</Text> • {(() => {
+                    const today = new Date();
+                    const expiryDate = new Date('2026-03-31');
+                    const diffTime = expiryDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays > 0 ? diffDays : 0;
+                  })()} days left
+                </Text>
               </View>
             </View>
-            <Text style={styles.totalCreditsLabel}>Your Total Balance</Text>
-            <View style={styles.amountContainer}>
-              <View style={styles.currencyBadge}>
-                <Ionicons name="sparkles" size={20} color="#FFD700" />
-              </View>
-              <Text style={styles.totalCreditsAmount}>{formatIndianNumber(totalCredits)}</Text>
-            </View>
-            <View style={styles.creditsUnitContainer}>
-              <Text style={styles.totalCreditsUnit}>Credits Available</Text>
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                <Text style={styles.verifiedText}>Verified</Text>
-              </View>
-            </View>
-          </View>
+          </LinearGradient>
         </View>
 
         {/* Transfer Credits Button */}
@@ -483,100 +491,67 @@ const styles = StyleSheet.create({
   totalCreditsBanner: {
     margin: 16,
     marginTop: 20,
-    borderRadius: 24,
+    borderRadius: 16,
     overflow: 'hidden',
-    position: 'relative',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  bannerBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#10B981',
-  },
-  bannerGlowEffect: {
-    position: 'absolute',
-    top: -50,
-    right: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  bannerGradient: {
+    borderRadius: 16,
   },
   totalCreditsContent: {
-    padding: 28,
-    alignItems: 'center',
+    padding: 22,
   },
-  totalCreditsIconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  creditsLabelRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  iconGlow: {
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+    gap: 6,
+    marginBottom: 8,
   },
   totalCreditsLabel: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.95)',
-    marginBottom: 12,
+    fontSize: 13,
+    color: '#047857',
     fontWeight: '600',
-    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  amountContainer: {
+  creditsAmountRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  currencyBadge: {
-    marginRight: 8,
-    marginTop: 4,
+    alignItems: 'baseline',
+    marginBottom: 4,
+    width: '100%',
   },
   totalCreditsAmount: {
-    fontSize: 56,
+    fontSize: 36,
     fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -1,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    color: '#059669',
+    flexShrink: 1,
   },
-  creditsUnitContainer: {
+  creditsUnit: {
+    fontSize: 13,
+    color: '#047857',
+    fontWeight: '500',
+  },
+  expiryInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(5, 150, 105, 0.2)',
   },
-  totalCreditsUnit: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.95)',
+  expiryInfoText: {
+    fontSize: 12,
+    color: '#78350F',
     fontWeight: '600',
   },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  verifiedText: {
-    fontSize: 11,
-    color: '#10B981',
+  expiryInfoDate: {
+    fontSize: 12,
+    color: '#F97316',
     fontWeight: '700',
   },
   section: {
@@ -850,5 +825,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
+  },
+  expiryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 12,
+    gap: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  expiryTextContainer: {
+    flex: 1,
+  },
+  expiryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  expiryDate: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  expirySubtext: {
+    fontSize: 11,
+    color: '#92400E',
+    marginTop: 2,
   },
 });

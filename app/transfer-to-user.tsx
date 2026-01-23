@@ -423,6 +423,20 @@ export default function TransferToUserScreen() {
                 </Text>
               </View>
 
+              {/* Expiry Info */}
+              <View style={styles.expiryInfoRow}>
+                <Ionicons name="time-outline" size={14} color="#F97316" />
+                <Text style={styles.expiryInfoText}>
+                  Expires: <Text style={styles.expiryDateText}>31 March 2026</Text> • {(() => {
+                    const today = new Date();
+                    const expiryDate = new Date('2026-03-31');
+                    const diffTime = expiryDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays > 0 ? diffDays : 0;
+                  })()} days left
+                </Text>
+              </View>
+
               {/* Error */}
               {amountError ? (
                 <View style={styles.errorBanner}>
@@ -908,6 +922,22 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(12),
     fontWeight: '500',
     color: COLORS_THEME.textMuted,
+  },
+  expiryInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(6),
+    marginTop: verticalScale(8),
+  },
+  expiryInfoText: {
+    fontSize: moderateScale(12),
+    fontWeight: '600',
+    color: '#78350F',
+  },
+  expiryDateText: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+    color: '#F97316',
   },
   errorBanner: {
     flexDirection: 'row',

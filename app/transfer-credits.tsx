@@ -313,6 +313,20 @@ export default function TransferCreditsScreen() {
                   <Text style={styles.securityTextWhite}>Secured Transfer</Text>
                 </View>
               </View>
+              
+              {/* Credit Expiry Info */}
+              <View style={styles.expiryInfoIntegrated}>
+                <Ionicons name="time-outline" size={14} color="#FCD34D" />
+                <Text style={styles.expiryInfoTextWhite}>
+                  Expires: <Text style={styles.expiryInfoDateWhite}>31 March 2026</Text> • {(() => {
+                    const today = new Date();
+                    const expiryDate = new Date('2026-03-31');
+                    const diffTime = expiryDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays > 0 ? diffDays : 0;
+                  })()} days left
+                </Text>
+              </View>
             </LinearGradient>
           </Animated.View>
 
@@ -972,6 +986,30 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(12),
     fontWeight: '500',
     color: COLORS_THEME.textSecondary,
+    marginTop: verticalScale(2),
+  },
+  expiryInfoIntegrated: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(6),
+    marginTop: verticalScale(10),
+    paddingTop: verticalScale(10),
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  expiryInfoTextWhite: {
+    fontSize: moderateScale(12),
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontWeight: '600',
+  },
+  expiryInfoDateWhite: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+    color: '#FCD34D',
+  },
+  expiryWarningSubtext: {
+    fontSize: moderateScale(10),
+    color: 'rgba(255, 255, 255, 0.8)',
     marginTop: verticalScale(2),
   },
 });

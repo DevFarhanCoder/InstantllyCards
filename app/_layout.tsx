@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import serverWarmup from "../lib/serverWarmup";
 import ForceUpdateModal from "../components/ForceUpdateModal";
+import UpdateChecker from "../components/UpdateChecker";
 import { checkAppVersion, getCurrentAppVersion, getAppStoreUrl } from "../lib/versionCheck";
 import { chatNotificationService } from "@/lib/chat-notifications";
 import { socketService } from "@/lib/socket";
@@ -92,6 +93,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <CreditsProvider>
+        <UpdateChecker />
         <ForceUpdateModal
           visible={updateRequired}
           updateUrl={updateUrl}
