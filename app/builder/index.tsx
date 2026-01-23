@@ -50,81 +50,81 @@ import PhoneInput from "@/components/PhoneInput";
 
 // Categories with their subcategories for Services Offered dropdown
 const SERVICE_CATEGORIES = {
-  'Travel': [
-    'Hotels', 'Resorts', 'Hostels', 'PG Accommodations', 'Travel Agents',
-    'Domestic Tours', 'International Tours', 'Visa Assistance',
-    'International Air Ticketing', 'Train Ticketing',
-  ],
-  'Technology': [
-    'CCTV Systems', 'Security Systems', 'Computer Repairs', 'Laptop Repairs',
-    'Mobile & Internet Services', 'Refrigerator Repairs', 'Appliance Repairs',
-    'Computer Training Institutes', 'Website & App Development',
-  ],
-  'Shopping': [
-    'Cake Shops & Bakeries', 'Daily Needs Stores', 'Groceries', 'Florists',
-    'Restaurants', 'Food Delivery Services', 'Online Food Ordering',
-    'Foreign Exchange Services', 'Furniture Stores', 'Wallpapers & Home Decor',
-    'Water Suppliers', 'Medical Stores & Pharmacies', 'Optical Stores',
-    'Pet Shops', 'Pet Care Services', 'Online Shopping', 'T-Shirt Printing',
-  ],
-  'Rentals': [
-    'Bus on Hire', 'Car & Cab Rentals', 'Generators on Hire',
-    'Equipment Rentals', 'Tempos on Hire',
-  ],
-  'Lifestyle': [
-    'Astrologers', 'Beauty Salons', 'Bridal Makeup Artists', 'Makeup Artists',
-    'Dance Classes', 'Music Classes', 'Fitness Centres', 'Gyms',
-    'Photographers & Videographers', 'Tattoo Artists', 'Weight Loss Centres',
-    'Movies', 'Online Movie Platforms', 'Parties & Nightlife',
-  ],
-  'Health': [
-    'General Physicians', 'General Surgeons', 'Cardiologists',
-    'Child Specialists', 'Paediatricians', 'Dentists', 'Dermatologists',
-    'Skin & Hair Specialists', 'ENT Doctors', 'Eye Specialists',
-    'Ophthalmologists', 'Gastroenterologists', 'Gynaecologists & Obstetricians',
-    'Neurologists', 'Orthopaedic Doctors', 'Ayurvedic Doctors',
-    'Homeopathic Doctors', 'Pathology Labs', 'Physiotherapists',
-    'Vaccination Centres', 'Hearing Aids & Solutions',
-  ],
-  'Education': [
-    'Schools & Educational Institutions', 'Playgroups', 'Kindergartens',
-    'Home Tutors', 'Tutorials & Coaching Classes', 'Training Institutes',
-    'Language Classes', 'Motor Training Schools', 'Overseas Education Consultants',
-    'Yoga & Wellness Classes',
-  ],
-  'Construction': [
-    'Borewell Contractors', 'Builders & Contractors', 'Carpentry Contractors',
-    'Civil Contractors', 'Electrical Contractors', 'Electricians',
-    'False Ceiling Contractors', 'Home Services', 'Housekeeping Services',
-    'Modular Kitchen Designers', 'Painting Contractors', 'Plumbers',
-    'Ready Mix Concrete Suppliers', 'Waterproofing Contractors',
-  ],
-  'Automotive': [
-    'Automobile Dealers', 'Car Insurance Agents', 'Car Loans & Finance',
-    'Car Repairs & Services', 'Taxi & Cab Services', 'Towing Services',
-    'Transporters & Logistics',
-  ],
-  'Business': [
-    'Bulk SMS & Digital Marketing', 'Chartered Accountants', 'Business Consultants',
-    'GST Registration Consultants', 'Income Tax Consultants', 'Registration Consultants',
-    'Event Organizers', 'Party Organisers', 'Wedding Planners & Requisites',
-    'Interior Designers', 'Lawyers & Legal Services', 'Logistics & Supply Chain',
-    'Online Passport Agents', 'Packers & Movers', 'Repairs & Maintenance Services',
-    'Website Designers & Developers',
-  ],
+    'Travel': [
+        'Hotels', 'Resorts', 'Hostels', 'PG Accommodations', 'Travel Agents',
+        'Domestic Tours', 'International Tours', 'Visa Assistance',
+        'International Air Ticketing', 'Train Ticketing',
+    ],
+    'Technology': [
+        'CCTV Systems', 'Security Systems', 'Computer Repairs', 'Laptop Repairs',
+        'Mobile & Internet Services', 'Refrigerator Repairs', 'Appliance Repairs',
+        'Computer Training Institutes', 'Website & App Development',
+    ],
+    'Shopping': [
+        'Cake Shops & Bakeries', 'Daily Needs Stores', 'Groceries', 'Florists',
+        'Restaurants', 'Food Delivery Services', 'Online Food Ordering',
+        'Foreign Exchange Services', 'Furniture Stores', 'Wallpapers & Home Decor',
+        'Water Suppliers', 'Medical Stores & Pharmacies', 'Optical Stores',
+        'Pet Shops', 'Pet Care Services', 'Online Shopping', 'T-Shirt Printing',
+    ],
+    'Rentals': [
+        'Bus on Hire', 'Car & Cab Rentals', 'Generators on Hire',
+        'Equipment Rentals', 'Tempos on Hire',
+    ],
+    'Lifestyle': [
+        'Astrologers', 'Beauty Salons', 'Bridal Makeup Artists', 'Makeup Artists',
+        'Dance Classes', 'Music Classes', 'Fitness Centres', 'Gyms',
+        'Photographers & Videographers', 'Tattoo Artists', 'Weight Loss Centres',
+        'Movies', 'Online Movie Platforms', 'Parties & Nightlife',
+    ],
+    'Health': [
+        'General Physicians', 'General Surgeons', 'Cardiologists',
+        'Child Specialists', 'Paediatricians', 'Dentists', 'Dermatologists',
+        'Skin & Hair Specialists', 'ENT Doctors', 'Eye Specialists',
+        'Ophthalmologists', 'Gastroenterologists', 'Gynaecologists & Obstetricians',
+        'Neurologists', 'Orthopaedic Doctors', 'Ayurvedic Doctors',
+        'Homeopathic Doctors', 'Pathology Labs', 'Physiotherapists',
+        'Vaccination Centres', 'Hearing Aids & Solutions',
+    ],
+    'Education': [
+        'Schools & Educational Institutions', 'Playgroups', 'Kindergartens',
+        'Home Tutors', 'Tutorials & Coaching Classes', 'Training Institutes',
+        'Language Classes', 'Motor Training Schools', 'Overseas Education Consultants',
+        'Yoga & Wellness Classes',
+    ],
+    'Construction': [
+        'Borewell Contractors', 'Builders & Contractors', 'Carpentry Contractors',
+        'Civil Contractors', 'Electrical Contractors', 'Electricians',
+        'False Ceiling Contractors', 'Home Services', 'Housekeeping Services',
+        'Modular Kitchen Designers', 'Painting Contractors', 'Plumbers',
+        'Ready Mix Concrete Suppliers', 'Waterproofing Contractors',
+    ],
+    'Automotive': [
+        'Automobile Dealers', 'Car Insurance Agents', 'Car Loans & Finance',
+        'Car Repairs & Services', 'Taxi & Cab Services', 'Towing Services',
+        'Transporters & Logistics',
+    ],
+    'Business': [
+        'Bulk SMS & Digital Marketing', 'Chartered Accountants', 'Business Consultants',
+        'GST Registration Consultants', 'Income Tax Consultants', 'Registration Consultants',
+        'Event Organizers', 'Party Organisers', 'Wedding Planners & Requisites',
+        'Interior Designers', 'Lawyers & Legal Services', 'Logistics & Supply Chain',
+        'Online Passport Agents', 'Packers & Movers', 'Repairs & Maintenance Services',
+        'Website Designers & Developers',
+    ],
 };
 
 const CATEGORY_ICONS: Record<string, string> = {
-  'Travel': '✈️',
-  'Technology': '💻',
-  'Shopping': '🛒',
-  'Rentals': '🔑',
-  'Lifestyle': '💄',
-  'Health': '⚕️',
-  'Education': '🎓',
-  'Construction': '🔨',
-  'Automotive': '🚗',
-  'Business': '💼',
+    'Travel': '✈️',
+    'Technology': '💻',
+    'Shopping': '🛒',
+    'Rentals': '🔑',
+    'Lifestyle': '💄',
+    'Health': '⚕️',
+    'Education': '🎓',
+    'Construction': '🔨',
+    'Automotive': '🚗',
+    'Business': '💼',
 };
 
 // Generate time options for time picker (1 AM, 2 AM, 3 AM... style)
@@ -135,7 +135,7 @@ const generateTimeOptions = (): Array<string | { label: string; value: string }>
         const amHour24 = hour === 12 ? 0 : hour;
         const amHourStr = amHour24.toString().padStart(2, '0');
         times.push({ label: `${hour} AM`, value: `${amHourStr}:00` });
-        
+
         // PM times
         const pmHour24 = hour === 12 ? 12 : hour + 12;
         const pmHourStr = pmHour24.toString().padStart(2, '0');
@@ -253,16 +253,17 @@ export default function Builder() {
         },
         enabled: isEditMode && !!edit,
         // Use the list cache as a quick initial fallback for UX, but always refetch on mount
-        initialData: () => {
-            try {
-                if (!currentUserId) return undefined;
-                const list = queryClient.getQueryData(["cards", currentUserId]) as any[] | undefined;
-                return list ? list.find((card: any) => (card._id || card.id) === edit) : undefined;
-            } catch (e) {
-                return undefined;
-            }
-        },
-        refetchOnMount: 'always'
+        // initialData: () => {
+        //     try {
+        //         if (!currentUserId) return undefined;
+        //         const list = queryClient.getQueryData(["cards", currentUserId]) as any[] | undefined;
+        //         return list ? list.find((card: any) => (card._id || card.id) === edit) : undefined;
+        //     } catch (e) {
+        //         return undefined;
+        //     }
+        // },
+        refetchOnMount: 'always',
+        staleTime: 0
     });
 
     // Use the single-card query as the authoritative existingCard in edit mode
@@ -753,7 +754,7 @@ export default function Builder() {
     const [companyPhoto, setCompanyPhoto] = useState("");
     // New business fields
     const [businessHours, setBusinessHours] = useState("");
-    const [weeklySchedule, setWeeklySchedule] = useState<{[key: string]: {open: boolean, openTime: string, closeTime: string}}>({
+    const [weeklySchedule, setWeeklySchedule] = useState<{ [key: string]: { open: boolean, openTime: string, closeTime: string } }>({
         Sunday: { open: false, openTime: '09:00', closeTime: '18:00' },
         Monday: { open: false, openTime: '09:00', closeTime: '18:00' },
         Tuesday: { open: false, openTime: '09:00', closeTime: '18:00' },
@@ -788,7 +789,7 @@ export default function Builder() {
     const [keywords, setKeywords] = useState("");
     const keywordsTimeout = useRef<any>(null);
     const draftSaveTimeout = useRef<any>(null);
-    
+
     // Debounced keywords handler to prevent saving issues - Memoized to prevent recreation
     const handleKeywordsChange = useCallback((text: string) => {
         setKeywords(text);
@@ -824,10 +825,10 @@ export default function Builder() {
 
     const handleAddCustomService = () => {
         if (customServiceInput.trim()) {
-            const customService = selectedCategory 
-                ? `${selectedCategory} - ${customServiceInput.trim()}` 
+            const customService = selectedCategory
+                ? `${selectedCategory} - ${customServiceInput.trim()}`
                 : customServiceInput.trim();
-            
+
             if (!selectedServices.includes(customService)) {
                 setSelectedServices(prev => [...prev, customService]);
             }
@@ -971,7 +972,7 @@ export default function Builder() {
     // Step 2: Once we have both draft and existingCard, decide which to load
     useEffect(() => {
         if (formPopulated || !hasFetchedDraft) return;
-        
+
         // If we have draft data, check if it's newer than existing card
         if (draftData) {
             console.log('📂 Draft data found:', {
@@ -980,9 +981,9 @@ export default function Builder() {
                 companyName: draftData.companyName,
                 hasTimestamp: !!draftData.timestamp
             });
-            
+
             let shouldLoadDraft = true;
-            
+
             if (isEditMode && existingCard && existingCard.updatedAt) {
                 const cardUpdateTime = new Date(existingCard.updatedAt).getTime();
                 const draftTime = draftData.timestamp;
@@ -990,7 +991,7 @@ export default function Builder() {
                 console.log('🕐 Draft timestamp:', new Date(draftTime).toISOString());
                 console.log('🕐 Card updated at:', new Date(cardUpdateTime).toISOString());
                 console.log('🔍 Should load draft:', shouldLoadDraft);
-                
+
                 // IMPORTANT: If draft is from before card was saved, ignore it
                 if (!shouldLoadDraft) {
                     console.log('⏭️ Draft is older than saved card - ignoring draft and loading from API');
@@ -998,7 +999,7 @@ export default function Builder() {
                     return;
                 }
             }
-            
+
             if (shouldLoadDraft) {
                 console.log('✨ Loading draft data into form...');
                 setName(draftData.name || "");
@@ -1033,14 +1034,14 @@ export default function Builder() {
                 setYoutube(draftData.youtube || "");
                 setWhatsapp(draftData.whatsapp || "");
                 setTelegram(draftData.telegram || "");
-                setFormPopulated(true);
-                console.log('✅ Draft loaded successfully - form populated with unsaved changes');
+                // setFormPopulated(true);
+                // console.log('✅ Draft loaded successfully - form populated with unsaved changes');
                 return; // Exit early, don't load from existingCard
             } else {
                 console.log('⏭️ Draft is older than saved card, will load from API');
             }
         }
-        
+
         // If no draft or draft is older, load from existingCard
         if (existingCard && !formPopulated) {
             console.log('📋 Loading form from existing card (no recent draft)');
@@ -1082,72 +1083,233 @@ export default function Builder() {
     };
 
     // Populate form with existing data when in edit mode
+    // useEffect(() => {
+    //     console.log("Builder useEffect triggered");
+    //     console.log("isEditMode:", isEditMode);
+    //     console.log("edit param:", edit);
+    //     console.log("existingCard:", existingCard);
+    //     console.log("formPopulated:", formPopulated);
+    //     console.log("hasFetchedDraft:", hasFetchedDraft);
+
+    //     // CRITICAL: Wait for draft check to complete before loading existingCard
+    //     if (!hasFetchedDraft) {
+    //         console.log("⏳ Waiting for draft check to complete before loading card data");
+    //         return;
+    //     }
+
+    //     if (existingCard && !formPopulated) {
+    //         console.log("Populating form with existing card data from API");
+    //         console.log("� Full existingCard data:", JSON.stringify(existingCard, null, 2));
+    //         console.log("📅 existingCard.birthdate:", existingCard.birthdate);
+    //         console.log("📅 existingCard.anniversary:", existingCard.anniversary);
+    //         console.log("📧 existingCard.email:", existingCard.email);
+    //         console.log("🏢 existingCard.companyName:", existingCard.companyName);
+    //         console.log("📱 existingCard.personalPhone:", existingCard.personalPhone);
+    //         console.log("📱 existingCard.companyPhone:", existingCard.companyPhone);
+    //         setName(existingCard.name || "");
+    //         // Handle empty strings as null for date fields
+    //         const birthdateValue = existingCard.birthdate && existingCard.birthdate !== "" ? existingCard.birthdate : null;
+    //         const anniversaryValue = existingCard.anniversary && existingCard.anniversary !== "" ? existingCard.anniversary : null;
+    //         setBirthdate(birthdateValue);
+    //         setAnniversary(anniversaryValue);
+    //         if (birthdateValue) setBirthText(formatIsoToDisplay(birthdateValue)); else setBirthText("");
+    //         if (anniversaryValue) setAnnivText(formatIsoToDisplay(anniversaryValue)); else setAnnivText("");
+    //         setGender(existingCard.gender || "");
+    //         setPersonalCountryCode(existingCard.personalCountryCode || "91");
+    //         setPersonalPhone(existingCard.personalPhone || "");
+    //         setEmail(existingCard.email || "");
+    //         setLocation(existingCard.location || "");
+    //         setMapsLink(existingCard.mapsLink || "");
+    //         setCompanyName(existingCard.companyName || "");
+    //         setDesignation(existingCard.designation || "");
+    //         setCompanyCountryCode(existingCard.companyCountryCode || "91");
+    //         setCompanyPhone(existingCard.companyPhone || "");
+    //         if (existingCard.companyPhones && Array.isArray(existingCard.companyPhones) && existingCard.companyPhones.length > 0) {
+    //             setCompanyPhones(existingCard.companyPhones.map((p: any) => ({ countryCode: p.countryCode || '91', phone: p.phone || '' })));
+    //         } else {
+    //             setCompanyPhones([{ countryCode: existingCard.companyCountryCode || '91', phone: existingCard.companyPhone || '' }]);
+    //         }
+    //         setCompanyEmail(existingCard.companyEmail || "");
+    //         setCompanyWebsite(existingCard.companyWebsite || "");
+    //         setCompanyAddress(existingCard.companyAddress || "");
+    //         setCompanyMapsLink(existingCard.companyMapsLink || "");
+    //         setMessage(existingCard.message || "");
+    //         setCompanyPhoto(existingCard.companyPhoto || "");
+    //         setKeywords(existingCard.keywords || ""); // Directly set keywords without debounce during load
+    //         console.log("🔍 Loaded keywords:", existingCard.keywords);
+    //         setLinkedin(existingCard.linkedin || "");
+    //         setTwitter(existingCard.twitter || "");
+    //         setInstagram(existingCard.instagram || "");
+    //         setFacebook(existingCard.facebook || "");
+    //         setYoutube(existingCard.youtube || "");
+    //         setWhatsapp(existingCard.whatsapp || "");
+    //         setTelegram(existingCard.telegram || "");
+
+
+    //     }
+
+    // }, [singleCardQuery.data, singleCardQuery.isSuccess, isEditMode, edit, formPopulated, hasFetchedDraft]);
+
+    // useEffect(() => {
+    //     if (!singleCardQuery.isSuccess || !singleCardQuery.data) return;
+
+    //     const card = singleCardQuery.data;
+
+    //     // 🔥 ALWAYS trust API for business fields
+    //     setAboutBusiness(card.aboutBusiness ?? "");
+    //     setEstablishedYear(card.establishedYear ?? "");
+
+    //     if (card.servicesOffered) {
+    //         const list = card.servicesOffered
+    //             .split(',')
+    //             .map(s => s.trim())
+    //             .filter(Boolean);
+    //         setSelectedServices(list);
+    //         setServicesOffered(card.servicesOffered);
+    //     } else {
+    //         setSelectedServices([]);
+    //         setServicesOffered("");
+    //     }
+
+    //     if (card.businessHours) {
+    //         try {
+    //             const parsed = JSON.parse(card.businessHours);
+    //             setWeeklySchedule(parsed);
+    //         } catch (e) {
+    //             console.warn("❌ Invalid businessHours JSON", e);
+    //         }
+    //     }
+    //     setFormPopulated(true);
+    //     console.log('Builder: formPopulated set true after successful single-card fetch');
+    // }, [
+    //     singleCardQuery.isSuccess,
+    //     singleCardQuery.data?.aboutBusiness,
+    //     singleCardQuery.data?.businessHours,
+    //     singleCardQuery.data?.servicesOffered,
+    //     singleCardQuery.data?.establishedYear
+    // ]);
     useEffect(() => {
-        console.log("Builder useEffect triggered");
+        console.log("Builder SINGLE useEffect triggered");
         console.log("isEditMode:", isEditMode);
         console.log("edit param:", edit);
         console.log("existingCard:", existingCard);
         console.log("formPopulated:", formPopulated);
         console.log("hasFetchedDraft:", hasFetchedDraft);
-        
-        // CRITICAL: Wait for draft check to complete before loading existingCard
+
+        // 🔒 wait till draft decision is done
         if (!hasFetchedDraft) {
-            console.log("⏳ Waiting for draft check to complete before loading card data");
+            console.log("⏳ Waiting for draft check to complete");
             return;
         }
-        
-        if (existingCard && !formPopulated) {
-            console.log("Populating form with existing card data from API");
-            console.log("� Full existingCard data:", JSON.stringify(existingCard, null, 2));
-            console.log("📅 existingCard.birthdate:", existingCard.birthdate);
-            console.log("📅 existingCard.anniversary:", existingCard.anniversary);
-            console.log("📧 existingCard.email:", existingCard.email);
-            console.log("🏢 existingCard.companyName:", existingCard.companyName);
-            console.log("📱 existingCard.personalPhone:", existingCard.personalPhone);
-            console.log("📱 existingCard.companyPhone:", existingCard.companyPhone);
-            setName(existingCard.name || "");
-            // Handle empty strings as null for date fields
-            const birthdateValue = existingCard.birthdate && existingCard.birthdate !== "" ? existingCard.birthdate : null;
-            const anniversaryValue = existingCard.anniversary && existingCard.anniversary !== "" ? existingCard.anniversary : null;
-            setBirthdate(birthdateValue);
-            setAnniversary(anniversaryValue);
-            if (birthdateValue) setBirthText(formatIsoToDisplay(birthdateValue)); else setBirthText("");
-            if (anniversaryValue) setAnnivText(formatIsoToDisplay(anniversaryValue)); else setAnnivText("");
-            setGender(existingCard.gender || "");
-            setPersonalCountryCode(existingCard.personalCountryCode || "91");
-            setPersonalPhone(existingCard.personalPhone || "");
-            setEmail(existingCard.email || "");
-            setLocation(existingCard.location || "");
-            setMapsLink(existingCard.mapsLink || "");
-            setCompanyName(existingCard.companyName || "");
-            setDesignation(existingCard.designation || "");
-            setCompanyCountryCode(existingCard.companyCountryCode || "91");
-            setCompanyPhone(existingCard.companyPhone || "");
-            if (existingCard.companyPhones && Array.isArray(existingCard.companyPhones) && existingCard.companyPhones.length > 0) {
-                setCompanyPhones(existingCard.companyPhones.map((p: any) => ({ countryCode: p.countryCode || '91', phone: p.phone || '' })));
-            } else {
-                setCompanyPhones([{ countryCode: existingCard.companyCountryCode || '91', phone: existingCard.companyPhone || '' }]);
-            }
-            setCompanyEmail(existingCard.companyEmail || "");
-            setCompanyWebsite(existingCard.companyWebsite || "");
-            setCompanyAddress(existingCard.companyAddress || "");
-            setCompanyMapsLink(existingCard.companyMapsLink || "");
-            setMessage(existingCard.message || "");
-            setCompanyPhoto(existingCard.companyPhoto || "");
-            setKeywords(existingCard.keywords || ""); // Directly set keywords without debounce during load
-            console.log("🔍 Loaded keywords:", existingCard.keywords);
-            setLinkedin(existingCard.linkedin || "");
-            setTwitter(existingCard.twitter || "");
-            setInstagram(existingCard.instagram || "");
-            setFacebook(existingCard.facebook || "");
-            setYoutube(existingCard.youtube || "");
-            setWhatsapp(existingCard.whatsapp || "");
-            setTelegram(existingCard.telegram || "");
-            setFormPopulated(true);
-            console.log('Builder: formPopulated set true after successful single-card fetch');
+
+        // 🔒 only in edit mode
+        if (!existingCard) return;
+
+        // 🔒 prevent re-population
+        if (formPopulated) return;
+
+        console.log("✅ Populating FULL form from existingCard (API)");
+
+        const card = existingCard;
+
+        /* =========================
+           PERSONAL
+        ========================= */
+        setName(card.name || "");
+
+        const birthdateValue =
+            card.birthdate && card.birthdate !== "" ? card.birthdate : null;
+        const anniversaryValue =
+            card.anniversary && card.anniversary !== "" ? card.anniversary : null;
+
+        setBirthdate(birthdateValue);
+        setAnniversary(anniversaryValue);
+        setBirthText(birthdateValue ? formatIsoToDisplay(birthdateValue) : "");
+        setAnnivText(anniversaryValue ? formatIsoToDisplay(anniversaryValue) : "");
+
+        setGender(card.gender || "");
+        setPersonalCountryCode(card.personalCountryCode || "91");
+        setPersonalPhone(card.personalPhone || "");
+        setEmail(card.email || "");
+        setLocation(card.location || "");
+        setMapsLink(card.mapsLink || "");
+
+        /* =========================
+           BUSINESS (CORE)
+        ========================= */
+        setCompanyName(card.companyName || "");
+        setDesignation(card.designation || "");
+        setCompanyCountryCode(card.companyCountryCode || "91");
+        setCompanyPhone(card.companyPhone || "");
+
+        if (card.companyPhones && Array.isArray(card.companyPhones) && card.companyPhones.length > 0) {
+            setCompanyPhones(
+                card.companyPhones.map((p: any) => ({
+                    countryCode: p.countryCode || "91",
+                    phone: p.phone || ""
+                }))
+            );
+        } else {
+            setCompanyPhones([
+                { countryCode: card.companyCountryCode || "91", phone: card.companyPhone || "" }
+            ]);
         }
 
-    }, [singleCardQuery.data, singleCardQuery.isSuccess, isEditMode, edit, formPopulated, hasFetchedDraft]);
+        setCompanyEmail(card.companyEmail || "");
+        setCompanyWebsite(card.companyWebsite || "");
+        setCompanyAddress(card.companyAddress || "");
+        setCompanyMapsLink(card.companyMapsLink || "");
+        setMessage(card.message || "");
+        setCompanyPhoto(card.companyPhoto || "");
+        setKeywords(card.keywords || "");
+
+        /* =========================
+           🔥 BUSINESS – MISSING FIELDS (FIX)
+        ========================= */
+        setAboutBusiness(card.aboutBusiness ?? "");
+        setEstablishedYear(card.establishedYear ?? "");
+
+        if (card.servicesOffered) {
+            const list = card.servicesOffered
+                .split(",")
+                .map(s => s.trim())
+                .filter(Boolean);
+            setSelectedServices(list);
+            setServicesOffered(card.servicesOffered);
+        } else {
+            setSelectedServices([]);
+            setServicesOffered("");
+        }
+
+        if (card.businessHours) {
+            try {
+                setWeeklySchedule(JSON.parse(card.businessHours));
+            } catch (e) {
+                console.warn("❌ Invalid businessHours JSON", e);
+            }
+        }
+
+        /* =========================
+           SOCIAL
+        ========================= */
+        setLinkedin(card.linkedin || "");
+        setTwitter(card.twitter || "");
+        setInstagram(card.instagram || "");
+        setFacebook(card.facebook || "");
+        setYoutube(card.youtube || "");
+        setWhatsapp(card.whatsapp || "");
+        setTelegram(card.telegram || "");
+
+        /* =========================
+           ✅ LAST LINE (CRITICAL)
+        ========================= */
+        setFormPopulated(true);
+        console.log("🎯 Form fully populated (personal + business + social)");
+
+    }, [existingCard, hasFetchedDraft, formPopulated]);
+
+
+
 
     // Track company photo changes
     useEffect(() => {
@@ -1311,16 +1473,16 @@ export default function Builder() {
         } catch (e) { /* ignore parsing failure */ }
 
         if (isEditMode) {
-            console.log('🔄 Builder: UPDATE mode - payload preview:', JSON.stringify({ 
+            console.log('🔄 Builder: UPDATE mode - payload preview:', JSON.stringify({
                 name: finalPayload.name,
-                businessHours: finalPayload.businessHours, 
+                businessHours: finalPayload.businessHours,
                 servicesOffered: finalPayload.servicesOffered,
                 establishedYear: finalPayload.establishedYear,
                 aboutBusiness: finalPayload.aboutBusiness
             }));
             updateCardMutation.mutate(finalPayload);
         } else {
-            console.log('✨ Builder: CREATE mode - payload preview:', JSON.stringify({ 
+            console.log('✨ Builder: CREATE mode - payload preview:', JSON.stringify({
                 name: finalPayload.name,
                 businessHours: finalPayload.businessHours,
                 servicesOffered: finalPayload.servicesOffered,
@@ -1839,7 +2001,7 @@ export default function Builder() {
                                 {/* Business Hours - Clickable Field */}
                                 <View style={s.formField}>
                                     <Text style={s.enhancedLabel}>Business Hours</Text>
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={s.servicesButton}
                                         onPress={() => {
                                             console.log('🕐 Opening Business Hours modal');
@@ -1866,13 +2028,13 @@ export default function Builder() {
                                 {/* Services Offered Multi-Select */}
                                 <View style={s.formField}>
                                     <Text style={s.enhancedLabel}>Services Offered</Text>
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={s.servicesButton}
                                         onPress={() => setServicesModalVisible(true)}
                                     >
                                         <Text style={selectedServices.length > 0 ? s.servicesButtonTextFilled : s.servicesButtonText}>
-                                            {selectedServices.length > 0 
-                                                ? `${selectedServices.length} service${selectedServices.length > 1 ? 's' : ''} selected` 
+                                            {selectedServices.length > 0
+                                                ? `${selectedServices.length} service${selectedServices.length > 1 ? 's' : ''} selected`
                                                 : 'Select services from list'}
                                         </Text>
                                         <Ionicons name="chevron-down" size={20} color="#6B7280" />
@@ -1882,7 +2044,7 @@ export default function Builder() {
                                             {selectedServices.map((service, index) => (
                                                 <View key={index} style={s.serviceTag}>
                                                     <Text style={s.serviceTagText}>{service}</Text>
-                                                    <TouchableOpacity 
+                                                    <TouchableOpacity
                                                         onPress={() => setSelectedServices(prev => prev.filter(s => s !== service))}
                                                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                                     >
@@ -1903,7 +2065,7 @@ export default function Builder() {
                                     maxLength={4}
                                 />
 
-                            
+
                             </View>
                         )}
                     </Animated.View>
@@ -2065,7 +2227,7 @@ export default function Builder() {
                     <View style={s.modalContainer}>
                         <View style={s.modalHeader}>
                             {selectedCategory && (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     onPress={() => {
                                         setSelectedCategory(null);
                                         setServicesSearchQuery('');
@@ -2258,40 +2420,40 @@ export default function Builder() {
 
                                 {/* Show Subcategories List */}
                                 <FlatList
-                                    data={SERVICE_CATEGORIES[selectedCategory].filter(service => 
-                                    service.toLowerCase().includes(servicesSearchQuery.toLowerCase())
-                                )}
-                                keyExtractor={(item, index) => `${item}-${index}`}
-                                renderItem={({ item }) => {
-                                    const isSelected = selectedServices.includes(item);
-                                    return (
-                                        <TouchableOpacity
-                                            style={[s.serviceItem, isSelected && s.serviceItemSelected]}
-                                            onPress={() => {
-                                                if (isSelected) {
-                                                    setSelectedServices(prev => prev.filter(s => s !== item));
-                                                } else {
-                                                    setSelectedServices(prev => [...prev, item]);
-                                                }
-                                            }}
-                                        >
-                                            <Text style={[s.serviceItemText, isSelected && s.serviceItemTextSelected]}>
-                                                {item}
-                                            </Text>
-                                            {isSelected && (
-                                                <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
-                                            )}
-                                        </TouchableOpacity>
-                                    );
-                                }}
-                                style={s.servicesList}
-                                showsVerticalScrollIndicator={true}
-                                ListEmptyComponent={
-                                    <View style={s.emptyContainer}>
-                                        <Text style={s.emptyText}>No services found</Text>
-                                    </View>
-                                }
-                            />
+                                    data={SERVICE_CATEGORIES[selectedCategory].filter(service =>
+                                        service.toLowerCase().includes(servicesSearchQuery.toLowerCase())
+                                    )}
+                                    keyExtractor={(item, index) => `${item}-${index}`}
+                                    renderItem={({ item }) => {
+                                        const isSelected = selectedServices.includes(item);
+                                        return (
+                                            <TouchableOpacity
+                                                style={[s.serviceItem, isSelected && s.serviceItemSelected]}
+                                                onPress={() => {
+                                                    if (isSelected) {
+                                                        setSelectedServices(prev => prev.filter(s => s !== item));
+                                                    } else {
+                                                        setSelectedServices(prev => [...prev, item]);
+                                                    }
+                                                }}
+                                            >
+                                                <Text style={[s.serviceItemText, isSelected && s.serviceItemTextSelected]}>
+                                                    {item}
+                                                </Text>
+                                                {isSelected && (
+                                                    <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
+                                                )}
+                                            </TouchableOpacity>
+                                        );
+                                    }}
+                                    style={s.servicesList}
+                                    showsVerticalScrollIndicator={true}
+                                    ListEmptyComponent={
+                                        <View style={s.emptyContainer}>
+                                            <Text style={s.emptyText}>No services found</Text>
+                                        </View>
+                                    }
+                                />
                             </>
                         )}
 
@@ -2329,7 +2491,7 @@ export default function Builder() {
                                 <Ionicons name="close" size={24} color="#6B7280" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <ScrollView style={s.businessHoursScrollView}>
                             {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => (
                                 <View key={day} style={s.scheduleRow}>
@@ -2357,7 +2519,7 @@ export default function Builder() {
                                             </View>
                                         </Pressable>
                                     </View>
-                                    
+
                                     {weeklySchedule[day].open ? (
                                         <View style={s.timePickersContainer}>
                                             <View style={s.timePickerGroup}>
@@ -2381,7 +2543,7 @@ export default function Builder() {
                                                     <Ionicons name="chevron-down" size={16} color="#6B7280" />
                                                 </Pressable>
                                             </View>
-                                            
+
                                             <View style={s.timePickerGroup}>
                                                 <Text style={s.timeLabel}>Closes at</Text>
                                                 <Pressable
@@ -2410,17 +2572,17 @@ export default function Builder() {
                                 </View>
                             ))}
                         </ScrollView>
-                        
+
                         <TouchableOpacity
                             style={s.modalDoneButton}
                             onPress={() => {
                                 const openDays = Object.entries(weeklySchedule).filter(([_, hours]) => hours.open);
                                 console.log('⏰ Business Hours Done - Open days:', openDays.length);
                                 console.log('⏰ Weekly schedule:', JSON.stringify(weeklySchedule, null, 2));
-                                
+
                                 // Force state update to trigger button text re-render
-                                setWeeklySchedule(prev => ({...prev}));
-                                
+                                setWeeklySchedule(prev => ({ ...prev }));
+
                                 setBusinessHoursModalVisible(false);
                             }}
                         >
