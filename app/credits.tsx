@@ -1,8 +1,51 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { scaleFontSize, scaleSize, moderateScale } from "@/lib/responsive";
+import api from "@/lib/api";
+import { formatIndianNumber } from "@/utils/formatNumber";
 
 export default function Credits() {
+  const [loading, setLoading] = useState(true);
+  const [credits, setCredits] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCredits();
+  }, []);
+
+  const fetchCredits = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get('/auth/profile');
+      if (response?.user?.credits !== undefined) {
+        setCredits(response.user.credits);
+      }
+    } catch (err: any) {
+      console.error('Error fetching credits:', err);
+      setError(err?.message || 'Failed to load credits');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#4F6AF3" />
+        <Text style={styles.loadingText}>Loading credits...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>❌ {error}</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
@@ -13,7 +56,7 @@ export default function Credits() {
         
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Available Credits</Text>
-          <Text style={styles.creditAmount}>0</Text>
+          <Text style={styles.creditAmount}>{formatIndianNumber(credits)}</Text>
           <Text style={styles.cardSubtitle}>credits remaining</Text>
         </View>
 
@@ -40,6 +83,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F9FAFB",
+  },
+  centerContent: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: scaleSize(12),
+    fontSize: scaleFontSize(16),
+    color: "#6B7280",
+  },
+  errorText: {
+    fontSize: scaleFontSize(16),
+    color: "#EF4444",
+    textAlign: "center",
+    paddingHorizontal: scaleSize(20),
   },
   content: {
     padding: scaleSize(20),

@@ -42,29 +42,29 @@ export function useAds() {
   return useQuery({
     queryKey: ['footer-ads'],
     queryFn: async () => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('� [MOBILE STEP 1] useAds: Fetching ads from API...');
-
+      // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      // console.log('📡 [MOBILE STEP 1] useAds: Fetching ads from API...');
+      
       try {
         const response = await api.get('/ads/active');
-
-        console.log('📥 [MOBILE STEP 2] useAds: API response received');
-
+        
+        // console.log('📥 [MOBILE STEP 2] useAds: API response received');
+        
         // Check if response is valid JSON (not HTML error page)
         if (typeof response === 'string') {
           console.error('❌ Network error fetching ads: Received HTML instead of JSON');
           console.error('Response preview:', response.substring(0, 200));
           return [];
         }
-
-        console.log('📊 Response structure:', {
-          success: response?.success,
-          count: response?.count,
-          dataLength: response?.data?.length,
-          imageBaseUrl: response?.imageBaseUrl,
-          timestamp: response?.timestamp
-        });
-
+        
+        // console.log('📊 Response structure:', {
+        //   success: response?.success,
+        //   count: response?.count,
+        //   dataLength: response?.data?.length,
+        //   imageBaseUrl: response?.imageBaseUrl,
+        //   timestamp: response?.timestamp
+        // });
+        
         if (response && response.success && response.data && response.data.length > 0) {
           const defaultImageBase = process.env.EXPO_PUBLIC_API_BASE || process.env.API_BASE || '';
           const imageBaseUrl = response.imageBaseUrl || defaultImageBase;
@@ -165,8 +165,8 @@ export function useAds() {
 
           return formattedApiAds;
         } else {
-          console.log('⚠️  [MOBILE WARNING] No API ads available in response');
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          // console.log('⚠️  [MOBILE WARNING] No API ads available in response');
+          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
           return [];
         }
       } catch (error) {
@@ -177,8 +177,8 @@ export function useAds() {
             console.error('HTTP status:', (error as any).status);
           }
         }
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
+        // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
         // Return empty array instead of throwing to prevent app crash
         return [];
       }

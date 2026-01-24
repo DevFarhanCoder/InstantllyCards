@@ -24,13 +24,15 @@ import * as Contacts from 'expo-contacts';
 
 // import * as SmsRetriever from "expo-sms-retriever";
 import serverWarmup from "../../lib/serverWarmup";
+// Fast2SMS imports for Phone Authentication - COMMENTED OUT (OTP disabled)
+// import serverWarmup from "../../lib/serverWarmup";
 import api from "../../lib/api";
-import { sendOTPViaFast2SMS, verifyOTPViaBackend } from "../../lib/fast2sms";
+// import { sendOTPViaFast2SMS, verifyOTPViaBackend } from "../../lib/fast2sms";
 import PhoneInput from "../../components/PhoneInput";
 import Field from "../../components/Field";
 import PasswordField from "../../components/PasswordField";
-import OtpInput from "../../components/OtpInput";
-import { useSmsRetriever } from "../../hooks/useSmsRetriever";
+// import OtpInput from "../../components/OtpInput";
+// import { useSmsRetriever } from "../../hooks/useSmsRetriever";
 
 
 // Import notification registration
@@ -41,40 +43,40 @@ const registerPendingPushToken = notificationModule?.registerPendingPushToken ||
 
 const { height: screenHeight } = Dimensions.get('window');
 
-// OTP Flow States
-type SignupStep = 'phone' | 'otp' | 'details';
+// OTP Flow States - COMMENTED OUT (OTP disabled)
+// type SignupStep = 'phone' | 'otp' | 'details';
 
 export default function Signup() {
-  // Step management
-  const [step, setStep] = useState<SignupStep>('phone');
+  // Step management - OTP disabled, start directly with details
+  // const [step, setStep] = useState<SignupStep>('phone');
   
   // Form fields
   const [name, setName] = useState("");
   const [countryCode, setCountryCode] = useState("+91"); // Default to India
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [otp, setOtp] = useState("");
+  // const [otp, setOtp] = useState(""); // OTP disabled
   const [password, setPassword] = useState("");
   const [manualReferralCode, setManualReferralCode] = useState(""); // Manual referral code input
   
-  // SMS Retriever Hook for automatic OTP detection
-  const { otp: autoOtp, appHash, isListening } = useSmsRetriever({ 
-    autoStart: true,
-    otpLength: 6 
-  });
+  // SMS Retriever Hook for automatic OTP detection - COMMENTED OUT (OTP disabled)
+  // const { otp: autoOtp, appHash, isListening } = useSmsRetriever({ 
+  //   autoStart: true,
+  //   otpLength: 6 
+  // });
   
-  // Store the verified phone number with country code
-  const [verifiedPhone, setVerifiedPhone] = useState("");
+  // Store the verified phone number with country code - COMMENTED OUT (OTP disabled)
+  // const [verifiedPhone, setVerifiedPhone] = useState("");
   
   // Loading states
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Creating...");
   const [progress, setProgress] = useState(0);
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  // const [sendingOtp, setSendingOtp] = useState(false); // OTP disabled
+  // const [verifyingOtp, setVerifyingOtp] = useState(false); // OTP disabled
   
-  // OTP timer
-  const [otpTimer, setOtpTimer] = useState(0);
-  const [canResend, setCanResend] = useState(false);
+  // OTP timer - COMMENTED OUT (OTP disabled)
+  // const [otpTimer, setOtpTimer] = useState(0);
+  // const [canResend, setCanResend] = useState(false);
 
   // Toast notification state
   const [toastVisible, setToastVisible] = useState(false);
@@ -105,64 +107,35 @@ export default function Signup() {
     });
   };
 
-  // Timer countdown
-  useEffect(() => {
-    if (otpTimer > 0) {
-      const interval = setInterval(() => {
-        setOtpTimer(prev => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [otpTimer]);
+  // Timer countdown - COMMENTED OUT (OTP disabled)
+  // useEffect(() => {
+  //   if (otpTimer > 0) {
+  //     const interval = setInterval(() => {
+  //       setOtpTimer(prev => {
+  //         if (prev <= 1) {
+  //           setCanResend(true);
+  //           return 0;
+  //         }
+  //         return prev - 1;
+  //       });
+  //     }, 1000);
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [otpTimer]);
 
-// useEffect(() => {
-//   if (step !== "otp") return;
-
-//   let isMounted = true;
-
-//   const start = async () => {
-//     try {
-//       console.log("📩 Starting SMS Retriever…");
-
-//       const started = await SmsRetriever.start();
-//       console.log("SMS Retriever started:", started);
-
-//       if (started) {
-//         SmsRetriever.addListener((event) => {
-//           const message = event.value;  // correct for your library
-//           console.log("📩 SMS RECEIVED:", message);
-
-//           const otpMatch = message.match(/\d{4,6}/);
-//           if (otpMatch && isMounted) {
-//             setOtp(otpMatch[0]);
-//           }
-
-//           SmsRetriever.removeListener();
-//         });
-//       }
-//     } catch (error) {
-//       console.error("SMS Retriever Error:", error);
-//     }
-//   };
-
-//   start();
-
-//   return () => {
-//     isMounted = false;
-//     try {
-//       SmsRetriever.removeListener();
-//     } catch {}
-//   };
-// }, [step]);
+  // Auto-fill OTP when detected by SMS Retriever - COMMENTED OUT (OTP disabled)
+  // useEffect(() => {
+  //   if (autoOtp && step === 'otp') {
+  //     console.log('✅ [Auto-Fill] OTP detected:', autoOtp);
+  //     setOtp(autoOtp);
+  //     showToast("OTP auto-filled!", "success");
+  //   }
+  // }, [autoOtp, step]);
 
 
 
+  // OTP Functions - COMMENTED OUT (OTP disabled)
+  /* 
   const sendOtp = async () => {
     const requestId = Math.random().toString(36).substring(7);
     const startTime = Date.now();
@@ -274,12 +247,14 @@ export default function Signup() {
       setSendingOtp(false);
     }
   };
+  */
 
-  const resendOtp = async () => {
-    if (!canResend) return;
-    await sendOtp();
-  };
+  // const resendOtp = async () => {
+  //   if (!canResend) return;
+  //   await sendOtp();
+  // };
 
+  /* 
   const verifyOtp = async () => {
     const requestId = Math.random().toString(36).substring(7);
     const startTime = Date.now();
@@ -350,6 +325,7 @@ export default function Signup() {
       setVerifyingOtp(false);
     }
   };
+  */
 
   const doSignup = async () => {
     const requestId = Math.random().toString(36).substring(7);
@@ -372,15 +348,22 @@ export default function Signup() {
       console.log(`👤 Name: ${nameT}`);
       console.log(`🔐 Password: ***${passwordT.slice(-2)}`);
 
-      // Use the verified phone number (stored when OTP was sent)
-      const fullPhone = verifiedPhone;
-      
-      if (!fullPhone) {
-        console.log(`❌ [SIGNUP-CREATE] ERROR: No verified phone - ID: ${requestId}`);
-        Alert.alert("Error", "Phone verification failed. Please try again.");
-        setStep('phone');
+      // Use the phone number directly (OTP verification disabled)
+      const phoneT = phoneNumber.trim();
+      if (!phoneT) {
+        console.log(`❌ [SIGNUP-CREATE] ERROR: No phone number - ID: ${requestId}`);
+        Alert.alert("Error", "Please enter your phone number.");
         return;
       }
+
+      // Format phone number with country code
+      const cleanPhone = phoneT.replace(/\D/g, "");
+      if (cleanPhone.length !== 10) {
+        console.log(`❌ [SIGNUP-CREATE] ERROR: Invalid phone length - ID: ${requestId}`);
+        Alert.alert("Error", "Please enter a valid 10-digit phone number.");
+        return;
+      }
+      const fullPhone = `${countryCode}${cleanPhone}`;
 
       console.log(`📱 Phone: ${fullPhone}`);
 
@@ -394,13 +377,8 @@ export default function Signup() {
       setProgress(10);
       setLoadingMessage("Preparing...");
 
-      console.log(`⏳ [SIGNUP-CREATE] Pre-warming server...`);
-      // Pre-warm server if not already warm
-      if (!serverWarmup.isServerWarm()) {
-        setLoadingMessage("Waking up server...");
-        setProgress(30);
-        await serverWarmup.warmupServer();
-      }
+      // Server warmup removed (OTP disabled)
+      setProgress(30);
 
       setProgress(50);
       setLoadingMessage("Creating account...");
@@ -580,9 +558,9 @@ export default function Signup() {
         // Don't block signup if contact sync fails
       }
       
-      console.log(`🔀 [SIGNUP] Navigation: Redirecting to home...`);
+      console.log(`🔀 [SIGNUP] Navigation: Redirecting to service selection...`);
       console.log(`${'='.repeat(70)}\n`);
-      router.replace("/(tabs)/home");
+      router.replace("/(auth)/service-selection");
     } catch (e: any) {
       const duration = Date.now() - startTime;
       console.error(`\n❌ [SIGNUP-CREATE] EXCEPTION ERROR - ID: ${requestId}`);
@@ -650,13 +628,12 @@ export default function Signup() {
             <View style={styles.welcomeSection}>
               <Text style={styles.welcomeTitle}>Create Account</Text>
               <Text style={styles.welcomeSubtitle}>
-                {step === 'phone' && 'Enter your phone number to get started'}
-                {step === 'otp' && 'Verify your phone number'}
-                {step === 'details' && 'Complete your profile'}
+                Sign up to get started
               </Text>
             </View>
 
-            {/* Step Indicator */}
+            {/*
+            Step Indicator - COMMENTED OUT (OTP disabled)
             <View style={styles.stepIndicator}>
               <View style={[styles.stepDot, step === 'phone' && styles.stepDotActive]} />
               <View style={[styles.stepLine, (step === 'otp' || step === 'details') && styles.stepLineActive]} />
@@ -664,22 +641,22 @@ export default function Signup() {
               <View style={[styles.stepLine, step === 'details' && styles.stepLineActive]} />
               <View style={[styles.stepDot, step === 'details' && styles.stepDotActive]} />
             </View>
+            */}
           </View>
 
-          {/* Form Section */}
+          {/* Form Section - OTP Steps Commented Out */}
           <View style={styles.formContainer}>
+            {/* OTP Steps - COMMENTED OUT (OTP disabled) */}
             {/* Step 1: Phone Number */}
-            {step === 'phone' && (
+            {/* {step === 'phone' && (
               <>
                 <View style={styles.inputGroup}>
                   <PhoneInput
                     label="Phone Number"
                     value={phoneNumber}
                     onChangeText={(text: string) => {
-                      // Allow only digits
                       const raw = text.replace(/\D/g, '');
                       if (raw.length > 10) {
-                        // Inform user they can't enter more than 10 digits
                         showToast('Only 10 digits allowed', 'error');
                         setPhoneNumber(raw.slice(0, 10));
                       } else {
@@ -706,10 +683,10 @@ export default function Signup() {
                   </Pressable>
                 </View>
               </>
-            )}
+            )} */}
 
             {/* Step 2: OTP Verification */}
-            {step === 'otp' && (
+            {/* {step === 'otp' && (
               <>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Enter OTP</Text>
@@ -750,10 +727,9 @@ export default function Signup() {
                   <Text style={styles.backButtonText}>← Change Phone Number</Text>
                 </Pressable>
               </>
-            )}
+            )} */}
 
-            {/* Step 3: Name & Password */}
-            {step === 'details' && (
+            {/* Single Form - Name, Phone & Password (OTP disabled) */}
               <>
                 <View style={styles.inputGroup}>
                   <Field
@@ -762,6 +738,25 @@ export default function Signup() {
                     value={name}
                     onChangeText={setName}
                     autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <PhoneInput
+                    label="Phone Number"
+                    value={phoneNumber}
+                    onChangeText={(text: string) => {
+                      const raw = text.replace(/\D/g, '');
+                      if (raw.length > 10) {
+                        showToast('Only 10 digits allowed', 'error');
+                        setPhoneNumber(raw.slice(0, 10));
+                      } else {
+                        setPhoneNumber(raw);
+                      }
+                    }}
+                    countryCode={countryCode}
+                    onCountryCodeChange={setCountryCode}
+                    placeholder="8001234567"
                   />
                 </View>
 
@@ -792,7 +787,6 @@ export default function Signup() {
                   </Pressable>
                 </View>
               </>
-            )}
 
             {/* Footer */}
             <View style={styles.footer}>

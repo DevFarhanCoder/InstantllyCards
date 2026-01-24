@@ -9,14 +9,27 @@ import {
   Alert,
   RefreshControl,
   Modal,
-  Share,
   Platform,
-  Clipboard
+  Clipboard,
+  Image,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+// Dynamically import react-native-share to prevent crash when native module isn't available
+let RNShare: any = null;
+try {
+  RNShare = require('react-native-share').default;
+} catch (error) {
+  console.log('react-native-share not available, using fallback Share');
+}
+// Import legacy FileSystem APIs
+import { copyAsync, cacheDirectory } from 'expo-file-system/legacy';
+import { Asset } from 'expo-asset';
 import api from '@/lib/api';
+import { formatIndianNumber } from '@/utils/formatNumber';
 
 interface ReferralStats {
   referralCode: string;
@@ -42,10 +55,7 @@ export default function ReferralPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<'hindi' | 'english' | null>(null);
-
-  useEffect(() => {
-    loadReferralData();
-  }, []);
+  const [componentError, setComponentError] = useState<string | null>(null);
 
   const loadReferralData = async (isRefreshing = false) => {
     try {
@@ -54,30 +64,77 @@ export default function ReferralPage() {
       }
       
       // Fetch referral stats, credit config, and user balance
-      const [statsResponse, configResponse, creditsResponse] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const [statsResult, configResult, creditsResult] = await Promise.allSettled([
         api.get('/credits/referral-stats'),
         api.get('/credits/config'),
         api.get('/credits/balance')
       ]);
       
+      // Extract values from settled promises
+      const statsResponse = statsResult.status === 'fulfilled' ? statsResult.value : null;
+      const configResponse = configResult.status === 'fulfilled' ? configResult.value : null;
+      const creditsResponse = creditsResult.status === 'fulfilled' ? creditsResult.value : null;
+      
       console.log('📊 Referral Stats Response:', JSON.stringify(statsResponse, null, 2));
       console.log('🔑 Referral Code:', statsResponse?.referralCode);
       console.log('🔍 Full stats object:', statsResponse);
       
-      setStats(statsResponse);
-      setConfig(configResponse.config);
-      setUserCredits(creditsResponse.credits || 0);
+      if (statsResponse) {
+        setStats(statsResponse);
+      }
+      if (configResponse?.config) {
+        setConfig(configResponse.config);
+      }
+      if (creditsResponse) {
+        setUserCredits(creditsResponse.credits || 0);
+      }
       
       // Force a re-render check
       console.log('✅ State updated - referralCode should be:', statsResponse?.referralCode);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading referral data:', error);
-      Alert.alert('Error', 'Failed to load referral information');
+      setComponentError(error?.message || 'Failed to load referral data');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    loadReferralData();
+  }, []);
+
+  // Error screen
+  if (componentError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Referral Program</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Text style={{ color: '#EF4444', marginTop: 16, textAlign: 'center' }}>
+            {componentError}
+          </Text>
+          <TouchableOpacity 
+            onPress={() => {
+              setComponentError(null);
+              setLoading(true);
+              loadReferralData();
+            }}
+            style={{ marginTop: 16, padding: 12, backgroundColor: '#8B5CF6', borderRadius: 8 }}
+          >
+            <Text style={{ color: '#fff' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -85,7 +142,14 @@ export default function ReferralPage() {
   };
 
   const handleShare = async () => {
-    if (!stats?.referralCode || !config) return;
+    if (!stats?.referralCode || !config) {
+      Alert.alert(
+        'Please Wait',
+        'Your referral code is being generated. Please try again in a moment.',
+        [{ text: 'OK', onPress: handleRefresh }]
+      );
+      return;
+    }
     
     // Reset language selection and show modal
     setSelectedLanguage(null);
@@ -97,76 +161,92 @@ export default function ReferralPage() {
   };
 
   const handleShareWithLanguage = async () => {
-    if (!selectedLanguage || !stats?.referralCode || !config) return;
+    if (!selectedLanguage || !stats?.referralCode) return;
 
     setLanguageModalVisible(false);
 
     try {
-      // Generate Play Store link with referral code
+      // Include referral code in Play Store URL for tracking
       const playStoreUrl = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
-      
-      const hindiMessage = `🎉 मुझे ₹200 क्रेडिट मिला!
 
-मैंने यह ऐप डाउनलोड किया और मुझे ₹200 क्रेडिट मिला! यह ऐप विजिटिंग कार्ड मैनेजमेंट के लिए बहुत अच्छा है। इसके फायदे नीचे दिए गए वीडियो लिंक में दिखाए गए हैं:
+      const hindiMessage = `*बिना किसी निवेश के रोज़ाना ₹1200 से ₹6000+ कमाने का अवसर*
 
-▪️ आपको ₹200 क्रेडिट मिलेगा - जब आप डाउनलोड करेंगे तो आपको भी ₹300 क्रेडिट मिलेगा।
+▪️ *मुझे ₹300 का क्रेडिट मिला* मैंने यह ऐप डाउनलोड किया और मुझे तुरंत ₹300 का क्रेडिट मिला। विजिटिंग कार्ड मैनेजमेंट के लिए यह ऐप बहुत बेहतरीन है। इसके फायदों को नीचे दिए गए वीडियो लिंक में देखा जा सकता है
+▪️ *आपको भी ₹300 मिलेंगे* जब आप इस ऐप को डाउनलोड करेंगे, तो आपको भी ₹300 का क्रेडिट मिलेगा।
+▪️ *₹300 रेफरल बोनस* आपके डाउनलोड करने पर मुझे ₹300 का क्रेडिट मिलेगा। इसी तरह, जब कोई आपके लिंक से डाउनलोड करेगा, तो आपको भी ₹300 मिलेंगे।
+▪️ *रोज़ाना ₹6000 कैसे कमाएं* यदि आप अपना रेफरल मैसेज 6 ग्रुप्स में भेजते हैं और हर ग्रुप में 500 सदस्य हैं, तो आपका मैसेज 3000 लोगों तक पहुँचेगा। सामान्य तौर पर, कम से कम 20 से 50 लोग ऐप डाउनलोड करते हैं। अगर 20 लोग भी डाउनलोड करते हैं, तो ₹300 के हिसाब से आपकी रोज़ाना की कमाई ₹6000 हो जाएगी।
+▪️ *रेफरल आय के लिए क्या करें?* अपना रेफरल मैसेज और लिंक डाउनलोड करें और इसे अपने व्हाट्सएप ग्रुप्स में शेयर करें।
 
-▪️ रेफरल से प्रतिदिन कितना कमा सकते हैं - अगर आप 6 ग्रुप में रेफरल मैसेज भेजते हैं और प्रत्येक ग्रुप में 500 सदस्य हैं, तो आपका मैसेज 3000 लोगों तक पहुंचेगा। सामान्यतः 20 से 50 लोग मोबाइल ऐप डाउनलोड करते हैं। 20 लोगों पर आपको प्रत्येक से ₹300 मिलेंगे, कुल ₹6000 प्रतिदिन!
+*महत्वपूर्ण लिंक:*
+▪️ *रेफरल कोड के साथ ऐप डाउनलोड करने के लिए इस लिंक पर टैप करें।* ${playStoreUrl}
+▪️ *ऐप के फायदे और उपयोग जानने के लिए वीडियो* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
+▪️ *सहायता के लिए व्हाट्सएप ग्रुप: यदि आपको कोई समस्या आती है, तो इस ग्रुप से जुड़ें और अपनी समस्या लिखें* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
+▪️ *चैनल पार्टनर बनने की पूरी जानकारी के लिए वीडियो* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
-▪️ रेफरल इनकम प्राप्त करने के लिए क्या करें - रेफरल मैसेज और रेफरल लिंक डाउनलोड करें और इस मैसेज व लिंक को अपने व्हाट्सऐप ग्रुप में भेजें।
+      const englishMessage = `*Earn ₹1200 to ₹6000+ per day Without Investment*
 
-📱 अभी डाउनलोड करें (Play Store):
-${playStoreUrl}
+▪️ *I Got ₹300 Credit* I have downloaded this app & Got ₹300 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below
+▪️ *You will get ₹300 Credit* When you download you will also get ₹300 Credit.
+▪️ *Referral Bonus ₹300 Credit* When you download i will also get ₹300 Credit.
+▪️ *How to earn ₹6000 per day* If you send Referral Message to 6 Groups & in each group 500 persons are member then your message will go to 3000 persons & normally 20 to 50 person download the Mobile App so on 20 Person you get ₹300 each so Total is ₹6000 per day
+▪️ *What to do for Getting Referral Income* Download the Referral Message & Referral Link & Send this Message & Link to your WhatsApp Groups
 
-▪️ एप्लिकेशन के फायदे और इसका उपयोग कैसे करें, देखने के लिए वीडियो:
-https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
-
-▪️ अगर आपको कोई समस्या है तो इस व्हाट्सऐप ग्रुप में जुड़ें और अपनी समस्या लिखें। यदि आपको इस एप्लिकेशन का उपयोग करने में कोई प्रश्न या समस्या है तो आप यहां पूछ सकते हैं:
-https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
-
-▪️ चैनल पार्टनर बनने के लिए वीडियो लिंक:
-https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing
-
-▪️ धन्यवाद`;
-
-      const englishMessage = `🎉 I Got Rs 200 Credit!
-
-I have downloaded this app & Got Rs 200 Credit! The app is very good for Visiting Card Management. Advantages are shown in the video link given below:
-
-▪️ You will get Rs 200 Credit - When you download, you will also get Rs. 300 Credit.
-
-▪️ How much you can earn per day by Referral - If you send Referral Message to 6 Groups & in each group 500 persons are members, then your message will go to 3000 persons. Normally 20 to 50 persons download the Mobile App, so on 20 Persons you get ₹300 each, total is Rs. 6000 per day!
-
-▪️ What to do for Getting Referral Income - Download the Referral Message & Referral Link & Send this Message & Link to your WhatsApp Groups.
-
-📱 Download now (Play Store):
-${playStoreUrl}
-
-▪️ Video to See the Advantage of the Application & How to use it:
-https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
-
-▪️ If you have any problem then join this WhatsApp Group and write the Problem you are getting. If you have any questions or problems in using this application then you can ask here:
-https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
-
-▪️ Video Link for becoming Channel Partner Explanation:
-https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing
-
-▪️ Thank You`;
+*Important Links*
+▪️ *Touch this link to Download the App with Referral Code* ${playStoreUrl}
+▪️ *Video to Know Advantage of the Application & How to use it* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
+▪️ *If you have any problem then join this whatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
+▪️ *Video for Channel Partner Explanation* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
       const message = selectedLanguage === 'hindi' ? hindiMessage : englishMessage;
 
-      // Open share dialog with the message
-      await Share.share({
-        message: message,
-        title: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards'
+      // Get image resource based on language
+      const imageSource = selectedLanguage === 'hindi'
+        ? require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')
+        : require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg');
+
+      // Load the asset and get local URI
+      const asset = Asset.fromModule(imageSource);
+      await asset.downloadAsync();
+
+      if (!asset.localUri) {
+        throw new Error('Failed to load image asset');
+      }
+
+      // Copy to cache directory for better compatibility
+      const filename = selectedLanguage === 'hindi' ? 'referral_hindi.jpg' : 'referral_english.jpg';
+      const destPath = `${cacheDirectory}${filename}`;
+
+      // Copy the asset to cache
+      await copyAsync({
+        from: asset.localUri,
+        to: destPath
       });
+
+      // Share image with text message using urls array for proper attachment
+      const shareOptions = {
+        message: message,
+        urls: [destPath],
+        type: 'image/jpeg',
+        subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
+      };
+
+      // Use RNShare if available, otherwise fall back to native Share
+      if (RNShare) {
+        await RNShare.open(shareOptions);
+      } else {
+        // Fallback to React Native's built-in Share (text only)
+        await Share.share({
+          message: message,
+          title: shareOptions.subject,
+        });
+      }
 
     } catch (error: any) {
       if (error?.message !== 'User did not share') {
         console.error('Error sharing:', error);
         Alert.alert(
           'Error',
-          'Failed to share message. Please try again.',
+          `Failed to share message: ${error?.message || 'Unknown error'}. Please try again.`,
           [{ text: 'OK' }]
         );
       }
@@ -175,7 +255,7 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
 
   const handleCopyLink = () => {
     if (!stats?.referralCode) return;
-    const referralLink = `instantllycards.com/signup?ref=${stats.referralCode}`;
+    const referralLink = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
     Clipboard.setString(referralLink);
     Alert.alert('Copied!', 'Referral link copied to clipboard');
   };
@@ -204,7 +284,12 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Referral Program</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity 
+          onPress={() => router.push('/transfer-credits')} 
+          style={styles.transferButton}
+        >
+          <Ionicons name="swap-horizontal" size={20} color="#8B5CF6" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -219,22 +304,40 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
           />
         }
       >
-        {/* Credits Balance Banner */}
-        <View style={styles.creditsBanner}>
-          <View style={styles.creditsContent}>
-            <Text style={styles.creditsLabel}>Your Balance</Text>
-            <Text style={styles.creditsAmount}>{userCredits.toLocaleString()}</Text>
-            <Text style={styles.creditsUnit}>Credits</Text>
+
+        <TouchableOpacity 
+          style={styles.creditsBannerContainer}
+          onPress={() => router.push('/referral/credits-history' as any)}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5']}
+            style={styles.creditsBanner}
+          >
+            <View style={styles.creditsContent}>
+              <View style={styles.creditsLabelRow}>
+                <Ionicons name="sparkles" size={16} color="#059669" />
+                <Text style={styles.creditsLabel}>Available Balance Credit</Text>
+              </View>
+              <View style={styles.creditsAmountRow}>
+                <Text style={styles.creditsAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                  ₹{formatIndianNumber(userCredits || 0)}
+                </Text>
+              </View>
+              <Text style={styles.creditsUnit}>Ready to use</Text>
+            </View>
+          </LinearGradient>
+          <View style={styles.creditsHintContainer}>
+            <Ionicons name="time-outline" size={14} color="#9CA3AF" />
+            <Text style={styles.creditsHintText}> View transaction history</Text>
+            <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
           </View>
-          <View style={styles.creditsIconCircle}>
-            <Ionicons name="wallet" size={32} color="#10B981" />
-          </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Track Referral Status Button */}
         <TouchableOpacity 
           style={styles.trackStatusButton}
-          onPress={() => router.push('/referral/track-status')}
+          onPress={() => router.push('/referral/track-status' as any)}
         >
           <Ionicons name="trending-up" size={20} color="#FFFFFF" />
           <Text style={styles.trackStatusText}>Track Referral Status</Text>
@@ -243,55 +346,68 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="people" size={24} color="#8B5CF6" />
+          <TouchableOpacity 
+            style={styles.statCard}
+            onPress={() => router.push('/referral/track-status' as any)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.statIconContainer, { backgroundColor: '#EDE9FE' }]}>
+              <Ionicons name="people" size={26} color="#8B5CF6" />
             </View>
-            <Text style={styles.statValue}>{stats?.totalReferrals || 0}</Text>
-            <Text style={styles.statLabel}>Friends Invited</Text>
-          </View>
+            <Text style={styles.statValue}>{formatIndianNumber(stats?.totalReferrals || 0)}</Text>
+            <Text style={styles.statLabel}>Successful</Text>
+            <Text style={styles.statLabel}>Referrals</Text>
+          </TouchableOpacity>
           
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="gift" size={24} color="#F59E0B" />
+            <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="gift" size={26} color="#F59E0B" />
             </View>
-            <Text style={styles.statValue}>{stats?.totalCreditsEarned || 0}</Text>
-            <Text style={styles.statLabel}>Credits Earned</Text>
+            <Text style={styles.statValue}>{formatIndianNumber(stats?.totalCreditsEarned || 0)}</Text>
+            <Text style={styles.statLabel}>Credits</Text>
+            <Text style={styles.statLabel}>Earned</Text>
           </View>
         </View>
 
         {/* Referral Link Card */}
         <View style={styles.referralLinkCard}>
-          <Text style={styles.referralLinkTitle}>Your Referral Link</Text>
-          <Text style={styles.referralLinkSubtitle}>Share this link with friends</Text>
+          <Text style={styles.referralLinkTitle}>Your Unique Code</Text>
+          <Text style={styles.referralLinkSubtitle}>Share with friends to earn rewards</Text>
           
-          <View style={styles.codeBox}>
+          <TouchableOpacity style={styles.codeBox} onPress={handleCopyLink} activeOpacity={0.7}>
             <View style={styles.codeSection}>
-              <Text style={styles.codeLabel}>CODE:</Text>
+              <Text style={styles.codeLabel}>REFERRAL CODE</Text>
               <Text style={styles.codeText}>
                 {stats?.referralCode ? stats.referralCode : 'Loading...'}
               </Text>
-              <Text style={styles.linkText}>
-                instantllycards.com/signup?ref={stats?.referralCode || 'Loading'}
-              </Text>
+              <Text style={styles.tapToCopyText}>Tap to copy link</Text>
             </View>
-            <TouchableOpacity onPress={handleCopyLink} style={styles.copyIconButton}>
-              <Ionicons name="link" size={20} color="#8B5CF6" />
-              <Text style={styles.copyText}>Copy</Text>
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.shareButtonMain} onPress={handleShare}>
             <Ionicons name="share-social" size={20} color="#FFFFFF" />
-            <Text style={styles.shareButtonMainText}>Share via WhatsApp, SMS & More</Text>
+            <Text style={styles.shareButtonMainText}>Share Referral Link</Text>
+            <Ionicons name="arrow-forward-circle" size={20} color="#FFFFFF" />
           </TouchableOpacity>
+          
+          <View style={styles.shareHint}>
+            <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
+            <Ionicons name="chatbubbles" size={16} color="#007AFF" />
+            <Ionicons name="mail" size={16} color="#EA4335" />
+            <Text style={styles.shareHintText}>WhatsApp, SMS, Email & more</Text>
+          </View>
         </View>
 
         {/* How It Works */}
         <View style={styles.howItWorksCard}>
           <View style={styles.howItWorksHeader}>
-            <Text style={styles.howItWorksIcon}>💡</Text>
-            <Text style={styles.howItWorksTitle}>How It Works</Text>
+            <View style={styles.howItWorksBadge}>
+              <Text style={styles.howItWorksIcon}>💡</Text>
+            </View>
+            <View>
+              <Text style={styles.howItWorksTitle}>How It Works</Text>
+              <Text style={styles.howItWorksSubtitle}>3 simple steps to earn</Text>
+            </View>
           </View>
           
           <View style={styles.stepsList}>
@@ -299,30 +415,51 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>1</Text>
               </View>
-              <Text style={styles.stepText}>
-                Share your referral link via WhatsApp, SMS, or any app
-              </Text>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Share Your Link</Text>
+                <Text style={styles.stepText}>
+                  Click on the share referral link button to share your unique code with your friends via any Platform 
+                </Text>
+              </View>
             </View>
+
+            <View style={styles.stepConnector} />
 
             <View style={styles.stepItem}>
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>2</Text>
               </View>
-              <Text style={styles.stepText}>
-                Your friend signs up using your link and gets {config?.signupBonus || 200} credits
-              </Text>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Friend Signs Up</Text>
+                <Text style={styles.stepText}>
+                  They download the app, register and receive <Text style={styles.highlight}>{config?.signupBonus || 200} bonus credits</Text>
+                </Text>
+              </View>
             </View>
+
+            <View style={styles.stepConnector} />
 
             <View style={styles.stepItem}>
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>3</Text>
               </View>
-              <Text style={styles.stepText}>
-                You earn {config?.referralReward || 300} credits for each successful referral
-              </Text>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>You Both Win!</Text>
+                <Text style={styles.stepText}>
+                  You get <Text style={styles.highlight}>{config?.referralReward || 300} credits</Text> instantly when they complete signup
+                </Text>
+              </View>
             </View>
           </View>
+
+          <View style={styles.benefitsBanner}>
+            <Ionicons name="trophy" size={20} color="#F59E0B" />
+            <Text style={styles.benefitsText}>Unlimited referrals = Unlimited earnings!</Text>
+          </View>
         </View>
+
+        {/* Bottom Spacer */}
+        <View style={{ height: 20 }} />
       </ScrollView>
 
       {/* Language Selection Modal */}
@@ -351,6 +488,11 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
                 ]}
                 onPress={() => handleLanguageSelect('hindi')}
               >
+                <Image 
+                  source={require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')}
+                  style={styles.languageImage}
+                  resizeMode="cover"
+                />
                 <View style={styles.radioButton}>
                   {selectedLanguage === 'hindi' && <View style={styles.radioButtonInner} />}
                 </View>
@@ -367,6 +509,11 @@ https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sha
                 ]}
                 onPress={() => handleLanguageSelect('english')}
               >
+                <Image 
+                  source={require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg')}
+                  style={styles.languageImage}
+                  resizeMode="cover"
+                />
                 <View style={styles.radioButton}>
                   {selectedLanguage === 'english' && <View style={styles.radioButtonInner} />}
                 </View>
@@ -408,8 +555,14 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 4,
-  },
-  headerTitle: {
+  },  transferButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3E8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },  headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#000000',
@@ -423,115 +576,166 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  creditsBannerContainer: {
+    marginBottom: 18,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+    overflow: 'hidden',
+  },
   creditsBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: 22,
+  },
+  creditsHintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 4,
+  },
+  creditsHintText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   creditsContent: {
     flex: 1,
   },
+  creditsLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
   creditsLabel: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
+    color: '#059669',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  creditsAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     marginBottom: 4,
-    fontWeight: '500',
+    width: '100%',
   },
   creditsAmount: {
     fontSize: 36,
-    fontWeight: '700',
+    fontWeight: '900',
     color: '#10B981',
-    marginBottom: 2,
+    flexShrink: 1,
   },
   creditsUnit: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
+    color: '#059669',
     fontWeight: '500',
   },
   creditsIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#D1FAE5',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   trackStatusButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#8B5CF6',
-    borderRadius: 12,
+    backgroundColor: '#10B981',
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 18,
     gap: 8,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   trackStatusText: {
     flex: 1,
     textAlign: 'center',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   statsContainer: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    gap: 14,
+    marginBottom: 18,
   },
   statCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 18,
+    padding: 22,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   statIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F3F4F6',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   statValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 4,
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6B7280',
     textAlign: 'center',
+    fontWeight: '500',
   },
   referralLinkCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 18,
+    padding: 22,
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   referralLinkTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 4,
   },
   referralLinkSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
-    marginBottom: 16,
+    fontWeight: '500',
+    marginBottom: 20,
   },
   codeBox: {
     flexDirection: 'row',
@@ -540,101 +744,202 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#8B5CF6',
     borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    padding: 18,
     marginBottom: 16,
+    backgroundColor: '#FAF5FF',
   },
   codeSection: {
     flex: 1,
+    paddingRight: 8,
   },
   codeLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6B7280',
-    marginBottom: 4,
-    letterSpacing: 0.5,
+    marginBottom: 6,
+    letterSpacing: 1.2,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   codeText: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#8B5CF6',
     marginBottom: 8,
-    letterSpacing: 1,
+    letterSpacing: 2,
+  },
+  linkPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   linkText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#8B5CF6',
+    fontWeight: '500',
+    flex: 1,
+  },
+  tapToCopyText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '400',
+    marginTop: 4,
   },
   copyIconButton: {
     alignItems: 'center',
-    paddingLeft: 12,
-    gap: 4,
+    gap: 6,
+  },
+  copyCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EDE9FE',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   copyText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#8B5CF6',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   shareButtonMain: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#8B5CF6',
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
+    borderRadius: 14,
+    padding: 22,
+    gap: 12,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   shareButtonMainText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 19,
+    fontWeight: '700',
     color: '#FFFFFF',
+  },
+  shareHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    gap: 8,
+  },
+  shareHintText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginLeft: 4,
   },
   howItWorksCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 18,
+    padding: 22,
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   howItWorksHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: 22,
+    gap: 12,
+  },
+  howItWorksBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   howItWorksIcon: {
-    fontSize: 24,
+    fontSize: 26,
   },
   howItWorksTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  howItWorksSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+    fontWeight: '500',
   },
   stepsList: {
-    gap: 16,
+    gap: 0,
   },
   stepItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 16,
+    paddingVertical: 12,
   },
   stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#8B5CF6',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   stepNumberText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
-  stepText: {
+  stepContent: {
     flex: 1,
+    paddingTop: 4,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  stepText: {
     fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-    paddingTop: 6,
+    color: '#6B7280',
+    lineHeight: 21,
+    fontWeight: '400',
+  },
+  stepConnector: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 8,
+    marginLeft: 54,
+  },
+  highlight: {
+    color: '#8B5CF6',
+    fontWeight: '700',
+  },
+  benefitsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 18,
+    gap: 8,
+  },
+  benefitsText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
   },
   // Language Modal Styles
   modalOverlay: {
@@ -678,6 +983,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#E5E7EB',
     backgroundColor: '#F9FAFB',
+  },
+  languageImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 12,
   },
   languageOptionSelected: {
     borderColor: '#8B5CF6',

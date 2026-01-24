@@ -31,6 +31,13 @@ interface UserProfile {
   profilePicture?: string;
   email?: string;
   about?: string;
+  quizProgress?: {
+    completed: boolean;
+    currentQuestionIndex: number;
+    answeredQuestions: string[];
+    creditsEarned: number;
+    completedAt?: Date;
+  };
 }
 
 export default function Profile() {
@@ -38,6 +45,9 @@ export default function Profile() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+
+  // Check if user has completed the quiz
+  const hasCompletedSurvey = userProfile?.quizProgress?.completed === true;
 
   // Fetch user profile on component mount
   useEffect(() => {
@@ -331,6 +341,23 @@ export default function Profile() {
 
         {/* Menu Options */}
         <View style={styles.menuSection}>
+          {/* Earn More Credits Button - Only show if survey not completed */}
+          {!hasCompletedSurvey && (
+            <TouchableOpacity 
+              style={styles.earnCreditsButton} 
+              onPress={() => router.push('/profile/earn-credits' as any)}
+            >
+              <View style={styles.earnCreditsIconContainer}>
+                <Ionicons name="gift" size={22} color="#10B981" />
+              </View>
+              <View style={styles.menuContent}>
+                <Text style={styles.earnCreditsTitle}>Earn More Credits</Text>
+                <Text style={styles.menuSubtitle}>Answer questions & get rewarded</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
+
           {/* Manage Account Button */}
           <TouchableOpacity 
             style={styles.menuButton} 
@@ -393,7 +420,7 @@ export default function Profile() {
         </View>
         
         {/* Bottom spacing for footer carousel */}
-        <View style={{ height: 100 }} />
+        <View style={{ height: 140 }} />
       </ScrollView>
 
       {/* Footer Carousel */}
@@ -454,67 +481,67 @@ const styles = StyleSheet.create({
   },
   headerGradient: {
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 45,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingTop: 12,
+    paddingBottom: 35,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   headerTitle: {
     color: COLORS.white,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   profileCard: {
-    marginTop: -30,
+    marginTop: -25,
     marginHorizontal: 16,
     backgroundColor: COLORS.white,
-    borderRadius: 20,
-    paddingBottom: 10,
+    borderRadius: 16,
+    paddingBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   profilePictureSection: {
     alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   profilePictureContainer: {
     position: 'relative',
     marginBottom: 8,
   },
   profilePicture: {
-    width: 85,
-    height: 85,
-    borderRadius: 42.5,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     borderWidth: 3,
     borderColor: COLORS.white,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   profilePicturePlaceholder: {
-    width: 85,
-    height: 85,
-    borderRadius: 42.5,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     borderWidth: 3,
     borderColor: COLORS.white,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   profilePicturePlaceholderText: {
     color: COLORS.white,
-    fontSize: 34,
+    fontSize: 28,
     fontWeight: '800',
   },
   uploadingOverlay: {
@@ -524,7 +551,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 42.5,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -548,7 +575,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     color: '#1A1A1A',
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: '800',
     marginBottom: 2,
   },
@@ -559,15 +586,15 @@ const styles = StyleSheet.create({
   },
   menuSection: {
     marginHorizontal: 16,
-    marginTop: 16,
-    gap: 12,
+    marginTop: 12,
+    gap: 8,
   },
   menuButton: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E8ECEF',
@@ -578,34 +605,34 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   menuIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   menuContent: {
     flex: 1,
   },
   menuTitle: {
     color: '#1A1A1A',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     marginBottom: 2,
   },
   menuSubtitle: {
     color: '#666',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
   },
   logoutMenuButton: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#FEE2E2',
@@ -616,17 +643,47 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   logoutIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   logoutMenuTitle: {
     color: '#EF4444',
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  earnCreditsButton: {
+    flexDirection: 'row',
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#86EFAC',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  earnCreditsIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  earnCreditsTitle: {
+    color: '#10B981',
+    fontSize: 15,
     fontWeight: '700',
     marginBottom: 2,
   },

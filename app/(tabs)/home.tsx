@@ -4,12 +4,15 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, Activity
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { router, Link, useFocusEffect } from "expo-router";
 import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
 import ReferralBanner from "../../components/ReferralBanner";
+import CategoryGrid from "../../components/CategoryGrid";
+import { FEATURE_FLAGS } from "../../lib/featureFlags";
+import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
 
 
 
@@ -23,7 +26,7 @@ const handleAdClick = () => {
 };
 
 export default function Home() {
-  console.log("🏠 HOME: Component rendering...");
+  // console.log("🏠 HOME: Component rendering...");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [userName, setUserName] = React.useState<string>("");
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
@@ -42,10 +45,10 @@ export default function Home() {
         let userId = await AsyncStorage.getItem("currentUserId");
         if (userId) {
           setCurrentUserId(userId);
-          console.log("🔍 Home: Current user ID loaded from storage:", userId);
+          // console.log("🔍 Home: Current user ID loaded from storage:", userId);
         } else {
           // Fallback: Fetch from profile API if not in storage
-          console.log("⚠️ Home: No user ID in storage, fetching from profile API...");
+          // console.log("⚠️ Home: No user ID in storage, fetching from profile API...");
           try {
             const token = await AsyncStorage.getItem("token");
             if (token) {
@@ -62,7 +65,7 @@ export default function Home() {
                   userId = profileData._id.toString();
                   await AsyncStorage.setItem("currentUserId", userId);
                   setCurrentUserId(userId);
-                  console.log("✅ Home: User ID fetched from profile and stored:", userId);
+                  // console.log("✅ Home: User ID fetched from profile and stored:", userId);
                 }
               }
             }
@@ -86,7 +89,8 @@ export default function Home() {
         const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
         console.log("💰 Home: Fetching credits from:", `${apiBase}/api/credits/balance`);
         
-        const response = await fetch(`${apiBase}/api/credits/balance`, {
+        // Add cache busting to force fresh data
+        const response = await fetch(`${apiBase}/api/credits/balance?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -98,6 +102,7 @@ export default function Home() {
         if (response.ok) {
           const data = await response.json();
           console.log("💰 Home: Credits data received:", JSON.stringify(data, null, 2));
+          console.log("💰 Home: Raw credits value:", data.credits);
           setUserCredits(data.credits || 0);
           console.log("✅ Home: Credits set to:", data.credits || 0);
         } else {
@@ -121,7 +126,7 @@ export default function Home() {
   // Refetch credits when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log("🔄 Home: Screen focused, refreshing credits...");
+      // console.log("🔄 Home: Screen focused, refreshing credits...");
       fetchCredits();
     }, [fetchCredits])
   );
@@ -131,18 +136,18 @@ export default function Home() {
     queryKey: ["contacts-feed", currentUserId], // CRITICAL: Include userId to prevent data leakage
     enabled: !!currentUserId, // Only fetch when user ID is available
     queryFn: async () => {
-      console.log("📱 Home: Fetching contacts feed...");
+      // console.log("📱 Home: Fetching contacts feed...");
       try {
         const token = await AsyncStorage.getItem("token");
         if (!token) {
-          console.log("❌ Home: No auth token found");
+          // console.log("❌ Home: No auth token found");
           return [];
         }
 
         // AWS Cloud primary, Render backup handled by api.ts
         const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
         const url = `${apiBase}/api/cards/feed/contacts`;
-        console.log("🔍 Home: Fetching from URL:", url);
+        // console.log("🔍 Home: Fetching from URL:", url);
         
         const response = await fetch(url, {
           method: 'GET',
@@ -157,10 +162,10 @@ export default function Home() {
         }
         
         const result = await response.json();
-        console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
-        console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
-        console.log("📇 Home: Cards count:", result.meta?.totalCards);
-        console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
+        // console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
+        // console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
+        // console.log("📇 Home: Cards count:", result.meta?.totalCards);
+        // console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
         
         return result.data || [];
       } catch (error) {
@@ -177,7 +182,7 @@ export default function Home() {
 
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
-    console.log("🔄 Manual refresh triggered");
+    // console.log("🔄 Manual refresh triggered");
     fetchCredits(); // Also refresh credits
     queryClient.invalidateQueries({ queryKey: ["contacts-feed", currentUserId] });
   }, [queryClient, currentUserId, fetchCredits]);
@@ -186,8 +191,8 @@ export default function Home() {
   const filteredCards = React.useMemo(() => {
     let cards = feedQ.data || [];
     
-    console.log("🔍 Home Filter - Starting with cards:", cards.length);
-    console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
+    // console.log("🔍 Home Filter - Starting with cards:", cards.length);
+    // console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
     
     // CRITICAL: Filter out user's own cards (extra safety on client side)
     if (currentUserId) {
@@ -196,14 +201,14 @@ export default function Home() {
         const cardUserId = (card.userId || card.owner || "").toString();
         const isOwnCard = cardUserId === currentUserId;
         
-        console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
+        // console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
         
         if (isOwnCard) {
-          console.log("🚫 Home: Filtering out user's own card:", card.name);
+          // console.log("🚫 Home: Filtering out user's own card:", card.name);
         }
         return !isOwnCard;
       });
-      console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
+      // console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
     } else {
       console.warn("⚠️ Home Filter - No currentUserId set, cannot filter own cards!");
     }
@@ -212,7 +217,7 @@ export default function Home() {
     const uniqueCards = Array.from(
       new Map(cards.map((card: any) => [card._id, card])).values()
     );
-    console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
+    // console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
     
     // Apply search filter
     if (!searchQuery.trim()) return uniqueCards;
@@ -231,61 +236,89 @@ export default function Home() {
     });
   }, [feedQ.data, searchQuery, currentUserId]);
 
-  console.log("🎯 Home: Query state:", { 
-    isLoading: feedQ.isLoading, 
-    isRefetching: feedQ.isRefetching,
-    isError: feedQ.isError, 
-    dataLength: feedQ.data?.length,
-    filteredLength: filteredCards?.length 
-  });
+  // console.log("🎯 Home: Query state:", { 
+  //   isLoading: feedQ.isLoading, 
+  //   isRefetching: feedQ.isRefetching,
+  //   isError: feedQ.isError, 
+  //   dataLength: feedQ.data?.length,
+  //   filteredLength: filteredCards?.length 
+  // });
 
-  console.log("🎨 HOME: About to render SafeAreaView");
+  // console.log("🎨 HOME: About to render SafeAreaView");
 
   return (
     <SafeAreaView style={s.root}>
-      {/* Search Header */}
-      <View style={s.searchContainer}>
-        <View style={s.searchWrapper}>
-          <View style={s.searchBox}>
-            <TextInput
-              style={s.searchInput}
-              placeholder="Search..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#9CA3AF"
-            />
+      {/* Custom Header */}
+      <View style={s.headerRow}>
+        {/* Profile Left */}
+        <TouchableOpacity 
+          style={s.profileButton}
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.7}
+        >
+          <View style={s.profileGradientBorder}>
+            <View style={s.profileInner}>
+              <Text style={s.profileInitial}>
+                {userName ? userName.charAt(0).toUpperCase() : 'U'}
+              </Text>
+            </View>
           </View>
-          <TouchableOpacity style={s.searchButton}>
-            <Text style={s.searchIcon}></Text>
-          </TouchableOpacity>
+        </TouchableOpacity>
+        {/* Title Center */}
+        <View style={s.headerTitleLogoContainer}>
+          <Text style={s.headerTitleLogo}>
+            <Text style={s.headerTitleOrange}>Instant</Text>
+            <Text style={s.headerTitleCyan}>lly</Text>
+          </Text>
         </View>
-
-        {/* Credits Icon */}
+        {/* Credits Right */}
         <Link href="/referral" asChild>
-          <TouchableOpacity style={s.creditsButton}>
+          <TouchableOpacity 
+            style={s.creditsButton} 
+            activeOpacity={0.7}
+            onPress={() => {
+              console.log("🪙 Credits button pressed - Current value:", userCredits);
+              console.log("🪙 Formatted value:", formatAmount(userCredits));
+            }}
+          >
             <View style={s.creditsIconContainer}>
               <Text style={s.coinIcon}>🪙</Text>
               {creditsLoading ? (
                 <ActivityIndicator size="small" color="#F59E0B" />
               ) : (
-                <Text style={s.creditsCount}>{userCredits}</Text>
+                <Text style={s.creditsCount}>
+                  {(() => {
+                    console.log("💰 Rendering credits - Raw:", userCredits, "Formatted:", formatAmount(userCredits));
+                    return formatAmount(userCredits);
+                  })()}
+                </Text>
               )}
             </View>
           </TouchableOpacity>
         </Link>
+      </View>
 
-        <TouchableOpacity 
-          style={s.profileButton}
-          onPress={() => router.push('/(tabs)/profile')}
-        >
-          <View style={s.profileGradientBorder}>
-            <View style={s.profileInner}>
-              <Text style={s.profileInitial}>
-                {userName ? userName.charAt(0).toUpperCase() : "U"}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+      {/* Search Bar - Static at the top */}
+      <View style={s.searchBarRow}>
+        <View style={s.searchBarContainer}>
+          <Ionicons name="search" size={20} color="#9CA3AF" style={s.searchIcon} />
+          <TextInput
+            style={s.searchInputModern}
+            placeholder="Search business cards"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor="#9CA3AF"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => setSearchQuery('')}
+              style={s.clearButton}
+              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+            >
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Main Content */}
@@ -302,8 +335,38 @@ export default function Home() {
               <CardRow c={item} />
             </View>
           )}
-          ListHeaderComponent={<ReferralBanner />}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 180 }}
+          ListHeaderComponent={
+            <>
+              <ReferralBanner />
+              {/* Categories Header with Arrow and Promote Button - Same Line */}
+              {FEATURE_FLAGS.SHOW_CATEGORIES && (
+                <View style={s.categoriesHeaderRow}>
+                  <View style={s.categoriesWithArrow}>
+                    <Text style={s.categoriesHeaderText}>Categories</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#EF4444" style={s.categoriesArrow} />
+                  </View>
+                  {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS && (
+                    <TouchableOpacity
+                      style={s.promoteBusinessButton}
+                      onPress={() => router.push('/business-promotion')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={s.promoteButtonText}>Promote Business</Text>      
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+              {FEATURE_FLAGS.SHOW_CATEGORIES && <CategoryGrid />}
+              <View style={s.cardsHeadingRow}>
+                <View style={s.cardsHeadingLine} />
+                <Text style={s.cardsHeadingText}>Business Cards</Text>
+                <View style={s.cardsHeadingLine} />
+              </View>
+            </>
+          }
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 120 }}
+          initialNumToRender={2}
+          windowSize={5}
           ListEmptyComponent={
             <View style={s.empty}>
               <Text style={s.emptyTxt}>No cards yet.</Text>
@@ -325,7 +388,7 @@ export default function Home() {
       )}
 
       {/* Footer Carousel */}
-      <FooterCarousel />
+      <FooterCarousel showPromoteButton={true} />
 
       <FAB />
     </SafeAreaView>
@@ -333,29 +396,116 @@ export default function Home() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F6FA" },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  root: { 
+    flex: 1, 
+    backgroundColor: "#F9FAFB" 
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#fff',
+  },
+  headerTitleLogoContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleLogo: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  headerTitleCyan: {
+    color: '#00C3FF',
+    fontWeight: '900',
+  },
+  headerTitleBlue: {
+    color: '#0090FF',
+    fontWeight: '900',
+  },
+  headerTitleOrange: {
+    color: '#151C32',
+    fontWeight: '900',
+  },
+  sectionTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginTop: 18,
+    marginBottom: 8,
+    marginLeft: 18,
+  },
+  cardsHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 1,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+  },
+  cardsHeadingLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#D1D5DB',
+  },
+  cardsHeadingText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+    letterSpacing: 0.5,
+  },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInputModern: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  searchBarRow: {
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    gap: 12,
+    marginTop: 12,
+    marginBottom: 12,
   },
   searchWrapper: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3B82F6",
+    marginHorizontal: 16,
     borderRadius: 30,
     padding: 2,
-    shadowColor: "#000",
+    fontSize: 18,
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 5,
   },
   searchBox: {
-    flex: 1,
+    lineHeight: 20,
     backgroundColor: "#FFFFFF",
     borderRadius: 26,
     paddingHorizontal: 20,
@@ -375,7 +525,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  searchIcon: {
+  searchIconWhite: {
     fontSize: 20,
     color: "#FFFFFF",
   },
@@ -386,53 +536,59 @@ const s = StyleSheet.create({
   creditsIconContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#FEF3C7",
     borderWidth: 2,
     borderColor: "#F59E0B",
     justifyContent: "center",
     shadowColor: "#F59E0B",
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 3,
-    gap: 3,
+    gap: 4,
   },
   creditsCount: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#92400E",
   },
   coinIcon: {
-    fontSize: 16,
+    fontSize: 18,
   },
   profileButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
   profileGradientBorder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 3,
-    borderColor: "#2196F3",
-    backgroundColor: "#D84315",
+    borderColor: "#3B82F6",
+    backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#3B82F6",
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 4,
   },
   profileInner: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#D84315",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
   },
   profileInitial: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#FFFFFF",
   },
@@ -590,5 +746,50 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     textAlign: "center",
+  },
+  categoriesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 1,
+    marginBottom: 8,
+  },
+  categoriesWithArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoriesHeaderText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    letterSpacing: 0.3,
+  },
+  categoriesArrow: {
+    marginTop: 2,
+  },
+  promoteBusinessButton: {
+    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    shadowColor: '#EF4444',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  promoteIcon: {
+    marginRight: 10,
+  },
+  promoteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
