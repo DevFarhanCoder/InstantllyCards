@@ -3,14 +3,24 @@ import api from '../lib/api';
 
 // Ad type definition
 export type Ad = {
+  title: string;
+  fullscreenVideoUrl: any;
   id: number | string;
   image: any;
   phone: string;
   name: string;
-  hasFullBanner?: boolean;
-  bannerImage?: any;
-  isFromApi?: boolean;
   priority?: number;
+
+  // hasFullBanner?: boolean;
+  // bannerImage?: any;
+  // bottom
+  bottomMediaType?: 'image' | 'video';
+  bottomMediaUrl?: string | null;
+
+  // fullscreen
+  fullscreenMediaType?: 'image' | 'video';
+  fullscreenMediaUrl?: string | null;
+  isFromApi?: boolean;
 };
 
 /**
@@ -63,69 +73,96 @@ export function useAds() {
             console.warn('⚠️ No image base configured. Set EXPO_PUBLIC_API_BASE or API_BASE to construct image URLs from ads response.');
           }
 
-          // console.log(`[MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
-          // console.log('Image Base URL:', imageBaseUrl || '(none configured)');
-          
+          console.log(`� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`);
+          console.log('🌐 Image Base URL:', imageBaseUrl || '(none configured)');
+
           // Check first ad structure
-          // if (response.data[0]) {
-          //   console.log('First ad structure:', {
-          //     _id: response.data[0]._id,
-          //     title: response.data[0].title,
-          //     bottomImageUrl: response.data[0].bottomImageUrl,
-          //     fullscreenImageUrl: response.data[0].fullscreenImageUrl,
-          //     hasBottomImage: response.data[0].hasBottomImage,
-          //     hasFullscreenImage: response.data[0].hasFullscreenImage,
-          //     hasLegacyBottomImage: !!response.data[0].bottomImage,
-          //     hasLegacyFullscreenImage: !!response.data[0].fullscreenImage
-          //   });
-          // }
-          
-          // Format ads for carousel - sorted by priority (backend already sorted)
-          // ✅ UPDATED: Now using GridFS URLs for images
-          const formattedApiAds: Ad[] = response.data
-            .filter((ad: any) => {
-              // Filter out video ads (should already be filtered by backend, but double-check)
-              if (ad.adType === 'video') {
-                console.warn(`⚠️  Skipping video ad "${ad.title}" (ID: ${ad._id}) - Video ads not supported in bottom carousel`);
-                return false;
-              }
-              
-              // Filter out ads without valid bottom image
-              const hasValidBottomImage = ad.bottomImageUrl && ad.bottomImageUrl.trim() !== '';
-              if (!hasValidBottomImage) {
-                console.warn(`⚠️  Skipping ad "${ad.title}" (ID: ${ad._id}) - No bottom image URL`);
-              }
-              return hasValidBottomImage;
-            })
-            .map((ad: any, index: number) => {
-              const bottomImageUri = `${imageBaseUrl}${ad.bottomImageUrl}`;
-              const fullscreenImageUri = ad.fullscreenImageUrl 
-                ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
-                : null;
-              
-              // if (index === 0) {
-              //   console.log(`🖼️  [MOBILE STEP 5] Constructing URLs for first ad:`);
-              //   console.log(`   Bottom Image: ${bottomImageUri}`);
-              //   console.log(`   Fullscreen Image: ${fullscreenImageUri || 'N/A'}`);
-              // }
-              
-              return {
-                id: `api-${ad._id}`,
-                image: { uri: bottomImageUri },
-                phone: ad.phoneNumber,
-                name: ad.title || 'Ad from Dashboard',
-                hasFullBanner: !!ad.fullscreenImageUrl,
-                bannerImage: fullscreenImageUri 
-                  ? { uri: fullscreenImageUri } 
-                  : undefined,
-                isFromApi: true,
-                priority: ad.priority || 5,
-              };
+          if (response.data[0]) {
+            console.log('📸 [MOBILE STEP 4] First ad structure:', {
+              _id: response.data[0]._id,
+              title: response.data[0].title,
+              bottomImageUrl: response.data[0].bottomImageUrl,
+              fullscreenImageUrl: response.data[0].fullscreenImageUrl,
+              hasBottomImage: response.data[0].hasBottomImage,
+              hasFullscreenImage: response.data[0].hasFullscreenImage,
+              hasLegacyBottomImage: !!response.data[0].bottomImage,
+              hasLegacyFullscreenImage: !!response.data[0].fullscreenImage
             });
-          
-          // console.log(`✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads (filtered out invalid ads)`);
-          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-          
+          }
+
+          // Format ads for carousel - sorted by priority (backend already sorted)
+          // ✅ UPDATED: Now using GridFS URLs instead of base64
+          // const formattedApiAds: Ad[] = response.data.map((ad: any, index: number) => {
+          //   // Build full image URLs using GridFS endpoints
+          //   const bottomImageUri = ad.bottomImageUrl 
+          //     ? `${imageBaseUrl}${ad.bottomImageUrl}`
+          //     : null;
+
+          //   const fullscreenImageUri = ad.fullscreenImageUrl 
+          //     ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
+          //     : null;
+
+          //   if (index === 0) {
+          //     console.log(`🖼️  [MOBILE STEP 5] Constructing image URLs for first ad:`);
+          //     console.log(`   Bottom Image: ${bottomImageUri}`);
+          //     console.log(`   Fullscreen Image: ${fullscreenImageUri || 'N/A'}`);
+          //   }
+
+          //   return {
+          //     id: `api-${ad._id}`,
+          //     image: bottomImageUri ? { uri: bottomImageUri } : { uri: '' },
+          //     phone: ad.phoneNumber,
+          //     name: ad.title || 'Ad from Dashboard',
+          //     hasFullBanner: !!ad.fullscreenImageUrl,
+          //     bannerImage: fullscreenImageUri ? { uri: fullscreenImageUri } : undefined,
+          //     isFromApi: true,
+          //     priority: ad.priority || 5,
+          //   };
+          // });
+
+          const formattedApiAds: Ad[] = response.data.map((ad: any, index: number) => {
+            // Build full image URLs using GridFS endpoints
+            const bottomMediaUrl =
+              ad.bottomMediaType === 'image' && ad.bottomMediaUrl
+                ? `${imageBaseUrl}${ad.bottomMediaUrl}`
+                : ad.bottomMediaType === 'video'
+                  ? ad.bottomMediaUrl
+                  : null;
+
+            const fullscreenMediaUrl =
+              ad.fullscreenMediaType === 'image' && ad.fullscreenMediaUrl
+                ? `${imageBaseUrl}${ad.fullscreenMediaUrl}`
+                : ad.fullscreenMediaType === 'video'
+                  ? ad.fullscreenMediaUrl
+                  : null;
+
+            if (index === 0) {
+              console.log(`🖼️  [MOBILE STEP 5] Constructing image URLs for first ad:`);
+              console.log(`   Bottom Image: ${bottomMediaUrl}`);
+              console.log(`   Fullscreen Image: ${fullscreenMediaUrl || 'N/A'}`);
+            }
+
+            return {
+              id: `api-${ad._id}`,
+              phone: ad.phoneNumber,
+              name: ad.title || 'Ad',
+              priority: ad.priority || 5,
+              isFromApi: true,
+
+              bottomMediaType: ad.bottomMediaType,
+              bottomMediaUrl,
+
+              fullscreenMediaType: ad.fullscreenMediaType,
+              fullscreenMediaUrl,
+            };
+
+          });
+
+
+
+          console.log(`✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`);
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
           return formattedApiAds;
         } else {
           // console.log('⚠️  [MOBILE WARNING] No API ads available in response');
@@ -146,24 +183,25 @@ export function useAds() {
         return [];
       }
     },
-    
+
     // Cache configuration for smooth 100+ ads queue
-    staleTime: 0, // FORCE FRESH DATA - no cache for testing
-    gcTime: 1000, // 1 second - clear quickly
-    
+    staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
+    gcTime: 30 * 60 * 1000, // 30 minutes - kept in memory (increased for 100+ ads)
+
     // Don't refetch on component mount/focus (use cache)
-    refetchOnMount: true, // FORCE REFETCH for testing
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+
     // Auto-refresh every 10 minutes in background (smooth queue updates)
     refetchInterval: 10 * 60 * 1000,
-    
+
     // Retry configuration
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    
+
     // Enable background refetching for continuous smooth updates
     refetchIntervalInBackground: true,
   });
 }
+

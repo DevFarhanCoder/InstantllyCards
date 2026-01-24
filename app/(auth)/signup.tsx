@@ -19,6 +19,11 @@ import Constants from 'expo-constants';
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Contacts from 'expo-contacts';
 
+// Fast2SMS imports for Phone Authentication
+
+
+// import * as SmsRetriever from "expo-sms-retriever";
+import serverWarmup from "../../lib/serverWarmup";
 // Fast2SMS imports for Phone Authentication - COMMENTED OUT (OTP disabled)
 // import serverWarmup from "../../lib/serverWarmup";
 import api from "../../lib/api";
@@ -170,12 +175,11 @@ export default function Signup() {
 
       // First, check if phone number already exists
       console.log(`🔍 [SIGNUP-SEND-OTP] Checking if phone exists: ${fullPhone}`);
-      console.log(`📱 [SMS Retriever] App Hash: ${appHash}`);
-      console.log(`📱 [SMS Retriever] Listening: ${isListening}`);
-      
+      // const appHash = await SmsRetriever.getHash()
+      // console.log("App Hash:", appHash);
       const checkRes = await api.post("/auth/check-phone", {
         phone: fullPhone,
-        appHash: appHash || '' // Send app hash to backend for SMS formatting
+        // appHash: appHash
       });
       
       console.log(`✅ [SIGNUP-SEND-OTP] Check phone response - EXISTS: ${checkRes.exists}`);
