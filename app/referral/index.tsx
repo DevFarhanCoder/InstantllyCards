@@ -274,20 +274,41 @@ export default function ReferralPage() {
         to: destPath,
       });
 
-      // Share image with text message using urls array for proper attachment
+      // Share image with text message - use proper format for better compatibility
       const shareOptions = {
+        title:
+          selectedLanguage === "hindi"
+            ? "InstantllyCards में शामिल हों"
+            : "Join InstantllyCards",
         message: message,
-        urls: [destPath],
+        url: `file://${destPath}`, // Use singular 'url' with file:// protocol
         type: "image/jpeg",
         subject:
           selectedLanguage === "hindi"
             ? "InstantllyCards में शामिल हों"
             : "Join InstantllyCards",
+        // Force WhatsApp to include message with image
+        social: Platform.OS === "android" ? undefined : "whatsapp",
       };
 
       // Use RNShare if available, otherwise fall back to native Share
       if (RNShare) {
-        await RNShare.open(shareOptions);
+        try {
+          await RNShare.open(shareOptions);
+        } catch (shareError: any) {
+          // If WhatsApp-specific share fails, try generic share
+          if (shareError?.message !== "User did not share") {
+            console.log("Retrying share without WhatsApp-specific options...");
+            await RNShare.open({
+              title: shareOptions.title,
+              message: message,
+              url: `file://${destPath}`,
+              type: "image/jpeg",
+            });
+          } else {
+            throw shareError;
+          }
+        }
       } else {
         // Fallback to React Native's built-in Share (text only)
         await Share.share({

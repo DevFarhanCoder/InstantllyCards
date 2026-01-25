@@ -1458,10 +1458,6 @@ const FooterCarousel = () => {
                   setShowModal(true);
                 }}
               />
-
-              <View style={styles.overlay}>
-                <Text style={styles.overlayText}>Tap to know more</Text>
-              </View>
             </View>
           ))}
         </ScrollView>
