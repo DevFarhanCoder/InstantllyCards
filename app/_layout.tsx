@@ -10,58 +10,32 @@ import {
   getCurrentAppVersion,
   getAppStoreUrl,
 } from "../lib/versionCheck";
-import { chatNotificationService } from "@/lib/chat-notifications";
-import { socketService } from "@/lib/socket";
-import { showInAppNotification } from "@/lib/notifications-expo-go";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
+import { socketService } from "@/lib/socket";
 import { getPlayStoreReferrer } from "@/lib/playStoreReferrer";
 import { checkAndRefreshCreditsOnUpdate } from "@/lib/creditsRefresh";
-
-// Import the appropriate notification system based on environment
-const isExpoGo = Constants.appOwnership === "expo";
-
-// Use the NEW v2 notification system for production
-const notificationModule = isExpoGo
-  ? require("../lib/notifications-expo-go")
-  : require("../lib/notifications-production-v2");
-
-const { registerForPushNotifications, setupNotificationListeners } =
-  notificationModule;
 
 export default function RootLayout() {
   const [updateRequired, setUpdateRequired] = useState(false);
   const [updateUrl, setUpdateUrl] = useState(getAppStoreUrl());
   const [latestVersion, setLatestVersion] = useState("1.0.0");
 
-  // Handle dismiss - just hide modal temporarily, will show again on next app open
-  const handleDismiss = () => {
-    console.log(
-      "ℹ️ [UPDATE] User dismissed update popup - will show again on next app open",
-    );
-    setUpdateRequired(false);
-  };
-
   useEffect(() => {
-    // Single lightweight initialization - everything else runs in background
+    // Ultra-lightweight initialization - NOTHING synchronous
     const initApp = async () => {
-      console.log("🚀 [INIT] App starting (lightweight mode)...");
+      console.log("🚀 [INIT] App starting...");
 
-      // STEP 1: Check if app was updated and refresh credits if needed
-      checkAndRefreshCreditsOnUpdate().catch(() => {});
-
-      // STEP 2: Only initialize critical services synchronously
-      chatNotificationService.initialize(queryClient);
-      console.log("✅ [INIT] Chat notifications initialized");
-
-      // STEP 3: All heavy operations run in background after 1 second
+      // All operations run in background after 2 seconds to allow navigation
       setTimeout(async () => {
-        console.log("🔄 [BACKGROUND] Starting background tasks...");
+        console.log("🔄 [BACKGROUND] Starting tasks...");
 
-        // Version check (5s timeout, runs in background)
+        // Check credits refresh
+        checkAndRefreshCreditsOnUpdate().catch(() => {});
+
+        // Version check (5s timeout)
         setTimeout(async () => {
           try {
-            console.log("🔍 [VERSION] Checking version...");
             const timeoutPromise = new Promise<null>((_, reject) => {
               setTimeout(
                 () => reject(new Error("Version check timeout")),
@@ -77,34 +51,23 @@ export default function RootLayout() {
               setUpdateRequired(true);
               setUpdateUrl(versionInfo.updateUrl);
               setLatestVersion(versionInfo.latestVersion);
-              console.log("⚠️ [VERSION] Update required!");
             }
           } catch (error) {
-            console.log("⚠️ [VERSION] Check failed (non-critical):", error);
+            console.log("⚠️ [VERSION] Check failed:", error);
           }
-        }, 2000); // Check version after 2 seconds
+        }, 2000);
 
-        // Play Store referrer (non-blocking)
+        // Play Store referrer
         getPlayStoreReferrer()
           .then((code) => {
-            if (code) console.log("🎁 [REFERRER] Captured:", code);
+            if (code) console.log("🎁 [REFERRER]:", code);
           })
           .catch(() => {});
 
-        // Server warmup (non-blocking, has internal timeout)
+        // Server warmup
         serverWarmup.preWarmOnAppStart().catch(() => {});
 
-        // Notifications (15s timeout, non-blocking)
-        setTimeout(() => {
-          const notificationTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("Notification timeout")), 15000);
-          });
-          Promise.race([registerForPushNotifications(), notificationTimeout])
-            .then(() => console.log("✅ [NOTIFICATIONS] Registered"))
-            .catch(() => console.log("⚠️ [NOTIFICATIONS] Skipped"));
-        }, 3000); // Wait 3s before notifications
-
-        // Socket.IO (10s timeout, non-blocking)
+        // Socket.IO (10s timeout)
         setTimeout(() => {
           const socketTimeout = new Promise((_, reject) => {
             setTimeout(() => reject(new Error("Socket timeout")), 10000);
@@ -112,48 +75,42 @@ export default function RootLayout() {
           Promise.race([socketService.connect(), socketTimeout])
             .then(() => console.log("✅ [SOCKET] Connected"))
             .catch(() => console.log("⚠️ [SOCKET] Skipped"));
-        }, 4000); // Wait 4s before Socket.IO
+        }, 4000);
 
-        console.log("🎯 [BACKGROUND] All tasks scheduled");
-      }, 1000); // Start background tasks after 1 second
+        // Setup admin transfer listener
+        const unsubscribeAdminTransfer = socketService.onAdminTransfer(
+          async (data) => {
+            try {
+              const existingNotifications = await AsyncStorage.getItem(
+                "admin_transfer_notifications",
+              );
+              const notifications = existingNotifications
+                ? JSON.parse(existingNotifications)
+                : [];
+              notifications.push({
+                groupId: data.groupId,
+                groupName: data.groupName,
+                fromUser: data.fromUser || "Unknown",
+                message: data.message,
+                timestamp: data.timestamp || new Date(),
+                seen: false,
+              });
+              await AsyncStorage.setItem(
+                "admin_transfer_notifications",
+                JSON.stringify(notifications),
+              );
+            } catch (error) {
+              console.error("Error saving notification:", error);
+            }
+          },
+        );
 
-      // Setup notification listeners immediately (lightweight)
-      const unsubscribe = setupNotificationListeners();
+        console.log("✅ [INIT] App ready");
 
-      // Setup admin transfer listener immediately (lightweight)
-      const unsubscribeAdminTransfer = socketService.onAdminTransfer(
-        async (data) => {
-          try {
-            const existingNotifications = await AsyncStorage.getItem(
-              "admin_transfer_notifications",
-            );
-            const notifications = existingNotifications
-              ? JSON.parse(existingNotifications)
-              : [];
-            notifications.push({
-              groupId: data.groupId,
-              groupName: data.groupName,
-              fromUser: data.fromUser || "Unknown",
-              message: data.message,
-              timestamp: data.timestamp || new Date(),
-              seen: false,
-            });
-            await AsyncStorage.setItem(
-              "admin_transfer_notifications",
-              JSON.stringify(notifications),
-            );
-          } catch (error) {
-            console.error("Error saving notification:", error);
-          }
-        },
-      );
-
-      console.log("✅ [INIT] App ready (background tasks running)");
-
-      return () => {
-        unsubscribe?.();
-        unsubscribeAdminTransfer();
-      };
+        return () => {
+          unsubscribeAdminTransfer();
+        };
+      }, 2000); // Start all tasks after 2 seconds
     };
 
     initApp();
@@ -167,18 +124,14 @@ export default function RootLayout() {
 
       const { path, queryParams } = Linking.parse(url);
 
-      // Check if it's a signup referral link
       if (path === "signup" && queryParams?.ref) {
         const referralCode = queryParams.ref as string;
         console.log("🎁 Referral code detected:", referralCode);
-
-        // Store referral code in AsyncStorage
         await AsyncStorage.setItem("pending_referral_code", referralCode);
         console.log("💾 Referral code stored in AsyncStorage");
       }
     };
 
-    // Handle initial URL (app opened from link)
     Linking.getInitialURL().then((url) => {
       if (url) {
         console.log("🔗 Initial URL:", url);
@@ -186,7 +139,6 @@ export default function RootLayout() {
       }
     });
 
-    // Handle subsequent deep links (app already open)
     const subscription = Linking.addEventListener("url", handleDeepLink);
 
     return () => {
@@ -201,7 +153,6 @@ export default function RootLayout() {
         updateUrl={updateUrl}
         currentVersion={getCurrentAppVersion()}
         latestVersion={latestVersion}
-        onDismiss={handleDismiss}
       />
       <Stack screenOptions={{ headerShown: false }} />
     </QueryClientProvider>
