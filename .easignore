@@ -18,3 +18,8 @@ __tests__/
 *.test.tsx
 *.spec.ts
 *.spec.tsx
+
+# Force EAS to regenerate android folder with expo prebuild
+# This ensures native code is fresh and doesn't include expo-notifications
+/android
+/ios
