@@ -92,8 +92,8 @@ android {
         applicationId 'com.instantllycards.www.twa'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 61
-        versionName "1.0.64"
+        versionCode 65
+        versionName "1.0.68"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -104,25 +104,15 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        release {
-            def keystorePropertiesFile = rootProject.file("../keystore.properties")
-            def keystoreProperties = new Properties()
-            if (keystorePropertiesFile.exists()) {
-                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-            }
-            storeFile file(keystoreProperties['storeFile'] ?: 'debug.keystore')
-            storePassword keystoreProperties['storePassword'] ?: 'android'
-            keyAlias keystoreProperties['keyAlias'] ?: 'androiddebugkey'
-            keyPassword keystoreProperties['keyPassword'] ?: 'android'
-        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Production signing with proper keystore
-            signingConfig signingConfigs.release
+            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
+            signingConfig signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

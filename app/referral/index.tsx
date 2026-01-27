@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,23 +13,27 @@ import {
   Clipboard,
   Image,
   Share,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useFocusEffect } from "expo-router";
 // Dynamically import react-native-share to prevent crash when native module isn't available
 let RNShare: any = null;
 try {
-  RNShare = require('react-native-share').default;
+  RNShare = require("react-native-share").default;
 } catch (error) {
-  console.log('react-native-share not available, using fallback Share');
+  console.log("react-native-share not available, using fallback Share");
 }
 // Import legacy FileSystem APIs
-import { copyAsync, cacheDirectory } from 'expo-file-system/legacy';
-import { Asset } from 'expo-asset';
-import api from '@/lib/api';
-import { formatIndianNumber } from '@/utils/formatNumber';
+import { copyAsync, cacheDirectory } from "expo-file-system/legacy";
+import { Asset } from "expo-asset";
+import api from "@/lib/api";
+import { formatIndianNumber } from "@/utils/formatNumber";
+import FooterCarousel from "@/components/FooterCarousel";
 
 interface ReferralStats {
   referralCode: string;
@@ -48,13 +52,18 @@ interface CreditConfig {
 }
 
 export default function ReferralPage() {
+  const insets = useSafeAreaInsets();
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [config, setConfig] = useState<CreditConfig | null>(null);
   const [userCredits, setUserCredits] = useState<number>(0);
+  const [userName, setUserName] = useState<string>("");
+  const [userPhone, setUserPhone] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<'hindi' | 'english' | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<
+    "hindi" | "english" | null
+  >(null);
   const [componentError, setComponentError] = useState<string | null>(null);
 
   const loadReferralData = async (isRefreshing = false) => {
@@ -62,24 +71,34 @@ export default function ReferralPage() {
       if (!isRefreshing) {
         setLoading(true);
       }
-      
+
       // Fetch referral stats, credit config, and user balance
       // Use Promise.allSettled to handle partial failures gracefully
-      const [statsResult, configResult, creditsResult] = await Promise.allSettled([
-        api.get('/credits/referral-stats'),
-        api.get('/credits/config'),
-        api.get('/credits/balance')
-      ]);
-      
+      const [statsResult, configResult, creditsResult, profileResult] =
+        await Promise.allSettled([
+          api.get("/credits/referral-stats"),
+          api.get("/credits/config"),
+          api.get("/credits/balance"),
+          api.get("/users/profile"),
+        ]);
+
       // Extract values from settled promises
-      const statsResponse = statsResult.status === 'fulfilled' ? statsResult.value : null;
-      const configResponse = configResult.status === 'fulfilled' ? configResult.value : null;
-      const creditsResponse = creditsResult.status === 'fulfilled' ? creditsResult.value : null;
-      
-      console.log('📊 Referral Stats Response:', JSON.stringify(statsResponse, null, 2));
-      console.log('🔑 Referral Code:', statsResponse?.referralCode);
-      console.log('🔍 Full stats object:', statsResponse);
-      
+      const statsResponse =
+        statsResult.status === "fulfilled" ? statsResult.value : null;
+      const configResponse =
+        configResult.status === "fulfilled" ? configResult.value : null;
+      const creditsResponse =
+        creditsResult.status === "fulfilled" ? creditsResult.value : null;
+      const profileResponse =
+        profileResult.status === "fulfilled" ? profileResult.value : null;
+
+      console.log(
+        "📊 Referral Stats Response:",
+        JSON.stringify(statsResponse, null, 2),
+      );
+      console.log("🔑 Referral Code:", statsResponse?.referralCode);
+      console.log("🔍 Full stats object:", statsResponse);
+
       if (statsResponse) {
         setStats(statsResponse);
       }
@@ -89,12 +108,19 @@ export default function ReferralPage() {
       if (creditsResponse) {
         setUserCredits(creditsResponse.credits || 0);
       }
-      
+      if (profileResponse?.user) {
+        setUserName(profileResponse.user.name || "");
+        setUserPhone(profileResponse.user.phone || "");
+      }
+
       // Force a re-render check
-      console.log('✅ State updated - referralCode should be:', statsResponse?.referralCode);
+      console.log(
+        "✅ State updated - referralCode should be:",
+        statsResponse?.referralCode,
+      );
     } catch (error: any) {
-      console.error('Error loading referral data:', error);
-      setComponentError(error?.message || 'Failed to load referral data');
+      console.error("Error loading referral data:", error);
+      setComponentError(error?.message || "Failed to load referral data");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -105,12 +131,26 @@ export default function ReferralPage() {
     loadReferralData();
   }, []);
 
+  // Auto-refresh when screen comes into focus (but not on initial mount)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Only refresh if already loaded (skip initial mount)
+      if (stats || userCredits > 0) {
+        console.log("🔄 Auto-refreshing referral data...");
+        loadReferralData(true);
+      }
+    }, [stats, userCredits]),
+  );
+
   // Error screen
   if (componentError) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Referral Program</Text>
@@ -118,18 +158,25 @@ export default function ReferralPage() {
         </View>
         <View style={styles.loadingContainer}>
           <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
-          <Text style={{ color: '#EF4444', marginTop: 16, textAlign: 'center' }}>
+          <Text
+            style={{ color: "#EF4444", marginTop: 16, textAlign: "center" }}
+          >
             {componentError}
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => {
               setComponentError(null);
               setLoading(true);
               loadReferralData();
             }}
-            style={{ marginTop: 16, padding: 12, backgroundColor: '#8B5CF6', borderRadius: 8 }}
+            style={{
+              marginTop: 16,
+              padding: 12,
+              backgroundColor: "#8B5CF6",
+              borderRadius: 8,
+            }}
           >
-            <Text style={{ color: '#fff' }}>Retry</Text>
+            <Text style={{ color: "#fff" }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -144,19 +191,19 @@ export default function ReferralPage() {
   const handleShare = async () => {
     if (!stats?.referralCode || !config) {
       Alert.alert(
-        'Please Wait',
-        'Your referral code is being generated. Please try again in a moment.',
-        [{ text: 'OK', onPress: handleRefresh }]
+        "Please Wait",
+        "Your referral code is being generated. Please try again in a moment.",
+        [{ text: "OK", onPress: handleRefresh }],
       );
       return;
     }
-    
+
     // Reset language selection and show modal
     setSelectedLanguage(null);
     setLanguageModalVisible(true);
   };
 
-  const handleLanguageSelect = (language: 'hindi' | 'english') => {
+  const handleLanguageSelect = (language: "hindi" | "english") => {
     setSelectedLanguage(language);
   };
 
@@ -197,42 +244,71 @@ export default function ReferralPage() {
 ▪️ *If you have any problem then join this whatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
 ▪️ *Video for Channel Partner Explanation* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
-      const message = selectedLanguage === 'hindi' ? hindiMessage : englishMessage;
+      const message =
+        selectedLanguage === "hindi" ? hindiMessage : englishMessage;
 
       // Get image resource based on language
-      const imageSource = selectedLanguage === 'hindi'
-        ? require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')
-        : require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg');
+      const imageSource =
+        selectedLanguage === "hindi"
+          ? require("@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg")
+          : require("@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg");
 
       // Load the asset and get local URI
       const asset = Asset.fromModule(imageSource);
       await asset.downloadAsync();
 
       if (!asset.localUri) {
-        throw new Error('Failed to load image asset');
+        throw new Error("Failed to load image asset");
       }
 
       // Copy to cache directory for better compatibility
-      const filename = selectedLanguage === 'hindi' ? 'referral_hindi.jpg' : 'referral_english.jpg';
+      const filename =
+        selectedLanguage === "hindi"
+          ? "referral_hindi.jpg"
+          : "referral_english.jpg";
       const destPath = `${cacheDirectory}${filename}`;
 
       // Copy the asset to cache
       await copyAsync({
         from: asset.localUri,
-        to: destPath
+        to: destPath,
       });
 
-      // Share image with text message using urls array for proper attachment
+      // Share image with text message - use proper format for better compatibility
       const shareOptions = {
+        title:
+          selectedLanguage === "hindi"
+            ? "InstantllyCards में शामिल हों"
+            : "Join InstantllyCards",
         message: message,
-        urls: [destPath],
-        type: 'image/jpeg',
-        subject: selectedLanguage === 'hindi' ? 'InstantllyCards में शामिल हों' : 'Join InstantllyCards',
+        url: `file://${destPath}`, // Use singular 'url' with file:// protocol
+        type: "image/jpeg",
+        subject:
+          selectedLanguage === "hindi"
+            ? "InstantllyCards में शामिल हों"
+            : "Join InstantllyCards",
+        // Force WhatsApp to include message with image
+        social: Platform.OS === "android" ? undefined : "whatsapp",
       };
 
       // Use RNShare if available, otherwise fall back to native Share
       if (RNShare) {
-        await RNShare.open(shareOptions);
+        try {
+          await RNShare.open(shareOptions);
+        } catch (shareError: any) {
+          // If WhatsApp-specific share fails, try generic share
+          if (shareError?.message !== "User did not share") {
+            console.log("Retrying share without WhatsApp-specific options...");
+            await RNShare.open({
+              title: shareOptions.title,
+              message: message,
+              url: `file://${destPath}`,
+              type: "image/jpeg",
+            });
+          } else {
+            throw shareError;
+          }
+        }
       } else {
         // Fallback to React Native's built-in Share (text only)
         await Share.share({
@@ -240,14 +316,13 @@ export default function ReferralPage() {
           title: shareOptions.subject,
         });
       }
-
     } catch (error: any) {
-      if (error?.message !== 'User did not share') {
-        console.error('Error sharing:', error);
+      if (error?.message !== "User did not share") {
+        console.error("Error sharing:", error);
         Alert.alert(
-          'Error',
-          `Failed to share message: ${error?.message || 'Unknown error'}. Please try again.`,
-          [{ text: 'OK' }]
+          "Error",
+          `Failed to share message: ${error?.message || "Unknown error"}. Please try again.`,
+          [{ text: "OK" }],
         );
       }
     }
@@ -257,14 +332,17 @@ export default function ReferralPage() {
     if (!stats?.referralCode) return;
     const referralLink = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
     Clipboard.setString(referralLink);
-    Alert.alert('Copied!', 'Referral link copied to clipboard');
+    Alert.alert("Copied!", "Referral link copied to clipboard");
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Referral Program</Text>
@@ -280,47 +358,70 @@ export default function ReferralPage() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Referral Program</Text>
-        <TouchableOpacity 
-          onPress={() => router.push('/transfer-credits')} 
+        <TouchableOpacity
+          onPress={() => router.push("/transfer-credits")}
           style={styles.transferButton}
         >
           <Ionicons name="swap-horizontal" size={20} color="#8B5CF6" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: 100 + insets.bottom + 10 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={['#8B5CF6']}
+            colors={["#8B5CF6"]}
             tintColor="#8B5CF6"
           />
         }
       >
-
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.creditsBannerContainer}
-          onPress={() => router.push('/referral/credits-history' as any)}
+          onPress={() => router.push("/referral/credits-history" as any)}
           activeOpacity={0.7}
         >
           <LinearGradient
-            colors={['#ECFDF5', '#D1FAE5']}
+            colors={["#ECFDF5", "#D1FAE5"]}
             style={styles.creditsBanner}
           >
             <View style={styles.creditsContent}>
+              {userName && (
+                <View style={styles.userInfoRow}>
+                  <View style={styles.userAvatar}>
+                    <Ionicons name="person" size={18} color="#059669" />
+                  </View>
+                  <View style={styles.userDetails}>
+                    <Text style={styles.userName}>{userName}</Text>
+                    {userPhone && (
+                      <Text style={styles.userPhone}>{userPhone}</Text>
+                    )}
+                  </View>
+                </View>
+              )}
               <View style={styles.creditsLabelRow}>
                 <Ionicons name="sparkles" size={16} color="#059669" />
-                <Text style={styles.creditsLabel}>Available Balance Credit</Text>
+                <Text style={styles.creditsLabel}>
+                  Available Balance Credit
+                </Text>
               </View>
               <View style={styles.creditsAmountRow}>
-                <Text style={styles.creditsAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                <Text
+                  style={styles.creditsAmount}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
                   ₹{formatIndianNumber(userCredits || 0)}
                 </Text>
               </View>
@@ -329,15 +430,18 @@ export default function ReferralPage() {
           </LinearGradient>
           <View style={styles.creditsHintContainer}>
             <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-            <Text style={styles.creditsHintText}> View transaction history</Text>
+            <Text style={styles.creditsHintText}>
+              {" "}
+              View transaction history
+            </Text>
             <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
           </View>
         </TouchableOpacity>
 
         {/* Track Referral Status Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.trackStatusButton}
-          onPress={() => router.push('/referral/track-status' as any)}
+          onPress={() => router.push("/referral/track-status" as any)}
         >
           <Ionicons name="trending-up" size={20} color="#FFFFFF" />
           <Text style={styles.trackStatusText}>Track Referral Status</Text>
@@ -346,24 +450,32 @@ export default function ReferralPage() {
 
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.statCard}
-            onPress={() => router.push('/referral/track-status' as any)}
+            onPress={() => router.push("/referral/track-status" as any)}
             activeOpacity={0.7}
           >
-            <View style={[styles.statIconContainer, { backgroundColor: '#EDE9FE' }]}>
+            <View
+              style={[styles.statIconContainer, { backgroundColor: "#EDE9FE" }]}
+            >
               <Ionicons name="people" size={26} color="#8B5CF6" />
             </View>
-            <Text style={styles.statValue}>{formatIndianNumber(stats?.totalReferrals || 0)}</Text>
+            <Text style={styles.statValue}>
+              {formatIndianNumber(stats?.totalReferrals || 0)}
+            </Text>
             <Text style={styles.statLabel}>Successful</Text>
             <Text style={styles.statLabel}>Referrals</Text>
           </TouchableOpacity>
-          
+
           <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
+            <View
+              style={[styles.statIconContainer, { backgroundColor: "#FEF3C7" }]}
+            >
               <Ionicons name="gift" size={26} color="#F59E0B" />
             </View>
-            <Text style={styles.statValue}>{formatIndianNumber(stats?.totalCreditsEarned || 0)}</Text>
+            <Text style={styles.statValue}>
+              {formatIndianNumber(stats?.totalCreditsEarned || 0)}
+            </Text>
             <Text style={styles.statLabel}>Credits</Text>
             <Text style={styles.statLabel}>Earned</Text>
           </View>
@@ -372,29 +484,40 @@ export default function ReferralPage() {
         {/* Referral Link Card */}
         <View style={styles.referralLinkCard}>
           <Text style={styles.referralLinkTitle}>Your Unique Code</Text>
-          <Text style={styles.referralLinkSubtitle}>Share with friends to earn rewards</Text>
-          
-          <TouchableOpacity style={styles.codeBox} onPress={handleCopyLink} activeOpacity={0.7}>
+          <Text style={styles.referralLinkSubtitle}>
+            Share with friends to earn rewards
+          </Text>
+
+          <TouchableOpacity
+            style={styles.codeBox}
+            onPress={handleCopyLink}
+            activeOpacity={0.7}
+          >
             <View style={styles.codeSection}>
               <Text style={styles.codeLabel}>REFERRAL CODE</Text>
               <Text style={styles.codeText}>
-                {stats?.referralCode ? stats.referralCode : 'Loading...'}
+                {stats?.referralCode ? stats.referralCode : "Loading..."}
               </Text>
               <Text style={styles.tapToCopyText}>Tap to copy link</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.shareButtonMain} onPress={handleShare}>
+          <TouchableOpacity
+            style={styles.shareButtonMain}
+            onPress={handleShare}
+          >
             <Ionicons name="share-social" size={20} color="#FFFFFF" />
             <Text style={styles.shareButtonMainText}>Share Referral Link</Text>
             <Ionicons name="arrow-forward-circle" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          
+
           <View style={styles.shareHint}>
             <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
             <Ionicons name="chatbubbles" size={16} color="#007AFF" />
             <Ionicons name="mail" size={16} color="#EA4335" />
-            <Text style={styles.shareHintText}>WhatsApp, SMS, Email & more</Text>
+            <Text style={styles.shareHintText}>
+              WhatsApp, SMS, Email & more
+            </Text>
           </View>
         </View>
 
@@ -406,10 +529,12 @@ export default function ReferralPage() {
             </View>
             <View>
               <Text style={styles.howItWorksTitle}>How It Works</Text>
-              <Text style={styles.howItWorksSubtitle}>3 simple steps to earn</Text>
+              <Text style={styles.howItWorksSubtitle}>
+                3 simple steps to earn
+              </Text>
             </View>
           </View>
-          
+
           <View style={styles.stepsList}>
             <View style={styles.stepItem}>
               <View style={styles.stepNumber}>
@@ -418,7 +543,8 @@ export default function ReferralPage() {
               <View style={styles.stepContent}>
                 <Text style={styles.stepTitle}>Share Your Link</Text>
                 <Text style={styles.stepText}>
-                  Click on the share referral link button to share your unique code with your friends via any Platform 
+                  Click on the share referral link button to share your unique
+                  code with your friends via any Platform
                 </Text>
               </View>
             </View>
@@ -432,7 +558,10 @@ export default function ReferralPage() {
               <View style={styles.stepContent}>
                 <Text style={styles.stepTitle}>Friend Signs Up</Text>
                 <Text style={styles.stepText}>
-                  They download the app, register and receive <Text style={styles.highlight}>{config?.signupBonus || 200} bonus credits</Text>
+                  They download the app, register and receive{" "}
+                  <Text style={styles.highlight}>
+                    {config?.signupBonus || 200} bonus credits
+                  </Text>
                 </Text>
               </View>
             </View>
@@ -446,7 +575,11 @@ export default function ReferralPage() {
               <View style={styles.stepContent}>
                 <Text style={styles.stepTitle}>You Both Win!</Text>
                 <Text style={styles.stepText}>
-                  You get <Text style={styles.highlight}>{config?.referralReward || 300} credits</Text> instantly when they complete signup
+                  You get{" "}
+                  <Text style={styles.highlight}>
+                    {config?.referralReward || 300} credits
+                  </Text>{" "}
+                  instantly when they complete signup
                 </Text>
               </View>
             </View>
@@ -454,7 +587,9 @@ export default function ReferralPage() {
 
           <View style={styles.benefitsBanner}>
             <Ionicons name="trophy" size={20} color="#F59E0B" />
-            <Text style={styles.benefitsText}>Unlimited referrals = Unlimited earnings!</Text>
+            <Text style={styles.benefitsText}>
+              Unlimited referrals = Unlimited earnings!
+            </Text>
           </View>
         </View>
 
@@ -478,23 +613,27 @@ export default function ReferralPage() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSubtitle}>Choose your preferred language for sharing</Text>
+            <Text style={styles.modalSubtitle}>
+              Choose your preferred language for sharing
+            </Text>
 
             <View style={styles.languageOptions}>
               <TouchableOpacity
                 style={[
                   styles.languageOption,
-                  selectedLanguage === 'hindi' && styles.languageOptionSelected
+                  selectedLanguage === "hindi" && styles.languageOptionSelected,
                 ]}
-                onPress={() => handleLanguageSelect('hindi')}
+                onPress={() => handleLanguageSelect("hindi")}
               >
-                <Image 
-                  source={require('@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg')}
+                <Image
+                  source={require("@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg")}
                   style={styles.languageImage}
                   resizeMode="cover"
                 />
                 <View style={styles.radioButton}>
-                  {selectedLanguage === 'hindi' && <View style={styles.radioButtonInner} />}
+                  {selectedLanguage === "hindi" && (
+                    <View style={styles.radioButtonInner} />
+                  )}
                 </View>
                 <View style={styles.languageInfo}>
                   <Text style={styles.languageLabel}>हिंदी</Text>
@@ -505,17 +644,20 @@ export default function ReferralPage() {
               <TouchableOpacity
                 style={[
                   styles.languageOption,
-                  selectedLanguage === 'english' && styles.languageOptionSelected
+                  selectedLanguage === "english" &&
+                    styles.languageOptionSelected,
                 ]}
-                onPress={() => handleLanguageSelect('english')}
+                onPress={() => handleLanguageSelect("english")}
               >
-                <Image 
-                  source={require('@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg')}
+                <Image
+                  source={require("@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg")}
                   style={styles.languageImage}
                   resizeMode="cover"
                 />
                 <View style={styles.radioButton}>
-                  {selectedLanguage === 'english' && <View style={styles.radioButtonInner} />}
+                  {selectedLanguage === "english" && (
+                    <View style={styles.radioButtonInner} />
+                  )}
                 </View>
                 <View style={styles.languageInfo}>
                   <Text style={styles.languageLabel}>English</Text>
@@ -536,6 +678,16 @@ export default function ReferralPage() {
           </View>
         </View>
       </Modal>
+      <View
+        style={{
+          position: "absolute",
+          bottom: insets.bottom,
+          left: 0,
+          right: 0,
+        }}
+      >
+        <FooterCarousel />
+      </View>
     </SafeAreaView>
   );
 }
@@ -543,34 +695,36 @@ export default function ReferralPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   backButton: {
     padding: 4,
-  },  transferButton: {
+  },
+  transferButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3E8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },  headerTitle: {
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#000000',
+    fontWeight: "700",
+    color: "#000000",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
     flex: 1,
@@ -578,93 +732,124 @@ const styles = StyleSheet.create({
   },
   creditsBannerContainer: {
     marginBottom: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    shadowColor: '#10B981',
+    shadowColor: "#10B981",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 5,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   creditsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 22,
   },
   creditsHintContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: "#E5E7EB",
     gap: 4,
   },
   creditsHintText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: "#6B7280",
+    fontWeight: "500",
   },
   creditsContent: {
     flex: 1,
   },
+  userInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#A7F3D0",
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#065F46",
+    marginBottom: 2,
+  },
+  userPhone: {
+    fontSize: 13,
+    color: "#059669",
+    fontWeight: "500",
+  },
   creditsLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginBottom: 8,
   },
   creditsLabel: {
     fontSize: 13,
-    color: '#059669',
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    color: "#059669",
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 0.8,
   },
   creditsAmountRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    alignItems: "baseline",
     marginBottom: 4,
-    width: '100%',
+    width: "100%",
   },
   creditsAmount: {
     fontSize: 36,
-    fontWeight: '900',
-    color: '#10B981',
+    fontWeight: "900",
+    color: "#10B981",
     flexShrink: 1,
   },
   creditsUnit: {
     fontSize: 13,
-    color: '#059669',
-    fontWeight: '500',
+    color: "#059669",
+    fontWeight: "500",
   },
   creditsIconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#10B981',
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#10B981",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
   },
   trackStatusButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#10B981',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#10B981",
     borderRadius: 14,
     padding: 16,
     marginBottom: 18,
     gap: 8,
-    shadowColor: '#10B981',
+    shadowColor: "#10B981",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -672,23 +857,23 @@ const styles = StyleSheet.create({
   },
   trackStatusText: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   statsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 14,
     marginBottom: 18,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: 22,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -698,28 +883,28 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 14,
   },
   statValue: {
     fontSize: 30,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: "800",
+    color: "#111827",
     marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    fontWeight: '500',
+    color: "#6B7280",
+    textAlign: "center",
+    fontWeight: "500",
   },
   referralLinkCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: 22,
     marginBottom: 18,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -727,27 +912,27 @@ const styles = StyleSheet.create({
   },
   referralLinkTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: "800",
+    color: "#111827",
     marginBottom: 4,
   },
   referralLinkSubtitle: {
     fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: "#6B7280",
+    fontWeight: "500",
     marginBottom: 20,
   },
   codeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 2,
-    borderColor: '#8B5CF6',
-    borderStyle: 'dashed',
+    borderColor: "#8B5CF6",
+    borderStyle: "dashed",
     borderRadius: 14,
     padding: 18,
     marginBottom: 16,
-    backgroundColor: '#FAF5FF',
+    backgroundColor: "#FAF5FF",
   },
   codeSection: {
     flex: 1,
@@ -755,62 +940,62 @@ const styles = StyleSheet.create({
   },
   codeLabel: {
     fontSize: 10,
-    color: '#6B7280',
+    color: "#6B7280",
     marginBottom: 6,
     letterSpacing: 1.2,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
   codeText: {
     fontSize: 26,
-    fontWeight: '800',
-    color: '#8B5CF6',
+    fontWeight: "800",
+    color: "#8B5CF6",
     marginBottom: 8,
     letterSpacing: 2,
   },
   linkPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   linkText: {
     fontSize: 11,
-    color: '#8B5CF6',
-    fontWeight: '500',
+    color: "#8B5CF6",
+    fontWeight: "500",
     flex: 1,
   },
   tapToCopyText: {
     fontSize: 11,
-    color: '#9CA3AF',
-    fontWeight: '400',
+    color: "#9CA3AF",
+    fontWeight: "400",
     marginTop: 4,
   },
   copyIconButton: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 6,
   },
   copyCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#EDE9FE',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#EDE9FE",
+    justifyContent: "center",
+    alignItems: "center",
   },
   copyText: {
     fontSize: 11,
-    color: '#8B5CF6',
-    fontWeight: '700',
+    color: "#8B5CF6",
+    fontWeight: "700",
   },
   shareButtonMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#8B5CF6',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#8B5CF6",
     borderRadius: 14,
     padding: 22,
     gap: 12,
-    shadowColor: '#8B5CF6',
+    shadowColor: "#8B5CF6",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -818,36 +1003,36 @@ const styles = StyleSheet.create({
   },
   shareButtonMainText: {
     fontSize: 19,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   shareHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 14,
     gap: 8,
   },
   shareHintText: {
     fontSize: 11,
-    color: '#9CA3AF',
-    fontWeight: '500',
+    color: "#9CA3AF",
+    fontWeight: "500",
     marginLeft: 4,
   },
   howItWorksCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: 22,
     marginBottom: 18,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 4,
   },
   howItWorksHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 22,
     gap: 12,
   },
@@ -855,30 +1040,30 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#FEF3C7",
+    justifyContent: "center",
+    alignItems: "center",
   },
   howItWorksIcon: {
     fontSize: 26,
   },
   howItWorksTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: "800",
+    color: "#111827",
   },
   howItWorksSubtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 2,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   stepsList: {
     gap: 0,
   },
   stepItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 16,
     paddingVertical: 12,
   },
@@ -886,10 +1071,10 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#8B5CF6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#8B5CF6',
+    backgroundColor: "#8B5CF6",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#8B5CF6",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -897,8 +1082,8 @@ const styles = StyleSheet.create({
   },
   stepNumberText: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   stepContent: {
     flex: 1,
@@ -906,31 +1091,31 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     marginBottom: 4,
   },
   stepText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 21,
-    fontWeight: '400',
+    fontWeight: "400",
   },
   stepConnector: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
     marginVertical: 8,
     marginLeft: 54,
   },
   highlight: {
-    color: '#8B5CF6',
-    fontWeight: '700',
+    color: "#8B5CF6",
+    fontWeight: "700",
   },
   benefitsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEF3C7',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEF3C7",
     padding: 14,
     borderRadius: 12,
     marginTop: 18,
@@ -938,51 +1123,51 @@ const styles = StyleSheet.create({
   },
   benefitsText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#92400E',
+    fontWeight: "700",
+    color: "#92400E",
   },
   // Language Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 24,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     marginBottom: 24,
   },
   languageOptions: {
     gap: 12,
   },
   languageOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
   },
   languageImage: {
     width: 60,
@@ -991,43 +1176,43 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   languageOptionSelected: {
-    borderColor: '#8B5CF6',
-    backgroundColor: '#F3E8FF',
+    borderColor: "#8B5CF6",
+    backgroundColor: "#F3E8FF",
   },
   radioButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#D1D5DB",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   radioButtonInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: "#8B5CF6",
   },
   languageInfo: {
     flex: 1,
   },
   languageLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
   },
   languageSubLabel: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 2,
   },
   shareNowButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#8B5CF6',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#8B5CF6",
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -1035,8 +1220,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   shareNowButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

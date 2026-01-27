@@ -8,8 +8,6 @@
 // import api from '../lib/api';
 // import Video from 'react-native-video';
 
-
-
 // const { width: screenWidth } = Dimensions.get('window');
 
 // const SHOW_ADS = true; // Set to false to disable ads, true to enable
@@ -29,14 +27,6 @@
 //   const [isInitialized, setIsInitialized] = useState(false);
 //   const scrollViewRef = useRef<ScrollView>(null);
 //   const [showVideoModal, setShowVideoModal] = useState(false);
-
-
-
-
-
-
-
-
 
 //   console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads (cached)`);
 
@@ -171,8 +161,6 @@
 
 //     saveAdPosition();
 //   }, [activeIndex, isInitialized]);
-
-
 
 //   const handleScroll = (event: any) => {
 //     const contentOffsetX = event.nativeEvent.contentOffset.x;
@@ -436,7 +424,6 @@
 //         //         ignoreSilentSwitch="obey"
 //         //       />
 
-
 //         //     </TouchableOpacity>
 //         //   ))}
 //         // </ScrollView>
@@ -519,10 +506,6 @@
 
 //         </View>
 //       </Modal>
-
-
-
-
 
 //       {/* Simple Popup Modal - For Regular Ads */}
 //       {/* <Modal
@@ -781,11 +764,9 @@
 
 // export default FooterCarousel;
 
-
 // // import React from 'react';
 // // import { View, StyleSheet, Dimensions } from 'react-native';
 // // import { Video } from 'expo-av';
-
 
 // // const { width: screenWidth } = Dimensions.get('window');
 
@@ -838,7 +819,6 @@
 // //       resizeMode="contain"
 // //     />
 
-
 // //     {/* Gradient Overlay */}
 // //     <LinearGradient
 // //       colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']}
@@ -881,7 +861,6 @@
 // //     </View>
 // //   </View>
 // // </Modal>
-
 
 // ***************************
 // import React, { useEffect, useRef, useState } from 'react';
@@ -1160,7 +1139,7 @@
 //   },
 // });
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Image,
@@ -1172,35 +1151,35 @@ import {
   Text,
   ActivityIndicator,
   Linking,
-} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import Video from 'react-native-video';
-import { useAds, Ad } from '../hooks/useAds';
-import { router } from 'expo-router';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+// import Video from 'react-native-video';
+import { useAds, Ad } from "../hooks/useAds";
+import { router } from "expo-router";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const IMAGE_TIME = 5000;
-const VIDEO_MIN_TIME = 10000; // 🔥 10 sec mandatory
+const IMAGE_TIME = 5000; // Auto-scroll delay for all ads
 
 /* 🔗 URL builder – ONLY http / https */
 
 const buildUrl = (url?: string | null) => {
   if (!url) return null;
 
-  if (url.startsWith('http://') || url.startsWith('https://')) {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
 
   // cloudfront or domain without protocol
-  if (url.includes('.')) {
+  if (url.includes(".")) {
     const fixed = `https://${url}`;
     // console.log('🔧 Fixed URL:', fixed);
     return fixed;
   }
 
-  console.warn('❌ Invalid media URL:', url);
+  console.warn("❌ Invalid media URL:", url);
   return null;
 };
 
@@ -1208,11 +1187,55 @@ const FooterCarousel = () => {
   const { data: ads = [], isLoading } = useAds();
   const scrollRef = useRef<ScrollView>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const insets = useSafeAreaInsets();
 
   const [activeIndex, setActiveIndex] = useState(1);
   const [initialized, setInitialized] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [showModal, setShowModal] = useState(false);
+
+  // Debug: Log ads data
+  useEffect(() => {
+    console.log("🎬 FooterCarousel: Ads data:", {
+      count: ads.length,
+      isLoading,
+      firstAd: ads[0]
+        ? {
+            id: ads[0].id,
+            bottomMediaUrl: ads[0].bottomMediaUrl,
+            bottomMediaType: ads[0].bottomMediaType,
+          }
+        : null,
+    });
+  }, [ads.length, isLoading]);
+
+  // ⚡ Preload fullscreen images for instant display
+  useEffect(() => {
+    if (ads.length === 0) return;
+
+    const preloadImages = async () => {
+      console.log("⚡ Preloading fullscreen images...");
+      const imageBaseUrl = "https://api.instantllycards.com";
+
+      for (const ad of ads) {
+        if (ad.fullscreenMediaUrl) {
+          const url = ad.fullscreenMediaUrl.startsWith("http")
+            ? ad.fullscreenMediaUrl
+            : `${imageBaseUrl}${ad.fullscreenMediaUrl}`;
+
+          try {
+            await Image.prefetch(url);
+            console.log("✅ Preloaded:", ad.id);
+          } catch (error) {
+            console.warn("⚠️ Failed to preload:", ad.id);
+          }
+        }
+      }
+      console.log("⚡ Preloading complete!");
+    };
+
+    preloadImages();
+  }, [ads]);
 
   /* 🔁 Infinite list */
   const infiniteAds =
@@ -1223,7 +1246,7 @@ const FooterCarousel = () => {
     if (!ads.length) return;
 
     (async () => {
-      const saved = await AsyncStorage.getItem('footerAdIndex');
+      const saved = await AsyncStorage.getItem("footerAdIndex");
       const start = saved ? Number(saved) : 1;
 
       // console.log('🔁 Restoring index:', start);
@@ -1239,21 +1262,11 @@ const FooterCarousel = () => {
     })();
   }, [ads.length]);
 
-  /* ⏱️ Auto scroll with video timing */
+  /* ⏱️ Auto scroll for image ads */
   useEffect(() => {
     if (!initialized || infiniteAds.length <= 1) return;
 
     if (timerRef.current) clearTimeout(timerRef.current);
-
-    const currentAd = infiniteAds[activeIndex];
-    const isVideo = currentAd?.bottomMediaType === 'video';
-    const delay = isVideo ? VIDEO_MIN_TIME : IMAGE_TIME;
-
-    // console.log('⏱️ Slide timer:', {
-    //   index: activeIndex,
-    //   type: currentAd?.bottomMediaType,
-    //   delay,
-    // });
 
     timerRef.current = setTimeout(() => {
       const next = activeIndex + 1;
@@ -1274,7 +1287,7 @@ const FooterCarousel = () => {
       } else {
         setActiveIndex(next);
       }
-    }, delay);
+    }, IMAGE_TIME);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -1284,102 +1297,136 @@ const FooterCarousel = () => {
   /* 💾 Save index */
   useEffect(() => {
     if (initialized) {
-      AsyncStorage.setItem('footerAdIndex', String(activeIndex));
+      AsyncStorage.setItem("footerAdIndex", String(activeIndex));
     }
   }, [activeIndex, initialized]);
 
-  /* 🎞️ Bottom media */
-  const renderBottomMedia = (ad: Ad, index: number) => {
+  /* 🖼️ Bottom media - Images only */
+  const renderBottomMedia = (ad: Ad) => {
     const url = buildUrl(ad.bottomMediaUrl);
-    const type = ad.bottomMediaType;
-    const isActive = index === activeIndex;
 
-    // console.log('🎬 Bottom media:', {
-    //   id: ad.id,
-    //   type,
-    //   url,
-    //   isActive,
-    // });
+    console.log("🖼️ Rendering bottom media:", {
+      adId: ad.id,
+      rawUrl: ad.bottomMediaUrl,
+      builtUrl: url,
+      mediaType: ad.bottomMediaType,
+    });
 
-    if (!url) return null;
-
-    if (type === 'video') {
+    if (!url) {
+      console.warn("⚠️ No valid URL for ad:", ad.id);
       return (
-        <Video
-          source={{ uri: url }}
-          style={styles.media}
-          resizeMode="cover"
-          paused={!isActive}
-          muted
-          repeat
-          onError={(e) =>
-            console.error('❌ Bottom video error', e)
-          }
-        />
+        <View
+          style={[
+            styles.media,
+            {
+              backgroundColor: "#1F2937",
+              justifyContent: "center",
+              alignItems: "center",
+            },
+          ]}
+        >
+          <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
+            No Image Available
+          </Text>
+        </View>
       );
     }
 
-    return <Image source={{ uri: url }} style={styles.media} />;
+    return (
+      <Image
+        source={{ uri: url }}
+        style={styles.media}
+        resizeMode="cover"
+        onError={(e) => {
+          console.error("❌ Image load error:", {
+            adId: ad.id,
+            url,
+            error: e.nativeEvent.error,
+          });
+        }}
+        onLoad={() => {
+          console.log("✅ Image loaded successfully:", ad.id);
+        }}
+      />
+    );
   };
 
-  /* 🖥️ Fullscreen media */
+  /* 🖥️ Fullscreen media - Images only */
   const renderFullscreenMedia = (ad: Ad) => {
     const url = buildUrl(ad.fullscreenMediaUrl || ad.bottomMediaUrl);
-    const type = ad.fullscreenMediaType || ad.bottomMediaType;
 
-    // console.log('🖥️ Fullscreen media:', { type, url });
+    console.log("🖥️ Rendering fullscreen media:", {
+      adId: ad.id,
+      fullscreenMediaUrl: ad.fullscreenMediaUrl,
+      bottomMediaUrl: ad.bottomMediaUrl,
+      builtUrl: url,
+    });
 
-    if (!url) return null;
-
-    if (type === 'video') {
-      return (
-        <Video
-          source={{ uri: url }}
-          style={styles.fullMedia}
-          resizeMode="cover"
-          paused={false}
-          repeat
-          onError={(e) =>
-            console.error('❌ Fullscreen video error', e)
-          }
-        />
-      );
+    if (!url) {
+      console.warn("⚠️ No fullscreen URL for ad:", ad.id);
+      return null;
     }
 
-    return <Image source={{ uri: url }} style={styles.fullMedia} />;
+    return (
+      <Image
+        source={{ uri: url }}
+        style={styles.fullMedia}
+        resizeMode="contain"
+        onError={(e) => {
+          console.error("❌ Fullscreen image load error:", {
+            adId: ad.id,
+            url,
+            error: e.nativeEvent.error,
+          });
+        }}
+        onLoad={() => {
+          console.log("✅ Fullscreen image loaded successfully:", ad.id);
+        }}
+      />
+    );
   };
 
   const handleChat = (ad: Ad | null) => {
     if (!ad?.phone) {
-      console.warn('❌ No phone number for chat');
+      console.warn("❌ No phone number for chat");
       return;
     }
 
     // +91 remove + spaces remove
-    const phoneOnly = ad.phone.replace(/\+/g, '').replace(/\s/g, '');
+    const phoneOnly = ad.phone.replace(/\+/g, "").replace(/\s/g, "");
 
-    console.log('💬 Opening chat with:', phoneOnly);
+    console.log("💬 Opening chat with:", phoneOnly);
 
     setShowModal(false);
 
     router.push({
-      pathname: '/chat/[userId]',
+      pathname: "/chat/[userId]",
       params: {
         userId: phoneOnly,
         phone: phoneOnly,
         name: ad.title || phoneOnly,
-        isPhoneOnly: 'true',
-        preFillMessage: 'I am interested in your ad',
+        isPhoneOnly: "true",
+        preFillMessage: "I am interested in your ad",
       },
     });
   };
-
 
   return (
     <View style={styles.container}>
       {isLoading && (
         <View style={styles.center}>
           <ActivityIndicator color="#10B981" />
+          <Text style={{ color: "#9CA3AF", marginTop: 8, fontSize: 12 }}>
+            Loading ads...
+          </Text>
+        </View>
+      )}
+
+      {!isLoading && ads.length === 0 && (
+        <View style={styles.center}>
+          <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
+            No ads available
+          </Text>
         </View>
       )}
 
@@ -1393,21 +1440,24 @@ const FooterCarousel = () => {
         >
           {infiniteAds.map((ad, index) => (
             <View key={`${ad.id}-${index}`} style={styles.slide}>
-              {renderBottomMedia(ad, index)}
+              {renderBottomMedia(ad)}
 
               {/* 🔥 Tap Layer */}
               <Pressable
                 style={StyleSheet.absoluteFill}
                 onPress={() => {
-                  // console.log('📌 Open fullscreen for ad:', ad.id);
+                  console.log("🎯 Ad clicked:", {
+                    id: ad.id,
+                    name: ad.name,
+                    hasFullscreenMediaUrl: !!ad.fullscreenMediaUrl,
+                    fullscreenMediaUrl: ad.fullscreenMediaUrl,
+                    hasBottomMediaUrl: !!ad.bottomMediaUrl,
+                    bottomMediaUrl: ad.bottomMediaUrl,
+                  });
                   setSelectedAd(ad);
                   setShowModal(true);
                 }}
               />
-
-              <View style={styles.overlay}>
-                <Text style={styles.overlayText}>Tap to know more</Text>
-              </View>
             </View>
           ))}
         </ScrollView>
@@ -1419,31 +1469,28 @@ const FooterCarousel = () => {
           {selectedAd && renderFullscreenMedia(selectedAd)}
 
           {/* ❌ Close */}
-          <Pressable
-            style={styles.close}
-            onPress={() => setShowModal(false)}
-          >
+          <Pressable style={styles.close} onPress={() => setShowModal(false)}>
             <Ionicons name="close" size={28} color="#fff" />
           </Pressable>
 
-          {/* 📞 Call */}
-          <Pressable
-            style={styles.cta}
-            onPress={() =>
-              Linking.openURL(`tel:${selectedAd?.phone}`)
-            }
-          >
-            <Text style={styles.ctaText}>Call Now</Text>
-          </Pressable>
+          {/* Horizontal Button Row */}
+          <View style={styles.buttonRow}>
+            {/* 💬 Chat */}
+            <Pressable
+              style={[styles.ctaButton, { backgroundColor: "#3B82F6" }]}
+              onPress={() => handleChat(selectedAd)}
+            >
+              <Text style={styles.ctaText}>Chat</Text>
+            </Pressable>
 
-          {/* 💬 Chat (placeholder) */}
-          <Pressable
-            style={[styles.cta, { bottom: 100, backgroundColor: '#3B82F6' }]}
-            onPress={() => handleChat(selectedAd)}
-          >
-            <Text style={styles.ctaText}>Chat</Text>
-          </Pressable>
-
+            {/* 📞 Call */}
+            <Pressable
+              style={[styles.ctaButton, { backgroundColor: "#10B981" }]}
+              onPress={() => Linking.openURL(`tel:${selectedAd?.phone}`)}
+            >
+              <Text style={styles.ctaText}>Call Now</Text>
+            </Pressable>
+          </View>
         </View>
       </Modal>
     </View>
@@ -1455,63 +1502,78 @@ export default FooterCarousel;
 /* ───── STYLES ───── */
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
+    left: 0,
+    right: 0,
     height: 100,
-    width: '100%',
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   slide: {
     width: SCREEN_WIDTH,
     height: 100,
   },
   media: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   fullMedia: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 6,
     right: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
   },
   overlayText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
   },
   center: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   modal: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   close: {
-    position: 'absolute',
+    position: "absolute",
     top: 40,
     right: 20,
   },
-  cta: {
-    position: 'absolute',
+  buttonRow: {
+    position: "absolute",
     bottom: 40,
-    alignSelf: 'center',
-    backgroundColor: '#10B981',
+    flexDirection: "row",
+    alignSelf: "center",
+    gap: 15,
+  },
+  ctaButton: {
+    paddingHorizontal: 30,
+    paddingVertical: 14,
+    borderRadius: 30,
+    minWidth: 120,
+    alignItems: "center",
+  },
+  cta: {
+    position: "absolute",
+    bottom: 40,
+    alignSelf: "center",
+    backgroundColor: "#10B981",
     paddingHorizontal: 30,
     paddingVertical: 14,
     borderRadius: 30,
   },
   ctaText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 16,
   },
 });

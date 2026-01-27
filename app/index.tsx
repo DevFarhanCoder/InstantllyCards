@@ -39,54 +39,31 @@
 // });
 
 import { useEffect } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { checkAndHandleVersionChange } from "../lib/versionCheck";
 
 export default function Index() {
   useEffect(() => {
-    const checkAuth = async () => {
+    setTimeout(async () => {
       try {
-        console.log('🔍 [INDEX] Checking authentication...');
-        
-        // FIRST: Check if app version changed and handle logout if needed
-        const wasLoggedOut = await checkAndHandleVersionChange();
-        
-        if (wasLoggedOut) {
-          console.log('🚪 [INDEX] User was logged out due to app update - redirecting to signup');
-          setTimeout(() => {
-            router.replace("/(auth)/signup");
-          }, 500);
-          return;
-        }
-        
-        // THEN: Check for existing token
         const token = await AsyncStorage.getItem("token");
-        
-        // Small delay for smooth transition
-        setTimeout(() => {
-          if (token) {
-            console.log('✅ [INDEX] Token found - navigating to home');
-            router.replace("/(tabs)/home");
-          } else {
-            console.log('⚠️ [INDEX] No token - navigating to signup');
-            router.replace("/(auth)/signup");
-          }
-        }, 500);
+
+        if (token) {
+          router.replace("/(tabs)/home");
+        } else {
+          router.replace("/(auth)/signup");
+        }
       } catch (error) {
-        console.error('❌ [INDEX] Error checking auth:', error);
-        // On error, go to signup
         router.replace("/(auth)/signup");
       }
-    };
-    
-    checkAuth();
+    }, 1000);
   }, []);
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#007aff" />
+      <Text style={styles.text}>Loading Instantlly Cards...</Text>
+      <Text style={styles.subtext}>Please wait</Text>
     </View>
   );
 }
@@ -94,10 +71,20 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF'
-  }
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  text: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#000",
+    marginBottom: 10,
+  },
+  subtext: {
+    fontSize: 16,
+    color: "#666",
+  },
 });
 // import { useEffect, useRef, useState } from "react";
 // import { View, StyleSheet, Animated } from "react-native";

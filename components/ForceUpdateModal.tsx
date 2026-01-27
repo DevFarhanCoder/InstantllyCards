@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Modal,
   View,
@@ -10,17 +10,18 @@ import {
   Dimensions,
   BackHandler,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 interface ForceUpdateModalProps {
   visible: boolean;
   updateUrl: string;
   currentVersion: string;
   latestVersion: string;
+  onDismiss?: () => void;
 }
 
 export default function ForceUpdateModal({
@@ -28,16 +29,20 @@ export default function ForceUpdateModal({
   updateUrl,
   currentVersion,
   latestVersion,
+  onDismiss,
 }: ForceUpdateModalProps) {
   const insets = useSafeAreaInsets();
-  
+
   // Disable Android back button to prevent dismissal
   React.useEffect(() => {
     if (visible) {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        // Return true to prevent default back behavior
-        return true;
-      });
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          // Return true to prevent default back behavior
+          return true;
+        },
+      );
 
       return () => backHandler.remove();
     }
@@ -49,10 +54,10 @@ export default function ForceUpdateModal({
       if (canOpen) {
         await Linking.openURL(updateUrl);
       } else {
-        console.error('Cannot open URL:', updateUrl);
+        console.error("Cannot open URL:", updateUrl);
       }
     } catch (error) {
-      console.error('Error opening update URL:', error);
+      console.error("Error opening update URL:", error);
     }
   };
 
@@ -67,7 +72,12 @@ export default function ForceUpdateModal({
       {/* Semi-transparent overlay */}
       <View style={styles.overlay}>
         {/* Bottom Sheet Container */}
-        <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <View
+          style={[
+            styles.bottomSheet,
+            { paddingBottom: Math.max(insets.bottom, 20) },
+          ]}
+        >
           {/* Header with close icon (disabled) */}
           <View style={styles.header}>
             <View style={styles.handleBar} />
@@ -77,7 +87,11 @@ export default function ForceUpdateModal({
           <View style={styles.content}>
             {/* Google Play Icon */}
             <View style={styles.iconContainer}>
-              <Ionicons name="logo-google-playstore" size={32} color="#01875F" />
+              <Ionicons
+                name="logo-google-playstore"
+                size={32}
+                color="#01875F"
+              />
             </View>
 
             {/* Title */}
@@ -92,7 +106,7 @@ export default function ForceUpdateModal({
             <View style={styles.appInfo}>
               <View style={styles.appIconContainer}>
                 <Image
-                  source={require('../assets/logo.png')}
+                  source={require("../assets/logo.png")}
                   style={styles.appIcon}
                   resizeMode="contain"
                 />
@@ -106,7 +120,14 @@ export default function ForceUpdateModal({
             {/* What's New Section */}
             <View style={styles.whatsNewSection}>
               <Text style={styles.whatsNewTitle}>What's new</Text>
-              <Text style={styles.whatsNewDate}>Updated on {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+              <Text style={styles.whatsNewDate}>
+                Updated on{" "}
+                {new Date().toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </Text>
             </View>
 
             {/* Action Buttons */}
@@ -114,8 +135,9 @@ export default function ForceUpdateModal({
               <TouchableOpacity
                 style={styles.moreInfoButton}
                 activeOpacity={0.7}
+                onPress={onDismiss}
               >
-                <Text style={styles.moreInfoText}>More info</Text>
+                <Text style={styles.moreInfoText}>Dismiss</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -133,29 +155,28 @@ export default function ForceUpdateModal({
   );
 }
 
-
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
   },
   bottomSheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 20,
-    maxHeight: '80%',
+    maxHeight: "80%",
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: 12,
     paddingBottom: 8,
   },
   handleBar: {
     width: 36,
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
     borderRadius: 2,
   },
   content: {
@@ -167,33 +188,33 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: "600",
+    color: "#1F2937",
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 20,
     marginBottom: 24,
   },
   appInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: "#F3F4F6",
   },
   appIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginRight: 12,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
   },
   appIcon: {
     width: 40,
@@ -204,29 +225,29 @@ const styles = StyleSheet.create({
   },
   appName: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
+    fontWeight: "500",
+    color: "#1F2937",
     marginBottom: 2,
   },
   appSize: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   whatsNewSection: {
     marginBottom: 24,
   },
   whatsNewTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: "600",
+    color: "#1F2937",
     marginBottom: 4,
   },
   whatsNewDate: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   buttonContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   moreInfoButton: {
@@ -235,27 +256,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
   },
   moreInfoText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
   },
   updateButton: {
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
-    backgroundColor: '#01875F',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#01875F",
+    alignItems: "center",
+    justifyContent: "center",
   },
   updateButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });

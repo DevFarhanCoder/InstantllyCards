@@ -2,12 +2,12 @@
   "expo": {
     "name": "Instantlly Cards",
     "slug": "instantllycards",
-    "version": "1.0.64",
+    "version": "1.0.68",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "extra": {
       "EXPO_PUBLIC_API_BASE": "https://api.instantllycards.com",
       "router": {},
@@ -30,12 +30,8 @@
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 57,
-      "permissions": [
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.VIBRATE",
-        "android.permission.WAKE_LOCK"
-      ],
+      "versionCode": 65,
+      "permissions": [],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "icon": "./assets/logo.png",
@@ -50,19 +46,9 @@
       "output": "static",
       "favicon": "./assets/logo.png"
     },
-    "notification": {
-      "vapidPublicKey": "BPxDmVKAhbGMGX4Y3P2Qf7UHI8V_N2T6J5K3a9M7ZlQ0E4S8Y9qR1W6D3fG5bC2vL8X7n4oP6I5e9mZ3Y2qS1W4E"
-    },
+
     "plugins": [
       "expo-router",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#0F1111",
-          "defaultChannel": "default"
-        }
-      ],
       [
         "expo-build-properties",
         {
