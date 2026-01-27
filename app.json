@@ -31,7 +31,7 @@
     "android": {
       "package": "com.instantllycards.www.twa",
       "versionCode": 65,
-      "permissions": [],
+      "permissions": ["INTERNET"],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "icon": "./assets/logo.png",

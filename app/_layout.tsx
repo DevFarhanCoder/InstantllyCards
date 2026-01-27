@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { queryClient } from "../lib/query";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -16,7 +17,11 @@ import { socketService } from "@/lib/socket";
 import { getPlayStoreReferrer } from "@/lib/playStoreReferrer";
 import { checkAndRefreshCreditsOnUpdate } from "@/lib/creditsRefresh";
 
+SplashScreen.preventAutoHideAsync().catch(() => { });
+
+
 export default function RootLayout() {
+  const [appReady, setAppReady] = useState(false);
   const [updateRequired, setUpdateRequired] = useState(false);
   const [updateUrl, setUpdateUrl] = useState(getAppStoreUrl());
   const [latestVersion, setLatestVersion] = useState("1.0.0");
@@ -27,7 +32,7 @@ export default function RootLayout() {
       // All operations run in background after 100ms to allow navigation
       setTimeout(async () => {
         // Check credits refresh
-        checkAndRefreshCreditsOnUpdate().catch(() => {});
+        checkAndRefreshCreditsOnUpdate().catch(() => { });
 
         // Version check (5s timeout)
         setTimeout(async () => {
@@ -54,10 +59,10 @@ export default function RootLayout() {
         }, 2000);
 
         // Play Store referrer
-        getPlayStoreReferrer().catch(() => {});
+        getPlayStoreReferrer().catch(() => { });
 
         // Server warmup
-        serverWarmup.preWarmOnAppStart().catch(() => {});
+        serverWarmup.preWarmOnAppStart().catch(() => { });
 
         // Socket.IO (10s timeout)
         setTimeout(() => {
@@ -65,7 +70,7 @@ export default function RootLayout() {
             setTimeout(() => reject(new Error("Socket timeout")), 10000);
           });
           Promise.race([socketService.connect(), socketTimeout]).catch(
-            () => {},
+            () => { },
           );
         }, 4000);
 
@@ -103,7 +108,7 @@ export default function RootLayout() {
       }, 100); // Start all tasks after just 100ms
     };
 
-    initApp().catch(() => {});
+    initApp().catch(() => { });
   }, []);
 
   // Deep Link Handler for Referral System
@@ -130,6 +135,25 @@ export default function RootLayout() {
       subscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const prepare = async () => {
+      try {
+        // allow router to mount
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      } finally {
+        setAppReady(true);
+        await SplashScreen.hideAsync();
+      }
+    };
+
+    prepare();
+  }, []);
+
+  if (!appReady) {
+    return null;
+  }
+
 
   return (
     <QueryClientProvider client={queryClient}>
