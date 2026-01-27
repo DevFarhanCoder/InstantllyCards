@@ -13,7 +13,7 @@ module.exports = function (api) {
         },
       ],
       // Temporarily disable reanimated plugin to avoid level error
-      // 'react-native-reanimated/plugin'
+      'react-native-reanimated/plugin'
     ],
     env: {
       production: {
