@@ -24,12 +24,8 @@ export default function RootLayout() {
   useEffect(() => {
     // Ultra-lightweight initialization - NOTHING synchronous
     const initApp = async () => {
-      console.log("🚀 [INIT] App starting...");
-
-      // All operations run in background after 2 seconds to allow navigation
+      // All operations run in background after 100ms to allow navigation
       setTimeout(async () => {
-        console.log("🔄 [BACKGROUND] Starting tasks...");
-
         // Check credits refresh
         checkAndRefreshCreditsOnUpdate().catch(() => {});
 
@@ -53,16 +49,12 @@ export default function RootLayout() {
               setLatestVersion(versionInfo.latestVersion);
             }
           } catch (error) {
-            console.log("⚠️ [VERSION] Check failed:", error);
+            // Silently fail
           }
         }, 2000);
 
         // Play Store referrer
-        getPlayStoreReferrer()
-          .then((code) => {
-            if (code) console.log("🎁 [REFERRER]:", code);
-          })
-          .catch(() => {});
+        getPlayStoreReferrer().catch(() => {});
 
         // Server warmup
         serverWarmup.preWarmOnAppStart().catch(() => {});
@@ -72,9 +64,9 @@ export default function RootLayout() {
           const socketTimeout = new Promise((_, reject) => {
             setTimeout(() => reject(new Error("Socket timeout")), 10000);
           });
-          Promise.race([socketService.connect(), socketTimeout])
-            .then(() => console.log("✅ [SOCKET] Connected"))
-            .catch(() => console.log("⚠️ [SOCKET] Skipped"));
+          Promise.race([socketService.connect(), socketTimeout]).catch(
+            () => {},
+          );
         }, 4000);
 
         // Setup admin transfer listener
@@ -100,41 +92,34 @@ export default function RootLayout() {
                 JSON.stringify(notifications),
               );
             } catch (error) {
-              console.error("Error saving notification:", error);
+              // Silently fail
             }
           },
         );
 
-        console.log("✅ [INIT] App ready");
-
         return () => {
           unsubscribeAdminTransfer();
         };
-      }, 2000); // Start all tasks after 2 seconds
+      }, 100); // Start all tasks after just 100ms
     };
 
-    initApp();
+    initApp().catch(() => {});
   }, []);
 
   // Deep Link Handler for Referral System
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       const url = event.url;
-      console.log("🔗 Deep link received:", url);
-
       const { path, queryParams } = Linking.parse(url);
 
       if (path === "signup" && queryParams?.ref) {
         const referralCode = queryParams.ref as string;
-        console.log("🎁 Referral code detected:", referralCode);
         await AsyncStorage.setItem("pending_referral_code", referralCode);
-        console.log("💾 Referral code stored in AsyncStorage");
       }
     };
 
     Linking.getInitialURL().then((url) => {
       if (url) {
-        console.log("🔗 Initial URL:", url);
         handleDeepLink({ url });
       }
     });

@@ -1,25 +1,31 @@
 # .easignore - Files to exclude from EAS builds
+
 # (This overrides .gitignore for EAS Build uploads)
 
 # Allow google-services.json to be uploaded to EAS
+
 # even though it's in .gitignore
+
 !google-services.json
 
 # Exclude large files and folders to reduce build size
-*.md
-*.log
-*.aab
-*.apk
+
+_.md
+_.log
+_.aab
+_.apk
 .git/
 .vscode/
 node_modules/.cache/
-__tests__/
-*.test.ts
-*.test.tsx
-*.spec.ts
-*.spec.tsx
+**tests**/
+_.test.ts
+_.test.tsx
+_.spec.ts
+_.spec.tsx
 
 # Force EAS to regenerate android folder with expo prebuild
+
 # This ensures native code is fresh and doesn't include expo-notifications
+
 /android
 /ios

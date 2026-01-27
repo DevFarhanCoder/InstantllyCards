@@ -45,23 +45,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Index() {
   useEffect(() => {
-    console.log("🚀 INDEX: Starting...");
-
     setTimeout(async () => {
       try {
-        console.log("📱 INDEX: Checking token...");
         const token = await AsyncStorage.getItem("token");
-        console.log("📱 INDEX: Token =", token ? "exists" : "null");
 
         if (token) {
-          console.log("✅ INDEX: Navigating to home");
           router.replace("/(tabs)/home");
         } else {
-          console.log("✅ INDEX: Navigating to signup");
           router.replace("/(auth)/signup");
         }
       } catch (error) {
-        console.error("❌ INDEX: Error:", error);
         router.replace("/(auth)/signup");
       }
     }, 1000);

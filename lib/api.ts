@@ -2,8 +2,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 
-// Try multiple sources for the API base URL
-const PRODUCTION_URL = "https://instantlly-cards-backend-6ki0.onrender.com";
+// Production fallback URL
+const PRODUCTION_URL = "https://api.instantllycards.com";
 
 const getApiBase = () => {
   const sources = [
@@ -13,30 +13,16 @@ const getApiBase = () => {
 
   for (const source of sources) {
     if (source) {
-      if (__DEV__) console.log("✅ Found API base from source:", source);
       return source.replace(/\/$/, "");
     }
   }
 
-  if (__DEV__) console.log("⚠️ No API base found, using production fallback");
   return PRODUCTION_URL;
 };
 
 const BASE = getApiBase();
 
-// Log the BASE URL to debug environment variable issues (dev only)
-if (__DEV__) {
-  console.log("🌐 API BASE URL:", BASE);
-  console.log("🔍 Environment check:", {
-    expoConfig_EXPO_PUBLIC_API_BASE:
-      Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE,
-    expoConfig_API_BASE: Constants.expoConfig?.extra?.API_BASE,
-    __DEV__: __DEV__,
-  });
-}
-
-// Optimized timeout for better user experience
-// Increased to 120 seconds for card operations with images (AWS cold start)
+// Timeout for API requests
 const TIMEOUT_MS = 120000;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -48,15 +34,7 @@ async function request<T>(
   body?: Json | FormData,
   options?: { headers?: Record<string, string> },
 ): Promise<T> {
-  if (__DEV__ && !path.includes("/feedback") && !path.includes("/quiz/")) {
-    console.log("🔧 API Request Configuration:");
-    console.log("  - BASE URL:", BASE);
-    console.log("  - Method:", method);
-    console.log("  - Path:", path);
-  }
-
   if (!BASE) {
-    console.error("❌ No API base URL found!");
     throw new Error(
       "API base URL not configured - Please check your configuration",
     );
@@ -77,46 +55,18 @@ async function request<T>(
   // Always use the /api prefix since our backend expects it
   const candidates = [`${BASE}/api${path.startsWith("/") ? path : `/${path}`}`];
 
-  if (__DEV__ && !path.includes("/feedback") && !path.includes("/quiz/")) {
-    console.log("🎯 API URL Candidates:", candidates);
-  }
-
   let lastErr: any;
   for (const url of candidates) {
-    let retries = 2; // Reduce retries for faster failure
+    let retries = 2;
 
     while (retries > 0) {
       try {
-        if (
-          __DEV__ &&
-          !path.includes("/feedback") &&
-          !path.includes("/quiz/")
-        ) {
-          console.log(
-            `🚀 Making ${method} request to: ${url} (attempt ${4 - retries}/3)`,
-          );
-          console.log(
-            "📤 Request body:",
-            body instanceof FormData
-              ? "FormData"
-              : JSON.stringify(body, null, 2),
-          );
-        }
-
         // Create AbortController for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
-          if (__DEV__) {
-            console.log(
-              "⏰ Request timeout triggered after",
-              TIMEOUT_MS / 1000,
-              "seconds",
-            );
-          }
           controller.abort();
         }, TIMEOUT_MS);
 
-        const startTime = Date.now();
         const res = await fetch(url, {
           method,
           headers,
@@ -129,36 +79,14 @@ async function request<T>(
           signal: controller.signal,
         });
 
-        const duration = Date.now() - startTime;
         clearTimeout(timeoutId);
-        if (__DEV__ && !path.includes("/quiz/")) {
-          console.log(
-            `✅ Response received in ${duration}ms - Status: ${res.status} for ${url}`,
-          );
-        }
 
         let data: any = null;
         const text = await res.text();
-        // Only log response in development mode
-        if (
-          __DEV__ &&
-          !path.includes("/feedback") &&
-          !path.includes("/quiz/")
-        ) {
-          console.log(
-            "📥 Response text:",
-            text.substring(0, 200) + (text.length > 200 ? "..." : ""),
-          );
-        }
 
         try {
           // Check if response looks like HTML (common error from Render/servers)
           if (text.trim().startsWith("<")) {
-            if (!path.includes("/quiz/")) {
-              console.error(
-                "❌ Server returned HTML instead of JSON (likely server error page)",
-              );
-            }
             throw new Error(
               "Server error - received HTML error page instead of JSON",
             );
@@ -168,15 +96,10 @@ async function request<T>(
           if (parseError.message?.includes("HTML")) {
             throw parseError; // Re-throw our HTML detection error
           }
-          console.error("❌ JSON parse error:", parseError.message);
-          console.error("Response was:", text.substring(0, 200));
           data = text || null;
         }
 
         if (!res.ok) {
-          if (__DEV__) {
-            console.log("❌ Error response data:", data);
-          }
           // bubble up shape { status, url, data }
           const err = new Error(
             typeof data === "object" && data?.message
@@ -189,19 +112,10 @@ async function request<T>(
           throw err;
         }
 
-        if (__DEV__ && !path.includes("/feedback")) {
-          console.log("🎉 Request successful!");
-        }
         return data as T;
       } catch (e: any) {
         // Suppress error logs for quiz endpoints (not implemented yet)
         const isQuizEndpoint = path.includes("/quiz/");
-        if (!isQuizEndpoint) {
-          console.error(
-            `❌ Request failed for ${url} (attempt ${4 - retries}/3):`,
-            e.message,
-          );
-        }
 
         // Handle timeout and network errors with better messages
         if (e.name === "AbortError") {
@@ -256,9 +170,6 @@ async function request<T>(
             e.message?.includes("Failed to fetch"))
         ) {
           const waitTime = (3 - retries) * 1; // Faster backoff: 1s, 2s
-          console.log(
-            `⏳ Retrying in ${waitTime} seconds... (${retries} attempts left)`,
-          );
           await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
         }
       }
@@ -267,12 +178,6 @@ async function request<T>(
 
   // Suppress final error log for quiz endpoints
   const isQuizEndpoint = path.includes("/quiz/");
-  if (!isQuizEndpoint) {
-    console.error(
-      "💥 All API candidates failed, throwing last error:",
-      lastErr?.message || lastErr,
-    );
-  }
   throw (
     lastErr ||
     new Error(
@@ -291,10 +196,6 @@ async function requestNonCritical<T>(
   try {
     return await request<T>(method, path, body, options);
   } catch (error) {
-    console.log(
-      `⚠️ Non-critical API call failed: ${method} ${path}`,
-      (error as any)?.message || error,
-    );
     return null; // Return null instead of throwing
   }
 }
