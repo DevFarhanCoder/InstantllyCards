@@ -7,7 +7,7 @@
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "extra": {
       "EXPO_PUBLIC_API_BASE": "https://api.instantllycards.com",
       "router": {},
