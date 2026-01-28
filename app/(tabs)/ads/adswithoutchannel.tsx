@@ -185,11 +185,16 @@ export default function AdsWithoutChannel() {
     });
 
     if (!result.canceled && result.assets[0]) {
+      console.log('📸 Image picked:', type, 'URI:', result.assets[0].uri);
       if (type === 'bottom') {
         setBottomImage(result.assets[0]);
+        console.log('✅ Bottom image set');
       } else {
         setFullscreenImage(result.assets[0]);
+        console.log('✅ Fullscreen image set');
       }
+    } else {
+      console.log('❌ Image picker cancelled or failed');
     }
   };
 
@@ -252,6 +257,14 @@ export default function AdsWithoutChannel() {
   };
 
   const submitAd = async () => {
+    // Debug logging
+    console.log('🔍 Submit Ad Validation Debug:');
+    console.log('  adType:', adType);
+    console.log('  bottomImage:', bottomImage ? 'EXISTS' : 'NULL');
+    console.log('  bottomVideo:', bottomVideo ? 'EXISTS' : 'NULL');
+    console.log('  fullscreenImage:', fullscreenImage ? 'EXISTS' : 'NULL');
+    console.log('  fullscreenVideo:', fullscreenVideo ? 'EXISTS' : 'NULL');
+
     // Validation
     if (!title.trim()) {
       Alert.alert('Error', 'Please enter ad title');
