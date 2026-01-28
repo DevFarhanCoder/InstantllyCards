@@ -21,11 +21,20 @@ export default function Credits() {
       setLoading(true);
       setError(null);
       const response = await api.get('/credits/balance');
+      console.log('📊 Credits API Response:', JSON.stringify(response, null, 2));
       if (response?.success) {
         setCredits(response.credits || 0);
         setExpiryDate(response.creditsExpiryDate);
         setDaysRemaining(response.daysRemaining);
         setIsExpired(response.isExpired || false);
+        console.log('✅ Credits State Updated:', {
+          credits: response.credits,
+          expiryDate: response.creditsExpiryDate,
+          daysRemaining: response.daysRemaining,
+          isExpired: response.isExpired
+        });
+      } else {
+        console.log('❌ API Response not successful:', response);
       }
     } catch (err: any) {
       console.error('Error fetching credits:', err);
