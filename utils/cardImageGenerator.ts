@@ -1,4 +1,4 @@
-import { Platform, Alert } from 'react-native';
+import { Platform, Alert } from "react-native";
 
 // Lazy imports to prevent crash if native modules not available
 let captureRef: any = null;
@@ -7,28 +7,36 @@ let Sharing: any = null;
 let Share: any = null;
 
 try {
-  const viewShot = require('react-native-view-shot');
+  const viewShot = require("react-native-view-shot");
   captureRef = viewShot.captureRef;
 } catch (error) {
-  console.warn('⚠️ react-native-view-shot not available. Image sharing requires app rebuild.');
+  console.warn(
+    "⚠️ react-native-view-shot not available. Image sharing requires app rebuild.",
+  );
 }
 
 try {
-  FileSystem = require('expo-file-system/legacy');
+  FileSystem = require("expo-file-system/legacy");
 } catch (error) {
-  console.warn('⚠️ expo-file-system not available. Image sharing requires app rebuild.');
+  console.warn(
+    "⚠️ expo-file-system not available. Image sharing requires app rebuild.",
+  );
 }
 
 try {
-  Sharing = require('expo-sharing');
+  Sharing = require("expo-sharing");
 } catch (error) {
-  console.warn('⚠️ expo-sharing not available. Image sharing requires app rebuild.');
+  console.warn(
+    "⚠️ expo-sharing not available. Image sharing requires app rebuild.",
+  );
 }
 
 try {
-  Share = require('react-native-share').default;
+  Share = require("react-native-share").default;
 } catch (error) {
-  console.warn('⚠️ react-native-share not available. Image sharing requires app rebuild.');
+  console.warn(
+    "⚠️ react-native-share not available. Image sharing requires app rebuild.",
+  );
 }
 
 /**
@@ -41,120 +49,134 @@ try {
 export async function generateAndShareCardImage(
   viewRef: any,
   cardData: any,
-  shareMethod: 'native' | 'whatsapp' | 'save' = 'native'
+  shareMethod: "native" | "whatsapp" | "save" = "native",
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Check if native modules are available
     if (!captureRef || !FileSystem || !Sharing || !Share) {
       Alert.alert(
-        'Feature Not Available',
+        "Feature Not Available",
         'Card image sharing requires app rebuild. Please rebuild the app with:\n\nnpx expo run:android\n\nFor now, use "Share Within App" option.',
-        [{ text: 'OK' }]
+        [{ text: "OK" }],
       );
-      return { 
-        success: false, 
-        error: 'native_module_not_available' 
+      return {
+        success: false,
+        error: "native_module_not_available",
       };
     }
 
-    console.log('📸 Capturing card image...');
-    
+    console.log("📸 Capturing card image...");
+
     // Capture the view as an image
     const uri = await captureRef(viewRef, {
-      format: 'png',
+      format: "png",
       quality: 1,
-      result: 'tmpfile',
+      result: "tmpfile",
     });
 
-    console.log('✅ Card image captured:', uri);
+    console.log("✅ Card image captured:", uri);
 
     // Get the file info
     const fileInfo = await FileSystem.getInfoAsync(uri);
-    if (fileInfo.exists && 'size' in fileInfo) {
-      console.log('📊 Image size:', fileInfo.size, 'bytes');
+    if (fileInfo.exists && "size" in fileInfo) {
+      console.log("📊 Image size:", fileInfo.size, "bytes");
     }
 
-    const companyName = cardData.companyName || cardData.name || 'Business';
-    const fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_Card.png`;
+    const companyName = cardData.companyName || cardData.name || "Business";
+    const fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, "_")}_Card.png`;
 
     // Build card details message
     const buildCardDetails = () => {
-      let details = 'This is My Digital Visiting Card -\n\n';
-      
+      let details = "This is My Digital Visiting Card -\n\n";
+
       // Personal Information
       if (cardData.name) details += `👤 Name: ${cardData.name}\n`;
-      if (cardData.designation) details += `💼 Designation: ${cardData.designation}\n`;
-      
+      if (cardData.designation)
+        details += `💼 Designation: ${cardData.designation}\n`;
+
       // Personal Contact
       const personalPhone = cardData.contact || cardData.personalPhone;
       if (personalPhone) {
-        const cleanPhone = personalPhone.replace(/^\+\d+/, '').trim();
+        const cleanPhone = personalPhone.replace(/^\+\d+/, "").trim();
         details += `📱 Personal Phone: ${cleanPhone}\n`;
       }
-      
+
       const personalEmail = cardData.email;
       if (personalEmail) details += `📧 Personal Email: ${personalEmail}\n`;
-      
+
       const personalWebsite = cardData.website;
-      if (personalWebsite) details += `🌐 Personal Website: ${personalWebsite}\n`;
-      
+      if (personalWebsite)
+        details += `🌐 Personal Website: ${personalWebsite}\n`;
+
       const personalLocation = cardData.location;
-      if (personalLocation) details += `📍 Personal Location: ${personalLocation}\n`;
-      
+      if (personalLocation)
+        details += `📍 Personal Location: ${personalLocation}\n`;
+
       const personalMapsLink = cardData.mapsLink;
-      if (personalMapsLink) details += `🗺️ Personal Maps: ${personalMapsLink}\n`;
-      
+      if (personalMapsLink)
+        details += `🗺️ Personal Maps: ${personalMapsLink}\n`;
+
       // Business Information
-      if (cardData.companyName) details += `🏢 Company: ${cardData.companyName}\n`;
-      
+      if (cardData.companyName)
+        details += `🏢 Company: ${cardData.companyName}\n`;
+
       const companyPhone = cardData.companyContact || cardData.companyPhone;
       if (companyPhone) {
-        const cleanPhone = companyPhone.replace(/^\+\d+/, '').trim();
+        const cleanPhone = companyPhone.replace(/^\+\d+/, "").trim();
         details += `☎️ Company Phone: ${cleanPhone}\n`;
       }
-      
+
       const companyEmail = cardData.companyEmail;
       if (companyEmail) details += `📨 Company Email: ${companyEmail}\n`;
-      
+
       const companyWebsite = cardData.companyWebsite;
       if (companyWebsite) details += `🌍 Company Website: ${companyWebsite}\n`;
-      
+
       const companyAddress = cardData.companyAddress;
       if (companyAddress) details += `🏭 Company Address: ${companyAddress}\n`;
-      
+
       const companyMapsLink = cardData.companyMapsLink;
       if (companyMapsLink) details += `🗺️ Company Maps: ${companyMapsLink}\n`;
-      
+
       const message = cardData.message;
       if (message) details += `💬 Message: ${message}\n`;
-      
+
       // Social Media Links
       let socialAdded = false;
-      if (cardData.linkedin || cardData.twitter || cardData.instagram || 
-          cardData.facebook || cardData.youtube || cardData.whatsapp || cardData.telegram) {
+      if (
+        cardData.linkedin ||
+        cardData.twitter ||
+        cardData.instagram ||
+        cardData.facebook ||
+        cardData.youtube ||
+        cardData.whatsapp ||
+        cardData.telegram
+      ) {
         details += `\n🔗 Social Media:\n`;
         socialAdded = true;
       }
-      
+
       if (cardData.linkedin) details += `   LinkedIn: ${cardData.linkedin}\n`;
       if (cardData.twitter) details += `   Twitter: ${cardData.twitter}\n`;
-      if (cardData.instagram) details += `   Instagram: ${cardData.instagram}\n`;
+      if (cardData.instagram)
+        details += `   Instagram: ${cardData.instagram}\n`;
       if (cardData.facebook) details += `   Facebook: ${cardData.facebook}\n`;
       if (cardData.youtube) details += `   YouTube: ${cardData.youtube}\n`;
       if (cardData.whatsapp) details += `   WhatsApp: ${cardData.whatsapp}\n`;
       if (cardData.telegram) details += `   Telegram: ${cardData.telegram}\n`;
-      
+
       return details;
     };
 
     // Get user referral code (assuming it's in cardData or user data)
-    const referralCode = cardData.referralCode || 'QP8B385Q'; // Default fallback
+    const referralCode = cardData.referralCode || "QP8B385Q"; // Default fallback
     const referralLink = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${referralCode}`;
 
     switch (shareMethod) {
-      case 'whatsapp':
+      case "whatsapp":
         // Share via WhatsApp with complete card details
-        const whatsappMessage = buildCardDetails() +
+        const whatsappMessage =
+          buildCardDetails() +
           `\n━━━━━━━━━━━━━━━━━━━━\n` +
           `*Earn ₹1200 to ₹6000+ per day Without Investment*\n\n` +
           `▪️ *I Got ₹300 Credit* I have downloaded this app & Got ₹300 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below\n\n` +
@@ -169,42 +191,57 @@ export async function generateAndShareCardImage(
           `▪️ *If you have any problem then join this WhatsApp Group and write the Problem you are getting*\nhttps://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl\n\n` +
           `▪️ *Video for Channel Partner Explanation*\nhttps://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
-        await Share.open({
-          title: `${companyName}'s Business Card`,
-          message: whatsappMessage,
-          url: `file://${uri}`,
-          type: 'image/png',
-          filename: fileName,
-          social: Share.Social.WHATSAPP, // Force WhatsApp as target
-        });
-        break;
-
-      case 'save':
-        // Save to device
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri, {
-            mimeType: 'image/png',
-            dialogTitle: 'Save Business Card',
-            UTI: 'public.png',
+        try {
+          await Share.open({
+            title: `${companyName}'s Business Card`,
+            message: whatsappMessage,
+            url: `file://${uri}`,
+            type: "image/png",
+            filename: fileName,
           });
-        } else {
-          throw new Error('Sharing is not available on this device');
+        } catch (whatsappError: any) {
+          // If specific share fails, try generic share
+          if (whatsappError.message !== "User did not share") {
+            console.log("Retrying WhatsApp share with generic method...");
+            await Share.open({
+              title: `${companyName}'s Business Card`,
+              message: whatsappMessage,
+              url: `file://${uri}`,
+              type: "image/png",
+            });
+          } else {
+            throw whatsappError;
+          }
         }
         break;
 
-      case 'native':
+      case "save":
+        // Save to device
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: "image/png",
+            dialogTitle: "Save Business Card",
+            UTI: "public.png",
+          });
+        } else {
+          throw new Error("Sharing is not available on this device");
+        }
+        break;
+
+      case "native":
       default:
         // Use native share sheet
-        const shareMessage = `${companyName}'s Digital Business Card\n\n` +
+        const shareMessage =
+          `${companyName}'s Digital Business Card\n\n` +
           `🎯 Create your FREE Digital Visiting Card with Instantlly Cards!\n` +
           `📱 https://play.google.com/store/apps/details?id=com.instantllycards.www.twa`;
 
-        if (Platform.OS === 'android') {
+        if (Platform.OS === "android") {
           await Share.open({
             title: `${companyName}'s Business Card`,
             message: shareMessage,
             url: `file://${uri}`,
-            type: 'image/png',
+            type: "image/png",
             filename: fileName,
           });
         } else {
@@ -213,28 +250,27 @@ export async function generateAndShareCardImage(
             title: `${companyName}'s Business Card`,
             message: shareMessage,
             url: uri,
-            type: 'image/png',
+            type: "image/png",
             filename: fileName,
           });
         }
         break;
     }
 
-    console.log('✅ Card shared successfully');
+    console.log("✅ Card shared successfully");
     return { success: true };
-
   } catch (error: any) {
-    console.error('❌ Error generating/sharing card image:', error);
-    
+    console.error("❌ Error generating/sharing card image:", error);
+
     // Handle specific errors
-    if (error.message?.includes('User did not share')) {
-      console.log('ℹ️ User cancelled sharing');
-      return { success: false, error: 'cancelled' };
+    if (error.message?.includes("User did not share")) {
+      console.log("ℹ️ User cancelled sharing");
+      return { success: false, error: "cancelled" };
     }
-    
-    return { 
-      success: false, 
-      error: error.message || 'Failed to generate card image' 
+
+    return {
+      success: false,
+      error: error.message || "Failed to generate card image",
     };
   }
 }
@@ -247,33 +283,32 @@ export async function generateAndShareCardImage(
  */
 export async function generateCardImageFile(
   viewRef: any,
-  cardData: any
+  cardData: any,
 ): Promise<{ success: boolean; uri?: string; error?: string }> {
   try {
     // Check if native modules are available
     if (!captureRef || !FileSystem) {
-      return { 
-        success: false, 
-        error: 'native_module_not_available' 
+      return {
+        success: false,
+        error: "native_module_not_available",
       };
     }
 
-    console.log('📸 Generating card image file...');
-    
+    console.log("📸 Generating card image file...");
+
     const uri = await captureRef(viewRef, {
-      format: 'png',
+      format: "png",
       quality: 1,
-      result: 'tmpfile',
+      result: "tmpfile",
     });
 
-    console.log('✅ Card image file generated:', uri);
+    console.log("✅ Card image file generated:", uri);
     return { success: true, uri };
-
   } catch (error: any) {
-    console.error('❌ Error generating card image file:', error);
-    return { 
-      success: false, 
-      error: error.message || 'Failed to generate card image' 
+    console.error("❌ Error generating card image file:", error);
+    return {
+      success: false,
+      error: error.message || "Failed to generate card image",
     };
   }
 }

@@ -2,7 +2,10 @@
 
 # dependencies
 node_modules/
-assets/
+assets/videos/
+*.mp4
+
+
 # Expo
 .expo/
 dist/

@@ -25,8 +25,6 @@ import { useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-quer
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { showInAppNotification } from "../../lib/notifications-expo-go";
 import { useChatSocket } from "../../hooks/chats";
 import groupSharingService, { GroupSharingSession } from "../../lib/groupSharingService";
 import api from "../../lib/api";
@@ -705,30 +703,31 @@ useEffect(() => {
               
               // Only show notification if not currently viewing this chat
               if (currentActiveChat !== senderId) {
-                try {
-                  console.log('🔍 DEBUG: Calling showInAppNotification...');
-                  await showInAppNotification(
-                    `New message from ${senderName}`,
-                    lastMessage.text,
-                    () => {
-                      console.log(`📱 User tapped notification, navigating to chat ${senderId}`);
-                      router.push({
-                        pathname: `/chat/[userId]`,
-                        params: { 
-                          userId: senderId,
-                          name: senderName
-                        }
-                      });
-                    }
-                  );
-                  console.log(`✅ Notification shown successfully for: "${lastMessage.text}"`);
-                } catch (notificationError) {
-                  console.error(`❌ Failed to show notification:`, notificationError);
-                  console.error('🔍 DEBUG: Notification error details:', {
-                    message: (notificationError as any).message,
-                    stack: (notificationError as any).stack
-                  });
-                }
+                // try {
+                //   console.log('🔍 DEBUG: Calling showInAppNotification...');
+                //   await showInAppNotification(
+                //     `New message from ${senderName}`,
+                //     lastMessage.text,
+                //     () => {
+                //       console.log(`📱 User tapped notification, navigating to chat ${senderId}`);
+                //       router.push({
+                //         pathname: `/chat/[userId]`,
+                //         params: { 
+                //           userId: senderId,
+                //           name: senderName
+                //         }
+                //       });
+                //     }
+                //   );
+                //   console.log(`✅ Notification shown successfully for: "${lastMessage.text}"`);
+                // } catch (notificationError) {
+                //   console.error(`❌ Failed to show notification:`, notificationError);
+                //   console.error('🔍 DEBUG: Notification error details:', {
+                //     message: (notificationError as any).message,
+                //     stack: (notificationError as any).stack
+                //   });
+                // }
+                console.log(`🔔 Notification disabled - would show: "${lastMessage.text}"`);
               } else {
                 console.log(`🔕 Skipping notification - user is currently in chat with ${senderName}`);
               }
@@ -818,19 +817,20 @@ useEffect(() => {
               if (groupData) {
                 const group = JSON.parse(groupData);
                 
-                try {
-                  await showInAppNotification(
-                    `${group.name}`,
-                    `${latestMessage.senderName}: ${latestMessage.text}`,
-                    () => {
-                      console.log(`📱 User tapped group notification, navigating to group ${groupId}`);
-                      router.push(`/group-chat/${groupId}?name=${encodeURIComponent(group.name)}` as any);
-                    }
-                  );
-                  console.log(`✅ Group notification shown for: "${latestMessage.text}" in ${group.name}`);
-                } catch (notificationError) {
-                  console.error(`❌ Failed to show group notification:`, notificationError);
-                }
+                // try {
+                //   await showInAppNotification(
+                //     `${group.name}`,
+                //     `${latestMessage.senderName}: ${latestMessage.text}`,
+                //     () => {
+                //       console.log(`📱 User tapped group notification, navigating to group ${groupId}`);
+                //       router.push(`/group-chat/${groupId}?name=${encodeURIComponent(group.name)}` as any);
+                //     }
+                //   );
+                //   console.log(`✅ Group notification shown for: "${latestMessage.text}" in ${group.name}`);
+                // } catch (notificationError) {
+                //   console.error(`❌ Failed to show group notification:`, notificationError);
+                // }
+                console.log(`🔔 Group notification disabled - would show: "${latestMessage.text}" in ${group.name}`);
               }
             }
           }

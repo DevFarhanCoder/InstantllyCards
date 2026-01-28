@@ -1,11 +1,25 @@
 ﻿import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, TextInput, ActivityIndicator, Image, Dimensions, Linking, RefreshControl, Modal } from "react-native";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  TextInput,
+  ActivityIndicator,
+  Image,
+  Dimensions,
+  Linking,
+  RefreshControl,
+  Modal,
+} from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { router, Link, useFocusEffect } from "expo-router";
+import Constants from "expo-constants";
 import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
@@ -13,18 +27,16 @@ import ReferralBanner from "../../components/ReferralBanner";
 import CategoryGrid from "../../components/CategoryGrid";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
 import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
-import { socketService } from "../../lib/socket";
-import { useCredits } from "@/contexts/CreditsContext";
-
-
 
 type Card = any;
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window");
 
 const handleAdClick = () => {
-  const url = 'https://ldoia.com/';
-  Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
+  const url = "https://ldoia.com/";
+  Linking.openURL(url).catch((err) =>
+    console.error("Failed to open URL:", err),
+  );
 };
 
 export default function Home() {
@@ -33,10 +45,9 @@ export default function Home() {
   const [userName, setUserName] = React.useState<string>("");
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [showVideoTest, setShowVideoTest] = React.useState(false);
+  const [userCredits, setUserCredits] = React.useState<number>(0);
+  const [creditsLoading, setCreditsLoading] = React.useState(true);
   const queryClient = useQueryClient();
-  
-  // Use global credits context
-  const { credits: userCredits, loading: creditsLoading, refreshCredits } = useCredits();
 
   // Fetch user name and ID for profile initial and filtering
   React.useEffect(() => {
@@ -44,7 +55,7 @@ export default function Home() {
       try {
         const name = await AsyncStorage.getItem("user_name");
         if (name) setUserName(name);
-        
+
         let userId = await AsyncStorage.getItem("currentUserId");
         if (userId) {
           setCurrentUserId(userId);
@@ -55,11 +66,13 @@ export default function Home() {
           try {
             const token = await AsyncStorage.getItem("token");
             if (token) {
-              const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
+              const apiBase =
+                Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE ||
+                "https://api.instantllycards.com";
               const response = await fetch(`${apiBase}/api/auth/profile`, {
                 headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
                 },
               });
               if (response.ok) {
@@ -73,7 +86,10 @@ export default function Home() {
               }
             }
           } catch (apiError) {
-            console.error("❌ Home: Failed to fetch user ID from profile:", apiError);
+            console.error(
+              "❌ Home: Failed to fetch user ID from profile:",
+              apiError,
+            );
           }
         }
       } catch (error) {
@@ -83,12 +99,70 @@ export default function Home() {
     fetchUserData();
   }, []);
 
+  // Fetch user credits
+  const fetchCredits = React.useCallback(async () => {
+    try {
+      setCreditsLoading(true);
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        const apiBase =
+          Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE ||
+          "https://api.instantllycards.com";
+        console.log(
+          "💰 Home: Fetching credits from:",
+          `${apiBase}/api/credits/balance`,
+        );
+
+        // Add cache busting to force fresh data
+        const response = await fetch(
+          `${apiBase}/api/credits/balance?t=${Date.now()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        console.log("💰 Home: Credits response status:", response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(
+            "💰 Home: Credits data received:",
+            JSON.stringify(data, null, 2),
+          );
+          console.log("💰 Home: Raw credits value:", data.credits);
+          setUserCredits(data.credits || 0);
+          console.log("✅ Home: Credits set to:", data.credits || 0);
+        } else {
+          const errorText = await response.text();
+          console.error(
+            "❌ Home: Credits fetch failed:",
+            response.status,
+            errorText,
+          );
+        }
+      } else {
+        console.error("❌ Home: No auth token found for credits");
+      }
+    } catch (error) {
+      console.error("❌ Home: Error fetching credits:", error);
+    } finally {
+      setCreditsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchCredits();
+  }, [fetchCredits]);
+
   // Refetch credits when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       // console.log("🔄 Home: Screen focused, refreshing credits...");
-      refreshCredits();
-    }, [refreshCredits])
+      fetchCredits();
+    }, [fetchCredits]),
   );
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
@@ -105,28 +179,30 @@ export default function Home() {
         }
 
         // AWS Cloud primary, Render backup handled by api.ts
-        const apiBase = process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com";
+        const apiBase =
+          Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE ||
+          "https://api.instantllycards.com";
         const url = `${apiBase}/api/cards/feed/contacts`;
         // console.log("🔍 Home: Fetching from URL:", url);
-        
+
         const response = await fetch(url, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
         });
-        
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const result = await response.json();
         // console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
         // console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
         // console.log("📇 Home: Cards count:", result.meta?.totalCards);
         // console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
-        
+
         return result.data || [];
       } catch (error) {
         console.error("❌ Home: Error fetching contacts feed:", error);
@@ -143,26 +219,28 @@ export default function Home() {
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
     // console.log("🔄 Manual refresh triggered");
-    refreshCredits(); // Also refresh credits
-    queryClient.invalidateQueries({ queryKey: ["contacts-feed", currentUserId] });
-  }, [queryClient, currentUserId, refreshCredits]);
+    fetchCredits(); // Also refresh credits
+    queryClient.invalidateQueries({
+      queryKey: ["contacts-feed", currentUserId],
+    });
+  }, [queryClient, currentUserId, fetchCredits]);
 
   // Filter cards: 1) Exclude user's own cards, 2) Deduplicate, 3) Apply search query
   const filteredCards = React.useMemo(() => {
     let cards = feedQ.data || [];
-    
+
     // console.log("🔍 Home Filter - Starting with cards:", cards.length);
     // console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
-    
+
     // CRITICAL: Filter out user's own cards (extra safety on client side)
     if (currentUserId) {
       const beforeFilter = cards.length;
       cards = cards.filter((card: any) => {
         const cardUserId = (card.userId || card.owner || "").toString();
         const isOwnCard = cardUserId === currentUserId;
-        
+
         // console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
-        
+
         if (isOwnCard) {
           // console.log("🚫 Home: Filtering out user's own card:", card.name);
         }
@@ -170,38 +248,46 @@ export default function Home() {
       });
       // console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
     } else {
-      console.warn("⚠️ Home Filter - No currentUserId set, cannot filter own cards!");
+      console.warn(
+        "⚠️ Home Filter - No currentUserId set, cannot filter own cards!",
+      );
     }
-    
+
     // Deduplicate cards by _id to prevent React key errors
     const uniqueCards = Array.from(
-      new Map(cards.map((card: any) => [card._id, card])).values()
+      new Map(cards.map((card: any) => [card._id, card])).values(),
     );
     // console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
-    
+
     // Apply search filter
     if (!searchQuery.trim()) return uniqueCards;
-    
+
     const query = searchQuery.toLowerCase();
     return uniqueCards.filter((card: any) => {
       const companyName = (card.companyName || "").toLowerCase();
       const name = (card.name || "").toLowerCase();
       const keywords = (card.keywords || "").toLowerCase();
-      const location = (card.companyAddress || card.location || "").toLowerCase();
-      
-      return companyName.includes(query) || 
-             name.includes(query) || 
-             keywords.includes(query) ||
-             location.includes(query);
+      const location = (
+        card.companyAddress ||
+        card.location ||
+        ""
+      ).toLowerCase();
+
+      return (
+        companyName.includes(query) ||
+        name.includes(query) ||
+        keywords.includes(query) ||
+        location.includes(query)
+      );
     });
   }, [feedQ.data, searchQuery, currentUserId]);
 
-  // console.log("🎯 Home: Query state:", { 
-  //   isLoading: feedQ.isLoading, 
+  // console.log("🎯 Home: Query state:", {
+  //   isLoading: feedQ.isLoading,
   //   isRefetching: feedQ.isRefetching,
-  //   isError: feedQ.isError, 
+  //   isError: feedQ.isError,
   //   dataLength: feedQ.data?.length,
-  //   filteredLength: filteredCards?.length 
+  //   filteredLength: filteredCards?.length
   // });
 
   // console.log("🎨 HOME: About to render SafeAreaView");
@@ -211,15 +297,15 @@ export default function Home() {
       {/* Custom Header */}
       <View style={s.headerRow}>
         {/* Profile Left */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={s.profileButton}
-          onPress={() => router.push('/(tabs)/profile')}
+          onPress={() => router.push("/(tabs)/profile")}
           activeOpacity={0.7}
         >
           <View style={s.profileGradientBorder}>
             <View style={s.profileInner}>
               <Text style={s.profileInitial}>
-                {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                {userName ? userName.charAt(0).toUpperCase() : "U"}
               </Text>
             </View>
           </View>
@@ -233,11 +319,14 @@ export default function Home() {
         </View>
         {/* Credits Right */}
         <Link href="/referral" asChild>
-          <TouchableOpacity 
-            style={s.creditsButton} 
+          <TouchableOpacity
+            style={s.creditsButton}
             activeOpacity={0.7}
             onPress={() => {
-              console.log("🪙 Credits button pressed - Current value:", userCredits);
+              console.log(
+                "🪙 Credits button pressed - Current value:",
+                userCredits,
+              );
               console.log("🪙 Formatted value:", formatAmount(userCredits));
             }}
           >
@@ -248,7 +337,12 @@ export default function Home() {
               ) : (
                 <Text style={s.creditsCount}>
                   {(() => {
-                    console.log("💰 Rendering credits - Raw:", userCredits, "Formatted:", formatAmount(userCredits));
+                    console.log(
+                      "💰 Rendering credits - Raw:",
+                      userCredits,
+                      "Formatted:",
+                      formatAmount(userCredits),
+                    );
                     return formatAmount(userCredits);
                   })()}
                 </Text>
@@ -261,7 +355,12 @@ export default function Home() {
       {/* Search Bar - Static at the top */}
       <View style={s.searchBarRow}>
         <View style={s.searchBarContainer}>
-          <Ionicons name="search" size={20} color="#9CA3AF" style={s.searchIcon} />
+          <Ionicons
+            name="search"
+            size={20}
+            color="#9CA3AF"
+            style={s.searchIcon}
+          />
           <TextInput
             style={s.searchInputModern}
             placeholder="Search business cards"
@@ -270,10 +369,10 @@ export default function Home() {
             placeholderTextColor="#9CA3AF"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity 
-              onPress={() => setSearchQuery('')}
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
               style={s.clearButton}
-              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="close-circle" size={20} color="#9CA3AF" />
             </TouchableOpacity>
@@ -303,15 +402,20 @@ export default function Home() {
                 <View style={s.categoriesHeaderRow}>
                   <View style={s.categoriesWithArrow}>
                     <Text style={s.categoriesHeaderText}>Categories</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#EF4444" style={s.categoriesArrow} />
+                    <Ionicons
+                      name="arrow-forward"
+                      size={20}
+                      color="#EF4444"
+                      style={s.categoriesArrow}
+                    />
                   </View>
                   {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS && (
                     <TouchableOpacity
                       style={s.promoteBusinessButton}
-                      onPress={() => router.push('/business-promotion')}
+                      onPress={() => router.push("/business-promotion")}
                       activeOpacity={0.8}
                     >
-                      <Text style={s.promoteButtonText}>Promote Business</Text>      
+                      <Text style={s.promoteButtonText}>Promote Business</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -331,7 +435,8 @@ export default function Home() {
             <View style={s.empty}>
               <Text style={s.emptyTxt}>No cards yet.</Text>
               <Text style={s.emptySubTxt}>
-                Create your first card or sync your contacts to see cards from your network!
+                Create your first card or sync your contacts to see cards from
+                your network!
               </Text>
             </View>
           }
@@ -356,53 +461,53 @@ export default function Home() {
 }
 
 const s = StyleSheet.create({
-  root: { 
-    flex: 1, 
-    backgroundColor: "#F9FAFB" 
+  root: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   headerTitleLogoContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitleLogo: {
     fontSize: 26,
-    fontWeight: '900',
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
   headerTitleCyan: {
-    color: '#00C3FF',
-    fontWeight: '900',
+    color: "#00C3FF",
+    fontWeight: "900",
   },
   headerTitleBlue: {
-    color: '#0090FF',
-    fontWeight: '900',
+    color: "#0090FF",
+    fontWeight: "900",
   },
   headerTitleOrange: {
-    color: '#151C32',
-    fontWeight: '900',
+    color: "#151C32",
+    fontWeight: "900",
   },
   sectionTitle: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: "bold",
+    color: "#1F2937",
     marginTop: 18,
     marginBottom: 8,
     marginLeft: 18,
   },
   cardsHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
     marginTop: 1,
     marginBottom: 8,
     paddingHorizontal: 16,
@@ -410,26 +515,26 @@ const s = StyleSheet.create({
   cardsHeadingLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: "#D1D5DB",
   },
   cardsHeadingText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#1F2937",
+    textAlign: "center",
     paddingHorizontal: 16,
     letterSpacing: 0.5,
   },
   searchBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     paddingHorizontal: 14,
     paddingVertical: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 8,
@@ -441,7 +546,7 @@ const s = StyleSheet.create({
   searchInputModern: {
     flex: 1,
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
     paddingVertical: 0,
   },
   clearButton: {
@@ -558,9 +663,24 @@ const s = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 50,
   },
-  empty: { flex: 1, height: 240, alignItems: "center", justifyContent: "center" },
-  emptyTxt: { color: "#6B7280", fontSize: 18, textAlign: "center", fontWeight: "500" },
-  emptySubTxt: { color: "#9CA3AF", fontSize: 14, textAlign: "center", marginTop: 8 },
+  empty: {
+    flex: 1,
+    height: 240,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTxt: {
+    color: "#6B7280",
+    fontSize: 18,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+  emptySubTxt: {
+    color: "#9CA3AF",
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 8,
+  },
   testButton: {
     position: "absolute",
     top: 50,
@@ -708,36 +828,36 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   categoriesHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     marginTop: 1,
     marginBottom: 8,
   },
   categoriesWithArrow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   categoriesHeaderText: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontWeight: "700",
+    color: "#1F2937",
     letterSpacing: 0.3,
   },
   categoriesArrow: {
     marginTop: 2,
   },
   promoteBusinessButton: {
-    backgroundColor: '#EF4444',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EF4444",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
-    shadowColor: '#EF4444',
+    shadowColor: "#EF4444",
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
@@ -747,9 +867,9 @@ const s = StyleSheet.create({
     marginRight: 10,
   },
   promoteButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
 });
