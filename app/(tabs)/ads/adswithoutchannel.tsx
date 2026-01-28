@@ -396,7 +396,15 @@ export default function AdsWithoutChannel() {
       }
 
       console.log('🚀 Sending request to:', endpoint);
-      console.log('📦 FormData fields: title, phoneNumber, uploaderPhone, userId, startDate, endDate');
+      console.log('📦 FormData construction complete');
+      console.log('📋 Headers being sent:', JSON.stringify(headers));
+      
+      // IMPORTANT: Do NOT set Content-Type header - let fetch handle multipart/form-data boundaries
+      // Remove Content-Type if accidentally added
+      if (headers['Content-Type']) {
+        delete headers['Content-Type'];
+        console.log('⚠️ Removed Content-Type header to let fetch auto-set multipart boundaries');
+      }
       
       const response = await fetch(endpoint, {
         method: 'POST',
