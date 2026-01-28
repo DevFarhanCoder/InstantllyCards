@@ -288,10 +288,10 @@ export default function AdsWithoutChannel() {
     }
 
     // Check credits
-    if (userCredits < 1020) {
+    if (userCredits < 1200) {
       Alert.alert(
         "Insufficient Credits",
-        `You need 1020 credits to create an ad. Current balance: ${userCredits}`,
+        `You need 1200 credits to create an ad. Current balance: ${userCredits}`,
       );
       return;
     }
@@ -299,7 +299,7 @@ export default function AdsWithoutChannel() {
     // Confirm ad submission with cost breakdown
     Alert.alert(
       "📢 Ad Submission Cost",
-      `💳 Credits: 1020 (will be deducted now)\n💵 Cash Payment: ₹180 (after admin approval)\n📊 Total Cost: 1020 credits + ₹180\n\n⚠️ Admin will review your ad. After approval, you will be contacted to pay ₹180.\n\nDo you want to proceed?`,
+      `💳 Credits: 1200 (will be deducted now)\n💵 Cash Payment: ₹180 (after admin approval)\n📊 Total Cost: 1200 credits + ₹180\n\n⚠️ Admin will review your ad. After approval, you will be contacted to pay ₹180.\n\nDo you want to proceed?`,
       [
         {
           text: "Cancel",
@@ -412,7 +412,7 @@ export default function AdsWithoutChannel() {
       if (response.ok) {
         Alert.alert(
           "✅ Ad Submitted Successfully!",
-          `💳 1020 credits deducted\n📊 Remaining credits: ${data.remainingCredits ? formatIndianNumber(data.remainingCredits) : "N/A"}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
+          `💳 1200 credits deducted\n📊 Remaining credits: ${data.remainingCredits ? formatIndianNumber(data.remainingCredits) : "N/A"}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
           [
             {
               text: "OK",
@@ -550,7 +550,7 @@ export default function AdsWithoutChannel() {
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={24} color="#4F6AF3" />
             <Text style={styles.infoText}>
-              Create an ad for 1020 credits. Your ad will be reviewed by admin
+              Create an ad for 1200 credits. Your ad will be reviewed by admin
               before appearing in the app.
             </Text>
           </View>
@@ -1079,7 +1079,7 @@ export default function AdsWithoutChannel() {
           <View style={styles.warningCard}>
             <Ionicons name="warning" size={20} color="#f59e0b" />
             <Text style={styles.warningText}>
-              1020 credits will be deducted upon submission
+              1200 credits will be deducted upon submission
             </Text>
           </View>
 
@@ -1094,7 +1094,7 @@ export default function AdsWithoutChannel() {
               <>
                 <Ionicons name="paper-plane" size={20} color="#fff" />
                 <Text style={styles.submitBtnText}>
-                  Submit Ad (1020 Credits)
+                  Submit Ad (1200 Credits)
                 </Text>
               </>
             )}
