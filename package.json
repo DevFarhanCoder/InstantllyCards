@@ -57,7 +57,7 @@
     "react-native-pager-view": "^6.9.1",
     "react-native-picker-select": "^9.3.1",
     "react-native-qrcode-svg": "^6.3.15",
-    "react-native-reanimated": "~3.15.5",
+    "react-native-reanimated": "^3.10.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-share": "^12.2.2",
@@ -82,6 +82,11 @@
     "typescript": "~5.9.2"
   },
   "expo": {
+    "install": {
+      "exclude": [
+        "react-native-reanimated"
+      ]
+    },
     "doctor": {
       "reactNativeDirectoryCheck": {
         "exclude": [
