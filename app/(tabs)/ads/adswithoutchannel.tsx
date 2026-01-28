@@ -351,19 +351,28 @@ export default function AdsWithoutChannel() {
       
       if (adType === 'image') {
         // Add bottom image
-        formData.append('images', {
-          uri: bottomImage.uri,
-          type: 'image/jpeg',
-          name: 'bottom.jpg'
-        } as any);
+        console.log('📷 Adding bottom image to FormData:', bottomImage);
+        console.log('📷 Bottom image URI:', bottomImage?.uri);
+        if (bottomImage && bottomImage.uri) {
+          formData.append('images', {
+            uri: bottomImage.uri,
+            type: 'image/jpeg',
+            name: 'bottom.jpg'
+          } as any);
+          console.log('✅ Bottom image appended to FormData');
+        } else {
+          console.error('❌ Bottom image or URI is missing!');
+        }
 
         // Add fullscreen image if selected
-        if (fullscreenImage) {
+        if (fullscreenImage && fullscreenImage.uri) {
+          console.log('📷 Adding fullscreen image to FormData');
           formData.append('images', {
             uri: fullscreenImage.uri,
             type: 'image/jpeg',
             name: 'fullscreen.jpg'
           } as any);
+          console.log('✅ Fullscreen image appended to FormData');
         }
       } else {
         // Video ad
