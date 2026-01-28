@@ -45,25 +45,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Index() {
   useEffect(() => {
-    setTimeout(async () => {
+    // Navigate immediately - no delay
+    const navigate = async () => {
       try {
         const token = await AsyncStorage.getItem("token");
-
-        if (token) {
-          router.replace("/(tabs)/home");
-        } else {
-          router.replace("/(auth)/signup");
-        }
-      } catch (error) {
+        router.replace(token ? "/(tabs)/home" : "/(auth)/signup");
+      } catch {
         router.replace("/(auth)/signup");
       }
-    }, 1000);
+    };
+    navigate();
   }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Loading Instantlly Cards...</Text>
-      <Text style={styles.subtext}>Please wait</Text>
+      <Text style={styles.text}>Instantlly Cards</Text>
     </View>
   );
 }
@@ -79,11 +75,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#000",
-    marginBottom: 10,
-  },
-  subtext: {
-    fontSize: 16,
-    color: "#666",
   },
 });
 // import { useEffect, useRef, useState } from "react";

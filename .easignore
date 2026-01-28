@@ -1,4 +1,4 @@
-# .easignore - Files to exclude from EAS builds
+﻿# .easignore - Files to exclude from EAS builds
 
 # (This overrides .gitignore for EAS Build uploads)
 
@@ -23,9 +23,8 @@ _.test.tsx
 _.spec.ts
 _.spec.tsx
 
-# Force EAS to regenerate android folder with expo prebuild
+# Use CNG / Prebuild - exclude android folder so EAS regenerates it
 
-# This ensures native code is fresh and doesn't include expo-notifications
+android/
 
-/android
-/ios
+# Use local android folder (already has expo-notifications removed)
