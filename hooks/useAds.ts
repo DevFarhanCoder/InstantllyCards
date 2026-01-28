@@ -102,11 +102,13 @@ export function useAds() {
               JSON.stringify(response.data[0], null, 2),
             );
             console.log("🔍 [MOBILE STEP 4.5] Field check:", {
-              hasBottomMediaUrl: "bottomMediaUrl" in response.data[0],
-              bottomMediaUrlValue: response.data[0].bottomMediaUrl,
-              hasBottomMediaType: "bottomMediaType" in response.data[0],
-              bottomMediaTypeValue: response.data[0].bottomMediaType,
-              hasBottomImageGridFS: "bottomImageGridFS" in response.data[0],
+              hasBottomImageUrl: "bottomImageUrl" in response.data[0],
+              bottomImageUrlValue: response.data[0].bottomImageUrl,
+              hasFullscreenImageUrl: "fullscreenImageUrl" in response.data[0],
+              fullscreenImageUrlValue: response.data[0].fullscreenImageUrl,
+              hasBottomImage: "hasBottomImage" in response.data[0],
+              hasBottomImageValue: response.data[0].hasBottomImage,
+              allKeys: Object.keys(response.data[0]).join(", "),
             });
           }
 
@@ -142,30 +144,27 @@ export function useAds() {
 
           const formattedApiAds: Ad[] = response.data.map(
             (ad: any, index: number) => {
-              // 🔥 FIX: API returns bottomImageUrl, not bottomMediaUrl
-              // Build full image URLs using GridFS endpoints
-              const bottomMediaUrl = ad.bottomImageUrl
-                ? `${imageBaseUrl}${ad.bottomImageUrl}`
-                : null;
-
-              const fullscreenMediaUrl = ad.fullscreenImageUrl
-                ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
-                : null;
+              // ✅ FIX: Use relative URLs - buildUrl in FooterCarousel will prepend base URL
+              // This ensures we use the same base URL as the API calls (from EXPO_PUBLIC_API_BASE)
+              const bottomMediaUrl = ad.bottomImageUrl || null;
+              const fullscreenMediaUrl = ad.fullscreenImageUrl || null;
 
               if (index === 0) {
                 console.log(
-                  `✅ [MOBILE STEP 5] Constructing image URLs for first ad:`,
+                  `✅ [MOBILE STEP 5] Using relative URLs for first ad:`,
                 );
                 console.log(`   Bottom Image: ${bottomMediaUrl}`);
                 console.log(
                   `   Fullscreen Image: ${fullscreenMediaUrl || "N/A"}`,
                 );
+                console.log(`   Note: Base URL will be prepended by FooterCarousel buildUrl()`);
               }
 
               return {
                 id: `api-${ad._id}`,
                 phone: ad.phoneNumber,
                 name: ad.title || "Ad",
+                title: ad.title || "Ad",
                 priority: ad.priority || 5,
                 isFromApi: true,
 

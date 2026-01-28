@@ -1168,14 +1168,23 @@ const IMAGE_TIME = 5000; // Auto-scroll delay for all ads
 const buildUrl = (url?: string | null) => {
   if (!url) return null;
 
+  // Already a full URL
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
 
-  // cloudfront or domain without protocol
+  // Relative path (e.g., /api/ads/image/...) - prepend base URL
+  if (url.startsWith("/")) {
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE || "https://api-test.instantllycards.com";
+    const fullUrl = `${baseUrl}${url}`;
+    console.log('🔧 Built full URL from relative path:', fullUrl);
+    return fullUrl;
+  }
+
+  // CloudFront or domain without protocol
   if (url.includes(".")) {
     const fixed = `https://${url}`;
-    // console.log('🔧 Fixed URL:', fixed);
+    console.log('🔧 Fixed URL with https:', fixed);
     return fixed;
   }
 
