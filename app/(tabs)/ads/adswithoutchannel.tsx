@@ -350,8 +350,8 @@ export default function AdsWithoutChannel() {
       }
 
       if (adType === "image") {
-        // Add bottom image
-        formData.append("images", {
+        // ✅ FIX: Use 'bottomImage' field name to match backend validation
+        formData.append("bottomImage", {
           uri: bottomImage.uri,
           type: "image/jpeg",
           name: "bottom.jpg",
@@ -359,18 +359,22 @@ export default function AdsWithoutChannel() {
 
         // Add fullscreen image if selected
         if (fullscreenImage) {
-          formData.append("images", {
+          formData.append("fullscreenImage", {
             uri: fullscreenImage.uri,
             type: "image/jpeg",
             name: "fullscreen.jpg",
           } as any);
         }
+        
+        // Add media type so backend knows it's an image
+        formData.append("bottomMediaType", "image");
+        formData.append("fullscreenMediaType", "image");
       } else {
         // Video ad
         endpoint = `${API_BASE_URL}/channel-partner/ads/video`;
 
         // Add bottom video
-        formData.append("videos", {
+        formData.append("bottomVideo", {
           uri: bottomVideo.uri,
           type: "video/mp4",
           name: "bottom.mp4",
@@ -378,12 +382,16 @@ export default function AdsWithoutChannel() {
 
         // Add fullscreen video if selected
         if (fullscreenVideo) {
-          formData.append("videos", {
+          formData.append("fullscreenVideo", {
             uri: fullscreenVideo.uri,
             type: "video/mp4",
             name: "fullscreen.mp4",
           } as any);
         }
+        
+        // Add media type so backend knows it's a video
+        formData.append("bottomMediaType", "video");
+        formData.append("fullscreenMediaType", "video");
       }
 
       console.log("🚀 Sending request to:", endpoint);

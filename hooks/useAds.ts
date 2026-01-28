@@ -144,19 +144,17 @@ export function useAds() {
 
           const formattedApiAds: Ad[] = response.data.map(
             (ad: any, index: number) => {
-              // ✅ FIX: Use relative URLs - buildUrl in FooterCarousel will prepend base URL
-              // This ensures we use the same base URL as the API calls (from EXPO_PUBLIC_API_BASE)
-              const bottomMediaUrl = ad.bottomImageUrl || null;
-              const fullscreenMediaUrl = ad.fullscreenImageUrl || null;
+              // ✅ ALWAYS construct URLs from _id - works with both old and new API
+              const bottomMediaUrl = `/api/ads/image/${ad._id}/bottom`;
+              const fullscreenMediaUrl = `/api/ads/image/${ad._id}/fullscreen`;
 
               if (index === 0) {
                 console.log(
-                  `✅ [MOBILE STEP 5] Using relative URLs for first ad:`,
+                  `✅ [MOBILE STEP 5] Constructed URLs for first ad:`,
                 );
-                console.log(`   Bottom Image: ${bottomMediaUrl}`);
-                console.log(
-                  `   Fullscreen Image: ${fullscreenMediaUrl || "N/A"}`,
-                );
+                console.log(`   Ad ID: ${ad._id}`);
+                console.log(`   Bottom Image URL: ${bottomMediaUrl}`);
+                console.log(`   Fullscreen Image URL: ${fullscreenMediaUrl}`);
                 console.log(`   Note: Base URL will be prepended by FooterCarousel buildUrl()`);
               }
 
@@ -213,8 +211,8 @@ export function useAds() {
     staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
     gcTime: 30 * 60 * 1000, // 30 minutes - kept in memory (increased for 100+ ads)
 
-    // Don't refetch on component mount/focus (use cache)
-    refetchOnMount: false,
+    // TEMP: Force refetch to see fresh data
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
 
