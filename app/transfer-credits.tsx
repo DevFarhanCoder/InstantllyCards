@@ -16,7 +16,7 @@ import {
   Keyboard,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -69,6 +69,9 @@ interface User {
 }
 
 export default function TransferCreditsScreen() {
+  // Use safe area insets for proper positioning
+  const insets = useSafeAreaInsets();
+  
   // Use global credits context
   const { credits: balance, loading: loadingBalance, refreshCredits } = useCredits();
   const [searchQuery, setSearchQuery] = useState('');
@@ -527,12 +530,21 @@ export default function TransferCreditsScreen() {
         )}
 
         {/* Bottom spacing for footer carousel */}
-        <View style={{ height: 120 }} />
+        <View style={{ height: 180 }} />
       </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Footer Carousel - Fixed at bottom */}
-      <FooterCarousel withCustomTabBar={true} />
+      {/* Footer Carousel - Fixed above tab bar */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: insets.bottom + 60,
+          left: 0,
+          right: 0,
+        }}
+      >
+        <FooterCarousel />
+      </View>
       
       {/* Bottom Tab Navigation */}
       <CustomTabBar />

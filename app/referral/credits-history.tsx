@@ -19,6 +19,7 @@ import { router, useFocusEffect } from "expo-router";
 import api from "@/lib/api";
 import { formatIndianNumber } from "@/utils/formatNumber";
 import FooterCarousel from "@/components/FooterCarousel";
+import CustomTabBar from "@/components/CustomTabBar";
 
 const { width } = Dimensions.get("window");
 
@@ -517,13 +518,14 @@ export default function CreditsHistoryPage() {
       <View
         style={{
           position: "absolute",
-          bottom: insets.bottom,
+          bottom: insets.bottom + 60,
           left: 0,
           right: 0,
         }}
       >
         <FooterCarousel />
       </View>
+      <CustomTabBar />
     </SafeAreaView>
   );
 }

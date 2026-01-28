@@ -34,6 +34,7 @@ import { Asset } from "expo-asset";
 import api from "@/lib/api";
 import { formatIndianNumber } from "@/utils/formatNumber";
 import FooterCarousel from "@/components/FooterCarousel";
+import CustomTabBar from "@/components/CustomTabBar";
 
 interface ReferralStats {
   referralCode: string;
@@ -681,13 +682,14 @@ export default function ReferralPage() {
       <View
         style={{
           position: "absolute",
-          bottom: insets.bottom,
+          bottom: insets.bottom + 60,
           left: 0,
           right: 0,
         }}
       >
         <FooterCarousel />
       </View>
+      <CustomTabBar />
     </SafeAreaView>
   );
 }
