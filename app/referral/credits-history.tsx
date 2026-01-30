@@ -315,11 +315,20 @@ export default function CreditsHistoryPage() {
               </Text>
             </View>
             <View style={styles.creditsUnitContainer}>
-              <Text style={styles.totalCreditsUnit}>Credits Available</Text>
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                <Text style={styles.verifiedText}>Verified</Text>
+              <View style={styles.creditsTopRow}>
+                <Text style={styles.totalCreditsUnit}>Credits Available</Text>
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
               </View>
+              <Text style={styles.expiryDateText}>Expires: 31 March 2026 • {(() => {
+                const today = new Date();
+                const expiryDate = new Date('2026-03-31');
+                const diffTime = expiryDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays > 0 ? diffDays : 0;
+              })()} days left</Text>
             </View>
           </View>
         </View>
@@ -683,14 +692,25 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   creditsUnitContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    flexDirection: "column",
+    alignItems: "flex-start",
   },
   totalCreditsUnit: {
     fontSize: 16,
     color: "rgba(255, 255, 255, 0.95)",
     fontWeight: "600",
+  },
+  creditsTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  expiryDateText: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.7)",
+    fontWeight: "500",
+    marginTop: 4,
   },
   verifiedBadge: {
     flexDirection: "row",

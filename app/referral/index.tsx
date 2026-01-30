@@ -427,6 +427,13 @@ export default function ReferralPage() {
                 </Text>
               </View>
               <Text style={styles.creditsUnit}>Ready to use</Text>
+              <Text style={styles.expiryDateText}>Expires: 31 March 2026 • {(() => {
+                const today = new Date();
+                const expiryDate = new Date('2026-03-31');
+                const diffTime = expiryDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays > 0 ? diffDays : 0;
+              })()} days left</Text>
             </View>
           </LinearGradient>
           <View style={styles.creditsHintContainer}>
@@ -828,6 +835,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#059669",
     fontWeight: "500",
+  },
+  expiryDateText: {
+    fontSize: 11,
+    color: "#059669",
+    fontWeight: "400",
+    marginTop: 2,
+    opacity: 0.8,
   },
   creditsIconCircle: {
     width: 72,

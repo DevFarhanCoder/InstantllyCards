@@ -23,6 +23,12 @@ import { getCurrentUserId, getCurrentUserPhone, getCurrentUserName } from '../..
 import { formatIndianNumber } from '../../../utils/formatNumber';
 
 const { width } = Dimensions.get("window");
+
+// Refs to hold media data (prevents stale closure issues)
+let bottomImageRef: any = null;
+let fullscreenImageRef: any = null;
+let bottomVideoRef: any = null;
+let fullscreenVideoRef: any = null;
 const API_BASE_URL = `${process.env.EXPO_PUBLIC_API_BASE}${process.env.EXPO_PUBLIC_API_PREFIX}`;
 
 interface Ad {
@@ -188,10 +194,12 @@ export default function AdsWithoutChannel() {
       console.log('📸 Image picked:', type, 'URI:', result.assets[0].uri);
       if (type === 'bottom') {
         setBottomImage(result.assets[0]);
-        console.log('✅ Bottom image set');
+        bottomImageRef = result.assets[0]; // Store in ref too
+        console.log('✅ Bottom image set, ref updated');
       } else {
         setFullscreenImage(result.assets[0]);
-        console.log('✅ Fullscreen image set');
+        fullscreenImageRef = result.assets[0]; // Store in ref too
+        console.log('✅ Fullscreen image set, ref updated');
       }
     } else {
       console.log('❌ Image picker cancelled or failed');
@@ -229,8 +237,10 @@ export default function AdsWithoutChannel() {
         // Correct size - accept the video
         if (type === 'bottom') {
           setBottomVideo(video);
+          bottomVideoRef = video; // Store in ref too
         } else {
           setFullscreenVideo(video);
+          fullscreenVideoRef = video; // Store in ref too
         }
         Alert.alert('✅ Video Accepted!', `Your video is the correct size (${requiredSize} pixels).`);
       } else {
@@ -260,10 +270,18 @@ export default function AdsWithoutChannel() {
     // Debug logging
     console.log('🔍 Submit Ad Validation Debug:');
     console.log('  adType:', adType);
-    console.log('  bottomImage:', bottomImage ? 'EXISTS' : 'NULL');
-    console.log('  bottomVideo:', bottomVideo ? 'EXISTS' : 'NULL');
-    console.log('  fullscreenImage:', fullscreenImage ? 'EXISTS' : 'NULL');
-    console.log('  fullscreenVideo:', fullscreenVideo ? 'EXISTS' : 'NULL');
+    console.log('  bottomImage state:', bottomImage ? 'EXISTS' : 'NULL');
+    console.log('  bottomImageRef:', bottomImageRef ? 'EXISTS' : 'NULL');
+    console.log('  bottomVideo state:', bottomVideo ? 'EXISTS' : 'NULL');
+    console.log('  bottomVideoRef:', bottomVideoRef ? 'EXISTS' : 'NULL');
+
+    // Use ref as fallback if state is null (fixes stale closure issue)
+    const actualBottomImage = bottomImage || bottomImageRef;
+    const actualFullscreenImage = fullscreenImage || fullscreenImageRef;
+    const actualBottomVideo = bottomVideo || bottomVideoRef;
+    const actualFullscreenVideo = fullscreenVideo || fullscreenVideoRef;
+
+    console.log('  actualBottomImage:', actualBottomImage ? 'EXISTS' : 'NULL');
 
     // Validation
     if (!title.trim()) {
@@ -281,12 +299,12 @@ export default function AdsWithoutChannel() {
     
     // Check for image or video based on adType
     if (adType === 'image') {
-      if (!bottomImage) {
+      if (!actualBottomImage) {
         Alert.alert('Error', 'Bottom banner image is required');
         return;
       }
     } else {
-      if (!bottomVideo) {
+      if (!actualBottomVideo) {
         Alert.alert('Error', 'Bottom banner video is required');
         return;
       }
@@ -350,12 +368,16 @@ export default function AdsWithoutChannel() {
       }
       
       if (adType === 'image') {
+        // Use ref as fallback for stale closure issue
+        const imageToUpload = bottomImage || bottomImageRef;
+        const fullscreenToUpload = fullscreenImage || fullscreenImageRef;
+        
         // Add bottom image
-        console.log('📷 Adding bottom image to FormData:', bottomImage);
-        console.log('📷 Bottom image URI:', bottomImage?.uri);
-        if (bottomImage && bottomImage.uri) {
+        console.log('📷 Adding bottom image to FormData:', imageToUpload);
+        console.log('📷 Bottom image URI:', imageToUpload?.uri);
+        if (imageToUpload && imageToUpload.uri) {
           formData.append('images', {
-            uri: bottomImage.uri,
+            uri: imageToUpload.uri,
             type: 'image/jpeg',
             name: 'bottom.jpg'
           } as any);
@@ -365,30 +387,33 @@ export default function AdsWithoutChannel() {
         }
 
         // Add fullscreen image if selected
-        if (fullscreenImage && fullscreenImage.uri) {
+        if (fullscreenToUpload && fullscreenToUpload.uri) {
           console.log('📷 Adding fullscreen image to FormData');
           formData.append('images', {
-            uri: fullscreenImage.uri,
+            uri: fullscreenToUpload.uri,
             type: 'image/jpeg',
             name: 'fullscreen.jpg'
           } as any);
           console.log('✅ Fullscreen image appended to FormData');
         }
       } else {
-        // Video ad
+        // Video ad - use refs as fallback
+        const videoToUpload = bottomVideo || bottomVideoRef;
+        const fullscreenVideoToUpload = fullscreenVideo || fullscreenVideoRef;
+        
         endpoint = `${API_BASE_URL}/channel-partner/ads/video`;
         
         // Add bottom video
         formData.append('videos', {
-          uri: bottomVideo.uri,
+          uri: videoToUpload.uri,
           type: 'video/mp4',
           name: 'bottom.mp4'
         } as any);
 
         // Add fullscreen video if selected
-        if (fullscreenVideo) {
+        if (fullscreenVideoToUpload) {
           formData.append('videos', {
-            uri: fullscreenVideo.uri,
+            uri: fullscreenVideoToUpload.uri,
             type: 'video/mp4',
             name: 'fullscreen.mp4'
           } as any);
@@ -458,6 +483,11 @@ export default function AdsWithoutChannel() {
             setFullscreenImage(null);
             setBottomVideo(null);
             setFullscreenVideo(null);
+            // Also clear refs
+            bottomImageRef = null;
+            fullscreenImageRef = null;
+            bottomVideoRef = null;
+            fullscreenVideoRef = null;
             // Switch to status tab to see the submitted ad
             setActiveTab('status');
             // Reload ads
