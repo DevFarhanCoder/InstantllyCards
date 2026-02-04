@@ -1305,12 +1305,12 @@ const FooterCarousel = () => {
   const renderBottomMedia = (ad: Ad) => {
     const url = buildUrl(ad.bottomMediaUrl);
 
-    console.log("🖼️ Rendering bottom media:", {
-      adId: ad.id,
-      rawUrl: ad.bottomMediaUrl,
-      builtUrl: url,
-      mediaType: ad.bottomMediaType,
-    });
+    // console.log("🖼️ Rendering bottom media:", {
+    //   adId: ad.id,
+    //   rawUrl: ad.bottomMediaUrl,
+    //   builtUrl: url,
+    //   mediaType: ad.bottomMediaType,
+    // });
 
     if (!url) {
       console.warn("⚠️ No valid URL for ad:", ad.id);
@@ -1355,12 +1355,12 @@ const FooterCarousel = () => {
   const renderFullscreenMedia = (ad: Ad) => {
     const url = buildUrl(ad.fullscreenMediaUrl || ad.bottomMediaUrl);
 
-    console.log("🖥️ Rendering fullscreen media:", {
-      adId: ad.id,
-      fullscreenMediaUrl: ad.fullscreenMediaUrl,
-      bottomMediaUrl: ad.bottomMediaUrl,
-      builtUrl: url,
-    });
+    // console.log("🖥️ Rendering fullscreen media:", {
+    //   adId: ad.id,
+    //   fullscreenMediaUrl: ad.fullscreenMediaUrl,
+    //   bottomMediaUrl: ad.bottomMediaUrl,
+    //   builtUrl: url,
+    // });
 
     if (!url) {
       console.warn("⚠️ No fullscreen URL for ad:", ad.id);

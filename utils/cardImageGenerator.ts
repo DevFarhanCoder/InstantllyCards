@@ -6,37 +6,40 @@ let FileSystem: any = null;
 let Sharing: any = null;
 let Share: any = null;
 
+// Track which modules failed to load
+const missingModules: string[] = [];
+
 try {
   const viewShot = require("react-native-view-shot");
   captureRef = viewShot.captureRef;
+  console.log("✅ react-native-view-shot loaded successfully");
 } catch (error) {
-  console.warn(
-    "⚠️ react-native-view-shot not available. Image sharing requires app rebuild.",
-  );
+  console.warn("⚠️ react-native-view-shot not available:", error);
+  missingModules.push("react-native-view-shot");
 }
 
 try {
   FileSystem = require("expo-file-system/legacy");
+  console.log("✅ expo-file-system loaded successfully");
 } catch (error) {
-  console.warn(
-    "⚠️ expo-file-system not available. Image sharing requires app rebuild.",
-  );
+  console.warn("⚠️ expo-file-system not available:", error);
+  missingModules.push("expo-file-system");
 }
 
 try {
   Sharing = require("expo-sharing");
+  console.log("✅ expo-sharing loaded successfully");
 } catch (error) {
-  console.warn(
-    "⚠️ expo-sharing not available. Image sharing requires app rebuild.",
-  );
+  console.warn("⚠️ expo-sharing not available:", error);
+  missingModules.push("expo-sharing");
 }
 
 try {
   Share = require("react-native-share").default;
+  console.log("✅ react-native-share loaded successfully");
 } catch (error) {
-  console.warn(
-    "⚠️ react-native-share not available. Image sharing requires app rebuild.",
-  );
+  console.warn("⚠️ react-native-share not available:", error);
+  missingModules.push("react-native-share");
 }
 
 /**
@@ -54,9 +57,21 @@ export async function generateAndShareCardImage(
   try {
     // Check if native modules are available
     if (!captureRef || !FileSystem || !Sharing || !Share) {
+      const missingList = [
+        !captureRef && "react-native-view-shot",
+        !FileSystem && "expo-file-system",
+        !Sharing && "expo-sharing",
+        !Share && "react-native-share",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      console.error("❌ Missing native modules:", missingList);
+      console.error("Missing modules array:", missingModules);
+
       Alert.alert(
         "Feature Not Available",
-        'Card image sharing requires app rebuild. Please rebuild the app with:\n\nnpx expo run:android\n\nFor now, use "Share Within App" option.',
+        `Card image sharing requires app rebuild.\n\nMissing: ${missingList}\n\nPlease rebuild the app with:\n\nnpx expo run:android\n\nFor now, use "Share Within App" option.`,
         [{ text: "OK" }],
       );
       return {
@@ -85,12 +100,101 @@ export async function generateAndShareCardImage(
     const companyName = cardData.companyName || cardData.name || "Business";
     const fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, "_")}_Card.png`;
 
+    // Helper function to format business hours from object
+    const formatBusinessHours = (hoursObj: any): string => {
+      if (!hoursObj) return "";
+      
+      // If it's a string (JSON), try to parse it
+      let hours: any = hoursObj;
+      if (typeof hoursObj === "string") {
+        try {
+          hours = JSON.parse(hoursObj);
+        } catch (e) {
+          return hoursObj; // Return as is if parsing fails
+        }
+      }
+
+      if (typeof hours !== "object") return String(hoursObj);
+
+      // Helper function to convert 24-hour to 12-hour format
+      const convertTo12Hour = (time24: string): string => {
+        const [hours, minutes] = time24.split(":").map(Number);
+        const period = hours >= 12 ? "PM" : "AM";
+        const hours12 = hours % 12 || 12;
+        return `${hours12}:${String(minutes).padStart(2, "0")} ${period}`;
+      };
+
+      // Format the hours nicely
+      const dayOrder = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ];
+      const dayShort: { [key: string]: string } = {
+        Monday: "Mon",
+        Tuesday: "Tue",
+        Wednesday: "Wed",
+        Thursday: "Thu",
+        Friday: "Fri",
+        Saturday: "Sat",
+        Sunday: "Sun",
+      };
+
+      let formatted = "";
+      let previousRange = "";
+      let startDay = "";
+
+      dayOrder.forEach((day, index) => {
+        const dayData = hours[day];
+        if (!dayData) return;
+
+        const isOpen = dayData.open !== false;
+        const currentRange = isOpen
+          ? `${convertTo12Hour(dayData.openTime)} - ${convertTo12Hour(dayData.closeTime)}`
+          : "Closed";
+
+        if (currentRange === previousRange && previousRange !== "") {
+          // Same hours as previous day, skip adding to formatted string yet
+        } else {
+          // Different hours, so output the previous range if it exists
+          if (previousRange !== "") {
+            if (startDay === dayShort[dayOrder[index - 1]]) {
+              formatted += `${startDay}, `;
+            } else {
+              formatted += `${startDay} - ${dayShort[dayOrder[index - 1]]}, `;
+            }
+            formatted += `${previousRange}\n`;
+          }
+          startDay = dayShort[day];
+          previousRange = currentRange;
+        }
+
+        // Handle last day
+        if (index === dayOrder.length - 1 && previousRange !== "") {
+          if (startDay === dayShort[day]) {
+            formatted += `${startDay}: ${previousRange}`;
+          } else {
+            formatted += `${startDay} - ${dayShort[day]}: ${previousRange}`;
+          }
+        }
+      });
+
+      return formatted.trim();
+    };
+
     // Build card details message
     const buildCardDetails = () => {
       let details = "This is My Digital Visiting Card -\n\n";
 
       // Personal Information
       if (cardData.name) details += `👤 Name: ${cardData.name}\n`;
+      if (cardData.birthDate)
+        details += `🎂 Birth Date: ${cardData.birthDate}\n`;
+      if (cardData.gender) details += `⚧️ Gender: ${cardData.gender}\n`;
       if (cardData.designation)
         details += `💼 Designation: ${cardData.designation}\n`;
 
@@ -138,8 +242,23 @@ export async function generateAndShareCardImage(
       const companyMapsLink = cardData.companyMapsLink;
       if (companyMapsLink) details += `🗺️ Company Maps: ${companyMapsLink}\n`;
 
+      // Business Details
+      if (cardData.aboutBusiness)
+        details += `📝 About Business: ${cardData.aboutBusiness}\n`;
+      if (cardData.businessHours) {
+        const formattedHours = formatBusinessHours(cardData.businessHours);
+        if (formattedHours) {
+          details += `🕐 Business Hours:\n${formattedHours}\n`;
+        }
+      }
+      if (cardData.establishedYear)
+        details += `📅 Established: ${cardData.establishedYear}\n`;
+
       const message = cardData.message;
       if (message) details += `💬 Message: ${message}\n`;
+
+      if (cardData.additionalInformation)
+        details += `ℹ️ Additional Info: ${cardData.additionalInformation}\n`;
 
       // Social Media Links
       let socialAdded = false;
@@ -150,6 +269,7 @@ export async function generateAndShareCardImage(
         cardData.facebook ||
         cardData.youtube ||
         cardData.whatsapp ||
+        cardData.whatsappBusiness ||
         cardData.telegram
       ) {
         details += `\n🔗 Social Media:\n`;
@@ -163,6 +283,8 @@ export async function generateAndShareCardImage(
       if (cardData.facebook) details += `   Facebook: ${cardData.facebook}\n`;
       if (cardData.youtube) details += `   YouTube: ${cardData.youtube}\n`;
       if (cardData.whatsapp) details += `   WhatsApp: ${cardData.whatsapp}\n`;
+      if (cardData.whatsappBusiness)
+        details += `   WhatsApp Business: ${cardData.whatsappBusiness}\n`;
       if (cardData.telegram) details += `   Telegram: ${cardData.telegram}\n`;
 
       return details;
