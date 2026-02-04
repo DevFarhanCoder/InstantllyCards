@@ -43,17 +43,17 @@ export function useAds() {
     queryKey: ["footer-ads"],
     queryFn: async () => {
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📡 [MOBILE STEP 1] useAds: Fetching ads from API...");
+      // console.log("📡 [MOBILE STEP 1] useAds: Fetching ads from API...");
 
       try {
         const response = await api.get("/ads/active");
 
-        console.log("📥 [MOBILE STEP 2] Response received");
-        console.log("📥 Response type:", typeof response);
-        console.log(
-          "📥 Response keys:",
-          response ? Object.keys(response).join(", ") : "null",
-        );
+        // console.log("📥 [MOBILE STEP 2] Response received");
+        // console.log("📥 Response type:", typeof response);
+        // console.log(
+        //   "📥 Response keys:",
+        //   response ? Object.keys(response).join(", ") : "null",
+        // );
 
         // Check if response is valid JSON (not HTML error page)
         if (typeof response === "string") {
@@ -87,28 +87,28 @@ export function useAds() {
             );
           }
 
-          console.log(
-            `� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`,
-          );
-          console.log(
-            "🌐 Image Base URL:",
-            imageBaseUrl || "(none configured)",
-          );
+          // console.log(
+          //   `� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`,
+          // );
+          // console.log(
+          //   "🌐 Image Base URL:",
+          //   imageBaseUrl || "(none configured)",
+          // );
 
           // Check first ad structure
-          if (response.data[0]) {
-            console.log(
-              "📸 [MOBILE STEP 4] First ad RAW DATA:",
-              JSON.stringify(response.data[0], null, 2),
-            );
-            console.log("🔍 [MOBILE STEP 4.5] Field check:", {
-              hasBottomMediaUrl: "bottomMediaUrl" in response.data[0],
-              bottomMediaUrlValue: response.data[0].bottomMediaUrl,
-              hasBottomMediaType: "bottomMediaType" in response.data[0],
-              bottomMediaTypeValue: response.data[0].bottomMediaType,
-              hasBottomImageGridFS: "bottomImageGridFS" in response.data[0],
-            });
-          }
+          // if (response.data[0]) {
+          //   console.log(
+          //     "📸 [MOBILE STEP 4] First ad RAW DATA:",
+          //     JSON.stringify(response.data[0], null, 2),
+          //   );
+          //   console.log("🔍 [MOBILE STEP 4.5] Field check:", {
+          //     hasBottomMediaUrl: "bottomMediaUrl" in response.data[0],
+          //     bottomMediaUrlValue: response.data[0].bottomMediaUrl,
+          //     hasBottomMediaType: "bottomMediaType" in response.data[0],
+          //     bottomMediaTypeValue: response.data[0].bottomMediaType,
+          //     hasBottomImageGridFS: "bottomImageGridFS" in response.data[0],
+          //   });
+          // }
 
           // Format ads for carousel - sorted by priority (backend already sorted)
           // ✅ UPDATED: Now using GridFS URLs instead of base64
@@ -152,15 +152,15 @@ export function useAds() {
                 ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
                 : null;
 
-              if (index === 0) {
-                console.log(
-                  `✅ [MOBILE STEP 5] Constructing image URLs for first ad:`,
-                );
-                console.log(`   Bottom Image: ${bottomMediaUrl}`);
-                console.log(
-                  `   Fullscreen Image: ${fullscreenMediaUrl || "N/A"}`,
-                );
-              }
+              // if (index === 0) {
+              //   console.log(
+              //     `✅ [MOBILE STEP 5] Constructing image URLs for first ad:`,
+              //   );
+              //   console.log(`   Bottom Image: ${bottomMediaUrl}`);
+              //   console.log(
+              //     `   Fullscreen Image: ${fullscreenMediaUrl || "N/A"}`,
+              //   );
+              // }
 
               return {
                 id: `api-${ad._id}`,
@@ -181,10 +181,10 @@ export function useAds() {
             },
           );
 
-          console.log(
-            `✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`,
-          );
-          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+          // console.log(
+          //   `✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`,
+          // );
+          // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
           return formattedApiAds;
         } else {
