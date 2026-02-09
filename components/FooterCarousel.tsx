@@ -1183,7 +1183,11 @@ const buildUrl = (url?: string | null) => {
   return null;
 };
 
-const FooterCarousel = () => {
+interface FooterCarouselProps {
+  showPromoteButton?: boolean;
+}
+
+const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = false }) => {
   const { data: ads = [], isLoading } = useAds();
   const scrollRef = useRef<ScrollView>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
