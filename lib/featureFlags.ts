@@ -14,6 +14,9 @@ export const FEATURE_FLAGS = {
   // Promote Business button and feature
   SHOW_PROMOTE_BUSINESS: true, // Set to true when ready for production
   
+  // Service selection screen for business type
+  SHOW_SERVICE_SELECTION: false, // Disabled - feature not ready for production
+  
   // You can also make features dev-only:
   // SHOW_CATEGORIES: isDev,
   // SHOW_PROMOTE_BUSINESS: isDev,

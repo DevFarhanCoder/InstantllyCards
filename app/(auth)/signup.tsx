@@ -575,10 +575,10 @@ export default function Signup() {
       }
 
       console.log(
-        `🔀 [SIGNUP] Navigation: Redirecting to service selection...`,
+        `🔀 [SIGNUP] Navigation: Redirecting to home...`,
       );
       console.log(`${"=".repeat(70)}\n`);
-      router.replace("/(auth)/service-selection");
+      router.replace("/(tabs)/home");
     } catch (e: any) {
       const duration = Date.now() - startTime;
       console.error(`\n❌ [SIGNUP-CREATE] EXCEPTION ERROR - ID: ${requestId}`);

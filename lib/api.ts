@@ -55,11 +55,15 @@ async function request<T>(
   // Always use the /api prefix since our backend expects it
   const candidates = [`${BASE}/api${path.startsWith("/") ? path : `/${path}`}`];
 
+  // Don't retry any auth operations (signup, login, etc.) as they can cause duplicates
+  const isAuthRequest = method === "POST" && path.includes("/auth/");
+  const maxRetries = isAuthRequest ? 0 : 2;
+
   let lastErr: any;
   for (const url of candidates) {
-    let retries = 2;
+    let retries = maxRetries;
 
-    while (retries > 0) {
+    do {
       try {
         // Create AbortController for timeout
         const controller = new AbortController();
@@ -173,7 +177,7 @@ async function request<T>(
           await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
         }
       }
-    }
+    } while (retries > 0);
   }
 
   // Suppress final error log for quiz endpoints
