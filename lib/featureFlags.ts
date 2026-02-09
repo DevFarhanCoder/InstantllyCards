@@ -12,7 +12,7 @@ export const FEATURE_FLAGS = {
   SHOW_CATEGORIES: false, // Set to true when ready for production
   
   // Promote Business button and feature
-  SHOW_PROMOTE_BUSINESS: false, // Set to true when ready for production
+  SHOW_PROMOTE_BUSINESS: true, // Set to true when ready for production
   
   // You can also make features dev-only:
   // SHOW_CATEGORIES: isDev,
