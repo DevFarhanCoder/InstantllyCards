@@ -43,17 +43,17 @@ export function useAds() {
     queryKey: ["footer-ads"],
     queryFn: async () => {
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📡 [MOBILE STEP 1] useAds: Fetching ads from API...");
+      // console.log("📡 [MOBILE STEP 1] useAds: Fetching ads from API...");
 
       try {
         const response = await api.get("/ads/active");
 
-        console.log("📥 [MOBILE STEP 2] Response received");
-        console.log("📥 Response type:", typeof response);
-        console.log(
-          "📥 Response keys:",
-          response ? Object.keys(response).join(", ") : "null",
-        );
+        // console.log("📥 [MOBILE STEP 2] Response received");
+        // console.log("📥 Response type:", typeof response);
+        // console.log(
+        //   "📥 Response keys:",
+        //   response ? Object.keys(response).join(", ") : "null",
+        // );
 
         // Check if response is valid JSON (not HTML error page)
         if (typeof response === "string") {
@@ -87,13 +87,13 @@ export function useAds() {
             );
           }
 
-          console.log(
-            `� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`,
-          );
-          console.log(
-            "🌐 Image Base URL:",
-            imageBaseUrl || "(none configured)",
-          );
+          // console.log(
+          //   `� [MOBILE STEP 3] Processing ${response.data.length} ads from API...`,
+          // );
+          // console.log(
+          //   "🌐 Image Base URL:",
+          //   imageBaseUrl || "(none configured)",
+          // );
 
           // Check first ad structure
           if (response.data[0]) {
@@ -178,10 +178,10 @@ export function useAds() {
             },
           );
 
-          console.log(
-            `✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`,
-          );
-          console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+          // console.log(
+          //   `✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`,
+          // );
+          // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
           return formattedApiAds;
         } else {
