@@ -20,6 +20,23 @@ export interface NetworkMetrics {
   estimatedCommission: number;
 }
 
+export interface CreditStatistics {
+  totalCreditReceived: number;
+  totalCreditTransferred: number;
+  totalCreditBalance: number;
+  creditTransferToEachPerson: CreditTransferRecord[];
+  creditTransferredReceivedBack: number;
+}
+
+export interface CreditTransferRecord {
+  id: string;
+  recipientName: string;
+  recipientId: string;
+  amount: number;
+  date: string;
+  status: "completed" | "pending" | "returned";
+}
+
 export type ViewMode = "list" | "tree";
 
 export interface TransferCreditsData {

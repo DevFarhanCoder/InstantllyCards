@@ -1,4 +1,9 @@
-import { NetworkUser, NetworkMetrics } from "../types/network";
+import {
+  NetworkUser,
+  NetworkMetrics,
+  CreditStatistics,
+  CreditTransferRecord,
+} from "../types/network";
 
 // Helper function to generate mock network users
 const generateMockUsers = (
@@ -87,6 +92,59 @@ export const mockMetrics: NetworkMetrics = {
   totalVouchersTransferred: 42350,
   totalNetworkUsers: mockRootUser.totalNetworkCount,
   estimatedCommission: mockRootUser.commissionEarned || 0,
+};
+
+// Mock credit transfer records
+const mockTransferRecords: CreditTransferRecord[] = [
+  {
+    id: "tx-001",
+    recipientName: "Zaara Khan",
+    recipientId: "user-root-1-0",
+    amount: 5000,
+    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "completed",
+  },
+  {
+    id: "tx-002",
+    recipientName: "Imran Ahmed",
+    recipientId: "user-root-1-1",
+    amount: 3500,
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "completed",
+  },
+  {
+    id: "tx-003",
+    recipientName: "Ayesha Ali",
+    recipientId: "user-root-1-2",
+    amount: 2000,
+    date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "returned",
+  },
+  {
+    id: "tx-004",
+    recipientName: "Hassan Sheikh",
+    recipientId: "user-root-1-3",
+    amount: 4000,
+    date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "completed",
+  },
+  {
+    id: "tx-005",
+    recipientName: "Fatima Malik",
+    recipientId: "user-root-1-4",
+    amount: 1500,
+    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "pending",
+  },
+];
+
+// Mock credit statistics
+export const mockCreditStatistics: CreditStatistics = {
+  totalCreditReceived: 65000,
+  totalCreditTransferred: 42350,
+  totalCreditBalance: 8500,
+  creditTransferToEachPerson: mockTransferRecords,
+  creditTransferredReceivedBack: 2000,
 };
 
 // Helper to flatten the tree for list view
