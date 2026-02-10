@@ -1275,37 +1275,49 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     })();
   }, [ads.length]);
 
-  /* ⏱️ Auto scroll for image ads */
+  /* ⏱️ Auto scroll for image ads - FIXED: Prevents race conditions */
   useEffect(() => {
     if (!initialized || infiniteAds.length <= 1) return;
 
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    timerRef.current = setTimeout(() => {
-      const next = activeIndex + 1;
+    const startAutoScroll = () => {
+      timerRef.current = setTimeout(() => {
+        setActiveIndex((currentIndex) => {
+          const next = currentIndex + 1;
 
-      scrollRef.current?.scrollTo({
-        x: next * SCREEN_WIDTH,
-        animated: true,
-      });
-
-      if (next === infiniteAds.length - 1) {
-        setTimeout(() => {
+          // Scroll to next position
           scrollRef.current?.scrollTo({
-            x: SCREEN_WIDTH,
-            animated: false,
+            x: next * SCREEN_WIDTH,
+            animated: true,
           });
-          setActiveIndex(1);
-        }, 300);
-      } else {
-        setActiveIndex(next);
-      }
-    }, IMAGE_TIME);
+
+          // Handle infinite loop boundary
+          if (next === infiniteAds.length - 1) {
+            // Reached duplicate first slide, jump back after animation
+            setTimeout(() => {
+              scrollRef.current?.scrollTo({
+                x: SCREEN_WIDTH,
+                animated: false,
+              });
+            }, 300);
+            return 1; // Reset to first real ad
+          } else {
+            return next; // Continue to next ad
+          }
+        });
+        
+        // Schedule next scroll (recursive, prevents race conditions)
+        startAutoScroll();
+      }, IMAGE_TIME);
+    };
+
+    startAutoScroll();
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [activeIndex, initialized]);
+  }, [initialized, infiniteAds.length]); // ✅ FIXED: Only depends on initialization, not activeIndex
 
   /* 💾 Save index */
   useEffect(() => {
