@@ -319,6 +319,15 @@ export default function Signup() {
   */
 
   const doSignup = async () => {
+    // Prevent double-submission with additional safeguards
+    if (loading) {
+      console.log('⚠️ [SIGNUP] Request already in progress, ignoring duplicate call');
+      return;
+    }
+    
+    // Additional protection: Set loading immediately
+    setLoading(true);
+    
     const requestId = Math.random().toString(36).substring(7);
     const startTime = Date.now();
 
@@ -387,12 +396,17 @@ export default function Signup() {
       console.log(
         `   Payload: { name, phone, password${referralCode ? ", referralCode" : ""} }`,
       );
+      console.log(`   Request ID: ${requestId} (sending to backend)`);
 
       const res = await api.post("/auth/signup", {
         name: nameT,
         phone: fullPhone,
         password: passwordT,
         ...(referralCode && { referralCode }),
+      }, {
+        headers: {
+          'X-REQ-ID': requestId  // Send unique request ID to backend for tracking
+        }
       });
 
       // Clear referral code after successful signup
@@ -799,6 +813,8 @@ export default function Signup() {
                   ]}
                   onPress={doSignup}
                   disabled={loading}
+                  // Add haptic feedback and prevent rapid tapping
+                  delayPressIn={100}
                 >
                   {loading ? (
                     <View style={styles.loadingRow}>
