@@ -1215,11 +1215,23 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
       firstAd: ads[0]
         ? {
             id: ads[0].id,
+            title: ads[0].title,
+            phone: ads[0].phone,
             bottomMediaUrl: ads[0].bottomMediaUrl,
             bottomMediaType: ads[0].bottomMediaType,
           }
         : null,
     });
+    
+    // 🚨 CRITICAL: Log if we have all expected ads
+    console.log(`🎯 CAROUSEL STATUS: ${ads.length} ads loaded (expected: 52)`);
+    if (ads.length === 52) {
+      console.log("✅ SUCCESS: All 52 ads loaded correctly!");
+    } else if (ads.length < 52) {
+      console.log(`⚠️ WARNING: Only ${ads.length}/52 ads loaded - some ads filtered out!`);
+    } else {
+      console.log(`📈 NOTICE: ${ads.length} ads loaded (more than expected 52)`);
+    }
   }, [ads.length, isLoading]);
 
   // ⚡ Preload fullscreen images for instant display
@@ -1285,6 +1297,13 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
       timerRef.current = setTimeout(() => {
         setActiveIndex((currentIndex) => {
           const next = currentIndex + 1;
+          
+          // 🔍 DEBUG: Log which ad is showing
+          const adToShow = infiniteAds[next];
+          if (adToShow) {
+            console.log(`📺 AD ROTATION: ${next}/${infiniteAds.length} - ${adToShow.title} (${adToShow.phone})`);
+            console.log(`🔄 SEQUENCE CHECK: Should be Ad #${next-1} in database order`);
+          }
 
           // Scroll to next position
           scrollRef.current?.scrollTo({
@@ -1301,6 +1320,8 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
                 animated: false,
               });
             }, 300);
+            console.log('🔄 CYCLE COMPLETE: All ads shown! Restarting from Ad 1');
+            console.log(`⏱️ TIMING: Full cycle took ~${((ads.length * IMAGE_TIME) / 1000 / 60).toFixed(1)} minutes`);
             return 1; // Reset to first real ad
           } else {
             return next; // Continue to next ad
