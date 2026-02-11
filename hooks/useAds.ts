@@ -178,12 +178,29 @@ export function useAds() {
             },
           );
 
-          // console.log(
-          //   `✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`,
-          // );
-          // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+          // ✅ FRONTEND DEDUPLICATION: Extra safety to ensure no duplicates slip through
+          // Deduplicate by phone number + title combination
+          const uniqueAds = formattedApiAds.reduce((acc: Ad[], currentAd: Ad) => {
+            const key = `${currentAd.phone}-${currentAd.title}`;
+            const exists = acc.some(ad => 
+              `${ad.phone}-${ad.title}` === key
+            );
+            
+            if (!exists) {
+              acc.push(currentAd);
+            } else {
+              console.log(`🔄 [MOBILE] Skipping duplicate: "${currentAd.title}" (${currentAd.phone})`);
+            }
+            
+            return acc;
+          }, []);
+          
+          console.log(`📊 [MOBILE STEP 6] Total ads: ${formattedApiAds.length} → Unique ads: ${uniqueAds.length}`);
+          if (formattedApiAds.length > uniqueAds.length) {
+            console.log(`🗑️  [MOBILE] Removed ${formattedApiAds.length - uniqueAds.length} duplicate ad(s) on frontend`);
+          }
 
-          return formattedApiAds;
+          return uniqueAds;
         } else {
           // console.log('⚠️  [MOBILE WARNING] No API ads available in response');
           // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -211,19 +228,18 @@ export function useAds() {
     staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
     gcTime: 30 * 60 * 1000, // 30 minutes - kept in memory (increased for 100+ ads)
 
-    // TEMP: Force refetch to see fresh data
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    // ✅ FIXED: Prevent mid-sequence refetching that disrupts carousel order
+    refetchOnMount: false, // Don't refetch when component remounts
+    refetchOnWindowFocus: false, // Don't refetch when window gains focus
+    refetchOnReconnect: false, // Don't refetch on network reconnect
 
-    // Auto-refresh every 10 minutes in background (smooth queue updates)
-    refetchInterval: 10 * 60 * 1000,
+    // ✅ DISABLED: Auto-refresh can disrupt carousel mid-sequence
+    // Only manually refetch or wait for staleTime to expire
+    refetchInterval: false, // Disabled auto-refresh
+    refetchIntervalInBackground: false, // Disabled background refresh
 
     // Retry configuration
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-
-    // Enable background refetching for continuous smooth updates
-    refetchIntervalInBackground: true,
   });
 }
