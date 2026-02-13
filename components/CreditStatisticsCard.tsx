@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,12 @@ export default function CreditStatisticsCard({
   statistics,
 }: CreditStatisticsCardProps) {
   const [showTransfers, setShowTransfers] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick((prev) => prev + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -61,18 +67,29 @@ export default function CreditStatisticsCard({
     }
   };
 
+  const formatTimeLeft = (target?: string) => {
+    if (!target) return "--";
+    const diff = new Date(target).getTime() - Date.now();
+    if (diff <= 0) return "Expired";
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
+  };
+
   const StatisticItem = ({
     icon,
     label,
     value,
     color,
     prefix = "",
+    suffix = "",
   }: {
     icon: keyof typeof Ionicons.glyphMap;
     label: string;
     value: string | number;
     color: string;
     prefix?: string;
+    suffix?: string;
   }) => (
     <View style={styles.statisticItem}>
       <LinearGradient
@@ -88,6 +105,7 @@ export default function CreditStatisticsCard({
         <Text style={[styles.statisticValue, { color }]}>
           {prefix}
           {typeof value === "number" ? formatNumber(value) : value}
+          {suffix}
         </Text>
       </View>
     </View>
@@ -109,7 +127,7 @@ export default function CreditStatisticsCard({
           <View style={styles.balanceBadge}>
             <Ionicons name="wallet" size={16} color="#10B981" />
             <Text style={styles.balanceText}>
-              ₹{formatNumber(statistics.totalCreditBalance)}
+              {formatNumber(statistics.totalCreditBalance)} credits
             </Text>
           </View>
         </View>
@@ -120,28 +138,28 @@ export default function CreditStatisticsCard({
             label="Total Credit Received"
             value={statistics.totalCreditReceived}
             color="#10B981"
-            prefix="₹"
+            suffix=" credits"
           />
           <StatisticItem
             icon="arrow-up-circle"
             label="Total Credit Transferred"
             value={statistics.totalCreditTransferred}
             color="#EF4444"
-            prefix="₹"
+            suffix=" credits"
           />
           <StatisticItem
             icon="wallet-outline"
             label="Current Balance"
             value={statistics.totalCreditBalance}
             color="#3B82F6"
-            prefix="₹"
+            suffix=" credits"
           />
           <StatisticItem
             icon="arrow-undo-circle"
             label="Credits Received Back"
             value={statistics.creditTransferredReceivedBack}
             color="#8B5CF6"
-            prefix="₹"
+            suffix=" credits"
           />
         </View>
 
@@ -226,6 +244,27 @@ export default function CreditStatisticsCard({
               </View>
             ))}
           </ScrollView>
+        )}
+
+        {statistics.timers && statistics.timers.length > 0 && (
+          <View style={styles.timerSection} key={tick}>
+            <Text style={styles.timerTitle}>Credit Countdown</Text>
+            {statistics.timers.map((timer) => (
+              <View key={timer.creditId} style={styles.timerRow}>
+                <View style={styles.timerLeft}>
+                  <Ionicons name="timer" size={16} color="#0F172A" />
+                  <Text style={styles.timerLabel}>
+                    {timer.paymentStatus === "pending" ? "Payment" : "Transfer"}
+                  </Text>
+                </View>
+                <Text style={styles.timerValue}>
+                  {timer.paymentStatus === "pending"
+                    ? formatTimeLeft(timer.expiresAt)
+                    : formatTimeLeft(timer.transferExpiresAt)}
+                </Text>
+              </View>
+            ))}
+          </View>
         )}
       </LinearGradient>
     </View>
@@ -334,6 +373,38 @@ const styles = StyleSheet.create({
     maxHeight: scaleSize(300),
   },
   transferItem: {
+    timerSection: {
+      marginTop: scaleSize(16),
+      borderTopWidth: 1,
+      borderTopColor: "rgba(0, 0, 0, 0.06)",
+      paddingTop: scaleSize(12),
+    },
+    timerTitle: {
+      fontSize: scaleFontSize(16),
+      fontWeight: "600",
+      color: "#1F2937",
+      marginBottom: scaleSize(8),
+    },
+    timerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: scaleSize(6),
+    },
+    timerLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    timerLabel: {
+      fontSize: scaleFontSize(14),
+      color: "#475569",
+    },
+    timerValue: {
+      fontSize: scaleFontSize(14),
+      fontWeight: "600",
+      color: "#0F172A",
+    },
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",

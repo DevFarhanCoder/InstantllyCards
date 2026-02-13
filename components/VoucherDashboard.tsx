@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,12 +16,19 @@ import NetworkTreeView from "./NetworkTreeView";
 import NetworkListView from "./NetworkListView";
 import TransferCreditsModal from "./TransferCreditsModal";
 import NetworkDetailBottomSheet from "./NetworkDetailBottomSheet";
+import CommissionDashboardCard from "./CommissionDashboardCard";
+import VoucherList from "./VoucherList";
+import DirectBuyersList from "./DirectBuyersList";
+import api from "../lib/api";
 import {
-  mockRootUser,
-  mockMetrics,
-  mockCreditStatistics,
-} from "../utils/mockNetworkData";
-import { NetworkUser, ViewMode } from "../types/network";
+  CommissionSummary,
+  CreditStatistics,
+  DirectBuyer,
+  NetworkMetrics,
+  NetworkUser,
+  VoucherItem,
+  ViewMode,
+} from "../types/network";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
 
 interface VoucherDashboardProps {
@@ -35,6 +43,121 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const [detailSheetVisible, setDetailSheetVisible] = useState(false);
   const [detailUser, setDetailUser] = useState<NetworkUser | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState<NetworkMetrics>({
+    availableCredits: 0,
+    totalVouchersTransferred: 0,
+    totalNetworkUsers: 0,
+    estimatedCommission: 0,
+  });
+  const [creditStats, setCreditStats] = useState<CreditStatistics>({
+    totalCreditReceived: 0,
+    totalCreditTransferred: 0,
+    totalCreditBalance: 0,
+    creditTransferToEachPerson: [],
+    creditTransferredReceivedBack: 0,
+    activeCredits: 0,
+    timers: [],
+  });
+  const [commissionSummary, setCommissionSummary] = useState<CommissionSummary>(
+    {
+      totalEarned: 0,
+      totalWithdrawn: 0,
+      availableBalance: 0,
+      levelBreakdown: [],
+    },
+  );
+  const [rootUser, setRootUser] = useState<NetworkUser | null>(null);
+  const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
+  const [directBuyers, setDirectBuyers] = useState<DirectBuyer[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const mapTree = (node: any): NetworkUser => {
+    const children = (node.directChildren || []).map(mapTree);
+    const totalNetworkCount = children.reduce(
+      (sum, child) => sum + 1 + child.totalNetworkCount,
+      0,
+    );
+
+    return {
+      id: node.id,
+      name: node.name,
+      phone: node.phone,
+      avatar: undefined,
+      creditsReceived: 0,
+      level: node.level || 0,
+      directChildren: children,
+      totalNetworkCount,
+      directCount: node.directCount || children.length,
+      structuralCreditPool: node.structuralCreditPool,
+      joinedDate: node.joinedDate,
+      commissionEarned: 0,
+      isActive: true,
+    };
+  };
+
+  const loadDashboard = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [
+        overview,
+        creditDashboard,
+        commission,
+        voucherRes,
+        treeRes,
+        buyerRes,
+      ] = await Promise.all([
+        api.get("/mlm/overview"),
+        api.get("/mlm/credits/dashboard"),
+        api.get("/mlm/commissions/summary"),
+        api.get("/mlm/vouchers?limit=20"),
+        api.get("/mlm/network/tree?depth=3&perParentLimit=5"),
+        api.get("/mlm/network/direct-buyers?limit=10"),
+      ]);
+
+      if (overview?.metrics) {
+        setMetrics(overview.metrics);
+      }
+
+      if (creditDashboard) {
+        setCreditStats({
+          totalCreditReceived: creditDashboard.totalCreditsReceived || 0,
+          totalCreditTransferred: creditDashboard.totalCreditsTransferred || 0,
+          totalCreditBalance: creditDashboard.creditBalance || 0,
+          creditTransferToEachPerson: creditDashboard.recentTransfers || [],
+          creditTransferredReceivedBack: 0,
+          activeCredits: creditDashboard.activeCredits || 0,
+          timers: creditDashboard.timers || [],
+        });
+      }
+
+      if (commission?.summary) {
+        setCommissionSummary(commission.summary);
+      }
+
+      if (treeRes?.tree) {
+        setRootUser(mapTree(treeRes.tree));
+      }
+
+      if (voucherRes?.vouchers) {
+        setVouchers(voucherRes.vouchers);
+      }
+
+      if (buyerRes?.buyers) {
+        setDirectBuyers(buyerRes.buyers);
+      }
+    } catch (err: any) {
+      console.error("MLM dashboard load error", err);
+      setError(err?.message || "Failed to load dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTransferPress = (user: NetworkUser) => {
     setSelectedRecipient(user);
@@ -42,16 +165,20 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   };
 
   const handleTransferConfirm = (amount: number, note: string) => {
-    // In real app, this would call an API
-    console.log(`Transferring ${amount} credits to ${selectedRecipient?.name}`);
-    console.log(`Note: ${note}`);
-    setTransferModalVisible(false);
-    // Could show success toast here
+    if (!selectedRecipient) return;
+    api
+      .post("/mlm/credits/transfer", {
+        receiverId: selectedRecipient.id,
+        amount,
+        note,
+      })
+      .then(() => loadDashboard())
+      .finally(() => setTransferModalVisible(false));
   };
 
   const handleViewNetwork = (user: NetworkUser) => {
     setDetailUser(user);
-    setBreadcrumb([mockRootUser.name, user.name]);
+    setBreadcrumb([rootUser?.name || "You", user.name]);
     setDetailSheetVisible(true);
   };
 
@@ -123,6 +250,34 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
     );
   };
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#10B981" />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadDashboard}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!rootUser) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>No network data available</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -158,10 +313,28 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         showsVerticalScrollIndicator={false}
       >
         {/* Summary Card */}
-        <SummaryCard metrics={mockMetrics} />
+        <SummaryCard metrics={metrics} />
 
         {/* Credit Statistics Card */}
-        <CreditStatisticsCard statistics={mockCreditStatistics} />
+        <CreditStatisticsCard statistics={creditStats} />
+
+        <CommissionDashboardCard
+          summary={commissionSummary}
+          onWithdraw={() =>
+            api.post("/mlm/withdrawals/request", {
+              amount: commissionSummary.availableBalance,
+            })
+          }
+        />
+
+        <VoucherList
+          vouchers={vouchers}
+          onRedeem={(voucherId) =>
+            api.post(`/mlm/vouchers/${voucherId}/redeem`).then(loadDashboard)
+          }
+        />
+
+        <DirectBuyersList buyers={directBuyers} />
 
         {/* View Toggle */}
         <ViewToggle />
@@ -170,13 +343,13 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         <View style={styles.networkContainer}>
           {viewMode === "list" ? (
             <NetworkListView
-              rootUser={mockRootUser}
+              rootUser={rootUser}
               onTransferPress={handleTransferPress}
               onViewNetwork={handleViewNetwork}
             />
           ) : (
             <NetworkTreeView
-              rootUser={mockRootUser}
+              rootUser={rootUser}
               onTransferPress={handleTransferPress}
               onViewNetwork={handleViewNetwork}
             />
@@ -188,7 +361,7 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       <TransferCreditsModal
         visible={transferModalVisible}
         recipient={selectedRecipient}
-        availableCredits={mockMetrics.availableCredits}
+        availableCredits={metrics.availableCredits}
         onClose={() => setTransferModalVisible(false)}
         onConfirm={handleTransferConfirm}
       />
@@ -248,6 +421,35 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: scaleSize(20),
     paddingBottom: scaleSize(100),
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F7FA",
+    padding: scaleSize(20),
+  },
+  loadingText: {
+    fontSize: scaleFontSize(16),
+    color: "#64748B",
+    marginTop: scaleSize(12),
+  },
+  errorText: {
+    fontSize: scaleFontSize(16),
+    color: "#EF4444",
+    textAlign: "center",
+    marginBottom: scaleSize(12),
+  },
+  retryButton: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: scaleSize(16),
+    paddingVertical: scaleSize(10),
+    borderRadius: scaleSize(10),
+  },
+  retryText: {
+    fontSize: scaleFontSize(14),
+    fontWeight: "600",
+    color: "#0F172A",
   },
   viewToggle: {
     flexDirection: "row",

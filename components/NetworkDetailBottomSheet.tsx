@@ -148,6 +148,14 @@ export default function NetworkDetailBottomSheet({
                 <Text style={styles.infoValue}>{user.totalNetworkCount}</Text>
               </View>
             </View>
+            <View style={styles.userInfoRowAlt}>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Structural Pool</Text>
+                <Text style={styles.infoValue}>
+                  ₹{Math.round(user.structuralCreditPool || 0)}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* Direct Children List */}
@@ -272,6 +280,9 @@ const styles = StyleSheet.create({
     fontSize: scaleFontSize(16),
     color: "#6B7280",
     marginBottom: 4,
+    userInfoRowAlt: {
+      marginTop: scaleSize(12),
+    },
   },
   infoValue: {
     fontSize: scaleFontSize(18),
