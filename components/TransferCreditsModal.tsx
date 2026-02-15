@@ -66,7 +66,8 @@ export default function TransferCreditsModal({
   if (!recipient) return null;
 
   const numAmount = parseInt(amount) || 0;
-  const isValid = numAmount > 0 && numAmount <= availableCredits;
+  const isValid =
+    numAmount > 0 && numAmount <= availableCredits && numAmount <= 5;
 
   const QuickAmountButton = ({ value }: { value: number }) => (
     <TouchableOpacity
@@ -154,16 +155,21 @@ export default function TransferCreditsModal({
                   Insufficient credits available
                 </Text>
               )}
+              {numAmount > 5 && (
+                <Text style={styles.errorText}>
+                  Maximum 5 credits per transfer
+                </Text>
+              )}
             </View>
 
             {/* Quick Amount Buttons */}
             <View style={styles.quickAmountsSection}>
               <Text style={styles.label}>Quick Select</Text>
               <View style={styles.quickAmountsRow}>
-                <QuickAmountButton value={100} />
-                <QuickAmountButton value={500} />
-                <QuickAmountButton value={1000} />
-                <QuickAmountButton value={2000} />
+                <QuickAmountButton value={1} />
+                <QuickAmountButton value={2} />
+                <QuickAmountButton value={3} />
+                <QuickAmountButton value={5} />
               </View>
             </View>
 

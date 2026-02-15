@@ -55,6 +55,13 @@ export default function UserCard({
     return colors[level % colors.length];
   };
 
+  const formatCompact = (value: number) => {
+    if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return value.toString();
+  };
+
   return (
     <Animated.View
       style={[styles.container, { transform: [{ scale: scaleAnim }] }]}
@@ -97,6 +104,12 @@ export default function UserCard({
                   <Ionicons name="gift" size={12} color="#6B7280" />
                   <Text style={styles.statText}>
                     {user.creditsReceived} credits
+                  </Text>
+                </View>
+                <View style={styles.stat}>
+                  <Ionicons name="analytics" size={12} color="#6B7280" />
+                  <Text style={styles.statText}>
+                    ₹{formatCompact(Math.round(user.structuralCreditPool || 0))}
                   </Text>
                 </View>
                 <View style={styles.stat}>

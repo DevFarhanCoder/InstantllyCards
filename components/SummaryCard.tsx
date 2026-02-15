@@ -56,7 +56,7 @@ export default function SummaryCard({ metrics }: SummaryCardProps) {
         />
         <MetricItem
           icon="arrow-forward-circle-outline"
-          label="Vouchers Transferred"
+          label="Credits Distributed"
           value={formatNumber(metrics.totalVouchersTransferred)}
           color="#3B82F6"
         />
