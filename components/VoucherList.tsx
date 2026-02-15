@@ -7,14 +7,21 @@ import { scaleFontSize, scaleSize } from "../lib/responsive";
 interface VoucherListProps {
   vouchers: VoucherItem[];
   onRedeem: (voucherId: string) => void;
+  onTransfer: (voucher: VoucherItem) => void;
 }
 
-export default function VoucherList({ vouchers, onRedeem }: VoucherListProps) {
+export default function VoucherList({
+  vouchers,
+  onRedeem,
+  onTransfer,
+}: VoucherListProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Voucher Dashboard</Text>
-        <Text style={styles.subtitle}>{vouchers.length} vouchers</Text>
+        <View>
+          <Text style={styles.title}>Voucher Dashboard</Text>
+          <Text style={styles.subtitle}>{vouchers.length} vouchers</Text>
+        </View>
       </View>
 
       {vouchers.length === 0 ? (
@@ -22,32 +29,71 @@ export default function VoucherList({ vouchers, onRedeem }: VoucherListProps) {
       ) : (
         vouchers.map((voucher) => (
           <View key={voucher._id} style={styles.card}>
-            <View>
-              <Text style={styles.voucherNumber}>#{voucher.voucherNumber}</Text>
+            <View style={styles.voucherInfo}>
+              <View style={styles.voucherHeader}>
+                <Text style={styles.voucherNumber}>
+                  #{voucher.voucherNumber}
+                </Text>
+                {voucher.source === "transfer" && (
+                  <View style={styles.sourceBadge}>
+                    <Ionicons name="arrow-down" size={10} color="#10B981" />
+                    <Text style={styles.sourceBadgeText}>Received</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.voucherMeta}>MRP ₹{voucher.MRP}</Text>
               <Text style={styles.voucherMeta}>
                 Expires{" "}
                 {new Date(voucher.expiryDate).toLocaleDateString("en-IN")}
               </Text>
+              {voucher.source === "transfer" && voucher.transferredFrom && (
+                <Text style={styles.transferInfo}>
+                  From: {voucher.transferredFrom.name}
+                </Text>
+              )}
             </View>
-            <TouchableOpacity
-              style={[
-                styles.redeemButton,
-                voucher.redeemedStatus !== "unredeemed" &&
-                  styles.redeemButtonDisabled,
-              ]}
-              disabled={voucher.redeemedStatus !== "unredeemed"}
-              onPress={() => onRedeem(voucher._id)}
-            >
-              <Ionicons name="ticket" size={16} color="#0F172A" />
-              <Text style={styles.redeemText}>
-                {voucher.redeemedStatus === "unredeemed"
-                  ? "Redeem"
-                  : voucher.redeemedStatus === "redeemed"
-                    ? "Redeemed"
-                    : "Expired"}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={[
+                  styles.redeemButton,
+                  voucher.redeemedStatus !== "unredeemed" &&
+                    styles.redeemButtonDisabled,
+                ]}
+                disabled={voucher.redeemedStatus !== "unredeemed"}
+                onPress={() => onRedeem(voucher._id)}
+              >
+                <Ionicons
+                  name="ticket"
+                  size={14}
+                  color={
+                    voucher.redeemedStatus === "unredeemed"
+                      ? "#0F172A"
+                      : "#64748B"
+                  }
+                />
+                <Text
+                  style={[
+                    styles.redeemText,
+                    voucher.redeemedStatus !== "unredeemed" &&
+                      styles.redeemTextDisabled,
+                  ]}
+                >
+                  {voucher.redeemedStatus === "unredeemed"
+                    ? "Redeem"
+                    : voucher.redeemedStatus === "redeemed"
+                      ? "Redeemed"
+                      : "Expired"}
+                </Text>
+              </TouchableOpacity>
+              {voucher.redeemedStatus === "unredeemed" && (
+                <TouchableOpacity
+                  style={styles.transferButton}
+                  onPress={() => onTransfer(voucher)}
+                >
+                  <Ionicons name="send" size={14} color="#10B981" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         ))
       )}
@@ -65,6 +111,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 0, 0, 0.06)",
   },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: scaleSize(12),
   },
   title: {
@@ -89,15 +138,48 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(0, 0, 0, 0.06)",
   },
+  voucherInfo: {
+    flex: 1,
+  },
+  voucherHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
   voucherNumber: {
     fontSize: scaleFontSize(14),
     fontWeight: "700",
     color: "#0F172A",
   },
+  sourceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: scaleSize(6),
+    paddingVertical: scaleSize(2),
+    backgroundColor: "#D1FAE5",
+    borderRadius: scaleSize(6),
+  },
+  sourceBadgeText: {
+    fontSize: scaleFontSize(10),
+    fontWeight: "600",
+    color: "#10B981",
+  },
   voucherMeta: {
     fontSize: scaleFontSize(12),
     color: "#64748B",
     marginTop: 2,
+  },
+  transferInfo: {
+    fontSize: scaleFontSize(11),
+    color: "#10B981",
+    marginTop: 4,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: scaleSize(8),
+    alignItems: "center",
   },
   redeemButton: {
     flexDirection: "row",
@@ -115,5 +197,16 @@ const styles = StyleSheet.create({
     fontSize: scaleFontSize(12),
     fontWeight: "600",
     color: "#0F172A",
+  },
+  redeemTextDisabled: {
+    color: "#64748B",
+  },
+  transferButton: {
+    width: scaleSize(36),
+    height: scaleSize(36),
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#D1FAE5",
+    borderRadius: scaleSize(10),
   },
 });

@@ -10,7 +10,8 @@ interface SummaryCardProps {
 }
 
 export default function SummaryCard({ metrics }: SummaryCardProps) {
-  const formatNumber = (num: number): string => {
+  const formatNumber = (num: number | undefined): string => {
+    if (num === undefined || num === null) return "0";
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
@@ -51,25 +52,25 @@ export default function SummaryCard({ metrics }: SummaryCardProps) {
         <MetricItem
           icon="wallet-outline"
           label="Available Credits"
-          value={formatNumber(metrics.availableCredits)}
+          value={formatNumber(metrics.availableCredits ?? 0)}
           color="#10B981"
         />
         <MetricItem
           icon="arrow-forward-circle-outline"
           label="Credits Distributed"
-          value={formatNumber(metrics.totalVouchersTransferred)}
+          value={formatNumber(metrics.totalVouchersTransferred ?? 0)}
           color="#3B82F6"
         />
         <MetricItem
           icon="people-outline"
           label="Network Users"
-          value={formatNumber(metrics.totalNetworkUsers)}
+          value={formatNumber(metrics.totalNetworkUsers ?? 0)}
           color="#8B5CF6"
         />
         <MetricItem
           icon="trending-up-outline"
-          label="Est. Commission"
-          value={`₹${formatNumber(metrics.estimatedCommission)}`}
+          label="Virtual Savings"
+          value={`₹${formatNumber(metrics.virtualCommission ?? 0)}`}
           color="#F59E0B"
         />
       </View>
