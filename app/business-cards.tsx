@@ -576,6 +576,15 @@ import api from '../lib/api';
 
 const { width, height } = Dimensions.get('window');
 
+// ADD THIS HELPER FUNCTION:
+const getImageUrl = (url: string): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return `https://${url}`;
+};
+
 // Get status bar height for Android
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
@@ -646,9 +655,9 @@ export default function BusinessCardsScreen() {
   //   card.aboutBusiness?.toLowerCase().includes(search.toLowerCase()))
   // );
   const filteredCards = businessCards.filter((card: any) =>
-  card.businessName?.toLowerCase().includes(search.toLowerCase()) ||
-  card.description?.toLowerCase().includes(search.toLowerCase())
-);
+    card.businessName?.toLowerCase().includes(search.toLowerCase()) ||
+    card.description?.toLowerCase().includes(search.toLowerCase())
+  );
 
 
 
@@ -703,9 +712,9 @@ export default function BusinessCardsScreen() {
       >
         {/* Card Image Section */}
         <View style={styles.cardImageSection}>
-          {item.companyPhoto ? (
+          {item.media && item.media.length > 0 ? (
             <Image
-              source={{ uri: `https://api-test.instantllycards.com${item.companyPhoto}` }}
+              source={{ uri: getImageUrl(item.media[0].url) }}
               style={styles.cardImage}
               resizeMode="cover"
             />
