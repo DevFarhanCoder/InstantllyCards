@@ -16,12 +16,17 @@ import {
   Keyboard,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../lib/api';
 import { formatIndianNumber } from '../utils/formatNumber';
+import { socketService } from '../lib/socket';
+import FooterCarousel from '../components/FooterCarousel';
+import CustomTabBar from '../components/CustomTabBar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCredits } from '../contexts/CreditsContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -64,8 +69,11 @@ interface User {
 }
 
 export default function TransferCreditsScreen() {
-  const [balance, setBalance] = useState(0);
-  const [loadingBalance, setLoadingBalance] = useState(true);
+  // Use safe area insets for proper positioning
+  const insets = useSafeAreaInsets();
+  
+  // Use global credits context
+  const { credits: balance, loading: loadingBalance, refreshCredits } = useCredits();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -77,7 +85,7 @@ export default function TransferCreditsScreen() {
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    fetchBalance();
+    refreshCredits();
     fetchRecentContacts();
     
     // Entry animation
@@ -95,20 +103,6 @@ export default function TransferCreditsScreen() {
     ]).start();
   }, []);
 
-  const fetchBalance = async () => {
-    try {
-      setLoadingBalance(true);
-      const response = await api.get('/credits/balance');
-      if (response.success) {
-        setBalance(response.credits || 0);
-      }
-    } catch (error) {
-      console.error('Failed to fetch balance:', error);
-    } finally {
-      setLoadingBalance(false);
-    }
-  };
-
   const fetchRecentContacts = async () => {
     try {
       // Recent contacts feature disabled - endpoint not yet implemented
@@ -124,7 +118,7 @@ export default function TransferCreditsScreen() {
     setRefreshing(true);
     try {
       await Promise.all([
-        fetchBalance(),
+        refreshCredits(),
         fetchRecentContacts()
       ]);
     } catch (error) {
@@ -321,6 +315,20 @@ export default function TransferCreditsScreen() {
                   <Ionicons name="shield-checkmark" size={14} color="#10B981" />
                   <Text style={styles.securityTextWhite}>Secured Transfer</Text>
                 </View>
+              </View>
+              
+              {/* Credit Expiry Info */}
+              <View style={styles.expiryInfoIntegrated}>
+                <Ionicons name="time-outline" size={14} color="#FCD34D" />
+                <Text style={styles.expiryInfoTextWhite}>
+                  Expires: <Text style={styles.expiryInfoDateWhite}>31 March 2026</Text> • {(() => {
+                    const today = new Date();
+                    const expiryDate = new Date('2026-03-31');
+                    const diffTime = expiryDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return diffDays > 0 ? diffDays : 0;
+                  })()} days left
+                </Text>
               </View>
             </LinearGradient>
           </Animated.View>
@@ -521,10 +529,25 @@ export default function TransferCreditsScreen() {
           </View>
         )}
 
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
+        {/* Bottom spacing for footer carousel */}
+        <View style={{ height: 180 }} />
+      </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Footer Carousel - Fixed above tab bar */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: insets.bottom + 60,
+          left: 0,
+          right: 0,
+        }}
+      >
+        <FooterCarousel />
+      </View>
+      
+      {/* Bottom Tab Navigation */}
+      <CustomTabBar />
     </View>
   );
 }
@@ -975,6 +998,30 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(12),
     fontWeight: '500',
     color: COLORS_THEME.textSecondary,
+    marginTop: verticalScale(2),
+  },
+  expiryInfoIntegrated: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(6),
+    marginTop: verticalScale(10),
+    paddingTop: verticalScale(10),
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  expiryInfoTextWhite: {
+    fontSize: moderateScale(12),
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontWeight: '600',
+  },
+  expiryInfoDateWhite: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+    color: '#FCD34D',
+  },
+  expiryWarningSubtext: {
+    fontSize: moderateScale(10),
+    color: 'rgba(255, 255, 255, 0.8)',
     marginTop: verticalScale(2),
   },
 });

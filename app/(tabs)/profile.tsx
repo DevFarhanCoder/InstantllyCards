@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Alert, 
-  Image, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  Image,
+  TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   Platform
@@ -66,10 +66,10 @@ export default function Profile() {
       console.log('Fetching user profile...');
       const response = await api.get("/auth/profile");
       console.log('Profile response:', response);
-      
+
       // Handle both response formats: direct object or wrapped in 'user'
       const profileData = response.user || response;
-      
+
       if (profileData && profileData.name) {
         setUserProfile(profileData);
       } else {
@@ -84,10 +84,10 @@ export default function Profile() {
   };
 
   const pickImage = async () => {
-    const options = userProfile?.profilePicture 
+    const options = userProfile?.profilePicture
       ? ['Take Photo', 'Choose from Gallery', 'Delete Photo', 'Cancel']
       : ['Take Photo', 'Choose from Gallery', 'Cancel'];
-    
+
     const cancelButtonIndex = options.length - 1;
     const destructiveButtonIndex = userProfile?.profilePicture ? 2 : undefined;
 
@@ -119,7 +119,7 @@ export default function Profile() {
   const takePhoto = async () => {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      
+
       if (permissionResult.granted === false) {
         Alert.alert('Permission Required', 'Please grant permission to access your camera.');
         return;
@@ -144,7 +144,7 @@ export default function Profile() {
   const pickFromGallery = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (permissionResult.granted === false) {
         Alert.alert('Permission Required', 'Please grant permission to access your photo library.');
         return;
@@ -180,15 +180,15 @@ export default function Profile() {
             setUpdating(true);
             try {
               await api.put("/auth/update-profile", { profilePicture: "" });
-              
-              setUserProfile(prev => prev ? {...prev, profilePicture: undefined} : null);
-              
+
+              setUserProfile(prev => prev ? { ...prev, profilePicture: undefined } : null);
+
               const userData = await getCurrentUser();
               if (userData) {
                 delete userData.profilePicture;
                 await AsyncStorage.setItem('user', JSON.stringify(userData));
               }
-              
+
               Alert.alert('Success', 'Profile picture deleted successfully');
             } catch (error) {
               console.error('Error deleting profile picture:', error);
@@ -210,21 +210,21 @@ export default function Profile() {
       const dataUri = `data:${mimeType};base64,${base64Image}`;
 
       console.log('📤 Uploading profile picture as Base64...');
-      
-      const response = await api.put("/auth/update-profile", { 
-        profilePicture: dataUri 
+
+      const response = await api.put("/auth/update-profile", {
+        profilePicture: dataUri
       });
-      
+
       console.log('✅ Profile picture uploaded successfully');
-      
-      setUserProfile(prev => prev ? {...prev, profilePicture: response.profilePicture} : null);
-      
+
+      setUserProfile(prev => prev ? { ...prev, profilePicture: response.profilePicture } : null);
+
       const userData = await getCurrentUser();
       if (userData) {
         userData.profilePicture = response.profilePicture;
         await AsyncStorage.setItem('user', JSON.stringify(userData));
       }
-      
+
       console.log('✅ Profile picture updated successfully');
     } catch (error) {
       console.error('Error uploading profile picture:', error);
@@ -247,7 +247,7 @@ export default function Profile() {
             // CRITICAL: Clear all cached data to prevent data leakage between accounts
             console.log('🧹 Clearing all React Query cache...');
             queryClient.clear(); // Remove all queries from cache
-            
+
             // Clear all AsyncStorage auth data
             await AsyncStorage.multiRemove([
               "token",
@@ -258,7 +258,7 @@ export default function Profile() {
               "login_prefill_phone",
               "reset_phone"
             ]);
-            
+
             console.log('✅ All cache and storage cleared - redirecting to login');
             router.replace("/(auth)/login");
           }
@@ -326,8 +326,8 @@ export default function Profile() {
                   <ActivityIndicator color={COLORS.white} />
                 </View>
               )}
-              <TouchableOpacity 
-                style={styles.cameraButton} 
+              <TouchableOpacity
+                style={styles.cameraButton}
                 onPress={pickImage}
                 disabled={updating}
               >
@@ -343,8 +343,8 @@ export default function Profile() {
         <View style={styles.menuSection}>
           {/* Earn More Credits Button - Only show if survey not completed */}
           {!hasCompletedSurvey && (
-            <TouchableOpacity 
-              style={styles.earnCreditsButton} 
+            <TouchableOpacity
+              style={styles.earnCreditsButton}
               onPress={() => router.push('/profile/earn-credits' as any)}
             >
               <View style={styles.earnCreditsIconContainer}>
@@ -359,8 +359,8 @@ export default function Profile() {
           )}
 
           {/* Manage Account Button */}
-          <TouchableOpacity 
-            style={styles.menuButton} 
+          <TouchableOpacity
+            style={styles.menuButton}
             onPress={() => router.push('/account' as any)}
           >
             <View style={styles.menuIconContainer}>
@@ -372,10 +372,39 @@ export default function Profile() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
-
-          {/* More Info Button */}
+          {/* Manage Listing Button */}
           <TouchableOpacity 
             style={styles.menuButton} 
+            onPress={() => router.push('/business/manage-listing' as any)}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="briefcase-outline" size={22} color="#4F6AF3" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Manage Listing</Text>
+              <Text style={styles.menuSubtitle}>Manage your business listings</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+          {/* Manage Listings Button */}
+          {/* <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => router.push('/business-dashboard' as any)}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="briefcase-outline" size={22} color="#2563EB" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Manage Listings</Text>
+              <Text style={styles.menuSubtitle}>Free & Promoted Business Listings</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity> */}
+
+
+          {/* More Info Button */}
+          <TouchableOpacity
+            style={styles.menuButton}
             onPress={() => router.push('/more-info' as any)}
           >
             <View style={styles.menuIconContainer}>
@@ -389,8 +418,8 @@ export default function Profile() {
           </TouchableOpacity>
 
           {/* Referral Program Button */}
-          <TouchableOpacity 
-            style={styles.menuButton} 
+          <TouchableOpacity
+            style={styles.menuButton}
             onPress={() => router.push('/referral' as any)}
           >
             <View style={styles.menuIconContainer}>
@@ -404,8 +433,8 @@ export default function Profile() {
           </TouchableOpacity>
 
           {/* Logout Button */}
-          <TouchableOpacity 
-            style={styles.logoutMenuButton} 
+          <TouchableOpacity
+            style={styles.logoutMenuButton}
             onPress={logout}
           >
             <View style={styles.logoutIconContainer}>
@@ -418,7 +447,7 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
         </View>
-        
+
         {/* Bottom spacing for footer carousel */}
         <View style={{ height: 140 }} />
       </ScrollView>

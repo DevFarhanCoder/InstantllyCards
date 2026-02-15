@@ -55,11 +55,15 @@ async function request<T>(
   // Always use the /api prefix since our backend expects it
   const candidates = [`${BASE}/api${path.startsWith("/") ? path : `/${path}`}`];
 
+  // Don't retry any auth operations (signup, login, etc.) as they can cause duplicates
+  const isAuthRequest = method === "POST" && path.includes("/auth/");
+  const maxRetries = isAuthRequest ? 0 : 2;
+
   let lastErr: any;
   for (const url of candidates) {
-    let retries = 2;
+    let retries = maxRetries;
 
-    while (retries > 0) {
+    do {
       try {
         // Create AbortController for timeout
         const controller = new AbortController();
@@ -173,7 +177,7 @@ async function request<T>(
           await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
         }
       }
-    }
+    } while (retries > 0);
   }
 
   // Suppress final error log for quiz endpoints
@@ -201,7 +205,28 @@ async function requestNonCritical<T>(
 }
 
 const api = {
-  get: <T = any>(p: string) => request<T>("GET", p),
+  // get: <T = any>(p: string, p0: { params: { subcategory: string | string[]; }; }) => request<T>("GET", p),
+  get: <T = any>(
+    p: string,
+    p0?: { params?: Record<string, any> }
+  ) => {
+    let finalPath = p;
+
+    if (p0?.params) {
+      const query = new URLSearchParams();
+
+      Object.entries(p0.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          query.append(key, String(value));
+        }
+      });
+
+      finalPath += `?${query.toString()}`;
+    }
+
+    return request<T>("GET", finalPath);
+  },
+
   post: <T = any>(
     p: string,
     b?: Json | FormData,

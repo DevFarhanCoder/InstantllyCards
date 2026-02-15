@@ -188,77 +188,97 @@ export async function generateAndShareCardImage(
 
     // Build card details message
     const buildCardDetails = () => {
-      let details = "This is My Digital Visiting Card -\n\n";
+      let details = "*This is My Digital Visiting Card* -\n\n";
 
       // Personal Information
-      if (cardData.name) details += `👤 Name: ${cardData.name}\n`;
+      if (cardData.name) details += `👤 *Name:* ${cardData.name}\n`;
       if (cardData.birthDate)
-        details += `🎂 Birth Date: ${cardData.birthDate}\n`;
-      if (cardData.gender) details += `⚧️ Gender: ${cardData.gender}\n`;
+        details += `🎂 *Birth Date:* ${cardData.birthDate}\n`;
+      // Gender field removed as per user request
       if (cardData.designation)
-        details += `💼 Designation: ${cardData.designation}\n`;
+        details += `💼 *Designation:* ${cardData.designation}\n`;
 
       // Personal Contact
       const personalPhone = cardData.contact || cardData.personalPhone;
       if (personalPhone) {
         const cleanPhone = personalPhone.replace(/^\+\d+/, "").trim();
-        details += `📱 Personal Phone: ${cleanPhone}\n`;
+        details += `📱 *Personal Phone:* ${cleanPhone}\n`;
       }
 
       const personalEmail = cardData.email;
-      if (personalEmail) details += `📧 Personal Email: ${personalEmail}\n`;
+      if (personalEmail) details += `📧 *Personal Email:* ${personalEmail}\n`;
 
       const personalWebsite = cardData.website;
       if (personalWebsite)
-        details += `🌐 Personal Website: ${personalWebsite}\n`;
+        details += `🌐 *Personal Website:* ${personalWebsite}\n`;
 
       const personalLocation = cardData.location;
       if (personalLocation)
-        details += `📍 Personal Location: ${personalLocation}\n`;
+        details += `📍 *Personal Location:* ${personalLocation}\n`;
 
       const personalMapsLink = cardData.mapsLink;
       if (personalMapsLink)
-        details += `🗺️ Personal Maps: ${personalMapsLink}\n`;
+        details += `🗺️ *Personal Maps:* ${personalMapsLink}\n`;
 
       // Business Information
       if (cardData.companyName)
-        details += `🏢 Company: ${cardData.companyName}\n`;
+        details += `\n🏢 *Company:* ${cardData.companyName}\n`;
 
+      // Show all company phones (avoiding duplicates)
+      const shownPhones = new Set();
       const companyPhone = cardData.companyContact || cardData.companyPhone;
       if (companyPhone) {
         const cleanPhone = companyPhone.replace(/^\+\d+/, "").trim();
-        details += `☎️ Company Phone: ${cleanPhone}\n`;
+        if (cleanPhone) {
+          details += `☎️ *Company Phone:* ${cleanPhone}\n`;
+          shownPhones.add(cleanPhone);
+        }
+      }
+      // Show additional company phones from companyPhones array
+      if (cardData.companyPhones && Array.isArray(cardData.companyPhones)) {
+        let phoneCounter = 2;
+        cardData.companyPhones.forEach((phoneObj: any) => {
+          if (phoneObj.phone) {
+            const cleanPhone = phoneObj.phone.replace(/^\+\d+/, "").trim();
+            if (cleanPhone && !shownPhones.has(cleanPhone)) {
+              details += `☎️ *Company Phone ${phoneCounter}:* ${cleanPhone}\n`;
+              shownPhones.add(cleanPhone);
+              phoneCounter++;
+            }
+          }
+        });
       }
 
       const companyEmail = cardData.companyEmail;
-      if (companyEmail) details += `📨 Company Email: ${companyEmail}\n`;
+      if (companyEmail) details += `📨 *Company Email:* ${companyEmail}\n`;
 
       const companyWebsite = cardData.companyWebsite;
-      if (companyWebsite) details += `🌍 Company Website: ${companyWebsite}\n`;
+      if (companyWebsite) details += `🌍 *Company Website:* ${companyWebsite}\n`;
 
       const companyAddress = cardData.companyAddress;
-      if (companyAddress) details += `🏭 Company Address: ${companyAddress}\n`;
+      if (companyAddress) details += `🏭 *Company Address:* ${companyAddress}\n`;
 
       const companyMapsLink = cardData.companyMapsLink;
-      if (companyMapsLink) details += `🗺️ Company Maps: ${companyMapsLink}\n`;
+      if (companyMapsLink) details += `🗺️ *Company Maps:* ${companyMapsLink}\n`;
 
       // Business Details
       if (cardData.aboutBusiness)
-        details += `📝 About Business: ${cardData.aboutBusiness}\n`;
+        details += `\n📝 *About Business:* ${cardData.aboutBusiness}\n`;
       if (cardData.businessHours) {
         const formattedHours = formatBusinessHours(cardData.businessHours);
-        if (formattedHours) {
-          details += `🕐 Business Hours:\n${formattedHours}\n`;
+        // Only show if there's actual content and not just all closed days
+        if (formattedHours && formattedHours.trim() !== '' && !formattedHours.match(/^Mon\s*[-–]\s*Sun:\s*Closed$/i)) {
+          details += `🕐 *Business Hours:*\n${formattedHours}\n`;
         }
       }
       if (cardData.establishedYear)
-        details += `📅 Established: ${cardData.establishedYear}\n`;
+        details += `📅 *Established:* ${cardData.establishedYear}\n`;
 
       const message = cardData.message;
-      if (message) details += `💬 Message: ${message}\n`;
+      if (message) details += `\n💬 *Message:* ${message}\n`;
 
       if (cardData.additionalInformation)
-        details += `ℹ️ Additional Info: ${cardData.additionalInformation}\n`;
+        details += `ℹ️ *Additional Info:* ${cardData.additionalInformation}\n`;
 
       // Social Media Links
       let socialAdded = false;
@@ -272,20 +292,18 @@ export async function generateAndShareCardImage(
         cardData.whatsappBusiness ||
         cardData.telegram
       ) {
-        details += `\n🔗 Social Media:\n`;
+        details += `\n🔗 *Social Media:*\n`;
         socialAdded = true;
       }
 
-      if (cardData.linkedin) details += `   LinkedIn: ${cardData.linkedin}\n`;
-      if (cardData.twitter) details += `   Twitter: ${cardData.twitter}\n`;
-      if (cardData.instagram)
-        details += `   Instagram: ${cardData.instagram}\n`;
-      if (cardData.facebook) details += `   Facebook: ${cardData.facebook}\n`;
-      if (cardData.youtube) details += `   YouTube: ${cardData.youtube}\n`;
-      if (cardData.whatsapp) details += `   WhatsApp: ${cardData.whatsapp}\n`;
-      if (cardData.whatsappBusiness)
-        details += `   WhatsApp Business: ${cardData.whatsappBusiness}\n`;
-      if (cardData.telegram) details += `   Telegram: ${cardData.telegram}\n`;
+      if (cardData.linkedin) details += `💼 *LinkedIn:* ${cardData.linkedin}\n`;
+      if (cardData.twitter) details += `𝕏 *Twitter/X:* ${cardData.twitter}\n`;
+      if (cardData.instagram) details += `📷 *Instagram:* ${cardData.instagram}\n`;
+      if (cardData.facebook) details += `👥 *Facebook:* ${cardData.facebook}\n`;
+      if (cardData.youtube) details += `🎥 *YouTube:* ${cardData.youtube}\n`;
+      if (cardData.whatsapp) details += `💬 *WhatsApp:* ${cardData.whatsapp}\n`;
+      if (cardData.whatsappBusiness) details += `💼 *WhatsApp Business:* ${cardData.whatsappBusiness}\n`;
+      if (cardData.telegram) details += `✈️ *Telegram:* ${cardData.telegram}\n`;
 
       return details;
     };
@@ -299,19 +317,16 @@ export async function generateAndShareCardImage(
         // Share via WhatsApp with complete card details
         const whatsappMessage =
           buildCardDetails() +
-          `\n━━━━━━━━━━━━━━━━━━━━\n` +
-          `*Earn ₹1200 to ₹6000+ per day Without Investment*\n\n` +
-          `▪️ *I Got ₹300 Credit* I have downloaded this app & Got ₹300 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below\n\n` +
-          `▪️ *You will get ₹300 Credit* When you download you will also get ₹300 Credit.\n\n` +
-          `▪️ *Referral Bonus ₹300 Credit* When you download i will also get ₹300 Credit.\n\n` +
-          `▪️ *How to earn ₹6000 per day* If you send Referral Message to 6 Groups & in each group 500 persons are member then your message will go to 3000 persons & normally 20 to 50 person download the Mobile App so on 20 Person you get ₹300 each so Total is ₹6000 per day\n\n` +
-          `▪️ *What to do for Getting Referral Income* Download the Referral Message & Referral Link & Send this Message & Link to your WhatsApp Groups\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━\n` +
-          `📲 *Important Links*\n\n` +
-          `▪️ *Touch this link to Download the App with Referral Code*\n${referralLink}\n\n` +
-          `▪️ *Video to Know Advantage of the Application & How to use it*\nhttps://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing\n\n` +
-          `▪️ *If you have any problem then join this WhatsApp Group and write the Problem you are getting*\nhttps://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl\n\n` +
-          `▪️ *Video for Channel Partner Explanation*\nhttps://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
+          `\n━━━━━━━━━\n` +
+          `*Earn ₹1200 to ₹6000+ per day Without Investment*\n` +
+          `▪️ *Save Rs 10000 Printing Cost* Use this Free App & Save per year visiting Card Printing Cost\n` +
+          `▪️ *I Got ₹300 Credit* On Self Download\n` +
+          `▪️ *Referal Bonus ₹300* On your Download I will get ₹300 Bonus\n\n` +
+          `━━━━━━━━━━━\n` +
+          `📲 *Important Links*\n` +
+          `▪️ *Touch this link to Download the App with Referral Code*\n${referralLink}\n` +
+          `▪️ *Video to Know Advantage of the Application & How to use it*\nhttps://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing\n` +
+          `▪️ *If you have any problem then join this WhatsApp Group and write the Problem you are getting*\nhttps://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl`;
 
         try {
           await Share.open({

@@ -83,15 +83,25 @@ export default function BusinessCategorySelection() {
     setSelectedCategory(null);
     setSearchQuery('');
     // Navigate back with selected category
+    // setTimeout(() => {
+    //   router.back();
+    // }, 100);
     setTimeout(() => {
-      router.back();
+      router.replace({
+        pathname: "/business-cards",
+        params: {
+          subcategory: category,
+          category: category.split(" - ")[0]
+        }
+      });
     }, 100);
+
   };
 
   const filteredSubcategories = selectedCategory
     ? SERVICE_CATEGORIES[selectedCategory as keyof typeof SERVICE_CATEGORIES].filter(sub =>
-        sub.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      sub.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : [];
 
   return (
