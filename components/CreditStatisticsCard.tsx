@@ -26,7 +26,8 @@ export default function CreditStatisticsCard({
     return () => clearInterval(interval);
   }, []);
 
-  const formatNumber = (num: number): string => {
+  const formatNumber = (num: number | undefined): string => {
+    if (num === undefined || num === null) return "0";
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
@@ -44,11 +45,14 @@ export default function CreditStatisticsCard({
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
+      case "approved":
         return "#10B981";
       case "pending":
+      case "waiting_approval":
         return "#F59E0B";
       case "returned":
-        return "#3B82F6";
+      case "rejected":
+        return "#EF4444";
       default:
         return "#6B7280";
     }
@@ -57,11 +61,14 @@ export default function CreditStatisticsCard({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
+      case "approved":
         return "checkmark-circle";
       case "pending":
+      case "waiting_approval":
         return "time";
       case "returned":
-        return "arrow-undo-circle";
+      case "rejected":
+        return "close-circle";
       default:
         return "help-circle";
     }
@@ -254,13 +261,19 @@ export default function CreditStatisticsCard({
                 <View style={styles.timerLeft}>
                   <Ionicons name="timer" size={16} color="#0F172A" />
                   <Text style={styles.timerLabel}>
-                    {timer.paymentStatus === "pending" ? "Payment" : "Transfer"}
+                    {timer.paymentStatus === "pending"
+                      ? "Payment Pending"
+                      : timer.paymentStatus === "waiting_approval"
+                        ? "Admin Review"
+                        : "Transfer"}
                   </Text>
                 </View>
                 <Text style={styles.timerValue}>
                   {timer.paymentStatus === "pending"
                     ? formatTimeLeft(timer.expiresAt)
-                    : formatTimeLeft(timer.transferExpiresAt)}
+                    : timer.paymentStatus === "waiting_approval"
+                      ? "Pending"
+                      : formatTimeLeft(timer.transferExpiresAt)}
                 </Text>
               </View>
             ))}
@@ -373,38 +386,6 @@ const styles = StyleSheet.create({
     maxHeight: scaleSize(300),
   },
   transferItem: {
-    timerSection: {
-      marginTop: scaleSize(16),
-      borderTopWidth: 1,
-      borderTopColor: "rgba(0, 0, 0, 0.06)",
-      paddingTop: scaleSize(12),
-    },
-    timerTitle: {
-      fontSize: scaleFontSize(16),
-      fontWeight: "600",
-      color: "#1F2937",
-      marginBottom: scaleSize(8),
-    },
-    timerRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingVertical: scaleSize(6),
-    },
-    timerLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    timerLabel: {
-      fontSize: scaleFontSize(14),
-      color: "#475569",
-    },
-    timerValue: {
-      fontSize: scaleFontSize(14),
-      fontWeight: "600",
-      color: "#0F172A",
-    },
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -414,6 +395,38 @@ const styles = StyleSheet.create({
     marginBottom: scaleSize(8),
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.06)",
+  },
+  timerSection: {
+    marginTop: scaleSize(16),
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0, 0, 0, 0.06)",
+    paddingTop: scaleSize(12),
+  },
+  timerTitle: {
+    fontSize: scaleFontSize(16),
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: scaleSize(8),
+  },
+  timerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: scaleSize(6),
+  },
+  timerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  timerLabel: {
+    fontSize: scaleFontSize(14),
+    color: "#475569",
+  },
+  timerValue: {
+    fontSize: scaleFontSize(14),
+    fontWeight: "600",
+    color: "#0F172A",
   },
   transferLeft: {
     flexDirection: "row",
