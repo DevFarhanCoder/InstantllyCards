@@ -9,7 +9,6 @@ import { COLORS } from '@/lib/theme';
 import PasswordField from '@/components/PasswordField';
 import OtpInput from '@/components/OtpInput';
 import { Ionicons } from '@expo/vector-icons';
-import { useSmsRetriever } from '@/hooks/useSmsRetriever';
 
 export default function ResetPassword() {
   const [phone, setPhone] = useState('');
@@ -26,12 +25,6 @@ export default function ResetPassword() {
   const [resendTimer, setResendTimer] = useState(0);
   const [resending, setResending] = useState(false);
   const [resendError, setResendError] = useState('');
-  
-  // SMS Retriever Hook for automatic OTP detection
-  const { otp: autoOtp, appHash } = useSmsRetriever({ 
-    autoStart: true,
-    otpLength: 6 
-  });
 
   const sendOtp = async () => {
     try {
@@ -41,9 +34,8 @@ export default function ResetPassword() {
         return;
       }
       setSending(true);
-      console.log(`📱 [SMS Retriever] App Hash: ${appHash}`);
       
-      const res = await api.post('/auth/send-reset-otp', { phone: clean, appHash: appHash || '' });
+      const res = await api.post('/auth/send-reset-otp', { phone: clean });
       if (res?.otpSent || res?.data?.otpSent) {
         setStep('verify');
         setResendTimer(60);
@@ -71,14 +63,6 @@ export default function ResetPassword() {
     return `${country} XXX ${last3}`;
   };
 
-  // Auto-fill OTP when detected by SMS Retriever
-  useEffect(() => {
-    if (autoOtp && step === 'verify') {
-      console.log('✅ [Reset Password Auto-Fill] OTP detected:', autoOtp);
-      setOtp(autoOtp);
-    }
-  }, [autoOtp, step]);
-
   // Read persisted phone (if any) set by Login's "Forgot Password" action.
   useEffect(() => {
     let mounted = true;
@@ -90,8 +74,7 @@ export default function ResetPassword() {
         setResendError('');
         // Attempt to send OTP via backend which verifies the phone exists.
         try {
-          console.log("App Hash (auto):", appHash);
-          const res = await api.post('/auth/send-reset-otp', { phone: stored, appHash: appHash || '' });
+          const res = await api.post('/auth/send-reset-otp', { phone: stored });
           if (res?.otpSent || res?.data?.otpSent) {
             setStep('verify');
             setResendTimer(60);
@@ -150,8 +133,7 @@ export default function ResetPassword() {
     try {
       setResendError('');
       setResending(true);
-      console.log("App Hash (resend):", appHash);
-      const res = await api.post('/auth/send-reset-otp', { phone: phone.trim(), appHash: appHash || '' });
+      const res = await api.post('/auth/send-reset-otp', { phone: phone.trim() });
       if (res?.otpSent || res?.data?.otpSent) {
         setResendTimer(60);
       } else {
