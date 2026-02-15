@@ -412,7 +412,7 @@ export default function Home() {
                   {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS && (
                     <TouchableOpacity
                       style={s.promoteBusinessButton}
-                      onPress={() => router.push("/business-promotion")}
+                      onPress={() => router.push("/business-promotiontype")}
                       activeOpacity={0.8}
                     >
                       <Text style={s.promoteButtonText}>Promote Business</Text>

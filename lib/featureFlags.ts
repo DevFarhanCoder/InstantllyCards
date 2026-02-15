@@ -9,7 +9,7 @@ const isDev = __DEV__;
 
 export const FEATURE_FLAGS = {
   // Categories feature on home screen
-  SHOW_CATEGORIES: false, // Set to true when ready for production
+  SHOW_CATEGORIES: true, // Set to true when ready for production
   
   // Promote Business button and feature
   SHOW_PROMOTE_BUSINESS: true, // Set to true when ready for production
