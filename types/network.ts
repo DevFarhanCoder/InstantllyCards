@@ -20,7 +20,8 @@ export interface NetworkMetrics {
   availableCredits: number;
   totalVouchersTransferred: number;
   totalNetworkUsers: number;
-  estimatedCommission: number;
+  virtualCommission: number; // Changed from estimatedCommission
+  currentDiscountPercent?: number;
 }
 
 export interface CreditStatistics {
@@ -51,11 +52,17 @@ export interface CreditTransferRecord {
   status: "completed" | "pending" | "returned";
 }
 
-export interface CommissionSummary {
-  totalEarned: number;
-  totalWithdrawn: number;
-  availableBalance: number;
-  levelBreakdown: Array<{ level: number; amount: number }>;
+export interface DiscountSummary {
+  currentLevel: number;
+  discountPercent: number;
+  payableAmount: number;
+  virtualCommission: number;
+  disclaimer: string;
+  nextLevelTarget?: {
+    level: number;
+    remainingDownline: number;
+    targetDiscountPercent: number;
+  };
 }
 
 export interface VoucherItem {
@@ -65,6 +72,30 @@ export interface VoucherItem {
   issueDate: string;
   expiryDate: string;
   redeemedStatus: "unredeemed" | "redeemed" | "expired";
+  source?: "purchase" | "transfer";
+  transferredFrom?: {
+    _id: string;
+    name: string;
+    phone: string;
+  };
+  transferredAt?: string;
+  originalOwner?: {
+    _id: string;
+    name: string;
+    phone: string;
+  };
+  userId?: {
+    _id: string;
+    name: string;
+    phone: string;
+  };
+}
+
+export interface VoucherHistory {
+  purchased: number;
+  received: number;
+  sent: number;
+  all: VoucherItem[];
 }
 
 export interface DirectBuyer {

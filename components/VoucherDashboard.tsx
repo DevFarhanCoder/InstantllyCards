@@ -15,13 +15,14 @@ import CreditStatisticsCard from "./CreditStatisticsCard";
 import NetworkTreeView from "./NetworkTreeView";
 import NetworkListView from "./NetworkListView";
 import TransferCreditsModal from "./TransferCreditsModal";
+import VoucherTransferModal from "./VoucherTransferModal";
 import NetworkDetailBottomSheet from "./NetworkDetailBottomSheet";
-import CommissionDashboardCard from "./CommissionDashboardCard";
+import DiscountDashboardCard from "./DiscountDashboardCard";
 import VoucherList from "./VoucherList";
 import DirectBuyersList from "./DirectBuyersList";
 import api from "../lib/api";
 import {
-  CommissionSummary,
+  DiscountSummary,
   CreditStatistics,
   DirectBuyer,
   NetworkMetrics,
@@ -38,8 +39,13 @@ interface VoucherDashboardProps {
 export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [voucherTransferModalVisible, setVoucherTransferModalVisible] =
+    useState(false);
   const [selectedRecipient, setSelectedRecipient] =
     useState<NetworkUser | null>(null);
+  const [selectedVoucher, setSelectedVoucher] = useState<VoucherItem | null>(
+    null,
+  );
   const [detailSheetVisible, setDetailSheetVisible] = useState(false);
   const [detailUser, setDetailUser] = useState<NetworkUser | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<string[]>([]);
@@ -48,7 +54,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
     availableCredits: 0,
     totalVouchersTransferred: 0,
     totalNetworkUsers: 0,
-    estimatedCommission: 0,
+    virtualCommission: 0,
+    currentDiscountPercent: 0,
   });
   const [creditStats, setCreditStats] = useState<CreditStatistics>({
     totalCreditReceived: 0,
@@ -59,14 +66,14 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
     activeCredits: 0,
     timers: [],
   });
-  const [commissionSummary, setCommissionSummary] = useState<CommissionSummary>(
-    {
-      totalEarned: 0,
-      totalWithdrawn: 0,
-      availableBalance: 0,
-      levelBreakdown: [],
-    },
-  );
+  const [discountSummary, setDiscountSummary] = useState<DiscountSummary>({
+    currentLevel: 1,
+    discountPercent: 40,
+    payableAmount: 3600,
+    virtualCommission: 0,
+    disclaimer:
+      "This amount represents savings unlocked via discounts and is not withdrawable.",
+  });
   const [rootUser, setRootUser] = useState<NetworkUser | null>(null);
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
   const [directBuyers, setDirectBuyers] = useState<DirectBuyer[]>([]);
@@ -107,14 +114,14 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       const [
         overview,
         creditDashboard,
-        commission,
+        discount,
         voucherRes,
         treeRes,
         buyerRes,
       ] = await Promise.all([
         api.get("/mlm/overview"),
         api.get("/mlm/credits/dashboard"),
-        api.get("/mlm/commissions/summary"),
+        api.get("/mlm/discount/summary"),
         api.get("/mlm/vouchers?limit=20"),
         api.get("/mlm/network/tree?depth=3&perParentLimit=5"),
         api.get("/mlm/network/direct-buyers?limit=10"),
@@ -136,8 +143,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         });
       }
 
-      if (commission?.summary) {
-        setCommissionSummary(commission.summary);
+      if (discount?.summary) {
+        setDiscountSummary(discount.summary);
       }
 
       if (treeRes?.tree) {
@@ -188,6 +195,22 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   ) => {
     setDetailUser(user);
     setBreadcrumb(newBreadcrumb);
+  };
+
+  const handleVoucherTransfer = (voucher: VoucherItem) => {
+    setSelectedVoucher(voucher);
+    setVoucherTransferModalVisible(true);
+  };
+
+  const handleVoucherTransferConfirm = async (
+    voucherId: string,
+    recipientPhone: string,
+  ) => {
+    await api.post(`/mlm/vouchers/${voucherId}/transfer`, {
+      recipientPhone,
+    });
+    await loadDashboard();
+    setVoucherTransferModalVisible(false);
   };
 
   const ViewToggle = () => {
@@ -318,20 +341,14 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         {/* Credit Statistics Card */}
         <CreditStatisticsCard statistics={creditStats} />
 
-        <CommissionDashboardCard
-          summary={commissionSummary}
-          onWithdraw={() =>
-            api.post("/mlm/withdrawals/request", {
-              amount: commissionSummary.availableBalance,
-            })
-          }
-        />
+        <DiscountDashboardCard summary={discountSummary} />
 
         <VoucherList
           vouchers={vouchers}
           onRedeem={(voucherId) =>
             api.post(`/mlm/vouchers/${voucherId}/redeem`).then(loadDashboard)
           }
+          onTransfer={handleVoucherTransfer}
         />
 
         <DirectBuyersList buyers={directBuyers} />
@@ -374,6 +391,14 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         onClose={() => setDetailSheetVisible(false)}
         onUserSelect={handleUserSelectInSheet}
         onTransferPress={handleTransferPress}
+      />
+
+      {/* Voucher Transfer Modal */}
+      <VoucherTransferModal
+        visible={voucherTransferModalVisible}
+        voucher={selectedVoucher}
+        onClose={() => setVoucherTransferModalVisible(false)}
+        onConfirm={handleVoucherTransferConfirm}
       />
     </View>
   );
