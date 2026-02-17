@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
 
@@ -41,7 +35,7 @@ export default function VoucherPromoScreen({
               style={styles.imageContainer}
             >
               <Image
-                source={require("../assets/images/1st Voucher.jpeg")}
+                source={require("../assets/images/1stVoucher.jpeg")}
                 style={styles.voucherImage}
                 resizeMode="cover"
               />
