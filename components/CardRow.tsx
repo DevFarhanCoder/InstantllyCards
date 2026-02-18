@@ -252,16 +252,6 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
     const shareViaApp = async (method: string) => {
         try {
             setIsGeneratingImage(true);
-            setImagesLoaded(false);
-            
-            console.log('📸 Generating business card image...');
-            console.log('⏳ Waiting for images to load...');
-            
-            // Wait longer for network images and logo to load
-            // This ensures both profile photo and logo are rendered
-            await new Promise(resolve => setTimeout(resolve, 2500));
-            
-            console.log('✅ Images should be loaded now');
             
             // Add referral code to card data
             const cardDataWithReferral = {
@@ -269,7 +259,10 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                 referralCode: userReferralCode || 'INSTANTLLY'
             };
             
-            // Generate and share the card image
+            console.log('📸 Generating business card image...');
+            await new Promise(resolve => setTimeout(resolve, 2500));
+            
+            const { generateAndShareCardImage } = await import('../utils/cardImageGenerator');
             const result = await generateAndShareCardImage(
                 cardTemplateRef,
                 cardDataWithReferral,
@@ -277,13 +270,12 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
             );
             
             if (result.success) {
-                console.log('✅ Card image shared successfully');
+                console.log('✅ Card shared successfully');
                 setShareModalVisible(false);
-            } else if (result.error !== 'cancelled' && result.error !== 'native_module_not_available') {
-                // User didn't cancel and it's not a native module error (which already showed an alert)
+            } else if (result.error !== 'cancelled') {
                 Alert.alert(
                     'Share Failed',
-                    'Failed to generate card image. Please try again.',
+                    'Failed to share card. Please try again.',
                     [{ text: 'OK' }]
                 );
             }
@@ -297,7 +289,6 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
             );
         } finally {
             setIsGeneratingImage(false);
-            setImagesLoaded(false);
         }
     };
 

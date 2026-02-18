@@ -51,8 +51,22 @@ interface Ad {
   fullscreenVideoId?: string;
 }
 
+interface DesignForApproval {
+  id: string;
+  designRequestId: string;
+  designerName: string;
+  businessName?: string;
+  adType: 'image' | 'video';
+  status: 'pending-approval' | 'approved' | 'changes-requested';
+  designFiles: Array<{ url: string; type: 'image' | 'video'; name: string }>;
+  adminMessage?: string;
+  userFeedback?: string;
+  sentAt: string;
+  respondedAt?: string;
+}
+
 export default function AdsWithoutChannel() {
-  const [activeTab, setActiveTab] = useState<"create" | "status">("create");
+  const [activeTab, setActiveTab] = useState<"create" | "status" | "design-approval">("create");
   const scrollViewRef = useRef<ScrollView>(null);
   
   // Create Ad State
@@ -85,6 +99,16 @@ export default function AdsWithoutChannel() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedAdImages, setSelectedAdImages] = useState<{adId: string, hasBottomImage: boolean, hasFullscreenImage: boolean, title: string} | null>(null);
 
+  // Design Approval State
+  const [designsForApproval, setDesignsForApproval] = useState<DesignForApproval[]>([]);
+  const [isLoadingDesigns, setIsLoadingDesigns] = useState(false);
+  const [designRefreshing, setDesignRefreshing] = useState(false);
+  const [selectedDesignForPreview, setSelectedDesignForPreview] = useState<DesignForApproval | null>(null);
+  const [showDesignPreviewModal, setShowDesignPreviewModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackDesign, setFeedbackDesign] = useState<DesignForApproval | null>(null);
+
   // Date Picker State
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -95,6 +119,8 @@ export default function AdsWithoutChannel() {
     loadUserData();
     if (activeTab === 'status') {
       loadMyAds();
+    } else if (activeTab === 'design-approval') {
+      loadDesignsForApproval();
     }
   }, [activeTab]);
 
@@ -126,9 +152,10 @@ export default function AdsWithoutChannel() {
     }
   };
 
-  const changeTab = (tab: "create" | "status") => {
+  const changeTab = (tab: "create" | "status" | "design-approval") => {
     setActiveTab(tab);
-    scrollViewRef.current?.scrollTo({ x: tab === "create" ? 0 : width, animated: true });
+    const pageIndex = tab === "create" ? 0 : tab === "status" ? 1 : 2;
+    scrollViewRef.current?.scrollTo({ x: pageIndex * width, animated: true });
   };
 
   // Date picker handlers
@@ -169,7 +196,9 @@ export default function AdsWithoutChannel() {
 
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    if (offsetX >= width / 2) {
+    if (offsetX >= width * 1.5) {
+      setActiveTab("design-approval");
+    } else if (offsetX >= width / 2) {
       setActiveTab("status");
     } else {
       setActiveTab("create");
@@ -359,6 +388,7 @@ export default function AdsWithoutChannel() {
       formData.append('userId', userId || '');
       formData.append('startDate', startDate);
       formData.append('endDate', endDate);
+      formData.append('source', 'mobile'); // Identify as mobile upload for proper routing
 
       let endpoint = `${API_BASE_URL}/channel-partner/ads`;
       
@@ -490,8 +520,9 @@ export default function AdsWithoutChannel() {
             fullscreenVideoRef = null;
             // Switch to status tab to see the submitted ad
             setActiveTab('status');
-            // Reload ads
+            // Reload ads and refresh credits
             loadMyAds();
+            loadUserData();
           }}]
         );
       } else {
@@ -614,6 +645,122 @@ export default function AdsWithoutChannel() {
     }
   };
 
+  // Design Approval Functions
+  const loadDesignsForApproval = async () => {
+    setIsLoadingDesigns(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const userPhone = await getCurrentUserPhone();
+      if (!token || !userPhone) return;
+
+      const encodedPhone = encodeURIComponent(userPhone);
+      const response = await fetch(`${API_BASE_URL}/channel-partner/ads/designs-for-approval?phone=${encodedPhone}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDesignsForApproval(data.designs || []);
+      }
+    } catch (error) {
+      console.error('Error loading designs for approval:', error);
+    } finally {
+      setIsLoadingDesigns(false);
+      setDesignRefreshing(false);
+    }
+  };
+
+  const approveDesign = async (design: DesignForApproval) => {
+    Alert.alert(
+      'Approve Design',
+      'Are you sure you want to approve this design? It will be used for your ad.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          style: 'default',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('token');
+              const response = await fetch(`${API_BASE_URL}/channel-partner/ads/designs/${design.id}/approve`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              if (response.ok) {
+                Alert.alert('Success', 'Design approved successfully!');
+                loadDesignsForApproval();
+              } else {
+                Alert.alert('Error', 'Failed to approve design');
+              }
+            } catch (error) {
+              console.error('Error approving design:', error);
+              Alert.alert('Error', 'Network error. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const requestDesignChanges = async () => {
+    if (!feedbackDesign || !feedbackText.trim()) {
+      Alert.alert('Required', 'Please describe the changes you want.');
+      return;
+    }
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/channel-partner/ads/designs/${feedbackDesign.id}/request-changes`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ feedback: feedbackText })
+      });
+      if (response.ok) {
+        Alert.alert('Sent', 'Your feedback has been sent to the admin.');
+        setShowFeedbackModal(false);
+        setFeedbackText('');
+        setFeedbackDesign(null);
+        loadDesignsForApproval();
+      } else {
+        Alert.alert('Error', 'Failed to send feedback');
+      }
+    } catch (error) {
+      console.error('Error requesting changes:', error);
+      Alert.alert('Error', 'Network error. Please try again.');
+    }
+  };
+
+  const getDesignStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending-approval': return '#f59e0b';
+      case 'approved': return '#10b981';
+      case 'changes-requested': return '#f97316';
+      default: return '#6b7280';
+    }
+  };
+
+  const getDesignStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending-approval': return 'time';
+      case 'approved': return 'checkmark-circle';
+      case 'changes-requested': return 'refresh-circle';
+      default: return 'help-circle';
+    }
+  };
+
+  const getDesignStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending-approval': return 'Pending Your Approval';
+      case 'approved': return 'Approved';
+      case 'changes-requested': return 'Changes Requested';
+      default: return status;
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -636,6 +783,15 @@ export default function AdsWithoutChannel() {
         >
           <Text style={[styles.tabText, activeTab === "status" && styles.activeTabText]}>
             Status
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "design-approval" && styles.activeTab]}
+          onPress={() => changeTab("design-approval")}
+        >
+          <Text style={[styles.tabText, activeTab === "design-approval" && styles.activeTabText]}>
+            Design Approval
           </Text>
         </TouchableOpacity>
       </View>
@@ -1251,6 +1407,131 @@ export default function AdsWithoutChannel() {
             ))
           )}
         </ScrollView>
+
+        {/* Design Approval Page */}
+        <ScrollView 
+          style={[styles.page, { width }]} 
+          contentContainerStyle={styles.pageContent}
+          refreshControl={
+            <RefreshControl refreshing={designRefreshing} onRefresh={() => { setDesignRefreshing(true); loadDesignsForApproval(); }} />
+          }
+        >
+          {/* Info Banner */}
+          <View style={styles.designApprovalBanner}>
+            <View style={styles.designApprovalIconWrap}>
+              <Ionicons name="color-palette" size={28} color="#fff" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={styles.designApprovalBannerTitle}>Design Approvals</Text>
+              <Text style={styles.designApprovalBannerSubtitle}>
+                Review designs created for your ads. Approve or request changes.
+              </Text>
+            </View>
+          </View>
+
+          {isLoadingDesigns ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#7c3aed" />
+              <Text style={styles.loadingText}>Loading designs...</Text>
+            </View>
+          ) : designsForApproval.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="color-palette-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No designs to review</Text>
+              <Text style={styles.emptySubtext}>Designs sent by admin for your approval will appear here</Text>
+            </View>
+          ) : (
+            designsForApproval.map((design) => (
+              <View key={design.id} style={styles.designCard}>
+                {/* Design Header */}
+                <View style={styles.designCardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.designCardTitle}>
+                      {design.businessName || 'Ad Design'}
+                    </Text>
+                    <Text style={styles.designCardDesigner}>
+                      By: {design.designerName}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: getDesignStatusColor(design.status) }]}>
+                    <Ionicons name={getDesignStatusIcon(design.status) as any} size={14} color="#fff" />
+                    <Text style={styles.statusText}>{getDesignStatusLabel(design.status)}</Text>
+                  </View>
+                </View>
+
+                {/* Design Info */}
+                <View style={styles.designCardInfo}>
+                  <View style={styles.adDetailRow}>
+                    <Ionicons name={design.adType === 'video' ? 'videocam' : 'images'} size={16} color="#7c3aed" />
+                    <Text style={styles.adDetailText}>
+                      {design.adType === 'image' ? 'Image Design' : 'Video Design'} • {design.designFiles.length} file(s)
+                    </Text>
+                  </View>
+                  <View style={styles.adDetailRow}>
+                    <Ionicons name="calendar" size={16} color="#666" />
+                    <Text style={styles.adDetailText}>
+                      Sent: {new Date(design.sentAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Admin Message */}
+                {design.adminMessage && (
+                  <View style={styles.designMessageBox}>
+                    <Ionicons name="chatbubble-ellipses" size={16} color="#4338ca" />
+                    <Text style={styles.designMessageText}>{design.adminMessage}</Text>
+                  </View>
+                )}
+
+                {/* View Image Bar */}
+                <TouchableOpacity
+                  style={styles.viewImageBar}
+                  onPress={() => { setSelectedDesignForPreview(design); setShowDesignPreviewModal(true); }}
+                >
+                  <Ionicons name={design.adType === 'video' ? 'videocam-outline' : 'image-outline'} size={20} color="#7c3aed" />
+                  <Text style={styles.viewImageBarText}>
+                    {design.adType === 'video' ? 'View Video' : 'View Image'} ({design.designFiles.length} file{design.designFiles.length > 1 ? 's' : ''})
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color="#7c3aed" />
+                </TouchableOpacity>
+
+                {/* Action Buttons */}
+                {design.status === 'pending-approval' && (
+                  <View style={styles.designActionRow}>
+                    <TouchableOpacity
+                      style={styles.approveBtn}
+                      onPress={() => approveDesign(design)}
+                    >
+                      <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                      <Text style={styles.approveBtnText}>Approve</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.changesBtn}
+                      onPress={() => { setFeedbackDesign(design); setFeedbackText(''); setShowFeedbackModal(true); }}
+                    >
+                      <Ionicons name="create" size={20} color="#fff" />
+                      <Text style={styles.changesBtnText}>Request Changes</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {design.status === 'approved' && (
+                  <View style={[styles.pendingNotice, { backgroundColor: '#d1fae5' }]}>
+                    <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+                    <Text style={[styles.pendingNoticeText, { color: '#065f46' }]}>You approved this design</Text>
+                  </View>
+                )}
+
+                {design.status === 'changes-requested' && (
+                  <View style={[styles.pendingNotice, { backgroundColor: '#fff7ed' }]}>
+                    <Ionicons name="refresh-circle" size={16} color="#f97316" />
+                    <Text style={[styles.pendingNoticeText, { color: '#9a3412' }]}>Waiting for updated design</Text>
+                  </View>
+                )}
+              </View>
+            ))
+          )}
+        </ScrollView>
       </ScrollView>
 
       {/* Image Modal */}
@@ -1297,6 +1578,141 @@ export default function AdsWithoutChannel() {
                 </View>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Design Preview Modal */}
+      <Modal
+        visible={showDesignPreviewModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDesignPreviewModal(false)}
+      >
+        <View style={styles.imageModalOverlay}>
+          <View style={styles.imageModalContent}>
+            <View style={styles.imageModalHeader}>
+              <Text style={styles.imageModalTitle}>
+                {selectedDesignForPreview?.businessName || 'Design Preview'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowDesignPreviewModal(false)}
+                style={styles.imageModalCloseBtn}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.imageModalScroll}>
+              {selectedDesignForPreview?.designFiles.map((file, index) => (
+                <View key={index} style={styles.imageSection}>
+                  <Text style={styles.imageSectionLabel}>
+                    {file.name || `Design ${index + 1}`}
+                  </Text>
+                  {file.type === 'image' ? (
+                    <Image
+                      source={{ uri: file.url }}
+                      style={styles.modalImage}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.designThumbnailVideo}>
+                      <Ionicons name="play-circle" size={48} color="#fff" />
+                      <Text style={{ color: '#fff', marginTop: 8 }}>Video Preview</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+
+              {selectedDesignForPreview?.adminMessage && (
+                <View style={[styles.designMessageBox, { marginHorizontal: 16, marginBottom: 16 }]}>
+                  <Ionicons name="chatbubble-ellipses" size={16} color="#4338ca" />
+                  <Text style={styles.designMessageText}>{selectedDesignForPreview.adminMessage}</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {selectedDesignForPreview?.status === 'pending-approval' && (
+              <View style={styles.designModalActions}>
+                <TouchableOpacity
+                  style={[styles.approveBtn, { flex: 1 }]}
+                  onPress={() => {
+                    setShowDesignPreviewModal(false);
+                    if (selectedDesignForPreview) approveDesign(selectedDesignForPreview);
+                  }}
+                >
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.approveBtnText}>Approve</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.changesBtn, { flex: 1 }]}
+                  onPress={() => {
+                    setShowDesignPreviewModal(false);
+                    if (selectedDesignForPreview) {
+                      setFeedbackDesign(selectedDesignForPreview);
+                      setFeedbackText('');
+                      setShowFeedbackModal(true);
+                    }
+                  }}
+                >
+                  <Ionicons name="create" size={20} color="#fff" />
+                  <Text style={styles.changesBtnText}>Request Changes</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Request Changes Feedback Modal */}
+      <Modal
+        visible={showFeedbackModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowFeedbackModal(false)}
+      >
+        <View style={styles.imageModalOverlay}>
+          <View style={[styles.imageModalContent, { maxHeight: '60%' }]}>
+            <View style={[styles.imageModalHeader, { backgroundColor: '#fff7ed' }]}>
+              <Text style={[styles.imageModalTitle, { color: '#9a3412' }]}>Request Changes</Text>
+              <TouchableOpacity
+                onPress={() => setShowFeedbackModal(false)}
+                style={styles.imageModalCloseBtn}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ padding: 16 }}>
+              <Text style={{ fontSize: 14, color: '#666', marginBottom: 12 }}>
+                Describe the changes you&apos;d like to the design. Your feedback will be sent to the admin and designer.
+              </Text>
+              <TextInput
+                style={styles.feedbackInput}
+                placeholder="e.g., Please change the background color to blue, make the text larger..."
+                value={feedbackText}
+                onChangeText={setFeedbackText}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                <TouchableOpacity
+                  style={[styles.changesBtn, { flex: 1, opacity: feedbackText.trim() ? 1 : 0.5 }]}
+                  onPress={requestDesignChanges}
+                  disabled={!feedbackText.trim()}
+                >
+                  <Ionicons name="send" size={18} color="#fff" />
+                  <Text style={styles.changesBtnText}>Send Feedback</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.approveBtn, { flex: 1, backgroundColor: '#6b7280' }]}
+                  onPress={() => setShowFeedbackModal(false)}
+                >
+                  <Text style={styles.approveBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2359,6 +2775,178 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 250,
     borderRadius: 12,
+    backgroundColor: '#f9fafb',
+  },
+
+  // Design Approval Tab Styles
+  designApprovalBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#7c3aed',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  designApprovalIconWrap: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  designApprovalBannerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  designApprovalBannerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  designCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderLeftWidth: 4,
+    borderLeftColor: '#7c3aed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  designCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  designCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  designCardDesigner: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  designCardInfo: {
+    marginBottom: 10,
+  },
+  designMessageBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#eef2ff',
+    borderColor: '#c7d2fe',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    gap: 8,
+  },
+  designMessageText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#4338ca',
+    lineHeight: 18,
+  },
+  designThumbnailScroll: {
+    marginBottom: 12,
+  },
+  designThumbnail: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    marginRight: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  designThumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  designThumbnailVideo: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1f2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewImageBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f0ff',
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    gap: 8,
+  },
+  viewImageBarText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#7c3aed',
+  },
+  designActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  approveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10b981',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  approveBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  changesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f97316',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+  },
+  changesBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  designModalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    color: '#1f2937',
+    minHeight: 120,
     backgroundColor: '#f9fafb',
   },
 });
