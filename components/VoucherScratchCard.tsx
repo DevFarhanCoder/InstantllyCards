@@ -31,7 +31,7 @@ interface VoucherItem {
   description: string;
   expiryDate: string;
   icon: string;
-  colors: string[];
+  colors: [string, string, ...string[]];
   type: string;
 }
 
@@ -200,7 +200,7 @@ export default function VoucherScratchCard({
             {/* Voucher Image */}
             <View style={styles.imageContainer}>
               <Image
-                source={require("../assets/images/1st Voucher.jpeg")}
+                source={require("../assets/images/1stVoucher.jpeg")}
                 style={styles.fullImage}
                 resizeMode="contain"
               />

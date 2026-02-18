@@ -56,16 +56,21 @@ export default function VoucherList({
               <TouchableOpacity
                 style={[
                   styles.redeemButton,
-                  voucher.redeemedStatus !== "unredeemed" &&
+                  voucher.redeemedStatus &&
+                    voucher.redeemedStatus !== "unredeemed" &&
                     styles.redeemButtonDisabled,
                 ]}
-                disabled={voucher.redeemedStatus !== "unredeemed"}
+                disabled={
+                  voucher.redeemedStatus &&
+                  voucher.redeemedStatus !== "unredeemed"
+                }
                 onPress={() => onRedeem(voucher._id)}
               >
                 <Ionicons
                   name="ticket"
                   size={14}
                   color={
+                    !voucher.redeemedStatus ||
                     voucher.redeemedStatus === "unredeemed"
                       ? "#0F172A"
                       : "#64748B"
@@ -74,18 +79,21 @@ export default function VoucherList({
                 <Text
                   style={[
                     styles.redeemText,
-                    voucher.redeemedStatus !== "unredeemed" &&
+                    voucher.redeemedStatus &&
+                      voucher.redeemedStatus !== "unredeemed" &&
                       styles.redeemTextDisabled,
                   ]}
                 >
-                  {voucher.redeemedStatus === "unredeemed"
+                  {!voucher.redeemedStatus ||
+                  voucher.redeemedStatus === "unredeemed"
                     ? "Redeem"
                     : voucher.redeemedStatus === "redeemed"
                       ? "Redeemed"
                       : "Expired"}
                 </Text>
               </TouchableOpacity>
-              {voucher.redeemedStatus === "unredeemed" && (
+              {(!voucher.redeemedStatus ||
+                voucher.redeemedStatus === "unredeemed") && (
                 <TouchableOpacity
                   style={styles.transferButton}
                   onPress={() => onTransfer(voucher)}

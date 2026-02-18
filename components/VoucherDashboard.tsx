@@ -152,7 +152,29 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       }
 
       if (voucherRes?.vouchers) {
-        setVouchers(voucherRes.vouchers);
+        // Add hardcoded voucher to the beginning
+        const hardcodedVoucher: VoucherItem = {
+          _id: "hardcoded-voucher-1",
+          voucherNumber: "INS-001",
+          MRP: 3600,
+          issueDate: new Date().toISOString(),
+          expiryDate: new Date("2026-08-30").toISOString(),
+          redeemedStatus: "unredeemed",
+          source: "admin",
+        };
+        setVouchers([hardcodedVoucher, ...voucherRes.vouchers]);
+      } else {
+        // If no vouchers from API, still show hardcoded one
+        const hardcodedVoucher: VoucherItem = {
+          _id: "hardcoded-voucher-1",
+          voucherNumber: "INS-001",
+          MRP: 3600,
+          issueDate: new Date().toISOString(),
+          expiryDate: new Date("2026-08-30").toISOString(),
+          redeemedStatus: "unredeemed",
+          source: "admin",
+        };
+        setVouchers([hardcodedVoucher]);
       }
 
       if (buyerRes?.buyers) {
@@ -161,6 +183,17 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
     } catch (err: any) {
       console.error("MLM dashboard load error", err);
       setError(err?.message || "Failed to load dashboard");
+      // Even on error, show hardcoded voucher
+      const hardcodedVoucher: VoucherItem = {
+        _id: "hardcoded-voucher-1",
+        voucherNumber: "INS-001",
+        MRP: 3600,
+        issueDate: new Date().toISOString(),
+        expiryDate: new Date("2026-08-30").toISOString(),
+        redeemedStatus: "unredeemed",
+        source: "admin",
+      };
+      setVouchers([hardcodedVoucher]);
     } finally {
       setLoading(false);
     }
@@ -320,12 +353,29 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
               5× Referral Credit Distribution
             </Text>
           </View>
-          <TouchableOpacity style={styles.infoButton}>
-            <Ionicons
-              name="information-circle-outline"
-              size={28}
-              color="#6B7280"
-            />
+          <TouchableOpacity
+            style={styles.transferVoucherButton}
+            onPress={() => {
+              if (vouchers.length > 0) {
+                // Find first unredeemed voucher
+                const unredeemedVoucher = vouchers.find(
+                  (v) => !v.redeemedStatus || v.redeemedStatus === "unredeemed",
+                );
+                if (unredeemedVoucher) {
+                  handleVoucherTransfer(unredeemedVoucher);
+                }
+              }
+            }}
+          >
+            <LinearGradient
+              colors={["#3B82F6", "#2563EB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.transferVoucherGradient}
+            >
+              <Ionicons name="send" size={16} color="#FFFFFF" />
+              <Text style={styles.transferVoucherText}>Transfer</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -436,6 +486,27 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: scaleFontSize(14),
     color: "#6B7280",
+  },
+  transferVoucherButton: {
+    borderRadius: scaleSize(12),
+    overflow: "hidden",
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  transferVoucherGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: scaleSize(14),
+    paddingVertical: scaleSize(10),
+  },
+  transferVoucherText: {
+    fontSize: scaleFontSize(13),
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   infoButton: {
     padding: scaleSize(4),

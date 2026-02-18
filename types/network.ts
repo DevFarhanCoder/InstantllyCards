@@ -72,7 +72,7 @@ export interface VoucherItem {
   issueDate: string;
   expiryDate: string;
   redeemedStatus: "unredeemed" | "redeemed" | "expired";
-  source?: "purchase" | "transfer";
+  source?: "purchase" | "transfer" | "admin";
   transferredFrom?: {
     _id: string;
     name: string;
