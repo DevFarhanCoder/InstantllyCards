@@ -205,7 +205,28 @@ async function requestNonCritical<T>(
 }
 
 const api = {
-  get: <T = any>(p: string) => request<T>("GET", p),
+  // get: <T = any>(p: string, p0: { params: { subcategory: string | string[]; }; }) => request<T>("GET", p),
+  get: <T = any>(
+    p: string,
+    p0?: { params?: Record<string, any> }
+  ) => {
+    let finalPath = p;
+
+    if (p0?.params) {
+      const query = new URLSearchParams();
+
+      Object.entries(p0.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          query.append(key, String(value));
+        }
+      });
+
+      finalPath += `?${query.toString()}`;
+    }
+
+    return request<T>("GET", finalPath);
+  },
+
   post: <T = any>(
     p: string,
     b?: Json | FormData,
