@@ -221,15 +221,14 @@ export default function VoucherListScreen({
           </View>
         </View>
 
-        {/* Redeem Button */}
-        <TouchableOpacity
-          style={styles.redeemButton}
-          onPress={() => onVoucherSelect(item)}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.redeemButtonText}>Redeem now</Text>
-          <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-        </TouchableOpacity>
+        {/* Description or CTA Text (instead of button) */}
+        {item.description && (
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.descriptionText} numberOfLines={2}>
+              {item.description}
+            </Text>
+          </View>
+        )}
 
         {/* Validity Footer */}
         <View style={styles.validityFooter}>
@@ -490,20 +489,17 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     marginTop: scaleSize(2),
   },
-  redeemButton: {
-    backgroundColor: "#000000",
-    paddingVertical: scaleSize(14),
-    borderRadius: scaleSize(12),
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+  descriptionContainer: {
+    paddingVertical: scaleSize(12),
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
     marginBottom: scaleSize(12),
   },
-  redeemButtonText: {
-    fontSize: scaleFontSize(15),
-    fontWeight: "700",
-    color: "#FFFFFF",
+  descriptionText: {
+    fontSize: scaleFontSize(13),
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 18,
   },
   validityFooter: {
     flexDirection: "row",

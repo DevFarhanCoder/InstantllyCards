@@ -13,14 +13,17 @@ const getApiBase = () => {
 
   for (const source of sources) {
     if (source) {
+      console.log(`🔧 [API] Using API Base from config: ${source}`);
       return source.replace(/\/$/, "");
     }
   }
 
+  console.log(`🔧 [API] No config found, using production: ${PRODUCTION_URL}`);
   return PRODUCTION_URL;
 };
 
 const BASE = getApiBase();
+console.log(`🌐 [API] Final BASE URL: ${BASE}`);
 
 // Timeout for API requests
 const TIMEOUT_MS = 120000;
@@ -57,6 +60,7 @@ async function request<T>(
 
   let lastErr: any;
   for (const url of candidates) {
+    console.log(`🌐 [API-REQUEST] ${method} ${url}`);
     let retries = 2;
 
     while (retries > 0) {
