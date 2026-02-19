@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,25 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../lib/api';
+import { FEATURE_FLAGS } from '../../lib/featureFlags';
 
 const { width, height } = Dimensions.get('window');
 
 type ServiceType = 'home-based' | 'business-visiting';
 
 export default function ServiceSelectionScreen() {
+  // Redirect to home if feature is disabled
+  useEffect(() => {
+    if (!FEATURE_FLAGS.SHOW_SERVICE_SELECTION) {
+      console.log('🚫 [SERVICE-SELECTION] Feature disabled via feature flag, redirecting to home');
+      router.replace('/(tabs)/home');
+    }
+  }, []);
+
+  // Return null if feature is disabled to prevent any rendering
+  if (!FEATURE_FLAGS.SHOW_SERVICE_SELECTION) {
+    return null;
+  }
   const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
   const [loading, setLoading] = useState(false);
   const scaleAnim = React.useRef(new Animated.Value(1)).current;

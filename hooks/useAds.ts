@@ -96,19 +96,21 @@ export function useAds() {
           // );
 
           // Check first ad structure
-          // if (response.data[0]) {
-          //   console.log(
-          //     "📸 [MOBILE STEP 4] First ad RAW DATA:",
-          //     JSON.stringify(response.data[0], null, 2),
-          //   );
-          //   console.log("🔍 [MOBILE STEP 4.5] Field check:", {
-          //     hasBottomMediaUrl: "bottomMediaUrl" in response.data[0],
-          //     bottomMediaUrlValue: response.data[0].bottomMediaUrl,
-          //     hasBottomMediaType: "bottomMediaType" in response.data[0],
-          //     bottomMediaTypeValue: response.data[0].bottomMediaType,
-          //     hasBottomImageGridFS: "bottomImageGridFS" in response.data[0],
-          //   });
-          // }
+          if (response.data[0]) {
+            console.log(
+              "📸 [MOBILE STEP 4] First ad RAW DATA:",
+              JSON.stringify(response.data[0], null, 2),
+            );
+            console.log("🔍 [MOBILE STEP 4.5] Field check:", {
+              hasBottomImageUrl: "bottomImageUrl" in response.data[0],
+              bottomImageUrlValue: response.data[0].bottomImageUrl,
+              hasFullscreenImageUrl: "fullscreenImageUrl" in response.data[0],
+              fullscreenImageUrlValue: response.data[0].fullscreenImageUrl,
+              hasBottomImage: "hasBottomImage" in response.data[0],
+              hasBottomImageValue: response.data[0].hasBottomImage,
+              allKeys: Object.keys(response.data[0]).join(", "),
+            });
+          }
 
           // Format ads for carousel - sorted by priority (backend already sorted)
           // ✅ UPDATED: Now using GridFS URLs instead of base64
@@ -142,30 +144,25 @@ export function useAds() {
 
           const formattedApiAds: Ad[] = response.data.map(
             (ad: any, index: number) => {
-              // 🔥 FIX: API returns bottomImageUrl, not bottomMediaUrl
-              // Build full image URLs using GridFS endpoints
-              const bottomMediaUrl = ad.bottomImageUrl
-                ? `${imageBaseUrl}${ad.bottomImageUrl}`
-                : null;
+              // ✅ ALWAYS construct URLs from _id - works with both old and new API
+              const bottomMediaUrl = `/api/ads/image/${ad._id}/bottom`;
+              const fullscreenMediaUrl = `/api/ads/image/${ad._id}/fullscreen`;
 
-              const fullscreenMediaUrl = ad.fullscreenImageUrl
-                ? `${imageBaseUrl}${ad.fullscreenImageUrl}`
-                : null;
-
-              // if (index === 0) {
-              //   console.log(
-              //     `✅ [MOBILE STEP 5] Constructing image URLs for first ad:`,
-              //   );
-              //   console.log(`   Bottom Image: ${bottomMediaUrl}`);
-              //   console.log(
-              //     `   Fullscreen Image: ${fullscreenMediaUrl || "N/A"}`,
-              //   );
-              // }
+              if (index === 0) {
+                console.log(
+                  `✅ [MOBILE STEP 5] Constructed URLs for first ad:`,
+                );
+                console.log(`   Ad ID: ${ad._id}`);
+                console.log(`   Bottom Image URL: ${bottomMediaUrl}`);
+                console.log(`   Fullscreen Image URL: ${fullscreenMediaUrl}`);
+                console.log(`   Note: Base URL will be prepended by FooterCarousel buildUrl()`);
+              }
 
               return {
                 id: `api-${ad._id}`,
                 phone: ad.phoneNumber,
                 name: ad.title || "Ad",
+                title: ad.title || "Ad",
                 priority: ad.priority || 5,
                 isFromApi: true,
 
@@ -181,12 +178,29 @@ export function useAds() {
             },
           );
 
-          // console.log(
-          //   `✅ [MOBILE STEP 6] Formatted ${formattedApiAds.length} API ads with GridFS URLs`,
-          // );
-          // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+          // ✅ FRONTEND DEDUPLICATION: Extra safety to ensure no duplicates slip through
+          // Deduplicate by phone number + title combination
+          const uniqueAds = formattedApiAds.reduce((acc: Ad[], currentAd: Ad) => {
+            const key = `${currentAd.phone}-${currentAd.title}`;
+            const exists = acc.some(ad => 
+              `${ad.phone}-${ad.title}` === key
+            );
+            
+            if (!exists) {
+              acc.push(currentAd);
+            } else {
+              console.log(`🔄 [MOBILE] Skipping duplicate: "${currentAd.title}" (${currentAd.phone})`);
+            }
+            
+            return acc;
+          }, []);
+          
+          console.log(`📊 [MOBILE STEP 6] Total ads: ${formattedApiAds.length} → Unique ads: ${uniqueAds.length}`);
+          if (formattedApiAds.length > uniqueAds.length) {
+            console.log(`🗑️  [MOBILE] Removed ${formattedApiAds.length - uniqueAds.length} duplicate ad(s) on frontend`);
+          }
 
-          return formattedApiAds;
+          return uniqueAds;
         } else {
           // console.log('⚠️  [MOBILE WARNING] No API ads available in response');
           // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -214,19 +228,18 @@ export function useAds() {
     staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
     gcTime: 30 * 60 * 1000, // 30 minutes - kept in memory (increased for 100+ ads)
 
-    // Don't refetch on component mount/focus (use cache)
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    // ✅ FIXED: Prevent mid-sequence refetching that disrupts carousel order
+    refetchOnMount: false, // Don't refetch when component remounts
+    refetchOnWindowFocus: false, // Don't refetch when window gains focus
+    refetchOnReconnect: false, // Don't refetch on network reconnect
 
-    // Auto-refresh every 10 minutes in background (smooth queue updates)
-    refetchInterval: 10 * 60 * 1000,
+    // ✅ DISABLED: Auto-refresh can disrupt carousel mid-sequence
+    // Only manually refetch or wait for staleTime to expire
+    refetchInterval: false, // Disabled auto-refresh
+    refetchIntervalInBackground: false, // Disabled background refresh
 
     // Retry configuration
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-
-    // Enable background refetching for continuous smooth updates
-    refetchIntervalInBackground: true,
   });
 }

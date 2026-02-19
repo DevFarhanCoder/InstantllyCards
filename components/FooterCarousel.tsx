@@ -1139,7 +1139,7 @@
 //   },
 // });
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   View,
   Image,
@@ -1168,14 +1168,23 @@ const IMAGE_TIME = 5000; // Auto-scroll delay for all ads
 const buildUrl = (url?: string | null) => {
   if (!url) return null;
 
+  // Already a full URL
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
 
-  // cloudfront or domain without protocol
+  // Relative path (e.g., /api/ads/image/...) - prepend base URL
+  if (url.startsWith("/")) {
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE || "https://api-test.instantllycards.com";
+    const fullUrl = `${baseUrl}${url}`;
+    // Removed excessive logging - only log errors
+    return fullUrl;
+  }
+
+  // CloudFront or domain without protocol
   if (url.includes(".")) {
     const fixed = `https://${url}`;
-    // console.log('🔧 Fixed URL:', fixed);
+    // Removed excessive logging - only log errors
     return fixed;
   }
 
@@ -1197,29 +1206,57 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
   const [initialized, setInitialized] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [showModal, setShowModal] = useState(false);
+  
+  // 🔒 Create stable data key to detect REAL data changes (not just array reference changes)
+  const adsDataKey = useMemo(() => {
+    if (ads.length === 0) return 'empty';
+    // Create unique key from ad IDs to detect actual data changes
+    return ads.map(ad => ad.id).join('-');
+  }, [ads]);
+  
+  // 🔒 Memoize infiniteAds to prevent recreation on every render
+  const infiniteAds = useMemo(() => {
+    if (ads.length === 0) return [];
+    return [ads[ads.length - 1], ...ads, ads[0]];
+  }, [adsDataKey]); // Only recreate when actual data changes
 
-  // Debug: Log ads data
+  // Debug: Log ads data and sequence - ONLY WHEN DATA ACTUALLY CHANGES
   useEffect(() => {
-    console.log("🎬 FooterCarousel: Ads data:", {
-      count: ads.length,
-      isLoading,
-      firstAd: ads[0]
-        ? {
-            id: ads[0].id,
-            bottomMediaUrl: ads[0].bottomMediaUrl,
-            bottomMediaType: ads[0].bottomMediaType,
-          }
-        : null,
+    if (ads.length === 0) return;
+    
+    console.log('');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🎬 FOOTER CAROUSEL INITIALIZED');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📊 Total Ads Loaded: ${ads.length}`);
+    console.log(`🔄 Carousel Mode: Sequential (1→2→3...→${ads.length}→1)`);
+    console.log(`⏱️ Display Time: ${IMAGE_TIME/1000} seconds per ad`);
+    console.log(`📈 Full Cycle Duration: ${(ads.length * IMAGE_TIME / 1000)} seconds (${Math.floor(ads.length * IMAGE_TIME / 60000)} min ${Math.floor((ads.length * IMAGE_TIME % 60000) / 1000)} sec)`);
+    console.log('');
+    console.log('📋 AD SEQUENCE LIST:');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    ads.forEach((ad, index) => {
+      const position = index + 1;
+      console.log(`  ${position.toString().padStart(3, '0')}. ${ad.title || ad.name || 'Untitled'} (ID: ${ad.id}, Phone: ${ad.phone || 'N/A'})`);
     });
-  }, [ads.length, isLoading]);
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ Carousel will play in EXACT ORDER listed above');
+    console.log('🔒 No randomization - Sequential play guaranteed');
+    console.log('♻️  After last ad, automatically returns to first ad');
+    console.log('🚫 Auto-scroll NEVER restarts once started');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('');
+  }, [adsDataKey]); // ✅ Only log when actual data changes, not on every render
 
   // ⚡ Preload fullscreen images for instant display
   useEffect(() => {
     if (ads.length === 0) return;
 
     const preloadImages = async () => {
-      console.log("⚡ Preloading fullscreen images...");
       const imageBaseUrl = "https://api.instantllycards.com";
+      let preloadCount = 0;
 
       for (const ad of ads) {
         if (ad.fullscreenMediaUrl) {
@@ -1229,83 +1266,180 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
 
           try {
             await Image.prefetch(url);
-            console.log("✅ Preloaded:", ad.id);
+            preloadCount++;
           } catch (error) {
-            console.warn("⚠️ Failed to preload:", ad.id);
+            // Silent fail
           }
         }
       }
-      console.log("⚡ Preloading complete!");
+      console.log(`⚡ Preloaded ${preloadCount}/${ads.length} fullscreen images`);
     };
 
     preloadImages();
-  }, [ads]);
+  }, [adsDataKey]); // ✅ Only preload when actual data changes
 
-  /* 🔁 Infinite list */
-  const infiniteAds =
-    ads.length > 0 ? [ads[ads.length - 1], ...ads, ads[0]] : [];
-
-  /* 🔁 Restore last index */
+  /* 🔁 Initialize carousel - ALWAYS START FROM BEGINNING FOR SEQUENTIAL PLAY */
   useEffect(() => {
-    if (!ads.length) return;
+    if (!ads.length || isLoading) return;
 
-    (async () => {
-      const saved = await AsyncStorage.getItem("footerAdIndex");
-      const start = saved ? Number(saved) : 1;
+    // ✅ Reset carousel ONLY when ads data actually changes (new ads loaded)
+    console.log('');
+    console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+    console.log('🔄 INITIALIZING CAROUSEL WITH NEW DATA');
+    console.log(`🔄 Total ads to show: ${ads.length}`);
+    console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+    console.log('');
+    
+    setActiveIndex(1); // Always start from first ad
+    setInitialized(false); // Reset initialized state
+    
+    // Clear any existing timer to prevent race conditions
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
 
-      // console.log('🔁 Restoring index:', start);
-      setActiveIndex(start);
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        x: SCREEN_WIDTH,
+        animated: false,
+      });
+      setInitialized(true);
+      console.log('✅ Carousel initialized at position 1');
+    }, 100);
+  }, [adsDataKey, isLoading]); // ✅ Only reinitialize when actual data changes
 
-      setTimeout(() => {
-        scrollRef.current?.scrollTo({
-          x: start * SCREEN_WIDTH,
-          animated: false,
-        });
-        setInitialized(true);
-      }, 50);
-    })();
-  }, [ads.length]);
-
-  /* ⏱️ Auto scroll for image ads */
+  /* ⏱️ Auto scroll - NEVER RESTARTS ONCE STARTED */
   useEffect(() => {
+    // ✅ Only start auto-scroll once initialized and ads are loaded
     if (!initialized || infiniteAds.length <= 1) return;
 
+    console.log('🚀 Starting auto-scroll sequence (will run continuously)');
+    
+    // Clear any existing timer (safety check)
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    timerRef.current = setTimeout(() => {
-      const next = activeIndex + 1;
+    const startAutoScroll = () => {
+      timerRef.current = setTimeout(() => {
+        setActiveIndex((currentIndex) => {
+          const next = currentIndex + 1;
+          
+          // 🔍 DEBUG: Determine actual ad position in sequence (1-based)
+          let actualAdPosition: number;
+          if (next === 0) {
+            actualAdPosition = ads.length; // Last ad (duplicate)
+          } else if (next === infiniteAds.length - 1) {
+            actualAdPosition = 1; // First ad (duplicate)
+          } else {
+            actualAdPosition = next; // Current ad (1-based)
+          }
+          
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log(`🎯 AD TRANSITION: Moving from position ${currentIndex} to ${next}`);
+          console.log(`📍 ACTUAL AD SEQUENCE: Now showing ad #${actualAdPosition} of ${ads.length}`);
+          
+          const adToShow = infiniteAds[next];
+          if (adToShow) {
+            console.log(`📱 AD DETAILS: "${adToShow.title || adToShow.name || 'Unknown'}"`);
+            console.log(`📞 PHONE: ${adToShow.phone || 'No phone'}`);
+            console.log(`🆔 AD ID: ${adToShow.id}`);
+          }
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      scrollRef.current?.scrollTo({
-        x: next * SCREEN_WIDTH,
-        animated: true,
-      });
+          // Scroll to next position
+          scrollRef.current?.scrollTo({
+            x: next * SCREEN_WIDTH,
+            animated: true,
+          });
 
-      if (next === infiniteAds.length - 1) {
+          // Handle infinite loop boundary
+          if (next === infiniteAds.length - 1) {
+            // Reached duplicate first slide, jump back after animation
+            setTimeout(() => {
+              scrollRef.current?.scrollTo({
+                x: SCREEN_WIDTH,
+                animated: false,
+              });
+            }, 300);
+            console.log('');
+            console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+            console.log('✅ CYCLE COMPLETE: All ads shown! Back to start!');
+            console.log(`⏱️ Full cycle: ${ads.length} ads × 5 seconds = ${(ads.length * 5)} seconds total`);
+            console.log('🔄 Restarting from ad #1');
+            console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+            console.log('');
+            return 1; // Reset to first real ad
+          } else {
+            return next; // Continue to next ad
+          }
+        });
+        
+        // Schedule next scroll (recursive, prevents race conditions)
+        startAutoScroll();
+      }, IMAGE_TIME);
+    };
+
+    // Log startup message
+    console.log('');
+    console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
+    console.log('🚀 AUTO-SCROLL STARTED - SEQUENTIAL MODE ACTIVE');
+    console.log(`🚀 Will show ${ads.length} ads in order: 1→2→3...→${ads.length}→1`);
+    console.log('🚀 Display interval: 5 seconds per ad');
+    console.log('🚀 Auto-scroll will NEVER restart until data changes');
+    console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
+    console.log('');
+    
+    startAutoScroll();
+
+    // Cleanup: only clear timer when component unmounts or when data changes
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [initialized]); // ✅ CRITICAL: Only depends on 'initialized', never restarts mid-sequence
+
+  /* 💾 Save index - DISABLED: Always start from beginning */
+  // useEffect(() => {
+  //   if (initialized) {
+  //     AsyncStorage.setItem("footerAdIndex", String(activeIndex));
+  //   }
+  // }, [activeIndex, initialized]);
+
+  /* � Handle manual scroll by user - UPDATE activeIndex to stay in sync */
+  const handleScrollEnd = (event: any) => {
+    const contentOffsetX = event.nativeEvent.contentOffset.x;
+    const newIndex = Math.round(contentOffsetX / SCREEN_WIDTH);
+    
+    if (newIndex !== activeIndex) {
+      console.log(`👆 User scrolled manually from ${activeIndex} to ${newIndex}`);
+      setActiveIndex(newIndex);
+      
+      // Handle boundary: if user scrolled to duplicate first/last slide
+      if (newIndex === 0) {
+        // Scrolled to duplicate last slide, jump to real last slide
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({
+            x: (infiniteAds.length - 2) * SCREEN_WIDTH,
+            animated: false,
+          });
+          setActiveIndex(infiniteAds.length - 2);
+        }, 50);
+      } else if (newIndex === infiniteAds.length - 1) {
+        // Scrolled to duplicate first slide, jump to real first slide
         setTimeout(() => {
           scrollRef.current?.scrollTo({
             x: SCREEN_WIDTH,
             animated: false,
           });
           setActiveIndex(1);
-        }, 300);
-      } else {
-        setActiveIndex(next);
+        }, 50);
       }
-    }, IMAGE_TIME);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [activeIndex, initialized]);
-
-  /* 💾 Save index */
-  useEffect(() => {
-    if (initialized) {
-      AsyncStorage.setItem("footerAdIndex", String(activeIndex));
     }
-  }, [activeIndex, initialized]);
+  };
 
-  /* 🖼️ Bottom media - Images only */
+  /* �🖼️ Bottom media - Images only */
   const renderBottomMedia = (ad: Ad) => {
     const url = buildUrl(ad.bottomMediaUrl);
 
@@ -1359,15 +1493,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
   const renderFullscreenMedia = (ad: Ad) => {
     const url = buildUrl(ad.fullscreenMediaUrl || ad.bottomMediaUrl);
 
-    // console.log("🖥️ Rendering fullscreen media:", {
-    //   adId: ad.id,
-    //   fullscreenMediaUrl: ad.fullscreenMediaUrl,
-    //   bottomMediaUrl: ad.bottomMediaUrl,
-    //   builtUrl: url,
-    // });
-
     if (!url) {
-      console.warn("⚠️ No fullscreen URL for ad:", ad.id);
       return null;
     }
 
@@ -1377,14 +1503,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
         style={styles.fullMedia}
         resizeMode="contain"
         onError={(e) => {
-          console.error("❌ Fullscreen image load error:", {
-            adId: ad.id,
-            url,
-            error: e.nativeEvent.error,
-          });
-        }}
-        onLoad={() => {
-          console.log("✅ Fullscreen image loaded successfully:", ad.id);
+          console.error("❌ Fullscreen image error:", ad.id);
         }}
       />
     );
@@ -1441,6 +1560,8 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           removeClippedSubviews={false}
+          onMomentumScrollEnd={handleScrollEnd}
+          scrollEventThrottle={16}
         >
           {infiniteAds.map((ad, index) => (
             <View key={`${ad.id}-${index}`} style={styles.slide}>

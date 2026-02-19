@@ -51,24 +51,24 @@
 //     try {
 //       setLoading(true);
 //       setError(null);
-      
+
 //       console.log('🔍 Fetching cards for subcategory:', subcategory);
-      
+
 //       // Fetch all cards from the feed
 //       const response = await api.get('/cards/feed/public');
-      
+
 //       if (response && response.data) {
 //         const allCards = Array.isArray(response.data) ? response.data : [];
-        
+
 //         // Filter cards that have the selected subcategory in their servicesOffered
 //         const filteredCards = allCards.filter((card: any) => {
 //           if (!card.servicesOffered) return false;
-          
+
 //           // servicesOffered is a comma-separated string
 //           const services = card.servicesOffered.split(',').map((s: string) => s.trim().toLowerCase());
 //           return services.includes((subcategory as string).toLowerCase());
 //         });
-        
+
 //         console.log(`✅ Found ${filteredCards.length} cards for "${subcategory}"`);
 //         setBusinessCards(filteredCards);
 //       } else {
@@ -127,7 +127,7 @@
 //             )}
 //           </View>
 //         </View>
-        
+
 //         <View style={styles.cardInfo}>
 //           <View style={styles.nameRow}>
 //             <Text style={styles.businessName} numberOfLines={1}>
@@ -186,7 +186,7 @@
 //   return (
 //     <SafeAreaView style={styles.container}>
 //       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
 //       {/* Header */}
 //       <View style={styles.header}>
 //         <TouchableOpacity 
@@ -576,6 +576,15 @@ import api from '../lib/api';
 
 const { width, height } = Dimensions.get('window');
 
+// ADD THIS HELPER FUNCTION:
+const getImageUrl = (url: string): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return `https://${url}`;
+};
+
 // Get status bar height for Android
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
@@ -585,43 +594,47 @@ export default function BusinessCardsScreen() {
   const [businessCards, setBusinessCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const viewabilityConfig = {
+    itemVisiblePercentThreshold: 50,
+  };
 
+  const onViewableItemsChanged = React.useRef(({ viewableItems }) => {
+    viewableItems.forEach((viewable: any) => {
+      if (viewable.item?._id) {
+        api.post(`/business-listings/${viewable.item._id}/impression`);
+      }
+    });
+  }).current;
   // Fetch real business cards from API
   const fetchBusinessCards = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('🔍 Fetching cards for subcategory:', subcategory);
-      
-      // Fetch all cards from the feed
-      const response = await api.get('/cards/feed/public');
-      
-      if (response && response.data) {
-        const allCards = Array.isArray(response.data) ? response.data : [];
-        
-        // Filter cards that have the selected subcategory in their servicesOffered
-        const filteredCards = allCards.filter((card: any) => {
-          if (!card.servicesOffered) return false;
-          
-          // servicesOffered is a comma-separated string
-          const services = card.servicesOffered.split(',').map((s: string) => s.trim().toLowerCase());
-          return services.includes((subcategory as string).toLowerCase());
-        });
-        
-        console.log(`✅ Found ${filteredCards.length} cards for "${subcategory}"`);
-        setBusinessCards(filteredCards);
+
+      console.log('🔍 Fetching promoted businesses for:', subcategory);
+      const response = await api.get('/business-listings', {
+        params: {
+          subcategory: subcategory,
+          // city: optional future
+        }
+      });
+      console.log('📊 API Response:', response);
+
+      if (response?.success) {
+        setBusinessCards(response.data || []);
       } else {
         setBusinessCards([]);
       }
+
     } catch (err) {
-      console.error('❌ Error fetching business cards:', err);
-      setError('Failed to load business cards');
+      console.error('❌ Error fetching business listings:', err);
+      setError('Failed to load businesses');
       setBusinessCards([]);
     } finally {
       setLoading(false);
     }
   };
+
 
   // Fetch cards on mount and when subcategory changes
   useEffect(() => {
@@ -629,18 +642,25 @@ export default function BusinessCardsScreen() {
   }, [subcategory]);
 
   // Refetch cards when screen comes into focus (after delete/edit)
-  useFocusEffect(
-    React.useCallback(() => {
-      console.log('🔄 Business cards screen focused - refreshing list');
-      fetchBusinessCards();
-    }, [subcategory])
+  // useFocusEffect(
+  //   React.useCallback(() => {
+  //     console.log('🔄 Business cards screen focused - refreshing list');
+  //     fetchBusinessCards();
+  //   }, [subcategory])
+  // );
+
+  // const filteredCards = businessCards.filter((card: any) =>
+  // (card.companyName?.toLowerCase().includes(search.toLowerCase()) ||
+  //   card.name?.toLowerCase().includes(search.toLowerCase()) ||
+  //   card.aboutBusiness?.toLowerCase().includes(search.toLowerCase()))
+  // );
+  const filteredCards = businessCards.filter((card: any) =>
+    card.businessName?.toLowerCase().includes(search.toLowerCase()) ||
+    card.description?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const filteredCards = businessCards.filter((card: any) =>
-    (card.companyName?.toLowerCase().includes(search.toLowerCase()) ||
-    card.name?.toLowerCase().includes(search.toLowerCase()) ||
-    card.aboutBusiness?.toLowerCase().includes(search.toLowerCase()))
-  );
+
+
 
   const handleCall = (phone: string) => {
     Linking.openURL(`tel:${phone}`);
@@ -661,31 +681,40 @@ export default function BusinessCardsScreen() {
   };
 
   const handleShare = (item: any) => {
-    console.log('Share:', item.companyName);
+    console.log('Share:', item.businessName);
   };
 
   const renderBusinessCard = ({ item, index }) => {
-    const phone = item.companyPhone || item.personalPhone;
+    const phone = item.phone
+    const address = `${item.area || ''}, ${item.city || ''}`;
     const currentYear = new Date().getFullYear();
     const establishedYear = item.establishedYear ? parseInt(item.establishedYear) : null;
     const yearsInBusiness = establishedYear && establishedYear <= currentYear ? currentYear - establishedYear : null;
-    
+
+
+
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.card}
         activeOpacity={0.7}
-        onPress={() => {
+        onPress={async () => {
+          try {
+            await api.post(`/business-listings/${item._id}/click`);
+          } catch (e) { }
+
           router.push({
             pathname: `/businessCard/${item._id}`,
             params: { cardData: JSON.stringify(item) }
           } as Href);
         }}
+
       >
         {/* Card Image Section */}
         <View style={styles.cardImageSection}>
-          {item.companyPhoto ? (
-            <Image 
-              source={{ uri: `https://api-test.instantllycards.com${item.companyPhoto}` }} 
+          {item.media && item.media.length > 0 ? (
+            <Image
+              source={{ uri: getImageUrl(item.media[0].url) }}
               style={styles.cardImage}
               resizeMode="cover"
             />
@@ -694,14 +723,16 @@ export default function BusinessCardsScreen() {
               <MaterialIcons name="business" size={48} color="#9CA3AF" />
             </View>
           )}
-          
+
           {/* Badge on image */}
-          {index < 3 ? (
+          {item.listingType === 'promoted' && (
             <View style={styles.topSearchBadge}>
-              <Ionicons name="search" size={12} color="#fff" />
-              <Text style={styles.topSearchText}>Top Search</Text>
+              <Ionicons name="flash" size={12} color="#fff" />
+              <Text style={styles.topSearchText}>Top Sponsored</Text>
             </View>
-          ) : null}
+          )}
+
+
         </View>
 
         {/* Card Content Section */}
@@ -714,11 +745,11 @@ export default function BusinessCardsScreen() {
               </View>
             ) : null}
           </View>
-          
+
           <View style={styles.thumbIconRow}>
             <MaterialIcons name="thumb-up" size={16} color="#1F2937" />
             <Text style={styles.businessName} numberOfLines={2}>
-              {item.companyName || item.name}
+              {item.businessName}
             </Text>
           </View>
 
@@ -730,7 +761,7 @@ export default function BusinessCardsScreen() {
 
           {/* Address + Distance */}
           <Text style={styles.address} numberOfLines={1}>
-            {item.companyAddress ? `${item.companyAddress.substring(0, 30)}... - 41.7 km` : 'Address not available - 41.7 km'}
+            {address ? `${address.substring(0, 30)}... - 41.7 km` : 'Address not available - 41.7 km'}
           </Text>
 
           {/* Years in Business */}
@@ -754,7 +785,7 @@ export default function BusinessCardsScreen() {
           <View style={styles.actionButtonsRow}>
             {phone ? (
               <>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.actionButtonPrimary}
                   onPress={(e) => {
                     e.stopPropagation();
@@ -765,7 +796,7 @@ export default function BusinessCardsScreen() {
                   <Text style={styles.actionButtonPrimaryText}>Call Now</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.actionButtonSecondary}
                   onPress={(e) => {
                     e.stopPropagation();
@@ -778,12 +809,12 @@ export default function BusinessCardsScreen() {
               </>
             ) : null}
 
-            {item.companyAddress ? (
-              <TouchableOpacity 
+            {address ? (
+              <TouchableOpacity
                 style={styles.actionButtonSecondary}
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleDirection(item.companyAddress);
+                  handleDirection(address);
                 }}
               >
                 <Ionicons name="navigate" size={18} color="#6B7280" />
@@ -791,7 +822,7 @@ export default function BusinessCardsScreen() {
               </TouchableOpacity>
             ) : null}
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionButtonSecondary}
               onPress={(e) => {
                 e.stopPropagation();
@@ -810,18 +841,18 @@ export default function BusinessCardsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
       {/* Header with Search - Fixed positioning */}
       <View style={styles.headerContainer}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={() => router.back()}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
-          
+
           <View style={styles.searchBar}>
             <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
@@ -863,7 +894,7 @@ export default function BusinessCardsScreen() {
         <View style={styles.emptyContainer}>
           <Ionicons name="alert-circle" size={64} color="#DC2626" />
           <Text style={styles.emptyText}>{error}</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.retryButton}
             onPress={fetchBusinessCards}
           >
@@ -875,6 +906,8 @@ export default function BusinessCardsScreen() {
           data={filteredCards}
           keyExtractor={(item) => item._id || item.id}
           renderItem={renderBusinessCard}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={

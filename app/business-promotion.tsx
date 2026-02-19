@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TextInput, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
   TouchableOpacity,
   Dimensions,
   KeyboardAvoidingView,
@@ -99,7 +99,7 @@ const generateTimeOptions = (): Array<string | { label: string; value: string }>
     const amHour24 = hour === 12 ? 0 : hour;
     const amHourStr = amHour24.toString().padStart(2, '0');
     times.push({ label: `${hour} AM`, value: `${amHourStr}:00` });
-    
+
     // PM times
     const pmHour24 = hour === 12 ? 12 : hour + 12;
     const pmHourStr = pmHour24.toString().padStart(2, '0');
@@ -111,7 +111,13 @@ const generateTimeOptions = (): Array<string | { label: string; value: string }>
 const TIME_OPTIONS = generateTimeOptions();
 
 export default function BusinessPromotionScreen() {
-  const params = useLocalSearchParams<{ category?: string }>();
+  const params = useLocalSearchParams<{
+    listingType?: 'FREE' | 'PREMIUM';
+    promotionId?: string;
+  }>();
+  const listingType = params.listingType || 'FREE';
+
+  // const params = useLocalSearchParams<{ category?: string }>();
   const [currentStep, setCurrentStep] = useState<FormStep>('business');
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -123,7 +129,11 @@ export default function BusinessPromotionScreen() {
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [timePickerMode, setTimePickerMode] = useState<'open' | 'close'>('open');
   const [timePickerDay, setTimePickerDay] = useState<string>('');
-  const [promotionId, setPromotionId] = useState<string | null>(null);
+  // const [promotionId, setPromotionId] = useState<string | null>(null);
+  const [promotionId, setPromotionId] = useState<string | null>(
+    params.promotionId || null
+  );
+
   const [loading, setLoading] = useState(false);
   const [weeklySchedule, setWeeklySchedule] = useState({
     Sunday: { open: false, openTime: '09:00', closeTime: '18:00' },
@@ -158,7 +168,7 @@ export default function BusinessPromotionScreen() {
   // Validation errors for GST and PAN
   const [gstError, setGstError] = useState<string | null>(null);
   const [panError, setPanError] = useState<string | null>(null);
-  
+
   // Validation errors for required fields
   const [businessNameError, setBusinessNameError] = useState<string | null>(null);
   const [ownerNameError, setOwnerNameError] = useState<string | null>(null);
@@ -174,16 +184,70 @@ export default function BusinessPromotionScreen() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  useEffect(() => {
+    if (!promotionId) return;
+
+    const fetchPromotion = async () => {
+      try {
+        const res = await api.get(`/business-promotion/${promotionId}`);
+        const p = res.promotion;
+        if (!p) return;
+
+        // If already active free → go to profile
+        if (p.status === 'active' && listingType === 'FREE') {
+          router.replace('/profile');
+          return;
+        }
+
+        // Fill form
+        setFormData({
+          businessName: p.businessName || '',
+          ownerName: p.ownerName || '',
+          category: p.category || [],
+          email: p.email || '',
+          phone: p.phone || '',
+          whatsapp: p.whatsapp || '',
+          website: p.website || '',
+          area: p.area || '',
+          pincode: p.pincode || '',
+          plotNo: p.plotNo || '',
+          buildingName: p.buildingName || '',
+          streetName: p.streetName || '',
+          landmark: p.landmark || '',
+          city: p.city || '',
+          state: p.state || '',
+          description: p.description || '',
+          gstNumber: p.gstNumber || '',
+          panNumber: p.panNumber || '',
+        });
+
+        if (p.businessHours) {
+          setWeeklySchedule(p.businessHours);
+        }
+
+        setCurrentStep(p.currentStep || 'business');
+
+      } catch (err) {
+        console.log('Error loading promotion', err);
+      }
+    };
+
+    fetchPromotion();
+  }, [promotionId]);
+
+
+
+
   // Validate GST number
   const handleGSTChange = (text: string) => {
     const upperText = text.toUpperCase();
     updateField('gstNumber', upperText);
-    
+
     if (upperText.trim() === '') {
       setGstError(null);
       return;
     }
-    
+
     const validation = validateGST(upperText);
     if (!validation.isValid) {
       setGstError(validation.error || 'Invalid GST number');
@@ -196,12 +260,12 @@ export default function BusinessPromotionScreen() {
   const handlePANChange = (text: string) => {
     const upperText = text.toUpperCase();
     updateField('panNumber', upperText);
-    
+
     if (upperText.trim() === '') {
       setPanError(null);
       return;
     }
-    
+
     const validation = validatePAN(upperText);
     if (!validation.isValid) {
       setPanError(validation.error || 'Invalid PAN number');
@@ -244,8 +308,8 @@ export default function BusinessPromotionScreen() {
 
   const filteredSubcategories = selectedCategory
     ? SERVICE_CATEGORIES[selectedCategory as keyof typeof SERVICE_CATEGORIES].filter(sub =>
-        sub.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      sub.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : [];
 
   const handleAddCustomCategory = () => {
@@ -281,11 +345,11 @@ export default function BusinessPromotionScreen() {
     setOwnerNameError(null);
     setEmailError(null);
     setPhoneError(null);
-    
+
     // Validate required fields for current step
     if (currentStep === 'business') {
       let hasError = false;
-      
+
       // Required: Business Name, Owner Name
       if (!formData.businessName.trim()) {
         setBusinessNameError('Business Name is required');
@@ -295,9 +359,9 @@ export default function BusinessPromotionScreen() {
         setOwnerNameError('Owner Name is required');
         hasError = true;
       }
-      
+
       if (hasError) return;
-      
+
       // Validate GST and PAN if they are entered
       if (formData.gstNumber.trim() !== '') {
         const gstValidation = validateGST(formData.gstNumber);
@@ -306,7 +370,7 @@ export default function BusinessPromotionScreen() {
           return;
         }
       }
-      
+
       if (formData.panNumber.trim() !== '') {
         const panValidation = validatePAN(formData.panNumber);
         if (!panValidation.isValid) {
@@ -318,7 +382,7 @@ export default function BusinessPromotionScreen() {
 
     if (currentStep === 'contact') {
       let hasError = false;
-      
+
       // Required: Email, Phone Number
       if (!formData.email.trim()) {
         setEmailError('Email Address is required');
@@ -331,29 +395,54 @@ export default function BusinessPromotionScreen() {
           hasError = true;
         }
       }
-      
+
       if (!formData.phone.trim() || phoneNumbers.every(p => !p.trim())) {
         setPhoneError('At least one Phone Number is required');
         hasError = true;
       }
-      
+
       if (hasError) return;
     }
 
     // Save current step progress before moving to next
     setLoading(true);
+    const progressMap = {
+      business: 25,
+      category: 50,
+      contact: 75,
+      location: 100,
+    };
+
 
     try {
-      const promotionData = {
+
+      const nextStepMap = {
+        business: 'category',
+        category: 'contact',
+        contact: 'location',
+        location: 'location',
+      };
+
+      const promotionData: any = {
         ...formData,
-        businessHours: weeklySchedule,
         status: 'draft',
-        currentStep,
+        progress: progressMap[currentStep],
+        stepIndex: {
+          business: 1,
+          category: 2,
+          contact: 3,
+          location: 4,
+        }[currentStep],
+        currentStep: nextStepMap[currentStep],  // 👈 ADD THIS
         ...(promotionId && { promotionId }),
       };
 
+      if (currentStep === 'business') {
+        promotionData.businessHours = weeklySchedule;
+      }
+
       const response = await api.post('/business-promotion', promotionData);
-      
+
       if (response.promotion?._id) {
         setPromotionId(response.promotion._id);
       }
@@ -371,7 +460,7 @@ export default function BusinessPromotionScreen() {
     } catch (error: any) {
       console.error('❌ Error saving progress:', error);
       setLoading(false);
-      
+
       // Still allow navigation even if save fails
       if (currentStep === 'business') {
         setCurrentStep('category');
@@ -402,10 +491,10 @@ export default function BusinessPromotionScreen() {
     setStreetError(null);
     setCityError(null);
     setStateError(null);
-    
+
     // Validate all required fields for location step
     let hasError = false;
-    
+
     if (!formData.pincode.trim()) {
       setPincodeError('Pincode is required');
       hasError = true;
@@ -426,7 +515,7 @@ export default function BusinessPromotionScreen() {
       setStateError('State is required');
       hasError = true;
     }
-    
+
     if (hasError) {
       return;
     }
@@ -436,14 +525,30 @@ export default function BusinessPromotionScreen() {
     try {
       console.log('📝 [BUSINESS-PROMOTION] Saving form data:', formData);
 
+      const progressMap = {
+        business: 25,
+        category: 50,
+        contact: 75,
+        location: 100,
+      };
+
+
       // Prepare data for backend
-      const promotionData = {
+      const promotionData: any = {
         ...formData,
-        businessHours: weeklySchedule,
-        status: currentStep === 'location' ? 'completed' : 'draft',
-        currentStep,
+        status: currentStep === 'location' ? 'submitted' : 'draft',
+        progress: progressMap[currentStep],
+        stepIndex: {
+          business: 1,
+          category: 2,
+          contact: 3,
+          location: 4,
+        }[currentStep],
         ...(promotionId && { promotionId }), // Include promotionId if updating
       };
+      if (currentStep === 'business') {
+        promotionData.businessHours = weeklySchedule;
+      }
 
       // Call API to save/update promotion
       const response = await api.post('/business-promotion', promotionData);
@@ -451,24 +556,37 @@ export default function BusinessPromotionScreen() {
       console.log('✅ [BUSINESS-PROMOTION] Form saved successfully:', response);
 
       // Store promotion ID for future updates
-      if (response.promotion?._id) {
-        setPromotionId(response.promotion._id);
+      const finalPromotionId = response.promotion?._id || promotionId;
+      if (!finalPromotionId) {
+        throw new Error('Promotion ID is missing');
       }
+      setPromotionId(finalPromotionId);
+
 
       // If completed all steps, navigate to pricing
       if (currentStep === 'location') {
-        router.push({
-          pathname: '/promotion-pricing',
-          params: { promotionId: response.promotion?._id || promotionId }
-        });
+        if (listingType === 'FREE') {
+          // 1️⃣ Activate free
+          await api.post(`/business-promotion/${finalPromotionId}/activate-free`);
+
+          // 2️⃣ Redirect to profile
+          router.replace('/profile');
+        } else {
+          // PREMIUM → Pricing
+          router.push({
+            pathname: '/promotion-pricing',
+            params: { promotionId: finalPromotionId }
+          });
+        }
       }
+
 
       setLoading(false);
 
     } catch (error: any) {
       console.error('❌ [BUSINESS-PROMOTION] Error saving form:', error);
       setLoading(false);
-      
+
       Alert.alert(
         'Error',
         error?.message || 'Failed to save business promotion. Please try again.',
@@ -626,7 +744,7 @@ export default function BusinessPromotionScreen() {
       <View style={styles.categoryWrapper}>
         <Text style={styles.categoryTitle}>Add Business Category</Text>
         <Text style={styles.categorySubtitle}>Choose the right business categories so your customer can easily find you</Text>
-        
+
         <TouchableOpacity
           style={styles.categoryTextField}
           onPress={() => setCategoryModalVisible(true)}
@@ -881,7 +999,7 @@ export default function BusinessPromotionScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
@@ -897,7 +1015,7 @@ export default function BusinessPromotionScreen() {
         {/* Step Indicator */}
         <View style={styles.stepIndicatorContainer}>
           <View style={styles.stepIndicator}>
-            <View 
+            <View
               style={styles.stepItem}
             >
               <View style={[styles.stepCircle, currentStep === 'business' && styles.stepCircleActive]}>
@@ -906,7 +1024,7 @@ export default function BusinessPromotionScreen() {
               <Text style={[styles.stepLabel, currentStep === 'business' && styles.stepLabelActive]}>Business</Text>
             </View>
             <View style={styles.stepLine} />
-            <View 
+            <View
               style={styles.stepItem}
             >
               <View style={[styles.stepCircle, currentStep === 'category' && styles.stepCircleActive]}>
@@ -915,7 +1033,7 @@ export default function BusinessPromotionScreen() {
               <Text style={[styles.stepLabel, currentStep === 'category' && styles.stepLabelActive]}>Category</Text>
             </View>
             <View style={styles.stepLine} />
-            <View 
+            <View
               style={styles.stepItem}
             >
               <View style={[styles.stepCircle, currentStep === 'contact' && styles.stepCircleActive]}>
@@ -924,7 +1042,7 @@ export default function BusinessPromotionScreen() {
               <Text style={[styles.stepLabel, currentStep === 'contact' && styles.stepLabelActive]}>Contact</Text>
             </View>
             <View style={styles.stepLine} />
-            <View 
+            <View
               style={styles.stepItem}
             >
               <View style={[styles.stepCircle, currentStep === 'location' && styles.stepCircleActive]}>
@@ -942,7 +1060,7 @@ export default function BusinessPromotionScreen() {
         </View>
 
         {/* Form Content */}
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
@@ -956,7 +1074,7 @@ export default function BusinessPromotionScreen() {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           {currentStep !== 'business' && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.button, styles.buttonSecondary]}
               onPress={handleBack}
               activeOpacity={0.7}
@@ -965,9 +1083,9 @@ export default function BusinessPromotionScreen() {
               <Text style={styles.buttonSecondaryText}>Back</Text>
             </TouchableOpacity>
           )}
-          
+
           {currentStep !== 'location' ? (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.button, styles.buttonPrimary, currentStep === 'business' && styles.buttonFull]}
               onPress={handleNext}
               activeOpacity={0.8}
@@ -980,7 +1098,7 @@ export default function BusinessPromotionScreen() {
               )}
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.button, styles.buttonPrimary]}
               onPress={handleSubmit}
               activeOpacity={0.8}
@@ -1216,7 +1334,7 @@ export default function BusinessPromotionScreen() {
                           <Ionicons name="chevron-down" size={16} color="#6B7280" />
                         </TouchableOpacity>
                       </View>
-                      
+
                       <View style={styles.timePickerGroup}>
                         <Text style={styles.timeLabel}>Closes at</Text>
                         <TouchableOpacity

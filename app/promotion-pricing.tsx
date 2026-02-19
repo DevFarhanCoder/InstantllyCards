@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -47,6 +47,8 @@ export default function PromotionPricing() {
   const [rankingModalVisible, setRankingModalVisible] = useState(false);
   const [advertisementModalVisible, setAdvertisementModalVisible] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+
+
 
   const handlePayNow = () => {
     if (!advertisementType || !ranking) {
