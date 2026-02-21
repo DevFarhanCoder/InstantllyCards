@@ -13,7 +13,7 @@ import {
   Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,7 +29,7 @@ type MediaType = "image" | "video" | null;
 
 export default function AdQuestionnaire() {
   const router = useRouter();
-  const { type } = useLocalSearchParams<{ type: "withChannel" | "withoutChannel" }>();
+  // Channel type removed - always submit as withoutChannel
   
   const [adType, setAdType] = useState<AdTypeOption>(null);
   const [hasDesign, setHasDesign] = useState<HasDesignOption>(null);
@@ -185,7 +185,7 @@ export default function AdQuestionnaire() {
       formData.append('userId', userId || '');
       formData.append('adType', adType || 'image');
       formData.append('needsDesign', 'true');
-      formData.append('channelType', type || 'withoutChannel');
+      formData.append('channelType', 'withoutChannel');
 
       // Append multiple images
       selectedImages.forEach((image, index) => {

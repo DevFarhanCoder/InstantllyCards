@@ -358,6 +358,21 @@ export default function Profile() {
             </TouchableOpacity>
           )}
 
+          {/* My Cards Button */}
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => router.push('/(tabs)/mycards' as any)}
+          >
+            <View style={styles.menuIconContainer}>
+              <Ionicons name="albums" size={22} color="#4F6AF3" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>My Cards</Text>
+              <Text style={styles.menuSubtitle}>View and manage your business cards</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+
           {/* Manage Account Button */}
           <TouchableOpacity
             style={styles.menuButton}

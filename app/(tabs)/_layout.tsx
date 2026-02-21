@@ -41,9 +41,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="buscard"
+        options={{
+          title: "AllCards",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name="card" color={focused ? "#4F6AF3" : "#9CA3AF"} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="mycards"
         options={{
           title: "My Cards",
+          href: null, // Hide from tab bar - accessible from profile
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name="albums" color={focused ? "#4F6AF3" : "#9CA3AF"} size={size} />
           ),

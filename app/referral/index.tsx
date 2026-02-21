@@ -35,6 +35,7 @@ import api from "@/lib/api";
 import { formatIndianNumber } from "@/utils/formatNumber";
 import FooterCarousel from "@/components/FooterCarousel";
 import CustomTabBar from "@/components/CustomTabBar";
+import ReferralBanner from "@/components/ReferralBanner";
 
 interface ReferralStats {
   referralCode: string;
@@ -387,6 +388,9 @@ export default function ReferralPage() {
           />
         }
       >
+        {/* Refer & Earn Banner - above the credits card */}
+        <ReferralBanner style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 12 }} />
+
         <TouchableOpacity
           style={styles.creditsBannerContainer}
           onPress={() => router.push("/referral/credits-history" as any)}
