@@ -11,7 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import SummaryCard from "./SummaryCard";
-import CreditStatisticsCard from "./CreditStatisticsCard";
+import VoucherStatsCard from "./VoucherStatsCard";
 import NetworkTreeView from "./NetworkTreeView";
 import NetworkListView from "./NetworkListView";
 import TransferCreditsModal from "./TransferCreditsModal";
@@ -20,6 +20,8 @@ import NetworkDetailBottomSheet from "./NetworkDetailBottomSheet";
 import DiscountDashboardCard from "./DiscountDashboardCard";
 import VoucherList from "./VoucherList";
 import DirectBuyersList from "./DirectBuyersList";
+import BuyVoucherScreen from "./BuyVoucherScreen";
+import DistributionCreditsTable from "./DistributionCreditsTable";
 import api from "../lib/api";
 import {
   DiscountSummary,
@@ -49,6 +51,7 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const [detailSheetVisible, setDetailSheetVisible] = useState(false);
   const [detailUser, setDetailUser] = useState<NetworkUser | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<string[]>([]);
+  const [showBuyVoucherScreen, setShowBuyVoucherScreen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<NetworkMetrics>({
     availableCredits: 0,
@@ -78,6 +81,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
   const [directBuyers, setDirectBuyers] = useState<DirectBuyer[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isMLMUser, setIsMLMUser] = useState(false); // Track if user came via introducer
+  const [distributionCredits, setDistributionCredits] = useState<any[]>([]); // Credits to be transferred
 
   useEffect(() => {
     loadDashboard();
@@ -116,6 +121,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         creditDashboard,
         discount,
         voucherRes,
+        userProfile,
+        distributionRes,
         treeRes,
         buyerRes,
       ] = await Promise.all([
@@ -123,6 +130,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         api.get("/mlm/credits/dashboard"),
         api.get("/mlm/discount/summary"),
         api.get("/mlm/vouchers?limit=20"),
+        api.get("/users/profile"),
+        api.get("/mlm/distribution-credits"),
         api.get("/mlm/network/tree?depth=3&perParentLimit=5"),
         api.get("/mlm/network/direct-buyers?limit=10"),
       ]);
@@ -177,6 +186,16 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         setVouchers([hardcodedVoucher]);
       }
 
+      // Check if user is MLM user (came via introducer)
+      if (userProfile?.user?.introducerId) {
+        setIsMLMUser(true);
+      }
+
+      // Load distribution credits
+      if (distributionRes?.credits) {
+        setDistributionCredits(distributionRes.credits);
+      }
+
       if (buyerRes?.buyers) {
         setDirectBuyers(buyerRes.buyers);
       }
@@ -202,6 +221,22 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const handleTransferPress = (user: NetworkUser) => {
     setSelectedRecipient(user);
     setTransferModalVisible(true);
+  };
+
+  const handleDistributionTransfer = async (
+    recipientId: string,
+    amount: number,
+  ) => {
+    try {
+      await api.post("/mlm/credits/transfer", {
+        receiverId: recipientId,
+        amount,
+        note: "Distribution credit transfer",
+      });
+      await loadDashboard();
+    } catch (error: any) {
+      console.error("Distribution transfer error:", error);
+    }
   };
 
   const handleTransferConfirm = (amount: number, note: string) => {
@@ -333,6 +368,22 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       </View>
     );
   }
+  // Show Buy Voucher Screen if navigated
+  if (showBuyVoucherScreen) {
+    return (
+      <BuyVoucherScreen
+        onBack={() => setShowBuyVoucherScreen(false)}
+        onSuccess={loadDashboard}
+      />
+    );
+  }
+
+  const availableVouchers = vouchers.filter(
+    (v) => !v.redeemedStatus || v.redeemedStatus === "unredeemed",
+  ).length;
+  const redeemedVouchers = vouchers.filter(
+    (v) => v.redeemedStatus === "redeemed",
+  ).length;
 
   return (
     <View style={styles.container}>
@@ -385,11 +436,24 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Summary Card */}
+        {/* Network Overview Stats */}
         <SummaryCard metrics={metrics} />
 
-        {/* Credit Statistics Card */}
-        <CreditStatisticsCard statistics={creditStats} />
+        {/* Voucher Stats Card - Clickable to Buy */}
+        <VoucherStatsCard
+          totalVouchers={vouchers.length}
+          availableVouchers={availableVouchers}
+          redeemedVouchers={redeemedVouchers}
+          onBuyNowPress={() => setShowBuyVoucherScreen(true)}
+        />
+
+        {/* Distribution Credits Table - Only for MLM users */}
+        {isMLMUser && distributionCredits.length > 0 && (
+          <DistributionCreditsTable
+            credits={distributionCredits}
+            onTransfer={handleDistributionTransfer}
+          />
+        )}
 
         <DiscountDashboardCard summary={discountSummary} />
 
