@@ -20,6 +20,7 @@ import CategoryGrid from "../../components/CategoryGrid";
 import PopularBusiness from "../../components/PopularBusiness";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
 import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
+import api from "../../lib/api";
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = React.useState<string>("");
@@ -27,6 +28,7 @@ export default function Home() {
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [userCredits, setUserCredits] = React.useState<number>(0);
   const [creditsLoading, setCreditsLoading] = React.useState(true);
+  const [hasPromotedBusiness, setHasPromotedBusiness] = React.useState(false);
 
   // Fetch user name and ID for profile initial and filtering
   React.useEffect(() => {
@@ -77,6 +79,30 @@ export default function Home() {
     };
     fetchUserData();
   }, []);
+
+  // Check if user has already promoted a business
+  const checkBusinessPromotion = React.useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        const response = await api.get<{ promotions?: any[]; data?: any[] }>("/business-promotion");
+        const promotions = response?.promotions || response?.data || (Array.isArray(response) ? response : []);
+        setHasPromotedBusiness(Array.isArray(promotions) && promotions.length > 0);
+      }
+    } catch (error) {
+      console.error("Error checking business promotions:", error);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    checkBusinessPromotion();
+  }, [checkBusinessPromotion]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      checkBusinessPromotion();
+    }, [checkBusinessPromotion]),
+  );
 
   // Fetch user credits
   const fetchCredits = React.useCallback(async () => {
@@ -250,8 +276,8 @@ export default function Home() {
           />
         }
       >
-        {/* Categories Header with Arrow and Promote Button */}
-        {FEATURE_FLAGS.SHOW_CATEGORIES && (
+        {/* Categories Header with Arrow and Promote Button - hidden for users who already promoted */}
+        {FEATURE_FLAGS.SHOW_CATEGORIES && !hasPromotedBusiness && (
           <View style={s.categoriesHeaderRow}>
             <View style={s.categoriesWithArrow}>
               <Text style={s.categoriesHeaderText}>Categories</Text>

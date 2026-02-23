@@ -186,11 +186,12 @@ const moreCategories = [
   { name: 'Food', icon: <Ionicons name="restaurant" size={28} color="#6B7280" /> },
   { name: 'Agriculture', icon: <MaterialIcons name="grass" size={28} color="#6B7280" /> },
   { name: 'Sports', icon: <Ionicons name="football" size={28} color="#6B7280" /> },
-  { name: 'Entertainment', icon: <Ionicons name="film" size={28} color="#6B7280" /> },
   { name: 'Logistics', icon: <FontAwesome5 name="truck" size={24} color="#6B7280" /> },
   { name: 'Marketing', icon: <Ionicons name="megaphone" size={28} color="#6B7280" /> },
   { name: 'Consulting', icon: <MaterialIcons name="support-agent" size={28} color="#6B7280" /> },
   { name: 'Beauty', icon: <MaterialIcons name="face" size={28} color="#6B7280" /> },
+  { name: 'Pets', icon: <Ionicons name="paw" size={28} color="#6B7280" /> },
+  { name: 'Entertainment', icon: <Ionicons name="film" size={28} color="#6B7280" /> },
 ];
 
 const styles = StyleSheet.create({
@@ -496,7 +497,7 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
   // Fill the row with the + icon if needed
   let gridItems = [...displayCategories];
   if (!showMore && showPlus) {
-    gridItems.push({ name: 'More', icon: <Ionicons name="add-circle" size={28} color="#6B7280" />, isPlus: true });
+    gridItems.push({ name: 'More', icon: <Ionicons name="add-circle" size={28} color="#CA8A04" />, isPlus: true });
   }
 
   // Split into rows
@@ -566,7 +567,7 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
             if (cat.isPlus) {
               return (
                 <TouchableOpacity key={cat.name} style={styles.item} onPress={openMoreSlider}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
+                  <View style={[styles.iconBox, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>{cat.icon}</View>
                   <Text style={styles.label}>More</Text>
                 </TouchableOpacity>
               );
@@ -707,7 +708,7 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
                     }}
                   >
                     <View style={styles.sliderIconBox}>{item.icon}</View>
-                    <Text style={styles.sliderLabel}>{item.name}</Text>
+                    <Text style={styles.sliderLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.name}</Text>
                   </TouchableOpacity>
                 )}
               />

@@ -43,7 +43,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="buscard"
         options={{
-          title: "AllCards",
+          title: "All Cards",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name="card" color={focused ? "#4F6AF3" : "#9CA3AF"} size={size} />
           ),
