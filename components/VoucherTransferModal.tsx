@@ -34,7 +34,11 @@ interface VoucherTransferModalProps {
   visible: boolean;
   voucher: VoucherItem | null;
   onClose: () => void;
-  onConfirm: (voucherId: string, recipientPhone: string) => Promise<void>;
+  onConfirm: (
+    voucherId: string,
+    recipientPhone: string,
+    quantity: number,
+  ) => Promise<void>;
 }
 
 export default function VoucherTransferModal({
@@ -44,6 +48,7 @@ export default function VoucherTransferModal({
   onConfirm,
 }: VoucherTransferModalProps) {
   const [recipientPhone, setRecipientPhone] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
@@ -133,9 +138,16 @@ export default function VoucherTransferModal({
       return;
     }
 
+    // Validate quantity
+    const qty = parseInt(quantity, 10);
+    if (isNaN(qty) || qty < 1 || qty > 100) {
+      setError("Please enter a valid quantity (1-100)");
+      return;
+    }
+
     setLoading(true);
     try {
-      await onConfirm(voucher._id, phoneToSend);
+      await onConfirm(voucher._id, phoneToSend, qty);
       handleClose();
     } catch (err: any) {
       setError(err?.message || "Transfer failed. Please try again.");
@@ -146,6 +158,7 @@ export default function VoucherTransferModal({
 
   const handleClose = () => {
     setRecipientPhone("");
+    setQuantity("1");
     setError("");
     setLoading(false);
     setSearchResults([]);
@@ -280,6 +293,32 @@ export default function VoucherTransferModal({
                 />
               </View>
             )}
+          </View>
+
+          {/* Quantity Input */}
+          <View style={styles.inputSection}>
+            <Text style={styles.inputLabel}>Enter Quantity</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="layers-outline"
+                size={20}
+                color="#94A3B8"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter quantity (1-100)"
+                placeholderTextColor="#94A3B8"
+                value={quantity}
+                onChangeText={setQuantity}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+            </View>
+            <Text style={styles.quantityHint}>
+              The recipient can use this voucher {quantity || "1"} time
+              {parseInt(quantity) > 1 ? "s" : ""}
+            </Text>
           </View>
 
           {error && (
@@ -494,6 +533,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: scaleFontSize(13),
     color: "#DC2626",
+  },
+  quantityHint: {
+    fontSize: scaleFontSize(12),
+    color: "#64748B",
+    marginTop: scaleSize(6),
+    marginLeft: scaleSize(4),
   },
   warningBox: {
     flexDirection: "row",

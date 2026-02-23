@@ -70,50 +70,11 @@ export default function VoucherListScreen({
           console.log("No admin vouchers or error fetching:", adminError);
         }
 
-        // Add hardcoded voucher to the beginning
-        const hardcodedVoucher: Voucher = {
-          _id: "hardcoded-voucher-1",
-          voucherNumber: "INS-001",
-          MRP: 6000,
-          amount: 1200,
-          issueDate: new Date().toISOString(),
-          expiryDate: new Date("2026-08-30").toISOString(),
-          redeemedStatus: "unredeemed",
-          source: "admin",
-          companyName: "Instantlly",
-          phoneNumber: "+91 9867477227",
-          address: "Jogeshwari, Mumbai",
-          discountPercentage: 40,
-          validity: "Valid till August 30th, 2026",
-          voucherImage: "local", // This will trigger local image in VoucherDetailScreen
-          description: "Build your network & earn credits instantly",
-          isPublished: true,
-        };
-
-        setVouchers([hardcodedVoucher, ...allVouchers]);
+        setVouchers(allVouchers);
       }
     } catch (error) {
       console.error("Error fetching vouchers:", error);
-      // If API fails, still show hardcoded voucher
-      const hardcodedVoucher: Voucher = {
-        _id: "hardcoded-voucher-1",
-        voucherNumber: "INS-001",
-        MRP: 6000,
-        amount: 1200,
-        issueDate: new Date().toISOString(),
-        expiryDate: new Date("2026-08-30").toISOString(),
-        redeemedStatus: "unredeemed",
-        source: "admin",
-        companyName: "Instantlly",
-        phoneNumber: "+91 9867477227",
-        address: "Jogeshwari, Mumbai",
-        discountPercentage: 40,
-        validity: "Valid till August 30th, 2026",
-        voucherImage: "local",
-        description: "Build your network & earn credits instantly",
-        isPublished: true,
-      };
-      setVouchers([hardcodedVoucher]);
+      setVouchers([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -288,22 +249,6 @@ export default function VoucherListScreen({
             </Text>
           </View>
         </View>
-
-        {/* Action Buttons */}
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => router.push("/referral/credits-history")}
-          >
-            <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => router.push("/vouchers/voucher-history")}
-          >
-            <Ionicons name="time-outline" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
       </LinearGradient>
 
       {/* Vouchers List */}
@@ -353,18 +298,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     flex: 1,
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  historyButton: {
-    width: scaleSize(40),
-    height: scaleSize(40),
-    borderRadius: scaleSize(20),
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   headerTextContainer: {
     flex: 1,

@@ -7,12 +7,17 @@ import { wp, hp, scaleFontSize, scaleSize } from "../lib/responsive";
 
 interface SummaryCardProps {
   metrics: NetworkMetrics;
+  isVoucherAdmin?: boolean;
 }
 
-export default function SummaryCard({ metrics }: SummaryCardProps) {
+export default function SummaryCard({
+  metrics,
+  isVoucherAdmin = false,
+}: SummaryCardProps) {
   const formatNumber = (num: number | undefined): string => {
     if (num === undefined || num === null) return "0";
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 10000000) return `${(num / 10000000).toFixed(2)}Cr`;
+    if (num >= 100000) return `${(num / 100000).toFixed(2)}L`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
   };
@@ -33,7 +38,7 @@ export default function SummaryCard({ metrics }: SummaryCardProps) {
         <Ionicons name={icon} size={20} color={color} />
       </View>
       <View style={styles.metricContent}>
-        <Text style={styles.metricLabel}>{label}</Text>
+        <Text style={styles.metricLabel}>{label}: </Text>
         <Text style={styles.metricValue}>{value}</Text>
       </View>
     </View>
@@ -67,12 +72,22 @@ export default function SummaryCard({ metrics }: SummaryCardProps) {
           value={formatNumber(metrics.totalNetworkUsers ?? 0)}
           color="#8B5CF6"
         />
-        <MetricItem
-          icon="trending-up-outline"
-          label="Virtual Savings"
-          value={`₹${formatNumber(metrics.virtualCommission ?? 0)}`}
-          color="#F59E0B"
-        />
+        {!isVoucherAdmin && (
+          <MetricItem
+            icon="trending-up-outline"
+            label="Virtual Savings"
+            value={`₹${formatNumber(metrics.virtualCommission ?? 0)}`}
+            color="#F59E0B"
+          />
+        )}
+        {metrics.vouchersFigure !== undefined && metrics.vouchersFigure > 0 && (
+          <MetricItem
+            icon="ticket-outline"
+            label="Available Vouchers"
+            value={formatNumber(metrics.vouchersFigure)}
+            color="#EC4899"
+          />
+        )}
       </View>
     </LinearGradient>
   );
@@ -123,14 +138,17 @@ const styles = StyleSheet.create({
   },
   metricContent: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   metricLabel: {
-    fontSize: scaleFontSize(16),
+    fontSize: scaleFontSize(12),
     color: "#6B7280",
-    marginBottom: 2,
+    fontWeight: "500",
   },
   metricValue: {
-    fontSize: scaleFontSize(16),
+    fontSize: scaleFontSize(14),
     fontWeight: "700",
     color: "#1F2937",
   },

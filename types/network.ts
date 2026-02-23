@@ -14,6 +14,7 @@ export interface NetworkUser {
   joinedDate: string;
   commissionEarned?: number;
   isActive: boolean;
+  isPlaceholder?: boolean; // For special credits placeholder slots
 }
 
 export interface NetworkMetrics {
@@ -22,6 +23,7 @@ export interface NetworkMetrics {
   totalNetworkUsers: number;
   virtualCommission: number; // Changed from estimatedCommission
   currentDiscountPercent?: number;
+  vouchersFigure?: number; // For admin special credits vouchers
 }
 
 export interface CreditStatistics {
@@ -72,6 +74,7 @@ export interface VoucherItem {
   issueDate: string;
   expiryDate: string;
   redeemedStatus: "unredeemed" | "redeemed" | "expired";
+  redeemedAt?: string;
   source?: "purchase" | "transfer" | "admin";
   transferredFrom?: {
     _id: string;
@@ -79,6 +82,11 @@ export interface VoucherItem {
     phone: string;
   };
   transferredAt?: string;
+  transferHistory?: Array<{
+    from: string;
+    to: string;
+    transferredAt: string;
+  }>;
   originalOwner?: {
     _id: string;
     name: string;
@@ -89,6 +97,7 @@ export interface VoucherItem {
     name: string;
     phone: string;
   };
+  isSpecialCreditsVoucher?: boolean;
 }
 
 export interface VoucherHistory {
