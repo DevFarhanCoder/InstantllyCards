@@ -114,11 +114,12 @@ const constructionSubcategories = [
   'Ready Mix Concrete Suppliers',
   'Waterproofing Contractors',
 ];
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Modal, Animated, FlatList, TextInput } from 'react-native';
 import SubCategoryModal from './SubCategoryModal';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import api from '@/lib/api';
 
 const automotiveSubcategories = [
   'Automobile Dealers',
@@ -430,13 +431,26 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
       title: '',
       subcategories: [] as string[],
     });
-  const initialCount = 11;
-  const perRow = 4;
-  let displayCategories = [];
-  let showPlus = false;
 
-  // Build a subcategory lookup for filtering
-  const subcategoryMap: Record<string, string[]> = {
+  // Fetch backend categories and merge with hardcoded
+  const [backendCategories, setBackendCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await api.get('/categories');
+        if (res?.success && res?.data) {
+          setBackendCategories(res.data);
+        }
+      } catch (error) {
+        console.log('⚠️ Failed to fetch categories from backend, using hardcoded');
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Hardcoded subcategory map (baseline)
+  const hardcodedSubcategoryMap: Record<string, string[]> = {
     'Automotive': automotiveSubcategories,
     'Business': businessSubcategories,
     'Construction': constructionSubcategories,
@@ -450,6 +464,161 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
     'Services': servicesSubcategories,
   };
 
+  // Hardcoded icon map for known categories
+  const hardcodedIconMap: Record<string, React.ReactNode> = {
+    'Automotive': <FontAwesome5 name="car" size={28} color="#6B7280" />,
+    'Business': <MaterialIcons name="business-center" size={28} color="#6B7280" />,
+    'Construction': <FontAwesome5 name="tools" size={28} color="#6B7280" />,
+    'Education': <Ionicons name="school" size={28} color="#6B7280" />,
+    'Health': <Ionicons name="medkit" size={28} color="#6B7280" />,
+    'Lifestyle': <MaterialIcons name="style" size={28} color="#6B7280" />,
+    'Rentals': <FontAwesome5 name="key" size={28} color="#6B7280" />,
+    'Shopping': <MaterialIcons name="shopping-cart" size={28} color="#6B7280" />,
+    'Technology': <Ionicons name="laptop" size={28} color="#6B7280" />,
+    'Travel': <FontAwesome5 name="plane" size={28} color="#6B7280" />,
+    'Services': <MaterialIcons name="miscellaneous-services" size={28} color="#6B7280" />,
+  };
+
+  // Smart icon resolver: maps category name keywords to proper vector icons
+  const getCategoryIcon = (name: string): React.ReactNode => {
+    // Check hardcoded map first
+    if (hardcodedIconMap[name]) return hardcodedIconMap[name];
+    // Keyword-based matching (case-insensitive)
+    const n = name.toLowerCase();
+    // Plumbing & pipes
+    if (n.includes('plumb') || n.includes('pipe') || n.includes('tap') || n.includes('sanit')) return <FontAwesome5 name="wrench" size={28} color="#6B7280" />;
+    // Carpentry & woodwork
+    if (n.includes('carpent') || n.includes('wood') || n.includes('furniture') || n.includes('cabinet')) return <FontAwesome5 name="hammer" size={28} color="#6B7280" />;
+    // Electrician & wiring
+    if (n.includes('electric') || n.includes('wiring') || n.includes('power') || n.includes('solar') || n.includes('energy')) return <Ionicons name="flash" size={28} color="#6B7280" />;
+    // Painting walls (before art/paint)
+    if (n.includes('paint') && (n.includes('wall') || n.includes('house') || n.includes('contract'))) return <FontAwesome5 name="paint-roller" size={28} color="#6B7280" />;
+    // Music & audio
+    if (n.includes('music') || n.includes('audio') || n.includes('sing') || n.includes('instrument') || n.includes('band') || n.includes('dj')) return <Ionicons name="musical-notes" size={28} color="#6B7280" />;
+    // School & academy
+    if (n.includes('school') || n.includes('academy') || n.includes('institute')) return <Ionicons name="school" size={28} color="#6B7280" />;
+    // Food & restaurant
+    if (n.includes('food') || n.includes('restaurant') || n.includes('cook') || n.includes('kitchen') || n.includes('cafe') || n.includes('bakery') || n.includes('cake') || n.includes('sweet') || n.includes('catering')) return <Ionicons name="restaurant" size={28} color="#6B7280" />;
+    // Sports & fitness
+    if (n.includes('sport') || n.includes('gym') || n.includes('fitness') || n.includes('cricket') || n.includes('football') || n.includes('badminton') || n.includes('tennis') || n.includes('swim')) return <Ionicons name="football" size={28} color="#6B7280" />;
+    // Art & design
+    if (n.includes('art') || n.includes('design') || n.includes('craft') || n.includes('drawing') || n.includes('sketch')) return <Ionicons name="color-palette" size={28} color="#6B7280" />;
+    // Photography & video
+    if (n.includes('photo') || n.includes('camera') || n.includes('video') || n.includes('studio')) return <Ionicons name="camera" size={28} color="#6B7280" />;
+    // Pets & animals
+    if (n.includes('pet') || n.includes('animal') || n.includes('vet') || n.includes('dog') || n.includes('bird')) return <Ionicons name="paw" size={28} color="#6B7280" />;
+    // Beauty & salon
+    if (n.includes('beauty') || n.includes('salon') || n.includes('spa') || n.includes('makeup') || n.includes('parlour') || n.includes('parlor') || n.includes('hair') || n.includes('barber')) return <MaterialIcons name="face" size={28} color="#6B7280" />;
+    // Legal & law
+    if (n.includes('legal') || n.includes('law') || n.includes('advocate') || n.includes('court') || n.includes('notary')) return <Ionicons name="briefcase" size={28} color="#6B7280" />;
+    // Finance & banking
+    if (n.includes('finance') || n.includes('bank') || n.includes('loan') || n.includes('account') || n.includes('chartered')) return <MaterialIcons name="account-balance" size={28} color="#6B7280" />;
+    // Insurance
+    if (n.includes('insurance')) return <MaterialIcons name="security" size={28} color="#6B7280" />;
+    // Real estate & property
+    if (n.includes('real estate') || n.includes('property') || n.includes('apartment') || n.includes('flat') || n.includes('plot') || n.includes('broker')) return <MaterialIcons name="apartment" size={28} color="#6B7280" />;
+    // Agriculture & farming
+    if (n.includes('farm') || n.includes('agriculture') || n.includes('garden') || n.includes('nursery') || n.includes('plant') || n.includes('seed')) return <MaterialIcons name="grass" size={28} color="#6B7280" />;
+    // Logistics & transport
+    if (n.includes('logistic') || n.includes('transport') || n.includes('delivery') || n.includes('courier') || n.includes('packer') || n.includes('mover') || n.includes('cargo') || n.includes('freight')) return <FontAwesome5 name="truck" size={24} color="#6B7280" />;
+    // Marketing & advertising
+    if (n.includes('market') || n.includes('advertis') || n.includes('promo') || n.includes('seo') || n.includes('digital')) return <Ionicons name="megaphone" size={28} color="#6B7280" />;
+    // Consulting
+    if (n.includes('consult')) return <MaterialIcons name="support-agent" size={28} color="#6B7280" />;
+    // Entertainment & movies
+    if (n.includes('entertain') || n.includes('movie') || n.includes('theatre') || n.includes('drama') || n.includes('comedy') || n.includes('magic')) return <Ionicons name="film" size={28} color="#6B7280" />;
+    // Automotive & vehicles
+    if (n.includes('car ') || n.includes('auto') || n.includes('vehicle') || n.includes('motor') || n.includes('bike') || n.includes('mechanic') || n.includes('garage') || n.includes('tyre') || n.includes('tire')) return <FontAwesome5 name="car" size={28} color="#6B7280" />;
+    // Fashion & tailoring
+    if (n.includes('cloth') || n.includes('fashion') || n.includes('textile') || n.includes('tailor') || n.includes('boutique') || n.includes('stitch') || n.includes('embroid')) return <Ionicons name="shirt" size={28} color="#6B7280" />;
+    // Doctor & medical
+    if (n.includes('medic') || n.includes('doctor') || n.includes('hospital') || n.includes('clinic') || n.includes('health') || n.includes('dentist') || n.includes('physio') || n.includes('surgeon') || n.includes('pharma') || n.includes('ayurved') || n.includes('homeo')) return <Ionicons name="medkit" size={28} color="#6B7280" />;
+    // Travel & tourism
+    if (n.includes('travel') || n.includes('tour') || n.includes('flight') || n.includes('hotel') || n.includes('resort') || n.includes('visa') || n.includes('passport')) return <FontAwesome5 name="plane" size={28} color="#6B7280" />;
+    // Technology & IT
+    if (n.includes('tech') || n.includes('computer') || n.includes('software') || n.includes('web') || n.includes('app ') || n.includes('mobile') || n.includes('cctv') || n.includes('laptop')) return <Ionicons name="laptop" size={28} color="#6B7280" />;
+    // Construction & building
+    if (n.includes('build') || n.includes('construct') || n.includes('architect') || n.includes('cement') || n.includes('concrete') || n.includes('masonry') || n.includes('civil')) return <FontAwesome5 name="tools" size={28} color="#6B7280" />;
+    // Dance
+    if (n.includes('dance') || n.includes('choreograph')) return <Ionicons name="musical-notes" size={28} color="#6B7280" />;
+    // Yoga & wellness
+    if (n.includes('yoga') || n.includes('meditation') || n.includes('wellness') || n.includes('ayush')) return <MaterialIcons name="self-improvement" size={28} color="#6B7280" />;
+    // Cleaning & housekeeping
+    if (n.includes('clean') || n.includes('laundry') || n.includes('wash') || n.includes('housekeep') || n.includes('pest') || n.includes('dry clean')) return <MaterialIcons name="cleaning-services" size={28} color="#6B7280" />;
+    // Trading & stocks
+    if (n.includes('trad') || n.includes('stock') || n.includes('invest') || n.includes('mutual fund')) return <MaterialIcons name="trending-up" size={28} color="#6B7280" />;
+    // Events & weddings
+    if (n.includes('event') || n.includes('wedding') || n.includes('party') || n.includes('decoration') || n.includes('tent') || n.includes('mandap')) return <MaterialIcons name="celebration" size={28} color="#6B7280" />;
+    // Home & interior
+    if (n.includes('home') || n.includes('house') || n.includes('interior') || n.includes('decor') || n.includes('curtain') || n.includes('modular')) return <Ionicons name="home" size={28} color="#6B7280" />;
+    // Books & stationery
+    if (n.includes('book') || n.includes('library') || n.includes('publish') || n.includes('stationery')) return <Ionicons name="book" size={28} color="#6B7280" />;
+    // Religious & spiritual
+    if (n.includes('temple') || n.includes('church') || n.includes('mosque') || n.includes('pandit') || n.includes('puja') || n.includes('astrol') || n.includes('relig') || n.includes('spiritual')) return <FontAwesome5 name="pray" size={28} color="#6B7280" />;
+    // Tutoring & coaching
+    if (n.includes('tutor') || n.includes('coach') || n.includes('teach') || n.includes('class') || n.includes('training') || n.includes('learn')) return <Ionicons name="school" size={28} color="#6B7280" />;
+    // Childcare
+    if (n.includes('child') || n.includes('baby') || n.includes('kid') || n.includes('creche') || n.includes('daycare')) return <Ionicons name="people" size={28} color="#6B7280" />;
+    // Grocery & daily needs
+    if (n.includes('grocer') || n.includes('kirana') || n.includes('supermarket') || n.includes('daily need')) return <MaterialIcons name="shopping-cart" size={28} color="#6B7280" />;
+    // Jewellery & gold
+    if (n.includes('jewel') || n.includes('gold') || n.includes('silver') || n.includes('diamond') || n.includes('ornament')) return <Ionicons name="diamond" size={28} color="#6B7280" />;
+    // Printing & press
+    if (n.includes('print') || n.includes('press') || n.includes('banner') || n.includes('flex') || n.includes('signage')) return <Ionicons name="print" size={28} color="#6B7280" />;
+    // AC & appliance repair
+    if (n.includes('ac ') || n.includes('air condition') || n.includes('hvac') || n.includes('refrig') || n.includes('fridge') || n.includes('appliance')) return <Ionicons name="snow" size={28} color="#6B7280" />;
+    // Security & guards
+    if (n.includes('security') || n.includes('guard') || n.includes('safe') || n.includes('surveillance')) return <Ionicons name="shield-checkmark" size={28} color="#6B7280" />;
+    // Water & tanker
+    if (n.includes('water') || n.includes('tanker') || n.includes('borewell') || n.includes('purif')) return <Ionicons name="water" size={28} color="#6B7280" />;
+    // Taxi & cab
+    if (n.includes('taxi') || n.includes('cab') || n.includes('ride')) return <Ionicons name="car-sport" size={28} color="#6B7280" />;
+    // Welding & metal
+    if (n.includes('weld') || n.includes('metal') || n.includes('iron') || n.includes('steel') || n.includes('fabricat') || n.includes('gate') || n.includes('grill')) return <MaterialIcons name="construction" size={28} color="#6B7280" />;
+    // Tools & repair (general catch-all)
+    if (n.includes('repair') || n.includes('service') || n.includes('fix') || n.includes('maintenance') || n.includes('tool')) return <FontAwesome5 name="wrench" size={28} color="#6B7280" />;
+    // Default fallback
+    return <MaterialIcons name="category" size={28} color="#6B7280" />;
+  };
+
+  // Merge hardcoded categories + backend categories
+  const { mergedCategories, mergedSubcategoryMap } = useMemo(() => {
+    // Start with hardcoded categories
+    const knownNames = new Set(categories.map(c => c.name));
+    const mergedCats = [...categories];
+    const mergedSubMap: Record<string, string[]> = { ...hardcodedSubcategoryMap };
+
+    for (const apiCat of backendCategories) {
+      if (knownNames.has(apiCat.name)) {
+        // Existing category - merge subcategories
+        const existing = new Set((mergedSubMap[apiCat.name] || []).map(s => s.toLowerCase()));
+        const newSubs = (apiCat.subcategories || []).filter((s: string) => !existing.has(s.toLowerCase()));
+        if (newSubs.length > 0) {
+          mergedSubMap[apiCat.name] = [...(mergedSubMap[apiCat.name] || []), ...newSubs];
+        }
+      } else {
+        // New category from backend (admin-approved)
+        knownNames.add(apiCat.name);
+        mergedCats.push({
+          name: apiCat.name,
+          icon: getCategoryIcon(apiCat.name),
+          hasSubcategories: true,
+        });
+        mergedSubMap[apiCat.name] = apiCat.subcategories || [];
+      }
+    }
+
+    return { mergedCategories: mergedCats, mergedSubcategoryMap: mergedSubMap };
+  }, [backendCategories]);
+
+  const initialCount = 11;
+  const perRow = 4;
+  let displayCategories = [];
+  let showPlus = false;
+
+  // Build a subcategory lookup for filtering (use merged)
+  const subcategoryMap = mergedSubcategoryMap;
+
   // Filter categories based on search query
   const query = searchQuery.trim().toLowerCase();
 
@@ -458,7 +627,7 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
   let matchingSubcategories: { category: string; subcategory: string }[] = [];
 
   if (query) {
-    for (const cat of categories) {
+    for (const cat of mergedCategories) {
       const subs = subcategoryMap[cat.name] || [];
       if (cat.name.toLowerCase().includes(query)) {
         // Category name matches → show category in grid
@@ -476,8 +645,8 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
   const isSubcategorySearch = query && matchingCategoryNames.length === 0 && matchingSubcategories.length > 0;
 
   const filteredCategories = query
-    ? categories.filter((cat) => matchingCategoryNames.includes(cat.name))
-    : categories;
+    ? mergedCategories.filter((cat) => matchingCategoryNames.includes(cat.name))
+    : mergedCategories;
 
   if (query && !isSubcategorySearch) {
     // When searching categories, show all matching (no More/Less)
@@ -527,9 +696,20 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
     });
   };
 
+  // Combine overflow backend categories + hardcoded moreCategories for the slider
+  const overflowMergedCategories = mergedCategories.slice(initialCount).map(cat => ({
+    name: cat.name,
+    icon: getCategoryIcon(cat.name),
+    hasSubcategories: true,
+  }));
+  const overflowNames = new Set(overflowMergedCategories.map(c => c.name.toLowerCase()));
+  const allMoreCategories = [
+    ...overflowMergedCategories,
+    ...moreCategories.filter(c => !overflowNames.has(c.name.toLowerCase())),
+  ];
   const filteredMoreCategories = sliderSearch.trim()
-    ? moreCategories.filter((c) => c.name.toLowerCase().includes(sliderSearch.trim().toLowerCase()))
-    : moreCategories;
+    ? allMoreCategories.filter((c) => c.name.toLowerCase().includes(sliderSearch.trim().toLowerCase()))
+    : allMoreCategories;
 
   return (
     <View style={styles.gridContainer}>
@@ -572,59 +752,11 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
                 </TouchableOpacity>
               );
             } else if (cat.hasSubcategories) {
-              let subcategories = [];
-              let title = '';
-              switch (cat.name) {
-                case 'Automotive':
-                  subcategories = automotiveSubcategories;
-                  title = 'Automotive Categories';
-                  break;
-                case 'Business':
-                  subcategories = businessSubcategories;
-                  title = 'Business Categories';
-                  break;
-                case 'Construction':
-                  subcategories = constructionSubcategories;
-                  title = 'Construction Categories';
-                  break;
-                case 'Education':
-                  subcategories = educationSubcategories;
-                  title = 'Education Categories';
-                  break;
-                case 'Health':
-                  subcategories = healthSubcategories;
-                  title = 'Health Categories';
-                  break;
-                case 'Lifestyle':
-                  subcategories = lifestyleSubcategories;
-                  title = 'Lifestyle Categories';
-                  break;
-                case 'Rentals':
-                  subcategories = rentalsSubcategories;
-                  title = 'Rentals Categories';
-                  break;
-                case 'Shopping':
-                  subcategories = shoppingSubcategories;
-                  title = 'Shopping Categories';
-                  break;
-                case 'Technology':
-                  subcategories = technologySubcategories;
-                  title = 'Technology Categories';
-                  break;
-                case 'Travel':
-                  subcategories = travelSubcategories;
-                  title = 'Travel Categories';
-                  break;
-                case 'Services':
-                  subcategories = servicesSubcategories;
-                  title = 'Services Categories';
-                  break;
-                default:
-                  break;
-              }
+              const subcategories = subcategoryMap[cat.name] || [];
+              const title = `${cat.name} Categories`;
               return (
                 <TouchableOpacity key={cat.name} style={styles.item} onPress={() => setModal({ visible: true, title, subcategories })}>
-                  <View style={styles.iconBox}>{cat.icon}</View>
+                  <View style={styles.iconBox}>{getCategoryIcon(cat.name)}</View>
                   <Text style={styles.label}>{cat.name}</Text>
                 </TouchableOpacity>
               );
@@ -704,7 +836,13 @@ export default function CategoryGrid({ searchQuery = '' }: { searchQuery?: strin
                     style={styles.sliderItem}
                     activeOpacity={0.7}
                     onPress={() => {
-                      closeMoreSlider();
+                      if (item.hasSubcategories) {
+                        const subs = subcategoryMap[item.name] || [];
+                        closeMoreSlider();
+                        setModal({ visible: true, title: `${item.name} Categories`, subcategories: subs });
+                      } else {
+                        closeMoreSlider();
+                      }
                     }}
                   >
                     <View style={styles.sliderIconBox}>{item.icon}</View>

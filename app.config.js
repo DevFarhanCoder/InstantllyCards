@@ -6,11 +6,11 @@ module.exports = ({ config }) => {
     extra: {
       ...(config.extra || {}),
       EXPO_PUBLIC_API_BASE:
-        process.env.EXPO_PUBLIC_API_BASE || "https://api.instantllycards.com",
+        process.env.EXPO_PUBLIC_API_BASE || "https://api-test.instantllycards.com",
       API_BASE:
         process.env.EXPO_PUBLIC_API_BASE ||
         process.env.API_BASE ||
-        "https://api.instantllycards.com",
+        "https://api-test.instantllycards.com",
       EXPO_PUBLIC_API_PREFIX: process.env.EXPO_PUBLIC_API_PREFIX || "/api",
       router: {},
       eas: {

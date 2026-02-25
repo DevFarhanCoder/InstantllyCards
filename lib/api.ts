@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 
 // Production fallback URL
-const PRODUCTION_URL = "https://api.instantllycards.com";
+const PRODUCTION_URL = "https://api-test.instantllycards.com";
 
 const getApiBase = () => {
   const sources = [

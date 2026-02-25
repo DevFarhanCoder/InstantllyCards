@@ -186,124 +186,108 @@ export async function generateAndShareCardImage(
       return formatted.trim();
     };
 
-    // Build card details message
+    // Build card details message matching the Instantlly Digital Visiting Card template
     const buildCardDetails = () => {
-      let details = "*This is My Digital Visiting Card* -\n\n";
+      let details = "*This is My Instantlly Digital Visiting Card*\n\n";
 
-      // Personal Information
-      if (cardData.name) details += `👤 *Name:* ${cardData.name}\n`;
-      if (cardData.birthDate)
-        details += `🎂 *Birth Date:* ${cardData.birthDate}\n`;
-      // Gender field removed as per user request
-      if (cardData.designation)
-        details += `💼 *Designation:* ${cardData.designation}\n`;
+      // === Personal Information ===
+      if (cardData.name) details += `▪️ *👤 Name:* ${cardData.name}\n`;
 
-      // Personal Contact
       const personalPhone = cardData.contact || cardData.personalPhone;
       if (personalPhone) {
-        const cleanPhone = personalPhone.replace(/^\+\d+/, "").trim();
-        details += `📱 *Personal Phone:* ${cleanPhone}\n`;
+        const fullPersonalPhone = cardData.personalCountryCode
+          ? `+${cardData.personalCountryCode}${personalPhone}`
+          : personalPhone;
+        details += `▪️ *📱 Personal Phone:* ${fullPersonalPhone}\n`;
       }
+
+      // Personal WhatsApp (use personalPhone as WhatsApp if no dedicated field)
+      const personalWhatsApp = cardData.personalWhatsapp || (personalPhone ? (cardData.personalCountryCode ? `+${cardData.personalCountryCode}${personalPhone}` : personalPhone) : "");
+      if (personalWhatsApp) details += `▪️ *💬 Personal WhatsApp:* ${personalWhatsApp}\n`;
 
       const personalEmail = cardData.email;
-      if (personalEmail) details += `📧 *Personal Email:* ${personalEmail}\n`;
-
-      const personalWebsite = cardData.website;
-      if (personalWebsite)
-        details += `🌐 *Personal Website:* ${personalWebsite}\n`;
+      if (personalEmail) details += `▪️ *📧 Personal Email:* ${personalEmail}\n`;
 
       const personalLocation = cardData.location;
-      if (personalLocation)
-        details += `📍 *Personal Location:* ${personalLocation}\n`;
+      if (personalLocation) details += `▪️ *🏭 Address:* ${personalLocation}\n`;
 
       const personalMapsLink = cardData.mapsLink;
-      if (personalMapsLink)
-        details += `🗺️ *Personal Maps:* ${personalMapsLink}\n`;
+      if (personalMapsLink) details += `▪️ *📍 Google Maps Link:* ${personalMapsLink}\n`;
 
-      // Business Information
-      if (cardData.companyName)
-        details += `\n🏢 *Company:* ${cardData.companyName}\n`;
+      // === Company / Business Information ===
+      details += `\n`;
+      if (cardData.companyName) details += `▪️ *🏢 Company Name:* ${cardData.companyName}\n`;
 
-      // Show all company phones (avoiding duplicates)
-      const shownPhones = new Set();
       const companyPhone = cardData.companyContact || cardData.companyPhone;
       if (companyPhone) {
-        const cleanPhone = companyPhone.replace(/^\+\d+/, "").trim();
-        if (cleanPhone) {
-          details += `☎️ *Company Phone:* ${cleanPhone}\n`;
-          shownPhones.add(cleanPhone);
-        }
+        const fullCompanyPhone = cardData.companyCountryCode
+          ? `+${cardData.companyCountryCode}${companyPhone}`
+          : companyPhone;
+        details += `▪️ *📱 Company Mob:* ${fullCompanyPhone}\n`;
       }
+
       // Show additional company phones from companyPhones array
       if (cardData.companyPhones && Array.isArray(cardData.companyPhones)) {
+        const shownPhones = new Set([companyPhone]);
         let phoneCounter = 2;
         cardData.companyPhones.forEach((phoneObj: any) => {
-          if (phoneObj.phone) {
-            const cleanPhone = phoneObj.phone.replace(/^\+\d+/, "").trim();
-            if (cleanPhone && !shownPhones.has(cleanPhone)) {
-              details += `☎️ *Company Phone ${phoneCounter}:* ${cleanPhone}\n`;
-              shownPhones.add(cleanPhone);
-              phoneCounter++;
-            }
+          if (phoneObj.phone && !shownPhones.has(phoneObj.phone)) {
+            details += `▪️ *📱 Company Mob ${phoneCounter}:* ${phoneObj.phone}\n`;
+            shownPhones.add(phoneObj.phone);
+            phoneCounter++;
           }
         });
       }
 
-      const companyEmail = cardData.companyEmail;
-      if (companyEmail) details += `📨 *Company Email:* ${companyEmail}\n`;
+      // Company WhatsApp
+      const companyWhatsApp = cardData.whatsapp || (companyPhone ? (cardData.companyCountryCode ? `+${cardData.companyCountryCode}${companyPhone}` : companyPhone) : "");
+      if (companyWhatsApp) details += `▪️ *💬 Company WhatsApp:* ${companyWhatsApp}\n`;
+
+      if (cardData.designation) details += `▪️ *💼 Designation:* ${cardData.designation}\n`;
+
+      if (cardData.aboutBusiness) details += `▪️ *🏭 Company Business:* ${cardData.aboutBusiness}\n`;
+
+      if (cardData.servicesOffered) details += `▪️ *🛠️ Business Category:* ${cardData.servicesOffered}\n`;
+
+      if (cardData.keywords) details += `▪️ *🔎 Search Key Word:* ${cardData.keywords}\n`;
 
       const companyWebsite = cardData.companyWebsite;
-      if (companyWebsite) details += `🌍 *Company Website:* ${companyWebsite}\n`;
+      if (companyWebsite) details += `▪️ *🌍 Company Website:* ${companyWebsite}\n`;
+
+      const companyEmail = cardData.companyEmail;
+      if (companyEmail) details += `▪️ *📧 Company Email:* ${companyEmail}\n`;
 
       const companyAddress = cardData.companyAddress;
-      if (companyAddress) details += `🏭 *Company Address:* ${companyAddress}\n`;
+      if (companyAddress) details += `▪️ *🏭 Company Address:* ${companyAddress}\n`;
 
       const companyMapsLink = cardData.companyMapsLink;
-      if (companyMapsLink) details += `🗺️ *Company Maps:* ${companyMapsLink}\n`;
+      if (companyMapsLink) details += `▪️ *📍 Company Maps:* ${companyMapsLink}\n`;
 
-      // Business Details
-      if (cardData.aboutBusiness)
-        details += `\n📝 *About Business:* ${cardData.aboutBusiness}\n`;
       if (cardData.businessHours) {
         const formattedHours = formatBusinessHours(cardData.businessHours);
-        // Only show if there's actual content and not just all closed days
         if (formattedHours && formattedHours.trim() !== '' && !formattedHours.match(/^Mon\s*[-–]\s*Sun:\s*Closed$/i)) {
-          details += `🕐 *Business Hours:*\n${formattedHours}\n`;
+          details += `▪️ *🕐 Business Hours:*\n${formattedHours}\n`;
         }
       }
-      if (cardData.establishedYear)
-        details += `📅 *Established:* ${cardData.establishedYear}\n`;
 
-      const message = cardData.message;
-      if (message) details += `\n💬 *Message:* ${message}\n`;
-
-      if (cardData.additionalInformation)
-        details += `ℹ️ *Additional Info:* ${cardData.additionalInformation}\n`;
-
-      // Social Media Links
-      let socialAdded = false;
+      // === Social Media Links ===
       if (
         cardData.linkedin ||
         cardData.twitter ||
         cardData.instagram ||
         cardData.facebook ||
         cardData.youtube ||
-        cardData.whatsapp ||
-        cardData.whatsappBusiness ||
         cardData.telegram
       ) {
-        details += `\n🔗 *Social Media:*\n`;
-        socialAdded = true;
+        details += `\n▪️ *🔗 Social Media:*\n`;
       }
 
-      if (cardData.linkedin) details += `💼 *LinkedIn:* ${cardData.linkedin}\n`;
-      if (cardData.twitter) details += `𝕏 *Twitter/X:* ${cardData.twitter}\n`;
-      if (cardData.instagram) details += `📷 *Instagram:* ${cardData.instagram}\n`;
-      if (cardData.facebook) details += `👥 *Facebook:* ${cardData.facebook}\n`;
-      if (cardData.youtube) details += `🎥 *YouTube:* ${cardData.youtube}\n`;
-      if (cardData.whatsapp) details += `💬 *WhatsApp:* ${cardData.whatsapp}\n`;
-      if (cardData.whatsappBusiness) details += `💼 *WhatsApp Business:* ${cardData.whatsappBusiness}\n`;
-      if (cardData.telegram) details += `✈️ *Telegram:* ${cardData.telegram}\n`;
+      if (cardData.facebook) details += `▪️ *👥 Facebook:* ${cardData.facebook}\n`;
+      if (cardData.instagram) details += `▪️ *📸 Instagram:* ${cardData.instagram}\n`;
+      if (cardData.youtube) details += `▪️ *▶️ YouTube:* ${cardData.youtube}\n`;
+      if (cardData.linkedin) details += `▪️ *🟦 LinkedIn:* ${cardData.linkedin}\n`;
+      if (cardData.twitter) details += `▪️ *𝕏 Twitter/X:* ${cardData.twitter}\n`;
+      if (cardData.telegram) details += `▪️ *✈️ Telegram:* ${cardData.telegram}\n`;
 
       return details;
     };
@@ -314,19 +298,18 @@ export async function generateAndShareCardImage(
 
     switch (shareMethod) {
       case "whatsapp":
-        // Share via WhatsApp with complete card details
+        // Share via WhatsApp with complete card details matching Instantlly template
         const whatsappMessage =
           buildCardDetails() +
-          `\n━━━━━━━━━\n` +
-          `*Earn ₹1200 to ₹6000+ per day Without Investment*\n` +
-          `▪️ *Save Rs 10000 Printing Cost* Use this Free App & Save per year visiting Card Printing Cost\n` +
+          `▪️ *To make your FREE Instantly Digital Visiting Card Touch this link to Download the Mobile App*\n${referralLink}\n\n` +
+          `▪️ *Make Free Digital Card from Instantly Cards Mobile App* You can Make Send Receive Unlimited Digital Cards & do Group Sharing with 100+ persons in 5 Minutes & if you change any information in your Card then it Changes automatically in all the Cards you have already sent.\n\n` +
+          `▪️ *Save ₹10000 Printing Cost* Use this Free App & Save per year visiting Card Printing Cost\n\n` +
+          `▪️ *Video to Know Advantage of the Application & How to use it* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing\n\n` +
+          `▪️ *If you have any problem then join this WhatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl\n\n` +
+          `▪️ *Earn upto ₹6000+ per day* Without Investment by sharing to WhatsApp Groups\n` +
           `▪️ *I Got ₹300 Credit* On Self Download\n` +
           `▪️ *Referal Bonus ₹300* On your Download I will get ₹300 Bonus\n\n` +
-          `━━━━━━━━━━━\n` +
-          `📲 *Important Links*\n` +
-          `▪️ *Touch this link to Download the App with Referral Code*\n${referralLink}\n` +
-          `▪️ *Video to Know Advantage of the Application & How to use it*\nhttps://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing\n` +
-          `▪️ *If you have any problem then join this WhatsApp Group and write the Problem you are getting*\nhttps://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl`;
+          `▪️ *Website* www.Instantlly.Com`;
 
         try {
           await Share.open({
