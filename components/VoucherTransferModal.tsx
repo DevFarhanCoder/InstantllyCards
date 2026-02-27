@@ -10,7 +10,6 @@ import {
   Platform,
   Animated,
   ActivityIndicator,
-  FlatList,
   Image,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -256,11 +255,10 @@ export default function VoucherTransferModal({
             {/* Search Results */}
             {searchResults.length > 0 && (
               <View style={styles.suggestionsContainer}>
-                <FlatList
-                  data={searchResults}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item }) => (
+                <View style={styles.suggestionsList}>
+                  {searchResults.map((item) => (
                     <TouchableOpacity
+                      key={item._id}
                       style={styles.suggestionItem}
                       onPress={() => handleSelectUser(item)}
                     >
@@ -286,11 +284,8 @@ export default function VoucherTransferModal({
                         color="#CBD5E1"
                       />
                     </TouchableOpacity>
-                  )}
-                  nestedScrollEnabled
-                  style={styles.suggestionsList}
-                  keyboardShouldPersistTaps="handled"
-                />
+                  ))}
+                </View>
               </View>
             )}
           </View>

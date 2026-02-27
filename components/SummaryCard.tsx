@@ -80,11 +80,11 @@ export default function SummaryCard({
             color="#F59E0B"
           />
         )}
-        {metrics.vouchersFigure !== undefined && metrics.vouchersFigure > 0 && (
+        {metrics.vouchersFigure !== undefined && (
           <MetricItem
             icon="ticket-outline"
             label="Available Vouchers"
-            value={formatNumber(metrics.vouchersFigure)}
+            value={metrics.vouchersFigure.toString()}
             color="#EC4899"
           />
         )}

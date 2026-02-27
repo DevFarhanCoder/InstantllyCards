@@ -19,7 +19,6 @@ export default function VoucherList({
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Voucher Dashboard</Text>
           <Text style={styles.subtitle}>{vouchers.length} vouchers</Text>
         </View>
       </View>

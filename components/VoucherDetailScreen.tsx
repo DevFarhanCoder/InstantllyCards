@@ -77,8 +77,8 @@ export default function VoucherDetailScreen({
 
   const handleRedeemNow = () => {
     if (availableVouchers > 0) {
-      // Navigate to Ads/Business Promotion section
-      router.push("/business-promotion");
+      // Navigate to Ads tab
+      router.push("/(tabs)/ads");
     } else {
       Alert.alert(
         "No Vouchers Available",

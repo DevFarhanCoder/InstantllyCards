@@ -35,6 +35,9 @@ interface Voucher {
   voucherImage?: string;
   description?: string;
   isPublished?: boolean;
+  isSpecialCreditsVoucher?: boolean; // the always-shown Instantlly template card
+  isBalanceVoucher?: boolean;
+  quantity?: number;
 }
 
 interface VoucherListScreenProps {
@@ -45,6 +48,7 @@ export default function VoucherListScreen({
   onVoucherSelect,
 }: VoucherListScreenProps) {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [voucherBalance, setVoucherBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -53,6 +57,17 @@ export default function VoucherListScreen({
       const response = await api.get("/mlm/vouchers");
       if (response?.success) {
         let allVouchers = response.vouchers || [];
+        const balance = response.voucherBalance || 0;
+        setVoucherBalance(balance);
+
+        // Attach quantity to the Instantlly special template card (no extra cards)
+        if (balance > 0) {
+          allVouchers = allVouchers.map((v: Voucher) =>
+            v._id === "instantlly-special-credits"
+              ? { ...v, quantity: balance }
+              : v,
+          );
+        }
 
         // Also fetch published admin vouchers (global templates)
         try {
@@ -127,9 +142,16 @@ export default function VoucherListScreen({
         style={styles.voucherCard}
       >
         {/* Discount Badge (Top Right) */}
-        {item.discountPercentage && item.discountPercentage > 0 && (
+        {(item.discountPercentage ?? 0) > 0 && (
           <View style={styles.discountBadge}>
             <Text style={styles.discountText}>-{item.discountPercentage}%</Text>
+          </View>
+        )}
+
+        {/* Quantity badge for balance-based vouchers */}
+        {(item.quantity ?? 0) > 0 && (
+          <View style={styles.quantityBadge}>
+            <Text style={styles.quantityText}>×{item.quantity}</Text>
           </View>
         )}
 
@@ -173,7 +195,7 @@ export default function VoucherListScreen({
           <View style={styles.amountSection}>
             <Text style={styles.amountSymbol}>₹</Text>
             <Text style={styles.amountValue}>{item.amount || item.MRP}</Text>
-            {item.discountPercentage && item.discountPercentage > 0 && (
+            {(item.discountPercentage ?? 0) > 0 && (
               <Text style={styles.amountDiscount}>
                 -{item.discountPercentage}%
               </Text>
@@ -244,9 +266,6 @@ export default function VoucherListScreen({
           <Ionicons name="ticket" size={24} color="#FFFFFF" />
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>My Vouchers</Text>
-            <Text style={styles.headerSubtitle}>
-              {vouchers.length} available
-            </Text>
           </View>
         </View>
       </LinearGradient>
@@ -353,6 +372,21 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   discountText: {
+    fontSize: scaleFontSize(12),
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  quantityBadge: {
+    position: "absolute",
+    top: scaleSize(16),
+    left: scaleSize(16),
+    backgroundColor: "#10B981",
+    paddingHorizontal: scaleSize(10),
+    paddingVertical: scaleSize(4),
+    borderRadius: scaleSize(20),
+    zIndex: 10,
+  },
+  quantityText: {
     fontSize: scaleFontSize(12),
     fontWeight: "800",
     color: "#FFFFFF",

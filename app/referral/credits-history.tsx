@@ -181,7 +181,9 @@ export default function TransferHistoryPage() {
             </Text>
           )}
           {isSpecialCredit && item.amount && (
-            <Text style={styles.amount}>{formatAmount(item.amount)}</Text>
+            <Text style={styles.amount}>
+              Amount: {formatAmount(item.amount)}
+            </Text>
           )}
           {!isSpecialCredit && (
             <Text style={styles.voucherDetails}>
@@ -487,7 +489,7 @@ const styles = StyleSheet.create({
     marginTop: scaleSize(4),
   },
   amount: {
-    fontSize: scaleFontSize(15),
+    fontSize: scaleFontSize(16),
     fontWeight: "700",
     color: "#3B82F6",
     marginTop: scaleSize(4),

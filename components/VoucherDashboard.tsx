@@ -92,6 +92,7 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const [isMLMUser, setIsMLMUser] = useState(false); // Track if user came via introducer
   const [distributionCredits, setDistributionCredits] = useState<any[]>([]); // Credits to be transferred
   const [isVoucherAdmin, setIsVoucherAdmin] = useState(false); // Track if user is voucher admin
+  const [hasSpecialCredits, setHasSpecialCredits] = useState(false); // Track if user has special credits slots
   const [specialCredits, setSpecialCredits] = useState<any>(null); // Special credits data for admin
   const [networkSlots, setNetworkSlots] = useState<any[]>([]); // Network slots with placeholders
 
@@ -151,11 +152,16 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       const isAdmin = overview?.user?.isVoucherAdmin === true;
       setIsVoucherAdmin(isAdmin);
 
+      // Check if user has special credits (slots > 0)
+      const userHasSpecialCredits =
+        overview?.user?.specialCredits?.availableSlots > 0;
+      setHasSpecialCredits(userHasSpecialCredits);
+
       let specialCreditsData = null;
       let networkSlotsData = null;
 
-      // If admin, load special credits data
-      if (isAdmin) {
+      // If admin OR has special credits, load special credits data
+      if (isAdmin || userHasSpecialCredits) {
         try {
           const [specialCreditsRes, networkSlotsRes] = await Promise.all([
             api.get("/mlm/special-credits/dashboard"),
@@ -177,8 +183,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       }
 
       if (overview?.metrics) {
-        // For admin, override all metrics with special credits data
-        if (isAdmin && specialCreditsData) {
+        // For users with special credits, override metrics
+        if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
           setMetrics({
             availableCredits: specialCreditsData.specialCredits?.balance || 0, // Total available credits
             totalVouchersTransferred:
@@ -187,7 +193,11 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
             virtualCommission:
               specialCreditsData.specialCredits?.totalSent || 0, // Total credits distributed
             currentDiscountPercent: 0,
-            vouchersFigure: specialCreditsData.vouchersFigure || 0, // Available vouchers for admin
+            // Use specialCreditsData figure if > 0, else fall back to overview metrics (covers voucherBalance)
+            vouchersFigure:
+              specialCreditsData.vouchersFigure ||
+              overview.metrics?.vouchersFigure ||
+              0,
           });
         } else {
           setMetrics(overview.metrics);
@@ -214,16 +224,20 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         setRootUser(mapTree(treeRes.tree));
       }
 
-      // For admin, override with special credits network slots
-      if (isAdmin && networkSlotsData && networkSlotsData.length > 0) {
-        // Create a root user node for admin with slot children
-        const adminRootNode: NetworkUser = {
-          id: overview?.user?.id || "admin",
-          name: overview?.user?.name || "Admin",
+      // For users with special credits, override with network slots
+      if (
+        (isAdmin || userHasSpecialCredits) &&
+        networkSlotsData &&
+        networkSlotsData.length > 0
+      ) {
+        // Create a root user node with slot children
+        const rootNode: NetworkUser = {
+          id: overview?.user?.id || "user",
+          name: overview?.user?.name || "User",
           phone: overview?.user?.phone || "",
           avatar: undefined,
           creditsReceived: 0,
-          level: 0,
+          level: overview?.user?.level || 1,
           directChildren: networkSlotsData.map((slot: any) => ({
             id: slot.id || `placeholder-${slot.slotNumber}`,
             name: slot.name || `User ${slot.slotNumber}`, // Changed from "Slot" to "User"
@@ -245,7 +259,7 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
           commissionEarned: 0,
           isActive: true,
         };
-        setRootUser(adminRootNode);
+        setRootUser(rootNode);
       }
 
       if (voucherRes?.vouchers) {
@@ -277,8 +291,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   };
 
   const handleTransferPress = (user: NetworkUser) => {
-    // For admin with placeholder slots, show special transfer modal
-    if (isVoucherAdmin && user.isPlaceholder) {
+    // For users with special credits (admin OR regular users with slots) clicking placeholder slots
+    if ((isVoucherAdmin || hasSpecialCredits) && user.isPlaceholder) {
       // Extract slot number from name (e.g., "User 1" -> 1)
       const match = user.name.match(/User (\d+)/);
       const slotNumber = match ? parseInt(match[1]) : user.level;
@@ -286,7 +300,7 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       setSelectedSlotCredits(user.creditsReceived || 0);
       setSpecialTransferModalVisible(true);
     } else {
-      // Regular transfer modal for non-admin users
+      // Regular transfer modal for non-placeholder users
       setSelectedRecipient(user);
       setTransferModalVisible(true);
     }
@@ -593,8 +607,8 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         {/* Network Overview Stats */}
         <SummaryCard metrics={metrics} isVoucherAdmin={isVoucherAdmin} />
 
-        {/* Voucher Stats Card - Clickable to Buy - HIDDEN for Admin */}
-        {!isVoucherAdmin && (
+        {/* Voucher Stats Card - Clickable to Buy - HIDDEN for Admin and Special Credits Users */}
+        {!isVoucherAdmin && !hasSpecialCredits && (
           <VoucherStatsCard
             totalVouchers={vouchers.length}
             availableVouchers={availableVouchers}
@@ -614,23 +628,18 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         {/* Discount Dashboard - HIDDEN for Admin */}
         {!isVoucherAdmin && <DiscountDashboardCard summary={discountSummary} />}
 
-        {/* Voucher List - HIDDEN for Admin */}
-        {!isVoucherAdmin && (
-          <VoucherList
-            vouchers={vouchers}
-            onRedeem={(voucherId) =>
-              api.post(`/mlm/vouchers/${voucherId}/redeem`).then(loadDashboard)
-            }
-            onTransfer={handleVoucherTransfer}
+        {/* Voucher List - COMPLETELY HIDDEN */}
+        {/* Removed as per requirements */}
+
+        {/* Direct Buyers - Only show if there are buyers */}
+        {directBuyers && directBuyers.length > 0 && (
+          <DirectBuyersList
+            buyers={directBuyers}
+            onTransferCredits={handleBuyerTransferCredits}
+            onTransferVouchers={handleBuyerTransferVouchers}
+            onTransfer={isVoucherAdmin ? handleAdminVoucherTransfer : undefined}
           />
         )}
-
-        <DirectBuyersList
-          buyers={directBuyers}
-          onTransferCredits={handleBuyerTransferCredits}
-          onTransferVouchers={handleBuyerTransferVouchers}
-          onTransfer={isVoucherAdmin ? handleAdminVoucherTransfer : undefined}
-        />
 
         {/* View Toggle */}
         <ViewToggle />
