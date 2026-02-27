@@ -1,81 +1,347 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
+  ActivityIndicator,
+  Alert,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { Picker } from '@react-native-picker/picker';
+import { router, useLocalSearchParams } from 'expo-router';
+import { WebView } from 'react-native-webview';
+import api from '@/lib/api';
 
-const { width: screenWidth } = Dimensions.get('window');
+type AreaType = 'pincode' | 'tehsil' | 'district';
 
-const pricingData = [
-  { rank: 'No Rank', pincode: '100', tehsil: '600', district: '3600' },
-  { rank: '20', pincode: '200', tehsil: '1200', district: '70200' },
-  { rank: '19', pincode: '300', tehsil: '1800', district: '10800' },
-  { rank: '18', pincode: '400', tehsil: '2400', district: '14400' },
-  { rank: '17', pincode: '500', tehsil: '3000', district: '18000' },
-  { rank: '16', pincode: '600', tehsil: '3600', district: '21600' },
-  { rank: '15', pincode: '700', tehsil: '4200', district: '25200' },
-  { rank: '14', pincode: '800', tehsil: '4800', district: '28800' },
-  { rank: '13', pincode: '900', tehsil: '500', district: '32400' },
-  { rank: '12', pincode: '1000', tehsil: '6000', district: '36000' },
-  { rank: '11', pincode: '1100', tehsil: '6600', district: '39600' },
-  { rank: '10', pincode: '1200', tehsil: '7200', district: '43200' },
-  { rank: '9', pincode: '1300', tehsil: '7800', district: '46800' },
-  { rank: '8', pincode: '1400', tehsil: '8400', district: '50400' },
-  { rank: '7', pincode: '1500', tehsil: '9000', district: '54000' },
-  { rank: '6', pincode: '1600', tehsil: '9600', district: '57600' },
-  { rank: '5', pincode: '1700', tehsil: '10200', district: '61200' },
-  { rank: '4', pincode: '1800', tehsil: '10800', district: '64800' },
-  { rank: '3', pincode: '1900', tehsil: '11400', district: '68400' },
-  { rank: '2', pincode: '2000', tehsil: '12000', district: '72000' },
-  { rank: '1', pincode: '2100', tehsil: '12600', district: '75600' },
-];
+type PricingPlan = {
+  _id: string;
+  areaType: AreaType;
+  rank: number;
+  rankLabel: string;
+  amount: number;
+  currency: string;
+  durationDays: number;
+  priorityScore: number;
+};
+
+type Quote = {
+  _id: string;
+  areaType: AreaType;
+  rank: number;
+  amount: number;
+  durationDays: number;
+  currency: string;
+};
+
+type CatalogResponse = { success: boolean; plans: PricingPlan[] };
+type QuoteResponse = { success: boolean; quote: Quote };
+type CreateOrderResponse = {
+  success: boolean;
+  order: { _id: string; status: string; paymentOrderId: string };
+  checkout?: { keyId: string; amount: number; currency: string; razorpayOrderId: string };
+};
+type VerifyResponse = {
+  success: boolean;
+  message: string;
+  order: { status: string };
+  promotion: { listingType: string; status: string; priorityScore: number };
+};
+
+const getRazorpayCheckout = (): { open: (options: Record<string, any>) => Promise<any> } | null => {
+  try {
+    const req = (global as any).eval?.('require');
+    if (!req) return null;
+    return req('react-native-razorpay')?.default || null;
+  } catch {
+    return null;
+  }
+};
 
 export default function PromotionPricing() {
-  const [advertisementType, setAdvertisementType] = useState('');
-  const [ranking, setRanking] = useState('');
-  const [showError, setShowError] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rankingModalVisible, setRankingModalVisible] = useState(false);
-  const [advertisementModalVisible, setAdvertisementModalVisible] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const { promotionId } = useLocalSearchParams<{ promotionId?: string }>();
 
+  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [areaType, setAreaType] = useState<AreaType | ''>('');
+  const [rank, setRank] = useState<number | null>(null);
+  const [durationDays, setDurationDays] = useState<number | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
 
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  const handlePayNow = () => {
-    if (!advertisementType || !ranking) {
-      setShowError(true);
-      // Scroll to the selection section
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+  const [rankModalVisible, setRankModalVisible] = useState(false);
+  const [areaModalVisible, setAreaModalVisible] = useState(false);
+  const [durationModalVisible, setDurationModalVisible] = useState(false);
+  const [webCheckoutVisible, setWebCheckoutVisible] = useState(false);
+  const [webCheckoutHtml, setWebCheckoutHtml] = useState('');
+  const webCheckoutResolveRef = React.useRef<((value: any) => void) | null>(null);
+  const webCheckoutRejectRef = React.useRef<((reason?: any) => void) | null>(null);
+  const checkoutMode: 'native' | 'web' = getRazorpayCheckout() ? 'native' : 'web';
+
+  const loadCatalog = async () => {
+    try {
+      setCatalogLoading(true);
+      setCatalogError(null);
+
+      const response = await api.get<CatalogResponse>('/promotion-pricing/catalog');
+      if (!response?.success || !Array.isArray(response.plans)) {
+        throw new Error('Invalid pricing catalog response');
+      }
+
+      setPlans(response.plans);
+      const firstPlan = response.plans[0];
+      if (firstPlan) {
+        setAreaType(firstPlan.areaType);
+        setRank(firstPlan.rank);
+        setDurationDays(firstPlan.durationDays);
+      }
+    } catch (error: any) {
+      setCatalogError(error?.message || 'Failed to load pricing catalog');
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCatalog();
+  }, []);
+
+  const durationOptions = useMemo(() => {
+    const unique = Array.from(new Set(plans.map((p) => p.durationDays)));
+    return unique.sort((a, b) => a - b);
+  }, [plans]);
+
+  const rankOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    plans.forEach((plan) => {
+      if (!map.has(plan.rank)) map.set(plan.rank, plan.rankLabel || `Rank ${plan.rank}`);
+    });
+    return Array.from(map.entries())
+      .map(([value, label]) => ({ value, label: value === 21 ? 'No Rank' : label }))
+      .sort((a, b) => a.value - b.value);
+  }, [plans]);
+
+  const chartRows = useMemo(() => {
+    if (!durationDays) return [];
+    const filtered = plans.filter((p) => p.durationDays === durationDays);
+    const rankMap = new Map<number, { rank: number; pincode?: number; tehsil?: number; district?: number }>();
+
+    filtered.forEach((plan) => {
+      if (!rankMap.has(plan.rank)) rankMap.set(plan.rank, { rank: plan.rank });
+      const row = rankMap.get(plan.rank)!;
+      row[plan.areaType] = plan.amount;
+    });
+
+    return Array.from(rankMap.values()).sort((a, b) => a.rank - b.rank);
+  }, [plans, durationDays]);
+
+  const loadQuote = async () => {
+    if (!areaType || !rank || !durationDays) return;
+    try {
+      setQuoteLoading(true);
+      setQuoteError(null);
+      const response = await api.get<QuoteResponse>('/promotion-pricing/quote', {
+        params: { areaType, rank, durationDays },
+      });
+      if (!response?.success || !response.quote) {
+        throw new Error('Invalid quote response');
+      }
+      setQuote(response.quote);
+    } catch (error: any) {
+      setQuote(null);
+      setQuoteError(error?.message || 'Failed to fetch quote');
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadQuote();
+  }, [areaType, rank, durationDays]);
+
+  const verifyRazorpayPayment = async (
+    orderId: string,
+    payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }
+  ) => {
+    console.log('[PAYMENT] verify-payment request', {
+      orderId,
+      razorpay_order_id: payload.razorpay_order_id,
+      razorpay_payment_id: payload.razorpay_payment_id,
+      hasSignature: !!payload.razorpay_signature,
+    });
+    const response = await api.post<VerifyResponse>(`/promotion-pricing/orders/${orderId}/verify-payment`, payload);
+    console.log('[PAYMENT] verify-payment response', response);
+    if (!response?.success) {
+      throw new Error('Payment verification failed');
+    }
+    Alert.alert('Success', response.message || 'Payment verified and listing activated');
+    router.replace('/profile');
+  };
+
+  const openWebRazorpayCheckout = (options: Record<string, any>) =>
+    new Promise<any>((resolve, reject) => {
+      webCheckoutResolveRef.current = resolve;
+      webCheckoutRejectRef.current = reject;
+      const serialized = encodeURIComponent(JSON.stringify(options));
+      const html = `<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  </head>
+  <body style="margin:0;background:#fff;">
+    <script>
+      (function () {
+        try {
+          var options = JSON.parse(decodeURIComponent("${serialized}"));
+          options.handler = function (response) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'success', payload: response }));
+          };
+          var rzp = new Razorpay(options);
+          rzp.on('payment.failed', function (response) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'failed', payload: response && response.error ? response.error : response }));
+          });
+          rzp.open();
+        } catch (e) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', payload: String(e && e.message ? e.message : e) }));
+        }
+      })();
+    </script>
+  </body>
+</html>`;
+      setWebCheckoutHtml(html);
+      setWebCheckoutVisible(true);
+    });
+
+  const handlePayNow = async () => {
+    if (!promotionId) {
+      Alert.alert('Error', 'Promotion ID is missing. Please go back and submit listing again.');
       return;
     }
-    console.log('Payment initiated:', { advertisementType, ranking });
-    // Navigate to payment screen or process payment
+
+    if (!areaType || !rank || !durationDays) {
+      Alert.alert('Error', 'Please select area type, rank, and duration.');
+      return;
+    }
+
+    if (!quote) {
+      Alert.alert('Error', 'Unable to proceed without a valid quote. Please retry.');
+      return;
+    }
+
+    try {
+      setPaymentLoading(true);
+      setPaymentError(null);
+
+      console.log('[PAYMENT] create order request', {
+        businessPromotionId: promotionId,
+        areaType,
+        rank,
+        durationDays,
+        paymentProvider: 'razorpay',
+      });
+      const createOrderResponse = await api.post<CreateOrderResponse>('/promotion-pricing/orders', {
+        businessPromotionId: promotionId,
+        areaType,
+        rank,
+        durationDays,
+        paymentProvider: 'razorpay',
+      });
+      console.log('[PAYMENT] create order response', createOrderResponse);
+
+      if (!createOrderResponse?.success || !createOrderResponse.order?._id) {
+        throw new Error('Failed to create payment order');
+      }
+
+      if (!createOrderResponse.checkout) {
+        setPaymentError(
+          'Razorpay checkout payload is missing for this order. Please try again or contact support.'
+        );
+        return;
+      }
+
+      const razorpay = getRazorpayCheckout();
+      if (!razorpay) {
+        console.log('[PAYMENT] native razorpay unavailable, falling back to web checkout');
+      }
+
+      const checkoutOptions: any = {
+        key: createOrderResponse.checkout.keyId,
+        amount: createOrderResponse.checkout.amount,
+        currency: createOrderResponse.checkout.currency,
+        name: 'InstantllyCards',
+        description: `Promotion - ${areaType} - Rank ${rank}`,
+        order_id: createOrderResponse.checkout.razorpayOrderId,
+        theme: { color: '#2563EB' },
+      };
+
+      console.log('[PAYMENT] razorpay checkout init', {
+        orderId: createOrderResponse.order._id,
+        razorpayOrderId: createOrderResponse.checkout.razorpayOrderId,
+        amount: createOrderResponse.checkout.amount,
+        currency: createOrderResponse.checkout.currency,
+      });
+      const razorpayResult = razorpay
+        ? await razorpay.open(checkoutOptions)
+        : await openWebRazorpayCheckout(checkoutOptions);
+      console.log('[PAYMENT] razorpay checkout success', {
+        razorpay_order_id: razorpayResult?.razorpay_order_id,
+        razorpay_payment_id: razorpayResult?.razorpay_payment_id,
+        hasSignature: !!razorpayResult?.razorpay_signature,
+      });
+
+      await verifyRazorpayPayment(createOrderResponse.order._id, {
+        razorpay_order_id:
+          razorpayResult.razorpay_order_id || createOrderResponse.checkout.razorpayOrderId,
+        razorpay_payment_id: razorpayResult.razorpay_payment_id,
+        razorpay_signature: razorpayResult.razorpay_signature,
+      });
+    } catch (error: any) {
+      console.log('[PAYMENT] payment flow error', {
+        message: error?.message,
+        code: error?.code,
+        description: error?.description,
+      });
+      if (error?.code === 2 || String(error?.description || '').toLowerCase().includes('cancel')) {
+        setPaymentError('Payment was cancelled.');
+      } else {
+        setPaymentError(error?.message || 'Payment failed. Please try again.');
+      }
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
-  const handleAdvertisementTypeChange = (value: string) => {
-    setAdvertisementType(value);
-    setShowError(false);
-  };
+  if (catalogLoading) {
+    return (
+      <SafeAreaView style={styles.centeredContainer}>
+        <ActivityIndicator size="large" color="#2563EB" />
+        <Text style={styles.helperText}>Loading pricing catalog...</Text>
+      </SafeAreaView>
+    );
+  }
 
-  const handleRankingChange = (value: string) => {
-    setRanking(value);
-    setShowError(false);
-  };
+  if (catalogError) {
+    return (
+      <SafeAreaView style={styles.centeredContainer}>
+        <Text style={styles.errorText}>{catalogError}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadCatalog}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
@@ -84,275 +350,250 @@ export default function PromotionPricing() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView 
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Pricing Table */}
-        <View style={styles.tableContainer}>
-          <Text style={styles.tableTitle}>Pricing Chart</Text>
-          
-          {/* Pagination Tabs */}
-          <View style={styles.paginationContainer}>
-            <TouchableOpacity
-              style={[styles.pageTab, currentPage === 1 && styles.pageTabActive]}
-              onPress={() => setCurrentPage(1)}
-              activeOpacity={0.7}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.selectionContainer}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Promotion Configuration</Text>
+            <View
+              style={[
+                styles.modeBadge,
+                checkoutMode === 'native' ? styles.modeBadgeNative : styles.modeBadgeWeb,
+              ]}
             >
-              <Text style={[styles.pageTabText, currentPage === 1 && styles.pageTabTextActive]}>
-                Rank 11-20
+              <Text
+                style={[
+                  styles.modeBadgeText,
+                  checkoutMode === 'native' ? styles.modeBadgeTextNative : styles.modeBadgeTextWeb,
+                ]}
+              >
+                {checkoutMode === 'native' ? 'Native SDK' : 'WebView Fallback'}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.pageTab, currentPage === 2 && styles.pageTabActive]}
-              onPress={() => setCurrentPage(2)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pageTabText, currentPage === 2 && styles.pageTabTextActive]}>
-                Rank 1-10
-              </Text>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Area Type</Text>
+            <TouchableOpacity style={styles.pickerContainer} onPress={() => setAreaModalVisible(true)}>
+              <Text style={styles.pickerText}>{areaType ? areaType.toUpperCase() : 'Select area type'}</Text>
+              <Ionicons name="chevron-down" size={20} color="#000000" />
             </TouchableOpacity>
           </View>
-          
-          {/* Table Header */}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Ranking</Text>
+            <TouchableOpacity style={styles.pickerContainer} onPress={() => setRankModalVisible(true)}>
+              <Text style={styles.pickerText}>
+                {rank !== null ? (rank === 21 ? 'No Rank' : `Rank ${rank}`) : 'Select ranking'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#000000" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Duration</Text>
+            <TouchableOpacity style={styles.pickerContainer} onPress={() => setDurationModalVisible(true)}>
+              <Text style={styles.pickerText}>
+                {durationDays !== null ? `${durationDays} days` : 'Select duration'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#000000" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.priceDisplay}>
+            <Text style={styles.priceLabel}>Current Quote</Text>
+            {quoteLoading ? (
+              <ActivityIndicator size="small" color="#2563EB" />
+            ) : quote ? (
+              <Text style={styles.priceValue}>
+                {quote.currency} {quote.amount}
+              </Text>
+            ) : (
+              <Text style={styles.priceValue}>-</Text>
+            )}
+          </View>
+
+          {quoteError ? (
+            <View style={styles.quoteErrorContainer}>
+              <Text style={styles.errorText}>{quoteError}</Text>
+              <TouchableOpacity style={styles.quoteRetryButton} onPress={loadQuote}>
+                <Text style={styles.quoteRetryText}>Retry Quote</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {paymentError ? <Text style={styles.errorText}>{paymentError}</Text> : null}
+        </View>
+
+        <View style={styles.tableContainer}>
+          <Text style={styles.tableTitle}>Catalog (for selected duration)</Text>
           <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, styles.rankColumn]}>Rank/Area</Text>
+            <Text style={[styles.tableHeaderCell, styles.rankColumn]}>Rank</Text>
             <Text style={[styles.tableHeaderCell, styles.priceColumn]}>Pincode</Text>
             <Text style={[styles.tableHeaderCell, styles.priceColumn]}>Tehsil</Text>
             <Text style={[styles.tableHeaderCell, styles.priceColumn]}>District</Text>
           </View>
-
-          {/* Scrollable Table Content */}
-          <ScrollView 
-            style={styles.tableScrollView}
-            showsVerticalScrollIndicator={true}
-          >
-            {/* Table Rows */}
-            {pricingData
-              .slice(currentPage === 1 ? 0 : 11, currentPage === 1 ? 11 : 21)
-              .map((row, index) => (
-                <View 
-                  key={index} 
-                  style={[
-                    styles.tableRow,
-                    index % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd
-                  ]}
-                >
-                  <Text style={[styles.tableCell, styles.rankColumn, styles.rankText]}>{row.rank}</Text>
-                  <Text style={[styles.tableCell, styles.priceColumn]}>₹{row.pincode}</Text>
-                  <Text style={[styles.tableCell, styles.priceColumn]}>₹{row.tehsil}</Text>
-                  <Text style={[styles.tableCell, styles.priceColumn]}>₹{row.district}</Text>
-                </View>
-              ))}
-          </ScrollView>
-        </View>
-
-        {/* Advertisement Selection */}
-        <View style={styles.selectionContainer}>
-          <Text style={styles.sectionTitle}>Where to make advertisement</Text>
-
-          {/* Advertisement Type Picker */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Advertisement Type *</Text>
-            <TouchableOpacity
-              style={styles.pickerContainer}
-              onPress={() => setAdvertisementModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pickerText, !advertisementType && styles.pickerPlaceholder]}>
-                {advertisementType ? advertisementType.charAt(0).toUpperCase() + advertisementType.slice(1) : '-- Select Type --'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#000000" />
-            </TouchableOpacity>
-            {showError && !advertisementType && (
-              <Text style={styles.errorText}>This field is required</Text>
-            )}
-          </View>
-
-          {/* Ranking Picker */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Select Ranking *</Text>
-            <TouchableOpacity
-              style={styles.pickerContainer}
-              onPress={() => setRankingModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pickerText, !ranking && styles.pickerPlaceholder]}>
-                {ranking ? (ranking === '21' ? 'No Rank' : `Rank ${ranking}`) : '-- Select Rank --'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#000000" />
-            </TouchableOpacity>
-            {showError && !ranking && (
-              <Text style={styles.errorText}>This field is required</Text>
-            )}
-          </View>
-
-          {/* Selected Price Display */}
-          <View style={styles.priceDisplay}>
-            <Text style={styles.priceLabel}>Selected Price:</Text>
-            <Text style={styles.priceValue}>
-              {ranking && advertisementType 
-                ? `₹${ranking === '21' ? pricingData[0]?.[advertisementType as 'pincode' | 'tehsil' | 'district'] : pricingData[21 - parseInt(ranking)]?.[advertisementType as 'pincode' | 'tehsil' | 'district'] || '0'}`
-                : '₹0'
-              }
-            </Text>
-          </View>
+          {chartRows.map((row) => (
+            <View key={row.rank} style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.rankColumn]}>{row.rank === 21 ? 'No Rank' : `Rank ${row.rank}`}</Text>
+              <Text style={[styles.tableCell, styles.priceColumn]}>{row.pincode ?? '-'}</Text>
+              <Text style={[styles.tableCell, styles.priceColumn]}>{row.tehsil ?? '-'}</Text>
+              <Text style={[styles.tableCell, styles.priceColumn]}>{row.district ?? '-'}</Text>
+            </View>
+          ))}
         </View>
       </ScrollView>
 
-      {/* Fixed Pay Now Button */}
       <View style={styles.fixedButtonContainer}>
         <TouchableOpacity
-          style={styles.payButton}
+          style={[styles.payButton, paymentLoading && styles.payButtonDisabled]}
           onPress={handlePayNow}
-          activeOpacity={0.8}
+          disabled={paymentLoading || quoteLoading}
         >
-          <Ionicons name="card" size={24} color="#FFFFFF" style={styles.payIcon} />
-          <Text style={styles.payButtonText}>Pay Now</Text>
+          {paymentLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="card" size={24} color="#FFFFFF" style={styles.payIcon} />
+              <Text style={styles.payButtonText}>Pay Now</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Advertisement Type Selection Modal */}
-      <Modal
-        visible={advertisementModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setAdvertisementModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Advertisement Type</Text>
-              <TouchableOpacity
-                onPress={() => setAdvertisementModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#111827" />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView 
-              style={styles.rankingScrollView}
-              showsVerticalScrollIndicator={true}
-              persistentScrollbar={true}
-            >
-              {[
-                { label: 'Pincode', value: 'pincode' },
-                { label: 'Tehsil', value: 'tehsil' },
-                { label: 'District', value: 'district' }
-              ].map((type) => (
-                <TouchableOpacity
-                  key={type.value}
-                  style={[
-                    styles.rankingOption,
-                    advertisementType === type.value && styles.rankingOptionSelected
-                  ]}
-                  onPress={() => {
-                    handleAdvertisementTypeChange(type.value);
-                    setAdvertisementModalVisible(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[
-                    styles.rankingOptionText,
-                    advertisementType === type.value && styles.rankingOptionTextSelected
-                  ]}>
-                    {type.label}
-                  </Text>
-                  {advertisementType === type.value && (
-                    <Ionicons name="checkmark-circle" size={24} color="#2563EB" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <SelectionModal
+        visible={areaModalVisible}
+        title="Select Area Type"
+        options={[
+          { label: 'Pincode', value: 'pincode' },
+          { label: 'Tehsil', value: 'tehsil' },
+          { label: 'District', value: 'district' },
+        ]}
+        selected={areaType}
+        onSelect={(value) => {
+          setAreaType(value as AreaType);
+          setAreaModalVisible(false);
+        }}
+        onClose={() => setAreaModalVisible(false)}
+      />
 
-      {/* Ranking Selection Modal */}
-      <Modal
-        visible={rankingModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setRankingModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Ranking</Text>
-              <TouchableOpacity
-                onPress={() => setRankingModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#111827" />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView 
-              style={styles.rankingScrollView}
-              showsVerticalScrollIndicator={true}
-              persistentScrollbar={true}
+      <SelectionModal
+        visible={rankModalVisible}
+        title="Select Ranking"
+        options={rankOptions.map((o) => ({ label: o.label, value: String(o.value) }))}
+        selected={rank !== null ? String(rank) : ''}
+        onSelect={(value) => {
+          setRank(Number(value));
+          setRankModalVisible(false);
+        }}
+        onClose={() => setRankModalVisible(false)}
+      />
+
+      <SelectionModal
+        visible={durationModalVisible}
+        title="Select Duration"
+        options={durationOptions.map((d) => ({ label: `${d} days`, value: String(d) }))}
+        selected={durationDays !== null ? String(durationDays) : ''}
+        onSelect={(value) => {
+          setDurationDays(Number(value));
+          setDurationModalVisible(false);
+        }}
+        onClose={() => setDurationModalVisible(false)}
+      />
+
+      <Modal visible={webCheckoutVisible} animationType="slide" onRequestClose={() => {
+        setWebCheckoutVisible(false);
+        webCheckoutRejectRef.current?.(new Error('Checkout closed'));
+      }}>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.webHeader}>
+            <TouchableOpacity
+              style={styles.webCloseButton}
+              onPress={() => {
+                setWebCheckoutVisible(false);
+                webCheckoutRejectRef.current?.(new Error('Checkout cancelled by user'));
+              }}
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => (
-                <TouchableOpacity
-                  key={num}
-                  style={[
-                    styles.rankingOption,
-                    ranking === num.toString() && styles.rankingOptionSelected
-                  ]}
-                  onPress={() => {
-                    handleRankingChange(num.toString());
-                    setRankingModalVisible(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[
-                    styles.rankingOptionText,
-                    ranking === num.toString() && styles.rankingOptionTextSelected
-                  ]}>
-                    Rank {num}
-                  </Text>
-                  {ranking === num.toString() && (
-                    <Ionicons name="checkmark-circle" size={24} color="#2563EB" />
-                  )}
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={[
-                  styles.rankingOption,
-                  ranking === '21' && styles.rankingOptionSelected
-                ]}
-                onPress={() => {
-                  handleRankingChange('21');
-                  setRankingModalVisible(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[
-                  styles.rankingOptionText,
-                  ranking === '21' && styles.rankingOptionTextSelected
-                ]}>
-                  No Rank
-                </Text>
-                {ranking === '21' && (
-                  <Ionicons name="checkmark-circle" size={24} color="#2563EB" />
-                )}
-              </TouchableOpacity>
-            </ScrollView>
+              <Ionicons name="close" size={22} color="#111827" />
+            </TouchableOpacity>
+            <Text style={styles.webHeaderTitle}>Secure Payment</Text>
+            <View style={styles.webHeaderSpacer} />
           </View>
-        </View>
+          <WebView
+            source={{ html: webCheckoutHtml }}
+            onMessage={(event) => {
+              try {
+                const data = JSON.parse(event.nativeEvent.data || '{}');
+                if (data.type === 'success') {
+                  setWebCheckoutVisible(false);
+                  webCheckoutResolveRef.current?.(data.payload || {});
+                } else {
+                  setWebCheckoutVisible(false);
+                  webCheckoutRejectRef.current?.(new Error(data?.payload?.description || data?.payload || 'Checkout failed'));
+                }
+              } catch (e: any) {
+                setWebCheckoutVisible(false);
+                webCheckoutRejectRef.current?.(new Error(e?.message || 'Checkout parsing failed'));
+              }
+            }}
+          />
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
 }
 
+function SelectionModal({
+  visible,
+  title,
+  options,
+  selected,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  options: Array<{ label: string; value: string }>;
+  selected: string;
+  onSelect: (value: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color="#111827" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.rankingScrollView}>
+            {options.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[styles.rankingOption, selected === option.value && styles.rankingOptionSelected]}
+                onPress={() => onSelect(option.value)}
+              >
+                <Text
+                  style={[
+                    styles.rankingOptionText,
+                    selected === option.value && styles.rankingOptionTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                {selected === option.value && <Ionicons name="checkmark-circle" size={24} color="#2563EB" />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  centeredContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -363,162 +604,55 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  placeholder: {
-    width: 40,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  tableContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  tableTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  paginationContainer: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    gap: 8,
-  },
-  pageTab: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  pageTabActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  pageTabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  pageTabTextActive: {
-    color: '#FFFFFF',
-  },
-  tableScrollView: {
-    maxHeight: 460,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#2563EB',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  tableHeaderCell: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  tableRowEven: {
-    backgroundColor: '#F9FAFB',
-  },
-  tableRowOdd: {
-    backgroundColor: '#FFFFFF',
-  },
-  tableCell: {
-    fontSize: 13,
-    color: '#374151',
-    textAlign: 'center',
-  },
-  rankColumn: {
-    flex: 1,
-  },
-  priceColumn: {
-    flex: 1.5,
-  },
-  rankText: {
-    fontWeight: '700',
-    color: '#2563EB',
-    fontSize: 14,
-  },
+  backButton: { padding: 8 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  placeholder: { width: 40 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
   selectionContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    elevation: 2,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
+    gap: 8,
   },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 10,
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 13,
-    marginTop: 6,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  nativePickerContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  modeBadge: {
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#000000',
-    paddingHorizontal: 8,
-    minHeight: 60,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
+  modeBadgeNative: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  modeBadgeWeb: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FDBA74',
+  },
+  modeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modeBadgeTextNative: {
+    color: '#047857',
+  },
+  modeBadgeTextWeb: {
+    color: '#C2410C',
+  },
+  inputGroup: { marginBottom: 16 },
+  label: { fontSize: 15, fontWeight: '700', color: '#000000', marginBottom: 10 },
   pickerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -528,77 +662,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#000000',
     paddingHorizontal: 14,
-    paddingVertical: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: 14,
   },
-  pickerText: {
-    fontSize: 16,
-    color: '#000000',
-    flex: 1,
-  },
-  pickerPlaceholder: {
-    color: '#999999',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  rankingScrollView: {
-    maxHeight: 400,
-  },
-  rankingOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  rankingOptionSelected: {
-    backgroundColor: '#EFF6FF',
-  },
-  rankingOptionText: {
-    fontSize: 16,
-    color: '#111827',
-  },
-  rankingOptionTextSelected: {
-    fontWeight: '600',
-    color: '#2563EB',
-  },
-  picker: {
-    height: 60,
-    width: '100%',
-    color: '#000000',
-    backgroundColor: 'transparent',
-  },
+  pickerText: { fontSize: 16, color: '#000000', flex: 1 },
   priceDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -610,37 +676,38 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
     marginTop: 8,
   },
-  priceLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E40AF',
-  },
-  priceValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-  payButton: {
-    backgroundColor: '#22C55E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
+  priceLabel: { fontSize: 16, fontWeight: '600', color: '#1E40AF' },
+  priceValue: { fontSize: 20, fontWeight: '700', color: '#2563EB' },
+  tableContainer: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    shadowColor: '#22C55E',
-    shadowOpacity: 0.3,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  payIcon: {
-    marginRight: 8,
+  tableTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#2563EB',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
-  payButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  tableHeaderCell: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
+  tableCell: { fontSize: 13, color: '#374151', textAlign: 'center' },
+  rankColumn: { flex: 1.2 },
+  priceColumn: { flex: 1 },
   fixedButtonContainer: {
     position: 'absolute',
     bottom: 0,
@@ -652,10 +719,68 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 8,
   },
+  payButton: {
+    backgroundColor: '#22C55E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  payButtonDisabled: { opacity: 0.6 },
+  payIcon: { marginRight: 8 },
+  payButtonText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  rankingScrollView: { maxHeight: 400 },
+  rankingOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  rankingOptionSelected: { backgroundColor: '#EFF6FF' },
+  rankingOptionText: { fontSize: 16, color: '#111827' },
+  rankingOptionTextSelected: { fontWeight: '600', color: '#2563EB' },
+  retryButton: { marginTop: 16, backgroundColor: '#2563EB', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
+  retryButtonText: { color: '#FFFFFF', fontWeight: '700' },
+  errorText: { marginTop: 8, color: '#DC2626', fontSize: 13 },
+  quoteErrorContainer: { marginTop: 8, gap: 8 },
+  quoteRetryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  quoteRetryText: { color: '#111827', fontWeight: '600', fontSize: 12 },
+  helperText: { marginTop: 12, color: '#6B7280' },
+  webHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  webCloseButton: { padding: 6 },
+  webHeaderTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  webHeaderSpacer: { width: 34 },
 });

@@ -134,7 +134,7 @@ export const useUploadListingMedia = (id: string) => {
 export const useRecordImpression = () => {
   return useMutation({
     mutationFn: async (listingId: string) => {
-      await api.post(`/business-listing/${listingId}/impression`, {});
+      await api.post(`/business-listings/${listingId}/impression`, {});
     },
   });
 };
@@ -145,7 +145,7 @@ export const useRecordImpression = () => {
 export const useRecordClick = () => {
   return useMutation({
     mutationFn: async (listingId: string) => {
-      await api.post(`/business-listing/${listingId}/click`, {});
+      await api.post(`/business-listings/${listingId}/click`, {});
     },
   });
 };
@@ -156,7 +156,7 @@ export const useRecordClick = () => {
 export const useRecordLead = () => {
   return useMutation({
     mutationFn: async (listingId: string) => {
-      await api.post(`/business-listing/${listingId}/lead`, {});
+      await api.post(`/business-listings/${listingId}/lead`, {});
     },
   });
 };

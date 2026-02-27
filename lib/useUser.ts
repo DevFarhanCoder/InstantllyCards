@@ -59,39 +59,30 @@ export async function fetchAndStoreUserProfile(): Promise<User | null> {
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    console.log('🔍 Getting current user from AsyncStorage...');
-    const userDataStr = await AsyncStorage.getItem('user');
-    
-    if (!userDataStr) {
-      console.log('❌ No user data found in AsyncStorage');
-      
-      // Check if there's a token
-      const token = await AsyncStorage.getItem('token');
-      console.log('🔑 Token exists:', !!token);
-      
-      if (token) {
-        console.log('🔄 Token exists but no user data. Fetching from backend...');
-        return await fetchAndStoreUserProfile();
-      }
-      
+    const token = await AsyncStorage.getItem('token');
+    console.log('[USER AUTH DEBUG] getCurrentUser token exists:', !!token);
+
+    if (!token) {
+      console.log('❌ No auth token found - user is not logged in');
       return null;
     }
 
+    // Always refresh from backend when token exists to avoid stale identity.
+    const freshUser = await fetchAndStoreUserProfile();
+    if (freshUser?.id || freshUser?._id) {
+      return freshUser;
+    }
+
+    // Fallback only if profile fetch fails unexpectedly.
+    console.warn('[USER AUTH DEBUG] Falling back to cached user after profile fetch failure');
+    const userDataStr = await AsyncStorage.getItem('user');
+    if (!userDataStr) return null;
+
     const userData = JSON.parse(userDataStr);
-    console.log('✅ User data retrieved:', JSON.stringify(userData, null, 2));
-    
-    // Ensure we have a consistent id field
     if (!userData.id && userData._id) {
       userData.id = userData._id;
-      console.log('🔄 Fixed user ID field');
     }
-    
-    if (!userData.id && !userData._id) {
-      console.log('❌ User data has no ID field');
-      return null;
-    }
-    
-    return userData;
+    return userData.id || userData._id ? userData : null;
   } catch (error) {
     console.error('❌ Error getting current user:', error);
     return null;

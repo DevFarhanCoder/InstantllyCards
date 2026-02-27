@@ -31,6 +31,37 @@ const TIMEOUT_MS = 120000;
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Json = Record<string, any>;
 
+const PUBLIC_AUTH_ROUTES = new Set([
+  "/auth/login",
+  "/auth/signup",
+  "/auth/check-phone",
+  "/auth/reset-password",
+]);
+
+function isPublicAuthRoute(path: string): boolean {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return Array.from(PUBLIC_AUTH_ROUTES).some((route) =>
+    normalized.startsWith(route),
+  );
+}
+
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+
+    if (typeof atob !== "function") return null;
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(
   method: HttpMethod,
   path: string,
@@ -53,7 +84,27 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const publicAuthRoute = isPublicAuthRoute(path);
+  const shouldAttachAuth = Boolean(token) && !publicAuthRoute;
+
+  if (shouldAttachAuth && token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  // Temporary auth-debug logs to verify token/header behavior during account switching
+  // console.log("[API AUTH DEBUG] Request auth context:", {
+  //   method,
+  //   path,
+  //   hasStoredToken: Boolean(token),
+  //   publicAuthRoute,
+  //   attachedAuthorization: headers.Authorization
+  //     ? `Bearer ...${String(token).slice(-10)}`
+  //     : "none",
+  // });
+
+  // if (shouldAttachAuth && token) {
+  //   console.log("[API AUTH DEBUG] Decoded JWT payload:", decodeJwtPayload(token));
+  // }
 
   // Always use the /api prefix since our backend expects it
   const candidates = [`${BASE}/api${path.startsWith("/") ? path : `/${path}`}`];
@@ -62,9 +113,16 @@ async function request<T>(
   const isAuthRequest = method === "POST" && path.includes("/auth/");
   const maxRetries = isAuthRequest ? 0 : 2;
 
+  // Add detailed logging for reviews and enqueries endpoints
+  const isReviewEndpoint = path.includes("/reviews");
+  const isEnquiryEndpoint = path.includes("/enquiries");
+  const isSuggestionEndpoint = path.includes("/suggestions");
+
   let lastErr: any;
   for (const url of candidates) {
-    console.log(`🌐 [API-REQUEST] ${method} ${url}`);
+    if (isReviewEndpoint || isEnquiryEndpoint || isSuggestionEndpoint) {
+      console.log(`🌐 [API REQUEST] ${method} ${path}`);
+    }
     let retries = 2;
 
     do {
@@ -117,9 +175,20 @@ async function request<T>(
           err.status = res.status;
           err.url = url;
           err.data = data;
+          
+          if (isReviewEndpoint || isEnquiryEndpoint || isSuggestionEndpoint) {
+            console.error(`❌ [API ERROR] ${method} ${path}`, {
+              status: res.status,
+              error: err.message,
+              errorCode: data?.error,
+            });
+          }
           throw err;
         }
 
+        if (isReviewEndpoint || isEnquiryEndpoint || isSuggestionEndpoint) {
+          console.log(`✅ [API SUCCESS] ${method} ${path} - Status: ${res.status}`);
+        }
         return data as T;
       } catch (e: any) {
         // Suppress error logs for quiz endpoints (not implemented yet)
@@ -236,7 +305,7 @@ const api = {
     b?: Json | FormData,
     options?: { headers?: Record<string, string> },
   ) => request<T>("POST", p, b, options),
-  put: <T = any>(p: string, b?: Json) => request<T>("PUT", p, b),
+  put: <T = any>(p: string, b?: Json, p0?: { headers: { 'Content-Type': string; }; }) => request<T>("PUT", p, b),
   patch: <T = any>(p: string, b?: Json) => request<T>("PATCH", p, b),
   del: <T = any>(p: string) => request<T>("DELETE", p),
 

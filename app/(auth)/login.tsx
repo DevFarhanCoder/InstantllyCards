@@ -20,11 +20,25 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import api from "../../lib/api";
 import serverWarmup from "../../lib/serverWarmup";
+import { fetchAndStoreUserProfile } from "../../lib/useUser";
 import PhoneInput from "../../components/PhoneInput";
 import PasswordField from "../../components/PasswordField";
 import { PrimaryButton } from "../../components/PrimaryButton";
 
 const { height: screenHeight } = Dimensions.get("window");
+
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    if (typeof atob !== "function") return null;
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
 
 export default function Login() {
   const queryClient = useQueryClient();
@@ -85,6 +99,13 @@ export default function Login() {
           setPassword("");
           setPasswordError("");
           setForgotPhoneError("");
+          await AsyncStorage.multiRemove([
+            "token",
+            "user",
+            "currentUserId",
+            "user_name",
+            "user_phone",
+          ]);
           // Clear query cache to prevent stale API responses
           queryClient.clear();
         }
@@ -173,6 +194,11 @@ export default function Login() {
       setProgress(50);
       setLoadingMessage("Authenticating...");
       console.log("🚀 Attempting login with:", { phone: fullPhone });
+      const tokenBeforeLogin = await AsyncStorage.getItem("token");
+      console.log(
+        "[LOGIN AUTH DEBUG] Token before login:",
+        tokenBeforeLogin ? `...${tokenBeforeLogin.slice(-10)}` : "none",
+      );
 
       const res = await api.post("/auth/login", {
         phone: fullPhone,
@@ -188,23 +214,49 @@ export default function Login() {
       if (!token) {
         throw new Error("Invalid login credentials. Please try again.");
       }
+      console.log(
+        "[LOGIN AUTH DEBUG] Token from login response:",
+        `...${String(token).slice(-10)}`,
+      );
+      console.log(
+        "[LOGIN AUTH DEBUG] Decoded login JWT payload:",
+        decodeJwtPayload(String(token)),
+      );
 
       // CRITICAL: Clear all React Query cache to prevent data leakage from previous account
       console.log("🧹 Clearing React Query cache before login...");
       queryClient.clear();
 
+      // Clear stale user identity fields before writing fresh session
+      await AsyncStorage.multiRemove([
+        "user",
+        "currentUserId",
+        "user_name",
+        "user_phone",
+      ]);
+
       await AsyncStorage.setItem("token", token);
-      if (res?.user?.name) {
-        await AsyncStorage.setItem("user_name", res.user.name);
+      const tokenAfterLogin = await AsyncStorage.getItem("token");
+      console.log(
+        "[LOGIN AUTH DEBUG] Token after login save:",
+        tokenAfterLogin ? `...${tokenAfterLogin.slice(-10)}` : "none",
+      );
+
+      // Force fresh profile read from backend using new token
+      const freshUser = await fetchAndStoreUserProfile();
+      const effectiveUser = freshUser || res?.user;
+
+      if (effectiveUser?.name) {
+        await AsyncStorage.setItem("user_name", effectiveUser.name);
       }
-      if (res?.user?.phone) {
-        await AsyncStorage.setItem("user_phone", res.user.phone);
+      if (effectiveUser?.phone) {
+        await AsyncStorage.setItem("user_phone", effectiveUser.phone);
       }
       // Store user ID for filtering own cards from home feed
-      if (res?.user?.id || res?.user?._id) {
+      if (effectiveUser?.id || effectiveUser?._id) {
         await AsyncStorage.setItem(
           "currentUserId",
-          (res.user.id || res.user._id).toString(),
+          (effectiveUser.id || effectiveUser._id).toString(),
         );
       }
 

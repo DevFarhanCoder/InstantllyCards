@@ -176,7 +176,7 @@ export default function ResetPassword() {
       
       // CRITICAL: Clear any cached auth data to prevent stale token issues
       try {
-        await AsyncStorage.multiRemove(['token', 'user_name', 'user_phone', 'currentUserId', 'reset_phone']);
+        await AsyncStorage.multiRemove(['token', 'user', 'user_name', 'user_phone', 'currentUserId', 'reset_phone']);
         console.log('✅ Cleared cached auth data after password reset');
       } catch (e) {
         console.warn('Failed to clear cached auth data', e);

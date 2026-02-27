@@ -251,6 +251,7 @@ export default function Profile() {
             // Clear all AsyncStorage auth data
             await AsyncStorage.multiRemove([
               "token",
+              "user",
               "user_name",
               "user_phone",
               "currentUserId",
