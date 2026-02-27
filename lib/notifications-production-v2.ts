@@ -127,6 +127,20 @@ async function setupAndroidChannels() {
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
 
+    // Credits channel - High priority for credit transfers
+    await Notifications.setNotificationChannelAsync('credits', {
+      name: 'Credits & Wallet',
+      description: 'Credit transfer and wallet notifications',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      sound: 'default',
+      enableLights: true,
+      lightColor: '#FFD700', // Gold color for credits
+      enableVibrate: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
+
     console.log('✅ [ANDROID] WhatsApp-style notification channels configured successfully');
   } catch (error) {
     console.error('❌ [ANDROID] Failed to setup notification channels:', error);
@@ -485,6 +499,11 @@ function handleNotificationTap(data: any) {
       case 'group_invite':
         console.log('📨 [TAP] Opening group invite:', data.groupId);
         router.push(`/group-details/${data.groupId}` as any);
+        break;
+      
+      case 'CREDIT_RECEIVED':
+        console.log('💰 [TAP] Opening credits/wallet screen');
+        router.push('/(tabs)/profile' as any);
         break;
       
       default:

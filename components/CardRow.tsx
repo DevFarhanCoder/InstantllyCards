@@ -279,8 +279,8 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
             if (result.success) {
                 console.log('✅ Card image shared successfully');
                 setShareModalVisible(false);
-            } else if (result.error !== 'cancelled') {
-                // User didn't cancel, show error
+            } else if (result.error !== 'cancelled' && result.error !== 'native_module_not_available') {
+                // User didn't cancel and it's not a native module error (which already showed an alert)
                 Alert.alert(
                     'Share Failed',
                     'Failed to generate card image. Please try again.',
@@ -372,6 +372,17 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
                     address={c.location || c.companyAddress}
                     companyAddress={c.companyAddress}
                     companyPhoto={c.companyPhoto}
+                    location={c.location}
+                    mapsLink={c.mapsLink}
+                    companyMapsLink={c.companyMapsLink}
+                    message={c.message}
+                    linkedin={c.linkedin}
+                    twitter={c.twitter}
+                    instagram={c.instagram}
+                    facebook={c.facebook}
+                    youtube={c.youtube}
+                    whatsapp={c.whatsapp}
+                    telegram={c.telegram}
                 />
             </View>
         </View>

@@ -4,8 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Linking,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import FooterCarousel from "../../../components/FooterCarousel";
@@ -13,20 +11,20 @@ import FooterCarousel from "../../../components/FooterCarousel";
 export default function Ads() {
   const router = useRouter();
   
-  // With Channel → external website
-  const handleWithChannel = async () => {
-    const url = "https://instantllychannelpatner.vercel.app/";
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert("Error", "Cannot open this URL: " + url);
-      }
-    } catch (error) {
-      console.error("Error opening link:", error);
-      Alert.alert("Error", "Something went wrong while opening the link.");
-    }
+  // With Channel → questionnaire page
+  const handleWithChannel = () => {
+    router.push({
+      pathname: "/(tabs)/ads/adquestionnaire",
+      params: { type: "withChannel" }
+    });
+  };
+
+  // Without Channel → questionnaire page
+  const handleWithoutChannel = () => {
+    router.push({
+      pathname: "/(tabs)/ads/adquestionnaire",
+      params: { type: "withoutChannel" }
+    });
   };
 
   return (
@@ -41,10 +39,10 @@ export default function Ads() {
           <Text style={styles.buttonText}>With Channel</Text>
         </TouchableOpacity>
 
-        {/* Without Channel - Using router.push */}
+        {/* Without Channel */}
         <TouchableOpacity 
           style={styles.linkContainer}
-          onPress={() => router.push("/(tabs)/ads/adswithoutchannel")}
+          onPress={handleWithoutChannel}
         >
           <Text style={styles.linkText}>Without Channel</Text>
         </TouchableOpacity>
