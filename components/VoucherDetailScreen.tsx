@@ -64,9 +64,12 @@ export default function VoucherDetailScreen({
             (v: any) => !v.redeemedStatus || v.redeemedStatus === "unredeemed",
           ).length || 0;
         setAvailableVouchers(available);
+      } else {
+        setAvailableVouchers(0);
       }
     } catch (error) {
       console.error("Error checking voucher availability:", error);
+      setAvailableVouchers(0);
     } finally {
       setLoading(false);
     }
@@ -74,8 +77,8 @@ export default function VoucherDetailScreen({
 
   const handleRedeemNow = () => {
     if (availableVouchers > 0) {
-      // Navigate to Ads/Business Promotion section
-      router.push("/business-promotion");
+      // Navigate to Ads tab
+      router.push("/(tabs)/ads");
     } else {
       Alert.alert(
         "No Vouchers Available",

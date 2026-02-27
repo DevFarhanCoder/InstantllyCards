@@ -10,11 +10,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import SummaryCard from "./SummaryCard";
 import VoucherStatsCard from "./VoucherStatsCard";
 import NetworkTreeView from "./NetworkTreeView";
 import NetworkListView from "./NetworkListView";
 import TransferCreditsModal from "./TransferCreditsModal";
+import SpecialCreditsTransferModal from "./SpecialCreditsTransferModal";
 import VoucherTransferModal from "./VoucherTransferModal";
 import NetworkDetailBottomSheet from "./NetworkDetailBottomSheet";
 import DiscountDashboardCard from "./DiscountDashboardCard";
@@ -41,6 +43,12 @@ interface VoucherDashboardProps {
 export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [specialTransferModalVisible, setSpecialTransferModalVisible] =
+    useState(false);
+  const [selectedSlotNumber, setSelectedSlotNumber] = useState<number | null>(
+    null,
+  );
+  const [selectedSlotCredits, setSelectedSlotCredits] = useState<number>(0);
   const [voucherTransferModalVisible, setVoucherTransferModalVisible] =
     useState(false);
   const [selectedRecipient, setSelectedRecipient] =
@@ -83,6 +91,10 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
   const [error, setError] = useState<string | null>(null);
   const [isMLMUser, setIsMLMUser] = useState(false); // Track if user came via introducer
   const [distributionCredits, setDistributionCredits] = useState<any[]>([]); // Credits to be transferred
+  const [isVoucherAdmin, setIsVoucherAdmin] = useState(false); // Track if user is voucher admin
+  const [hasSpecialCredits, setHasSpecialCredits] = useState(false); // Track if user has special credits slots
+  const [specialCredits, setSpecialCredits] = useState<any>(null); // Special credits data for admin
+  const [networkSlots, setNetworkSlots] = useState<any[]>([]); // Network slots with placeholders
 
   useEffect(() => {
     loadDashboard();
@@ -136,8 +148,60 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         api.get("/mlm/network/direct-buyers?limit=10"),
       ]);
 
+      // Check if user is voucher admin from overview
+      const isAdmin = overview?.user?.isVoucherAdmin === true;
+      setIsVoucherAdmin(isAdmin);
+
+      // Check if user has special credits (slots > 0)
+      const userHasSpecialCredits =
+        overview?.user?.specialCredits?.availableSlots > 0;
+      setHasSpecialCredits(userHasSpecialCredits);
+
+      let specialCreditsData = null;
+      let networkSlotsData = null;
+
+      // If admin OR has special credits, load special credits data
+      if (isAdmin || userHasSpecialCredits) {
+        try {
+          const [specialCreditsRes, networkSlotsRes] = await Promise.all([
+            api.get("/mlm/special-credits/dashboard"),
+            api.get("/mlm/special-credits/network"),
+          ]);
+
+          if (specialCreditsRes?.dashboard) {
+            specialCreditsData = specialCreditsRes.dashboard;
+            setSpecialCredits(specialCreditsData);
+          }
+
+          if (networkSlotsRes?.networkUsers) {
+            networkSlotsData = networkSlotsRes.networkUsers;
+            setNetworkSlots(networkSlotsData);
+          }
+        } catch (err) {
+          console.error("Special credits load error", err);
+        }
+      }
+
       if (overview?.metrics) {
-        setMetrics(overview.metrics);
+        // For users with special credits, override metrics
+        if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
+          setMetrics({
+            availableCredits: specialCreditsData.specialCredits?.balance || 0, // Total available credits
+            totalVouchersTransferred:
+              specialCreditsData.specialCredits?.totalSent || 0, // Credits actually sent (0 initially)
+            totalNetworkUsers: specialCreditsData.slots?.used || 0, // Number of users who received credits
+            virtualCommission:
+              specialCreditsData.specialCredits?.totalSent || 0, // Total credits distributed
+            currentDiscountPercent: 0,
+            // Use specialCreditsData figure if > 0, else fall back to overview metrics (covers voucherBalance)
+            vouchersFigure:
+              specialCreditsData.vouchersFigure ||
+              overview.metrics?.vouchersFigure ||
+              0,
+          });
+        } else {
+          setMetrics(overview.metrics);
+        }
       }
 
       if (creditDashboard) {
@@ -160,30 +224,48 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         setRootUser(mapTree(treeRes.tree));
       }
 
+      // For users with special credits, override with network slots
+      if (
+        (isAdmin || userHasSpecialCredits) &&
+        networkSlotsData &&
+        networkSlotsData.length > 0
+      ) {
+        // Create a root user node with slot children
+        const rootNode: NetworkUser = {
+          id: overview?.user?.id || "user",
+          name: overview?.user?.name || "User",
+          phone: overview?.user?.phone || "",
+          avatar: undefined,
+          creditsReceived: 0,
+          level: overview?.user?.level || 1,
+          directChildren: networkSlotsData.map((slot: any) => ({
+            id: slot.id || `placeholder-${slot.slotNumber}`,
+            name: slot.name || `User ${slot.slotNumber}`, // Changed from "Slot" to "User"
+            phone: slot.phone || "Not assigned",
+            avatar: undefined,
+            creditsReceived: slot.credits || 0, // Use 'credits' field from backend
+            level: slot.recipientLevel || slot.level || slot.slotNumber || 1,
+            directChildren: [],
+            totalNetworkCount: 0,
+            directCount: 0,
+            joinedDate: slot.sentAt || new Date().toISOString(),
+            commissionEarned: 0,
+            isActive: !slot.isPlaceholder,
+            isPlaceholder: slot.isPlaceholder !== false,
+          })),
+          totalNetworkCount: networkSlotsData.length,
+          directCount: networkSlotsData.length,
+          joinedDate: overview?.user?.createdAt || new Date().toISOString(),
+          commissionEarned: 0,
+          isActive: true,
+        };
+        setRootUser(rootNode);
+      }
+
       if (voucherRes?.vouchers) {
-        // Add hardcoded voucher to the beginning
-        const hardcodedVoucher: VoucherItem = {
-          _id: "hardcoded-voucher-1",
-          voucherNumber: "INS-001",
-          MRP: 3600,
-          issueDate: new Date().toISOString(),
-          expiryDate: new Date("2026-08-30").toISOString(),
-          redeemedStatus: "unredeemed",
-          source: "admin",
-        };
-        setVouchers([hardcodedVoucher, ...voucherRes.vouchers]);
+        setVouchers(voucherRes.vouchers);
       } else {
-        // If no vouchers from API, still show hardcoded one
-        const hardcodedVoucher: VoucherItem = {
-          _id: "hardcoded-voucher-1",
-          voucherNumber: "INS-001",
-          MRP: 3600,
-          issueDate: new Date().toISOString(),
-          expiryDate: new Date("2026-08-30").toISOString(),
-          redeemedStatus: "unredeemed",
-          source: "admin",
-        };
-        setVouchers([hardcodedVoucher]);
+        setVouchers([]);
       }
 
       // Check if user is MLM user (came via introducer)
@@ -202,25 +284,77 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
     } catch (err: any) {
       console.error("MLM dashboard load error", err);
       setError(err?.message || "Failed to load dashboard");
-      // Even on error, show hardcoded voucher
-      const hardcodedVoucher: VoucherItem = {
-        _id: "hardcoded-voucher-1",
-        voucherNumber: "INS-001",
-        MRP: 3600,
-        issueDate: new Date().toISOString(),
-        expiryDate: new Date("2026-08-30").toISOString(),
-        redeemedStatus: "unredeemed",
-        source: "admin",
-      };
-      setVouchers([hardcodedVoucher]);
+      setVouchers([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleTransferPress = (user: NetworkUser) => {
-    setSelectedRecipient(user);
-    setTransferModalVisible(true);
+    // For users with special credits (admin OR regular users with slots) clicking placeholder slots
+    if ((isVoucherAdmin || hasSpecialCredits) && user.isPlaceholder) {
+      // Extract slot number from name (e.g., "User 1" -> 1)
+      const match = user.name.match(/User (\d+)/);
+      const slotNumber = match ? parseInt(match[1]) : user.level;
+      setSelectedSlotNumber(slotNumber);
+      setSelectedSlotCredits(user.creditsReceived || 0);
+      setSpecialTransferModalVisible(true);
+    } else {
+      // Regular transfer modal for non-placeholder users
+      setSelectedRecipient(user);
+      setTransferModalVisible(true);
+    }
+  };
+
+  const handleBuyerTransferCredits = async (buyerId: string) => {
+    try {
+      const buyer = directBuyers.find((b) => b.id === buyerId);
+      if (!buyer) return;
+
+      // Show transfer modal for the buyer
+      setSelectedRecipient({
+        id: buyer.id,
+        name: buyer.name,
+        phone: buyer.phone,
+        level: 1,
+        children: [],
+        totalCredits: 0,
+      });
+      setTransferModalVisible(true);
+    } catch (error: any) {
+      console.error("Buyer credit transfer error:", error);
+    }
+  };
+
+  const handleBuyerTransferVouchers = async (buyerId: string) => {
+    try {
+      const buyer = directBuyers.find((b) => b.id === buyerId);
+      if (!buyer) return;
+
+      if (isVoucherAdmin) {
+        // Admin can transfer vouchers to anyone - use admin transfer
+        handleAdminVoucherTransfer();
+      } else {
+        // Find an unredeemed voucher to transfer (exclude special voucher)
+        const unredeemedVoucher = vouchers.find(
+          (v) =>
+            v.redeemedStatus === "unredeemed" &&
+            v._id !== "instantlly-special-credits" &&
+            !v.isSpecialCreditsVoucher,
+        );
+
+        if (!unredeemedVoucher) {
+          // No vouchers available - this is normal, just return silently
+          return;
+        }
+
+        // Set the voucher and show voucher transfer modal
+        setSelectedVoucher(unredeemedVoucher);
+        setVoucherTransferModalVisible(true);
+      }
+    } catch (error: any) {
+      console.error("Buyer voucher transfer error:", error);
+    }
   };
 
   const handleDistributionTransfer = async (
@@ -251,6 +385,20 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       .finally(() => setTransferModalVisible(false));
   };
 
+  const handleSpecialCreditsTransfer = async (phone: string) => {
+    try {
+      await api.post("/mlm/special-credits/send", {
+        recipientPhone: phone,
+        slotNumber: selectedSlotNumber,
+      });
+      await loadDashboard();
+      setSpecialTransferModalVisible(false);
+    } catch (error: any) {
+      console.error("Special credits transfer error:", error);
+      throw error; // Re-throw to let modal handle error display
+    }
+  };
+
   const handleViewNetwork = (user: NetworkUser) => {
     setDetailUser(user);
     setBreadcrumb([rootUser?.name || "You", user.name]);
@@ -270,15 +418,48 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
     setVoucherTransferModalVisible(true);
   };
 
+  const handleAdminVoucherTransfer = () => {
+    // For admin, create a virtual voucher object to open the modal
+    const adminVoucher: VoucherItem = {
+      _id: "admin-voucher-transfer",
+      voucherNumber: "ADMIN-TRANSFER",
+      MRP: 1200,
+      issueDate: new Date().toISOString(),
+      expiryDate: new Date(
+        Date.now() + 365 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      redeemedStatus: "unredeemed",
+      isSpecialCreditsVoucher: true,
+    };
+    setSelectedVoucher(adminVoucher);
+    setVoucherTransferModalVisible(true);
+  };
+
   const handleVoucherTransferConfirm = async (
     voucherId: string,
     recipientPhone: string,
+    quantity: number,
   ) => {
-    await api.post(`/mlm/vouchers/${voucherId}/transfer`, {
-      recipientPhone,
-    });
-    await loadDashboard();
-    setVoucherTransferModalVisible(false);
+    try {
+      // If admin is transferring, use special endpoint to create vouchers
+      if (isVoucherAdmin && voucherId === "admin-voucher-transfer") {
+        await api.post(`/mlm/vouchers/admin-transfer`, {
+          recipientPhone,
+          quantity,
+        });
+      } else {
+        // Regular user transferring their own voucher
+        await api.post(`/mlm/vouchers/${voucherId}/transfer`, {
+          recipientPhone,
+          quantity,
+        });
+      }
+      await loadDashboard();
+      setVoucherTransferModalVisible(false);
+    } catch (error: any) {
+      console.error("Voucher transfer error:", error);
+      throw error; // Re-throw to let modal handle error display
+    }
   };
 
   const ViewToggle = () => {
@@ -401,33 +582,20 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Vouchers & Network</Text>
             <Text style={styles.headerSubtitle}>
-              5× Referral Credit Distribution
+              {isVoucherAdmin
+                ? "Sales Target at Special Discount"
+                : "5× Referral Credit Distribution"}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.transferVoucherButton}
-            onPress={() => {
-              if (vouchers.length > 0) {
-                // Find first unredeemed voucher
-                const unredeemedVoucher = vouchers.find(
-                  (v) => !v.redeemedStatus || v.redeemedStatus === "unredeemed",
-                );
-                if (unredeemedVoucher) {
-                  handleVoucherTransfer(unredeemedVoucher);
-                }
-              }
-            }}
-          >
-            <LinearGradient
-              colors={["#3B82F6", "#2563EB"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.transferVoucherGradient}
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.historyButton}
+              onPress={() => router.push("/referral/credits-history")}
+              activeOpacity={0.7}
             >
-              <Ionicons name="send" size={16} color="#FFFFFF" />
-              <Text style={styles.transferVoucherText}>Transfer</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <Ionicons name="time-outline" size={20} color="#1F2937" />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
@@ -437,15 +605,17 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         showsVerticalScrollIndicator={false}
       >
         {/* Network Overview Stats */}
-        <SummaryCard metrics={metrics} />
+        <SummaryCard metrics={metrics} isVoucherAdmin={isVoucherAdmin} />
 
-        {/* Voucher Stats Card - Clickable to Buy */}
-        <VoucherStatsCard
-          totalVouchers={vouchers.length}
-          availableVouchers={availableVouchers}
-          redeemedVouchers={redeemedVouchers}
-          onBuyNowPress={() => setShowBuyVoucherScreen(true)}
-        />
+        {/* Voucher Stats Card - Clickable to Buy - HIDDEN for Admin and Special Credits Users */}
+        {!isVoucherAdmin && !hasSpecialCredits && (
+          <VoucherStatsCard
+            totalVouchers={vouchers.length}
+            availableVouchers={availableVouchers}
+            redeemedVouchers={redeemedVouchers}
+            onBuyNowPress={() => setShowBuyVoucherScreen(true)}
+          />
+        )}
 
         {/* Distribution Credits Table - Only for MLM users */}
         {isMLMUser && distributionCredits.length > 0 && (
@@ -455,17 +625,21 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
           />
         )}
 
-        <DiscountDashboardCard summary={discountSummary} />
+        {/* Discount Dashboard - HIDDEN for Admin */}
+        {!isVoucherAdmin && <DiscountDashboardCard summary={discountSummary} />}
 
-        <VoucherList
-          vouchers={vouchers}
-          onRedeem={(voucherId) =>
-            api.post(`/mlm/vouchers/${voucherId}/redeem`).then(loadDashboard)
-          }
-          onTransfer={handleVoucherTransfer}
-        />
+        {/* Voucher List - COMPLETELY HIDDEN */}
+        {/* Removed as per requirements */}
 
-        <DirectBuyersList buyers={directBuyers} />
+        {/* Direct Buyers - Only show if there are buyers */}
+        {directBuyers && directBuyers.length > 0 && (
+          <DirectBuyersList
+            buyers={directBuyers}
+            onTransferCredits={handleBuyerTransferCredits}
+            onTransferVouchers={handleBuyerTransferVouchers}
+            onTransfer={isVoucherAdmin ? handleAdminVoucherTransfer : undefined}
+          />
+        )}
 
         {/* View Toggle */}
         <ViewToggle />
@@ -495,6 +669,15 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         availableCredits={metrics.availableCredits}
         onClose={() => setTransferModalVisible(false)}
         onConfirm={handleTransferConfirm}
+      />
+
+      {/* Special Credits Transfer Modal - For Admin */}
+      <SpecialCreditsTransferModal
+        visible={specialTransferModalVisible}
+        slotNumber={selectedSlotNumber}
+        creditAmount={selectedSlotCredits}
+        onClose={() => setSpecialTransferModalVisible(false)}
+        onConfirm={handleSpecialCreditsTransfer}
       />
 
       {/* Network Detail Bottom Sheet */}
@@ -550,6 +733,17 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: scaleFontSize(14),
     color: "#6B7280",
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: scaleSize(8),
+  },
+  historyButton: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: scaleSize(10),
+    padding: scaleSize(10),
+    justifyContent: "center",
+    alignItems: "center",
   },
   transferVoucherButton: {
     borderRadius: scaleSize(12),
