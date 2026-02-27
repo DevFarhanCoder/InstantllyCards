@@ -3,7 +3,7 @@
  * Shared utilities across all business management screens
  */
 
-import { ListingStatus, ListingType } from './types';
+import { BusinessPromotion, ListingStatus, ListingType } from './types';
 
 // ============================================
 // Status & Type Constants
@@ -141,6 +141,20 @@ export const canUpgrade = (type: ListingType): boolean => {
 
 export const canEdit = (status: ListingStatus, expiryDate?: string): boolean => {
   return status !== 'expired' && !isExpired(expiryDate);
+};
+
+export const getListingIntent = (
+  listing?: Pick<BusinessPromotion, 'listingType' | 'listingIntent'> | null
+): ListingType => {
+  if (!listing) return 'free';
+  const normalized = (listing.listingIntent || listing.listingType || '').toLowerCase();
+  return normalized === 'promoted' ? 'promoted' : 'free';
+};
+
+export const isPromotedListing = (
+  listing?: Pick<BusinessPromotion, 'listingType' | 'listingIntent'> | null
+): boolean => {
+  return getListingIntent(listing) === 'promoted';
 };
 
 // ============================================

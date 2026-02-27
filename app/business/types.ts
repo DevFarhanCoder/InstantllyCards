@@ -29,6 +29,7 @@ export interface BusinessPromotion {
   gstNumber?: string;
   panNumber?: string;
   currentStep?: string;
+  listingIntent?: 'free' | 'promoted';
   listingType: 'free' | 'promoted';
   status: 'draft' | 'submitted' | 'active' | 'inactive' | 'expired';
   isActive: boolean;

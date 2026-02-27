@@ -1188,7 +1188,7 @@ const buildUrl = (url?: string | null) => {
     return fixed;
   }
 
-  console.warn("❌ Invalid media URL:", url);
+  // console.warn("❌ Invalid media URL:", url);
   return null;
 };
 
@@ -1224,30 +1224,30 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
   useEffect(() => {
     if (ads.length === 0) return;
     
-    console.log('');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🎬 FOOTER CAROUSEL INITIALIZED');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`📊 Total Ads Loaded: ${ads.length}`);
-    console.log(`🔄 Carousel Mode: Sequential (1→2→3...→${ads.length}→1)`);
-    console.log(`⏱️ Display Time: ${IMAGE_TIME/1000} seconds per ad`);
-    console.log(`📈 Full Cycle Duration: ${(ads.length * IMAGE_TIME / 1000)} seconds (${Math.floor(ads.length * IMAGE_TIME / 60000)} min ${Math.floor((ads.length * IMAGE_TIME % 60000) / 1000)} sec)`);
-    console.log('');
-    console.log('📋 AD SEQUENCE LIST:');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // console.log('');
+    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // console.log('🎬 FOOTER CAROUSEL INITIALIZED');
+    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // console.log(`📊 Total Ads Loaded: ${ads.length}`);
+    // console.log(`🔄 Carousel Mode: Sequential (1→2→3...→${ads.length}→1)`);
+    // console.log(`⏱️ Display Time: ${IMAGE_TIME/1000} seconds per ad`);
+    // console.log(`📈 Full Cycle Duration: ${(ads.length * IMAGE_TIME / 1000)} seconds (${Math.floor(ads.length * IMAGE_TIME / 60000)} min ${Math.floor((ads.length * IMAGE_TIME % 60000) / 1000)} sec)`);
+    // console.log('');
+    // console.log('📋 AD SEQUENCE LIST:');
+    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     ads.forEach((ad, index) => {
       const position = index + 1;
-      console.log(`  ${position.toString().padStart(3, '0')}. ${ad.title || ad.name || 'Untitled'} (ID: ${ad.id}, Phone: ${ad.phone || 'N/A'})`);
+      // console.log(`  ${position.toString().padStart(3, '0')}. ${ad.title || ad.name || 'Untitled'} (ID: ${ad.id}, Phone: ${ad.phone || 'N/A'})`);
     });
     
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ Carousel will play in EXACT ORDER listed above');
-    console.log('🔒 No randomization - Sequential play guaranteed');
-    console.log('♻️  After last ad, automatically returns to first ad');
-    console.log('🚫 Auto-scroll NEVER restarts once started');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('');
+    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // console.log('✅ Carousel will play in EXACT ORDER listed above');
+    // console.log('🔒 No randomization - Sequential play guaranteed');
+    // console.log('♻️  After last ad, automatically returns to first ad');
+    // console.log('🚫 Auto-scroll NEVER restarts once started');
+    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // console.log('');
   }, [adsDataKey]); // ✅ Only log when actual data changes, not on every render
 
   // ⚡ Preload fullscreen images for instant display
@@ -1272,7 +1272,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
           }
         }
       }
-      console.log(`⚡ Preloaded ${preloadCount}/${ads.length} fullscreen images`);
+      // console.log(`⚡ Preloaded ${preloadCount}/${ads.length} fullscreen images`);
     };
 
     preloadImages();
@@ -1283,12 +1283,12 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     if (!ads.length || isLoading) return;
 
     // ✅ Reset carousel ONLY when ads data actually changes (new ads loaded)
-    console.log('');
-    console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
-    console.log('🔄 INITIALIZING CAROUSEL WITH NEW DATA');
-    console.log(`🔄 Total ads to show: ${ads.length}`);
-    console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
-    console.log('');
+    // console.log('');
+    // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+    // console.log('🔄 INITIALIZING CAROUSEL WITH NEW DATA');
+    // console.log(`🔄 Total ads to show: ${ads.length}`);
+    // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+    // console.log('');
     
     setActiveIndex(1); // Always start from first ad
     setInitialized(false); // Reset initialized state
@@ -1314,7 +1314,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     // ✅ Only start auto-scroll once initialized and ads are loaded
     if (!initialized || infiniteAds.length <= 1) return;
 
-    console.log('🚀 Starting auto-scroll sequence (will run continuously)');
+    // console.log('🚀 Starting auto-scroll sequence (will run continuously)');
     
     // Clear any existing timer (safety check)
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -1334,17 +1334,17 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
             actualAdPosition = next; // Current ad (1-based)
           }
           
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          console.log(`🎯 AD TRANSITION: Moving from position ${currentIndex} to ${next}`);
-          console.log(`📍 ACTUAL AD SEQUENCE: Now showing ad #${actualAdPosition} of ${ads.length}`);
+          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          // console.log(`🎯 AD TRANSITION: Moving from position ${currentIndex} to ${next}`);
+          // console.log(`📍 ACTUAL AD SEQUENCE: Now showing ad #${actualAdPosition} of ${ads.length}`);
           
           const adToShow = infiniteAds[next];
-          if (adToShow) {
-            console.log(`📱 AD DETAILS: "${adToShow.title || adToShow.name || 'Unknown'}"`);
-            console.log(`📞 PHONE: ${adToShow.phone || 'No phone'}`);
-            console.log(`🆔 AD ID: ${adToShow.id}`);
-          }
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          // if (adToShow) {
+          //   console.log(`📱 AD DETAILS: "${adToShow.title || adToShow.name || 'Unknown'}"`);
+          //   console.log(`📞 PHONE: ${adToShow.phone || 'No phone'}`);
+          //   console.log(`🆔 AD ID: ${adToShow.id}`);
+          // }
+          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
           // Scroll to next position
           scrollRef.current?.scrollTo({
@@ -1361,13 +1361,13 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
                 animated: false,
               });
             }, 300);
-            console.log('');
-            console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
-            console.log('✅ CYCLE COMPLETE: All ads shown! Back to start!');
-            console.log(`⏱️ Full cycle: ${ads.length} ads × 5 seconds = ${(ads.length * 5)} seconds total`);
-            console.log('🔄 Restarting from ad #1');
-            console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
-            console.log('');
+            // console.log('');
+            // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+            // console.log('✅ CYCLE COMPLETE: All ads shown! Back to start!');
+            // console.log(`⏱️ Full cycle: ${ads.length} ads × 5 seconds = ${(ads.length * 5)} seconds total`);
+            // console.log('🔄 Restarting from ad #1');
+            // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+            // console.log('');
             return 1; // Reset to first real ad
           } else {
             return next; // Continue to next ad
@@ -1380,14 +1380,14 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     };
 
     // Log startup message
-    console.log('');
-    console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
-    console.log('🚀 AUTO-SCROLL STARTED - SEQUENTIAL MODE ACTIVE');
-    console.log(`🚀 Will show ${ads.length} ads in order: 1→2→3...→${ads.length}→1`);
-    console.log('🚀 Display interval: 5 seconds per ad');
-    console.log('🚀 Auto-scroll will NEVER restart until data changes');
-    console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
-    console.log('');
+    // console.log('');
+    // console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
+    // console.log('🚀 AUTO-SCROLL STARTED - SEQUENTIAL MODE ACTIVE');
+    // console.log(`🚀 Will show ${ads.length} ads in order: 1→2→3...→${ads.length}→1`);
+    // console.log('🚀 Display interval: 5 seconds per ad');
+    // console.log('🚀 Auto-scroll will NEVER restart until data changes');
+    // console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
+    // console.log('');
     
     startAutoScroll();
 
@@ -1413,7 +1413,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     const newIndex = Math.round(contentOffsetX / SCREEN_WIDTH);
     
     if (newIndex !== activeIndex) {
-      console.log(`👆 User scrolled manually from ${activeIndex} to ${newIndex}`);
+      // console.log(`👆 User scrolled manually from ${activeIndex} to ${newIndex}`);
       setActiveIndex(newIndex);
       
       // Handle boundary: if user scrolled to duplicate first/last slide
@@ -1451,7 +1451,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     // });
 
     if (!url) {
-      console.warn("⚠️ No valid URL for ad:", ad.id);
+      // console.warn("⚠️ No valid URL for ad:", ad.id);
       return (
         <View
           style={[
@@ -1482,9 +1482,9 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
             error: e.nativeEvent.error,
           });
         }}
-        onLoad={() => {
-          console.log("✅ Image loaded successfully:", ad.id);
-        }}
+        // onLoad={() => {
+        //   console.log("✅ Image loaded successfully:", ad.id);
+        // }}
       />
     );
   };
@@ -1518,7 +1518,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     // +91 remove + spaces remove
     const phoneOnly = ad.phone.replace(/\+/g, "").replace(/\s/g, "");
 
-    console.log("💬 Opening chat with:", phoneOnly);
+    // console.log("💬 Opening chat with:", phoneOnly);
 
     setShowModal(false);
 
@@ -1571,14 +1571,14 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
               <Pressable
                 style={StyleSheet.absoluteFill}
                 onPress={() => {
-                  console.log("🎯 Ad clicked:", {
-                    id: ad.id,
-                    name: ad.name,
-                    hasFullscreenMediaUrl: !!ad.fullscreenMediaUrl,
-                    fullscreenMediaUrl: ad.fullscreenMediaUrl,
-                    hasBottomMediaUrl: !!ad.bottomMediaUrl,
-                    bottomMediaUrl: ad.bottomMediaUrl,
-                  });
+                  // console.log("🎯 Ad clicked:", {
+                  //   id: ad.id,
+                  //   name: ad.name,
+                  //   hasFullscreenMediaUrl: !!ad.fullscreenMediaUrl,
+                  //   fullscreenMediaUrl: ad.fullscreenMediaUrl,
+                  //   hasBottomMediaUrl: !!ad.bottomMediaUrl,
+                  //   bottomMediaUrl: ad.bottomMediaUrl,
+                  // });
                   setSelectedAd(ad);
                   setShowModal(true);
                 }}

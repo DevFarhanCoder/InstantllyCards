@@ -114,8 +114,28 @@ export default function BusinessPromotionScreen() {
   const params = useLocalSearchParams<{
     listingType?: 'FREE' | 'PREMIUM';
     promotionId?: string;
+    mode?: 'edit' | 'create';
   }>();
-  const listingType = params.listingType || 'FREE';
+  const listingTypeParamRaw = Array.isArray(params.listingType)
+    ? params.listingType[0]
+    : params.listingType;
+  const listingTypeParamUpper = (listingTypeParamRaw || '').toString().toUpperCase();
+  const explicitListingTypeFromParams: 'free' | 'promoted' | null =
+    listingTypeParamUpper === 'PREMIUM'
+      ? 'promoted'
+      : listingTypeParamUpper === 'FREE'
+        ? 'free'
+        : null;
+  const hasExplicitListingTypeParam = explicitListingTypeFromParams !== null;
+  const [normalizedListingType, setNormalizedListingType] = useState<'free' | 'promoted'>(
+    explicitListingTypeFromParams || 'free'
+  );
+
+  useEffect(() => {
+    if (explicitListingTypeFromParams) {
+      setNormalizedListingType(explicitListingTypeFromParams);
+    }
+  }, [explicitListingTypeFromParams]);
 
   // const params = useLocalSearchParams<{ category?: string }>();
   const [currentStep, setCurrentStep] = useState<FormStep>('business');
@@ -133,6 +153,10 @@ export default function BusinessPromotionScreen() {
   const [promotionId, setPromotionId] = useState<string | null>(
     params.promotionId || null
   );
+  const modeParamRaw = Array.isArray(params.mode) ? params.mode[0] : params.mode;
+  const isEditMode = (modeParamRaw || '').toString().toLowerCase() === 'edit';
+  const [existingListingType, setExistingListingType] = useState<'free' | 'promoted' | null>(null);
+  const [existingPaymentStatus, setExistingPaymentStatus] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [weeklySchedule, setWeeklySchedule] = useState({
@@ -193,8 +217,19 @@ export default function BusinessPromotionScreen() {
         const p = res.promotion;
         if (!p) return;
 
+        // Keep explicit user choice (FREE/PREMIUM) from route params.
+        // Only infer from backend when route does not provide listing type.
+        const serverIntent = p.listingIntent || p.listingType;
+        if (!hasExplicitListingTypeParam && (serverIntent === 'promoted' || serverIntent === 'free')) {
+          setNormalizedListingType(serverIntent);
+        }
+        if (serverIntent === 'promoted' || serverIntent === 'free') {
+          setExistingListingType(serverIntent);
+        }
+        setExistingPaymentStatus(p.paymentStatus || null);
+
         // If already active free → go to profile
-        if (p.status === 'active' && listingType === 'FREE') {
+        if (p.status === 'active' && serverIntent === 'free') {
           router.replace('/profile');
           return;
         }
@@ -233,7 +268,11 @@ export default function BusinessPromotionScreen() {
     };
 
     fetchPromotion();
-  }, [promotionId]);
+  }, [promotionId, hasExplicitListingTypeParam]);
+
+  const updatePremiumListing = async (promotionIdToUpdate: string, payload: any) => {
+    return api.patch(`/business-promotion/${promotionIdToUpdate}/premium-edit`, payload);
+  };
 
 
 
@@ -425,7 +464,9 @@ export default function BusinessPromotionScreen() {
 
       const promotionData: any = {
         ...formData,
-        status: 'draft',
+        listingIntent: normalizedListingType,
+        listingType: normalizedListingType,
+        ...(!isEditMode && { status: 'draft' }),
         progress: progressMap[currentStep],
         stepIndex: {
           business: 1,
@@ -433,13 +474,10 @@ export default function BusinessPromotionScreen() {
           contact: 3,
           location: 4,
         }[currentStep],
-        currentStep: nextStepMap[currentStep],  // 👈 ADD THIS
+        currentStep,
         ...(promotionId && { promotionId }),
       };
-
-      if (currentStep === 'business') {
-        promotionData.businessHours = weeklySchedule;
-      }
+      promotionData.businessHours = weeklySchedule;
 
       const response = await api.post('/business-promotion', promotionData);
 
@@ -485,7 +523,14 @@ export default function BusinessPromotionScreen() {
   };
 
   const handleSubmit = async () => {
+    if (currentStep !== 'location') {
+      return;
+    }
+
     // Clear previous errors
+    setBusinessNameError(null);
+    setOwnerNameError(null);
+    setPhoneError(null);
     setPincodeError(null);
     setLocalityError(null);
     setStreetError(null);
@@ -494,6 +539,27 @@ export default function BusinessPromotionScreen() {
 
     // Validate all required fields for location step
     let hasError = false;
+
+    if (!formData.businessName.trim()) {
+      setBusinessNameError('Business Name is required');
+      hasError = true;
+    }
+    if (!formData.ownerName.trim()) {
+      setOwnerNameError('Owner Name is required');
+      hasError = true;
+    }
+    if (!formData.category || formData.category.length === 0) {
+      Alert.alert('Validation', 'Please select at least one category.');
+      hasError = true;
+    }
+    if (!formData.phone.trim()) {
+      setPhoneError('At least one Phone Number is required');
+      hasError = true;
+    }
+    if (!formData.area.trim()) {
+      Alert.alert('Validation', 'Area is required.');
+      hasError = true;
+    }
 
     if (!formData.pincode.trim()) {
       setPincodeError('Pincode is required');
@@ -536,7 +602,10 @@ export default function BusinessPromotionScreen() {
       // Prepare data for backend
       const promotionData: any = {
         ...formData,
-        status: currentStep === 'location' ? 'submitted' : 'draft',
+        listingIntent: normalizedListingType,
+        listingType: normalizedListingType,
+        ...(!isEditMode && { status: currentStep === 'location' ? 'submitted' : 'draft' }),
+        currentStep,
         progress: progressMap[currentStep],
         stepIndex: {
           business: 1,
@@ -546,8 +615,50 @@ export default function BusinessPromotionScreen() {
         }[currentStep],
         ...(promotionId && { promotionId }), // Include promotionId if updating
       };
-      if (currentStep === 'business') {
-        promotionData.businessHours = weeklySchedule;
+      promotionData.businessHours = weeklySchedule;
+
+      const effectiveListingType = existingListingType || normalizedListingType;
+      const isPaidPremiumEdit =
+        isEditMode &&
+        effectiveListingType === 'promoted' &&
+        existingPaymentStatus === 'paid' &&
+        !!promotionId;
+
+      if (isPaidPremiumEdit) {
+        const premiumEditPayload = {
+          businessName: promotionData.businessName,
+          ownerName: promotionData.ownerName,
+          description: promotionData.description,
+          category: promotionData.category,
+          email: promotionData.email,
+          phone: promotionData.phone,
+          whatsapp: promotionData.whatsapp,
+          website: promotionData.website,
+          businessHours: promotionData.businessHours,
+          area: promotionData.area,
+          pincode: promotionData.pincode,
+          plotNo: promotionData.plotNo,
+          buildingName: promotionData.buildingName,
+          streetName: promotionData.streetName,
+          landmark: promotionData.landmark,
+          city: promotionData.city,
+          state: promotionData.state,
+          gstNumber: promotionData.gstNumber,
+          panNumber: promotionData.panNumber,
+          currentStep: promotionData.currentStep,
+          progress: promotionData.progress,
+          stepIndex: promotionData.stepIndex,
+        };
+
+        const response = await updatePremiumListing(promotionId, premiumEditPayload);
+        console.log('✅ [BUSINESS-PROMOTION] Premium listing updated successfully:', response);
+        Alert.alert('Success', 'Premium listing updated successfully.');
+        router.replace({
+          pathname: '/business/manage-listing/[id]',
+          params: { id: promotionId },
+        } as any);
+        setLoading(false);
+        return;
       }
 
       // Call API to save/update promotion
@@ -562,17 +673,40 @@ export default function BusinessPromotionScreen() {
       }
       setPromotionId(finalPromotionId);
 
-
       // If completed all steps, navigate to pricing
       if (currentStep === 'location') {
-        if (listingType === 'FREE') {
+        if (normalizedListingType === 'free') {
           // 1️⃣ Activate free
           await api.post(`/business-promotion/${finalPromotionId}/activate-free`);
 
           // 2️⃣ Redirect to profile
           router.replace('/profile');
         } else {
-          // PREMIUM → Pricing
+          const p = response?.promotion;
+          const serverIntent = p?.listingIntent || p?.listingType;
+          const stepComplete =
+            (typeof p?.stepIndex === 'number' && p.stepIndex >= 4) ||
+            (typeof p?.progress === 'number' && p.progress >= 100) ||
+            currentStep === 'location';
+          const paymentPendingOrUnknown =
+            p?.paymentStatus === undefined ||
+            p?.paymentStatus === null ||
+            p?.paymentStatus === 'pending';
+          const isPendingPaymentReady =
+            serverIntent === 'promoted' &&
+            p?.status === 'submitted' &&
+            paymentPendingOrUnknown &&
+            stepComplete;
+
+          if (!isPendingPaymentReady) {
+            Alert.alert(
+              'Not Ready for Payment',
+              'Complete all required details before proceeding to pricing.'
+            );
+            setLoading(false);
+            return;
+          }
+
           router.push({
             pathname: '/promotion-pricing',
             params: { promotionId: finalPromotionId }
@@ -586,6 +720,15 @@ export default function BusinessPromotionScreen() {
     } catch (error: any) {
       console.error('❌ [BUSINESS-PROMOTION] Error saving form:', error);
       setLoading(false);
+
+      if (error?.status === 400) {
+        Alert.alert('Error', 'Only paid premium listings can be edited without payment.');
+        return;
+      }
+      if (error?.status === 404) {
+        Alert.alert('Error', 'Listing not found.');
+        return;
+      }
 
       Alert.alert(
         'Error',
@@ -1107,7 +1250,9 @@ export default function BusinessPromotionScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.buttonPrimaryText}>Save & Continue</Text>
+                <Text style={styles.buttonPrimaryText}>
+                  {isEditMode ? 'Update Listing' : 'Save & Continue'}
+                </Text>
               )}
             </TouchableOpacity>
           )}
@@ -2107,3 +2252,4 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 });
+
