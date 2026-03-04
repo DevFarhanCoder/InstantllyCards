@@ -200,8 +200,7 @@ export default function VoucherDashboard({
           totalVouchersTransferred:
             specialCreditsData?.specialCredits?.totalSent ?? 0,
           totalNetworkUsers: specialCreditsData?.slots?.used ?? 0,
-          virtualCommission:
-            specialCreditsData?.specialCredits?.totalSent ?? 0,
+          virtualCommission: specialCreditsData?.specialCredits?.totalSent ?? 0,
           currentDiscountPercent: 0,
           vouchersFigure: specialCreditsData?.vouchersFigure ?? 0,
         });
@@ -209,8 +208,7 @@ export default function VoucherDashboard({
         // No specific voucher — global view (original behaviour)
         if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
           setMetrics({
-            availableCredits:
-              specialCreditsData.specialCredits?.balance || 0,
+            availableCredits: specialCreditsData.specialCredits?.balance || 0,
             totalVouchersTransferred:
               specialCreditsData.specialCredits?.totalSent || 0,
             totalNetworkUsers: specialCreditsData.slots?.used || 0,
