@@ -198,11 +198,12 @@ export default function VoucherDashboard({
             virtualCommission:
               specialCreditsData.specialCredits?.totalSent || 0, // Total credits distributed
             currentDiscountPercent: 0,
-            // Use specialCreditsData figure if > 0, else fall back to overview metrics (covers voucherBalance)
-            vouchersFigure:
-              specialCreditsData.vouchersFigure ||
-              overview.metrics?.vouchersFigure ||
-              0,
+            // When viewing a specific voucher, only use per-voucher figure (don't fall back to global)
+            vouchersFigure: voucherId
+              ? (specialCreditsData.vouchersFigure ?? 0)
+              : specialCreditsData.vouchersFigure ||
+                overview.metrics?.vouchersFigure ||
+                0,
           });
         } else {
           setMetrics(overview.metrics);
