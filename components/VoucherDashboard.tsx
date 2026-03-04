@@ -164,8 +164,9 @@ export default function VoucherDashboard({
       let specialCreditsData = null;
       let networkSlotsData = null;
 
-      // If admin OR has special credits, load special credits data
-      if (isAdmin || userHasSpecialCredits) {
+      // When a specific voucher is selected, ALWAYS load per-voucher data
+      // for ALL users — ensures every voucher shows its own isolated stats (zeros for new vouchers)
+      if (isAdmin || userHasSpecialCredits || voucherId) {
         try {
           const voucherParam = voucherId ? `?voucherId=${voucherId}` : "";
           const [specialCreditsRes, networkSlotsRes] = await Promise.all([
@@ -187,23 +188,39 @@ export default function VoucherDashboard({
         }
       }
 
-      if (overview?.metrics) {
-        // For users with special credits, override metrics
+      if (voucherId) {
+        // Per-voucher mode: always show isolated data for THIS voucher only.
+        // Regular users with no slots assigned for this voucher see zeros + buy screen.
+        const totalSlotsForVoucher = specialCreditsData?.slots?.total ?? 0;
+        if (!isAdmin && totalSlotsForVoucher === 0) {
+          setShowBuyVoucherScreen(true);
+        }
+        setMetrics({
+          availableCredits: specialCreditsData?.specialCredits?.balance ?? 0,
+          totalVouchersTransferred:
+            specialCreditsData?.specialCredits?.totalSent ?? 0,
+          totalNetworkUsers: specialCreditsData?.slots?.used ?? 0,
+          virtualCommission:
+            specialCreditsData?.specialCredits?.totalSent ?? 0,
+          currentDiscountPercent: 0,
+          vouchersFigure: specialCreditsData?.vouchersFigure ?? 0,
+        });
+      } else if (overview?.metrics) {
+        // No specific voucher — global view (original behaviour)
         if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
           setMetrics({
-            availableCredits: specialCreditsData.specialCredits?.balance || 0, // Total available credits
+            availableCredits:
+              specialCreditsData.specialCredits?.balance || 0,
             totalVouchersTransferred:
-              specialCreditsData.specialCredits?.totalSent || 0, // Credits actually sent (0 initially)
-            totalNetworkUsers: specialCreditsData.slots?.used || 0, // Number of users who received credits
+              specialCreditsData.specialCredits?.totalSent || 0,
+            totalNetworkUsers: specialCreditsData.slots?.used || 0,
             virtualCommission:
-              specialCreditsData.specialCredits?.totalSent || 0, // Total credits distributed
+              specialCreditsData.specialCredits?.totalSent || 0,
             currentDiscountPercent: 0,
-            // When viewing a specific voucher, only use per-voucher figure (don't fall back to global)
-            vouchersFigure: voucherId
-              ? (specialCreditsData.vouchersFigure ?? 0)
-              : specialCreditsData.vouchersFigure ||
-                overview.metrics?.vouchersFigure ||
-                0,
+            vouchersFigure:
+              specialCreditsData.vouchersFigure ||
+              overview.metrics?.vouchersFigure ||
+              0,
           });
         } else {
           setMetrics(overview.metrics);
