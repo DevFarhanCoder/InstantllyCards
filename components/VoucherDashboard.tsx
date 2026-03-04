@@ -251,8 +251,9 @@ export default function VoucherDashboard({
         networkSlotsData &&
         networkSlotsData.length > 0
       ) {
-        // Create a root user node with slot children
-        // Filter out placeholders - only show actual users who received credits
+        // Show ALL slots — sent (filled) + available (placeholders)
+        // so admin sees the full 30-slot picture
+        const allSlots = networkSlotsData;
         const actualUsers = networkSlotsData.filter(
           (slot: any) => !slot.isPlaceholder && slot.name,
         );
@@ -264,23 +265,23 @@ export default function VoucherDashboard({
           avatar: undefined,
           creditsReceived: 0,
           level: overview?.user?.level || 1,
-          directChildren: actualUsers.map((slot: any) => ({
-            id: slot.id || `user-${slot.slotNumber}`,
-            name: slot.name,
-            phone: slot.phone || "Not assigned",
+          directChildren: allSlots.map((slot: any) => ({
+            id: slot.id || `slot-${slot.slotNumber}`,
+            name: slot.isPlaceholder ? `Slot ${slot.slotNumber}` : slot.name,
+            phone: slot.isPlaceholder ? "" : slot.phone || "",
             avatar: undefined,
-            creditsReceived: slot.credits || 0, // Use 'credits' field from backend
+            creditsReceived: slot.credits || 0,
             level: slot.recipientLevel || slot.level || 1,
             directChildren: [],
             totalNetworkCount: 0,
             directCount: 0,
             joinedDate: slot.sentAt || new Date().toISOString(),
             commissionEarned: 0,
-            isActive: true,
-            isPlaceholder: false,
+            isActive: !slot.isPlaceholder,
+            isPlaceholder: slot.isPlaceholder || false,
           })),
-          totalNetworkCount: actualUsers.length,
-          directCount: actualUsers.length,
+          totalNetworkCount: allSlots.length,
+          directCount: allSlots.length,
           joinedDate: overview?.user?.createdAt || new Date().toISOString(),
           commissionEarned: 0,
           isActive: true,
