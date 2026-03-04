@@ -164,8 +164,9 @@ export default function VoucherDashboard({
       let specialCreditsData = null;
       let networkSlotsData = null;
 
-      // If admin OR has special credits, load special credits data
-      if (isAdmin || userHasSpecialCredits) {
+      // When a specific voucher is selected, ALWAYS load per-voucher data
+      // for ALL users — ensures every voucher shows its own isolated stats (zeros for new vouchers)
+      if (isAdmin || userHasSpecialCredits || voucherId) {
         try {
           const voucherParam = voucherId ? `?voucherId=${voucherId}` : "";
           const [specialCreditsRes, networkSlotsRes] = await Promise.all([
@@ -187,18 +188,33 @@ export default function VoucherDashboard({
         }
       }
 
-      if (overview?.metrics) {
-        // For users with special credits, override metrics
+      if (voucherId) {
+        // Per-voucher mode: always show isolated data for THIS voucher only.
+        // Regular users with no slots assigned for this voucher see zeros + buy screen.
+        const totalSlotsForVoucher = specialCreditsData?.slots?.total ?? 0;
+        if (!isAdmin && totalSlotsForVoucher === 0) {
+          setShowBuyVoucherScreen(true);
+        }
+        setMetrics({
+          availableCredits: specialCreditsData?.specialCredits?.balance ?? 0,
+          totalVouchersTransferred:
+            specialCreditsData?.specialCredits?.totalSent ?? 0,
+          totalNetworkUsers: specialCreditsData?.slots?.used ?? 0,
+          virtualCommission: specialCreditsData?.specialCredits?.totalSent ?? 0,
+          currentDiscountPercent: 0,
+          vouchersFigure: specialCreditsData?.vouchersFigure ?? 0,
+        });
+      } else if (overview?.metrics) {
+        // No specific voucher — global view (original behaviour)
         if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
           setMetrics({
-            availableCredits: specialCreditsData.specialCredits?.balance || 0, // Total available credits
+            availableCredits: specialCreditsData.specialCredits?.balance || 0,
             totalVouchersTransferred:
-              specialCreditsData.specialCredits?.totalSent || 0, // Credits actually sent (0 initially)
-            totalNetworkUsers: specialCreditsData.slots?.used || 0, // Number of users who received credits
+              specialCreditsData.specialCredits?.totalSent || 0,
+            totalNetworkUsers: specialCreditsData.slots?.used || 0,
             virtualCommission:
-              specialCreditsData.specialCredits?.totalSent || 0, // Total credits distributed
+              specialCreditsData.specialCredits?.totalSent || 0,
             currentDiscountPercent: 0,
-            // Use specialCreditsData figure if > 0, else fall back to overview metrics (covers voucherBalance)
             vouchersFigure:
               specialCreditsData.vouchersFigure ||
               overview.metrics?.vouchersFigure ||
@@ -235,8 +251,9 @@ export default function VoucherDashboard({
         networkSlotsData &&
         networkSlotsData.length > 0
       ) {
-        // Create a root user node with slot children
-        // Filter out placeholders - only show actual users who received credits
+        // Show ALL slots — sent (filled) + available (placeholders)
+        // so admin sees the full 30-slot picture
+        const allSlots = networkSlotsData;
         const actualUsers = networkSlotsData.filter(
           (slot: any) => !slot.isPlaceholder && slot.name,
         );
@@ -248,23 +265,23 @@ export default function VoucherDashboard({
           avatar: undefined,
           creditsReceived: 0,
           level: overview?.user?.level || 1,
-          directChildren: actualUsers.map((slot: any) => ({
-            id: slot.id || `user-${slot.slotNumber}`,
-            name: slot.name,
-            phone: slot.phone || "Not assigned",
+          directChildren: allSlots.map((slot: any) => ({
+            id: slot.id || `slot-${slot.slotNumber}`,
+            name: slot.isPlaceholder ? `Slot ${slot.slotNumber}` : slot.name,
+            phone: slot.isPlaceholder ? "" : slot.phone || "",
             avatar: undefined,
-            creditsReceived: slot.credits || 0, // Use 'credits' field from backend
+            creditsReceived: slot.credits || 0,
             level: slot.recipientLevel || slot.level || 1,
             directChildren: [],
             totalNetworkCount: 0,
             directCount: 0,
             joinedDate: slot.sentAt || new Date().toISOString(),
             commissionEarned: 0,
-            isActive: true,
-            isPlaceholder: false,
+            isActive: !slot.isPlaceholder,
+            isPlaceholder: slot.isPlaceholder || false,
           })),
-          totalNetworkCount: actualUsers.length,
-          directCount: actualUsers.length,
+          totalNetworkCount: allSlots.length,
+          directCount: allSlots.length,
           joinedDate: overview?.user?.createdAt || new Date().toISOString(),
           commissionEarned: 0,
           isActive: true,

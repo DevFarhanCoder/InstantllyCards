@@ -21,9 +21,7 @@
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.70",
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
