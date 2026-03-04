@@ -15,6 +15,15 @@
         "projectId": "2d7524da-4330-496c-816f-4e011831e6f4"
       }
     },
+    "updates": {
+      "url": "https://u.expo.dev/2d7524da-4330-496c-816f-4e011831e6f4",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",

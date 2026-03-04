@@ -38,9 +38,13 @@ import { scaleFontSize, scaleSize } from "../lib/responsive";
 
 interface VoucherDashboardProps {
   onBack: () => void;
+  voucherId?: string;
 }
 
-export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
+export default function VoucherDashboard({
+  onBack,
+  voucherId,
+}: VoucherDashboardProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [transferModalVisible, setTransferModalVisible] = useState(false);
   const [specialTransferModalVisible, setSpecialTransferModalVisible] =
@@ -98,7 +102,7 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [voucherId]);
 
   const mapTree = (node: any): NetworkUser => {
     const children = (node.directChildren || []).map(mapTree);
@@ -163,9 +167,10 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
       // If admin OR has special credits, load special credits data
       if (isAdmin || userHasSpecialCredits) {
         try {
+          const voucherParam = voucherId ? `?voucherId=${voucherId}` : "";
           const [specialCreditsRes, networkSlotsRes] = await Promise.all([
-            api.get("/mlm/special-credits/dashboard"),
-            api.get("/mlm/special-credits/network"),
+            api.get(`/mlm/special-credits/dashboard${voucherParam}`),
+            api.get(`/mlm/special-credits/network${voucherParam}`),
           ]);
 
           if (specialCreditsRes?.dashboard) {
@@ -231,6 +236,11 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         networkSlotsData.length > 0
       ) {
         // Create a root user node with slot children
+        // Filter out placeholders - only show actual users who received credits
+        const actualUsers = networkSlotsData.filter(
+          (slot: any) => !slot.isPlaceholder && slot.name,
+        );
+
         const rootNode: NetworkUser = {
           id: overview?.user?.id || "user",
           name: overview?.user?.name || "User",
@@ -238,23 +248,23 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
           avatar: undefined,
           creditsReceived: 0,
           level: overview?.user?.level || 1,
-          directChildren: networkSlotsData.map((slot: any) => ({
-            id: slot.id || `placeholder-${slot.slotNumber}`,
-            name: slot.name || `User ${slot.slotNumber}`, // Changed from "Slot" to "User"
+          directChildren: actualUsers.map((slot: any) => ({
+            id: slot.id || `user-${slot.slotNumber}`,
+            name: slot.name,
             phone: slot.phone || "Not assigned",
             avatar: undefined,
             creditsReceived: slot.credits || 0, // Use 'credits' field from backend
-            level: slot.recipientLevel || slot.level || slot.slotNumber || 1,
+            level: slot.recipientLevel || slot.level || 1,
             directChildren: [],
             totalNetworkCount: 0,
             directCount: 0,
             joinedDate: slot.sentAt || new Date().toISOString(),
             commissionEarned: 0,
-            isActive: !slot.isPlaceholder,
-            isPlaceholder: slot.isPlaceholder !== false,
+            isActive: true,
+            isPlaceholder: false,
           })),
-          totalNetworkCount: networkSlotsData.length,
-          directCount: networkSlotsData.length,
+          totalNetworkCount: actualUsers.length,
+          directCount: actualUsers.length,
           joinedDate: overview?.user?.createdAt || new Date().toISOString(),
           commissionEarned: 0,
           isActive: true,
@@ -317,8 +327,11 @@ export default function VoucherDashboard({ onBack }: VoucherDashboardProps) {
         name: buyer.name,
         phone: buyer.phone,
         level: 1,
-        children: [],
-        totalCredits: 0,
+        directChildren: [],
+        totalNetworkCount: 0,
+        creditsReceived: 0,
+        joinedDate: "",
+        isActive: true,
       });
       setTransferModalVisible(true);
     } catch (error: any) {
