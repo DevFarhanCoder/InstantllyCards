@@ -1,4 +1,4 @@
-import { Platform, Alert } from "react-native";
+import { Platform, Alert, Share as RNShare } from "react-native";
 
 // Lazy imports to prevent crash if native modules not available
 let captureRef: any = null;
@@ -12,7 +12,7 @@ const missingModules: string[] = [];
 try {
   const viewShot = require("react-native-view-shot");
   captureRef = viewShot.captureRef;
-  console.log("✅ react-native-view-shot loaded successfully");
+  console.log("✅ [cardImageGen] react-native-view-shot loaded");
 } catch (error) {
   console.warn("⚠️ react-native-view-shot not available:", error);
   missingModules.push("react-native-view-shot");
@@ -20,7 +20,7 @@ try {
 
 try {
   FileSystem = require("expo-file-system/legacy");
-  console.log("✅ expo-file-system loaded successfully");
+  console.log("✅ [cardImageGen] expo-file-system loaded");
 } catch (error) {
   console.warn("⚠️ expo-file-system not available:", error);
   missingModules.push("expo-file-system");
@@ -28,7 +28,7 @@ try {
 
 try {
   Sharing = require("expo-sharing");
-  console.log("✅ expo-sharing loaded successfully");
+  console.log("✅ [cardImageGen] expo-sharing loaded");
 } catch (error) {
   console.warn("⚠️ expo-sharing not available:", error);
   missingModules.push("expo-sharing");
@@ -36,7 +36,7 @@ try {
 
 try {
   Share = require("react-native-share").default;
-  console.log("✅ react-native-share loaded successfully");
+  console.log("✅ [cardImageGen] react-native-share loaded");
 } catch (error) {
   console.warn("⚠️ react-native-share not available:", error);
   missingModules.push("react-native-share");
@@ -55,23 +55,12 @@ export async function generateAndShareCardImage(
   shareMethod: "native" | "whatsapp" | "save" = "native",
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if native modules are available
-    if (!captureRef || !FileSystem || !Sharing || !Share) {
-      const missingList = [
-        !captureRef && "react-native-view-shot",
-        !FileSystem && "expo-file-system",
-        !Sharing && "expo-sharing",
-        !Share && "react-native-share",
-      ]
-        .filter(Boolean)
-        .join(", ");
-
-      console.error("❌ Missing native modules:", missingList);
-      console.error("Missing modules array:", missingModules);
-
+    // Only captureRef is absolutely required for image capture
+    if (!captureRef) {
+      console.error("❌ react-native-view-shot not available - cannot capture card image");
       Alert.alert(
         "Feature Not Available",
-        `Card image sharing requires app rebuild.\n\nMissing: ${missingList}\n\nPlease rebuild the app with:\n\nnpx expo run:android\n\nFor now, use "Share Within App" option.`,
+        "Card image sharing requires app rebuild.\n\nPlease rebuild the app with:\n\nnpx expo run:android",
         [{ text: "OK" }],
       );
       return {
@@ -81,9 +70,20 @@ export async function generateAndShareCardImage(
     }
 
     console.log("📸 Capturing card image...");
+    console.log("📸 viewRef type:", typeof viewRef, "| viewRef:", !!viewRef);
 
     // Capture the view as an image
-    const uri = await captureRef(viewRef, {
+    // viewRef can be either a ref object (.current) or the view instance directly
+    const viewToCapture = viewRef?.current !== undefined ? viewRef.current : viewRef;
+    if (!viewToCapture) {
+      console.error("❌ View ref is null/undefined - card template may not be rendered");
+      return {
+        success: false,
+        error: "view_ref_not_ready",
+      };
+    }
+
+    const uri = await captureRef(viewToCapture, {
       format: "png",
       quality: 1,
       result: "tmpfile",
@@ -91,10 +91,32 @@ export async function generateAndShareCardImage(
 
     console.log("✅ Card image captured:", uri);
 
+    // Copy to cache directory for reliable sharing
+    let shareableUri = uri;
+    if (FileSystem) {
+      try {
+        const destUri = FileSystem.cacheDirectory + "card_share_" + Date.now() + ".png";
+        await FileSystem.copyAsync({ from: uri, to: destUri });
+        const fileInfo = await FileSystem.getInfoAsync(destUri);
+        console.log("📊 Image copied to:", destUri, "| size:", fileInfo.size, "bytes");
+        if (fileInfo.exists && fileInfo.size > 0) {
+          shareableUri = destUri;
+        }
+      } catch (copyErr: any) {
+        console.warn("⚠️ Could not copy image to cache:", copyErr?.message);
+      }
+    }
+
     // Get the file info
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    if (fileInfo.exists && "size" in fileInfo) {
-      console.log("📊 Image size:", fileInfo.size, "bytes");
+    if (FileSystem) {
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(shareableUri);
+        if (fileInfo.exists && "size" in fileInfo) {
+          console.log("📊 Image size:", fileInfo.size, "bytes");
+        }
+      } catch (e) {
+        // ignore
+      }
     }
 
     const companyName = cardData.companyName || cardData.name || "Business";
@@ -297,7 +319,7 @@ export async function generateAndShareCardImage(
     const referralLink = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${referralCode}`;
 
     switch (shareMethod) {
-      case "whatsapp":
+      case "whatsapp": {
         // Share via WhatsApp with complete card details matching Instantlly template
         const whatsappMessage =
           buildCardDetails() +
@@ -311,34 +333,66 @@ export async function generateAndShareCardImage(
           `▪️ *Referal Bonus ₹300* On your Download I will get ₹300 Bonus\n\n` +
           `▪️ *Website* www.Instantlly.Com`;
 
-        try {
-          await Share.open({
-            title: `${companyName}'s Business Card`,
-            message: whatsappMessage,
-            url: `file://${uri}`,
-            type: "image/png",
-            filename: fileName,
-          });
-        } catch (whatsappError: any) {
-          // If specific share fails, try generic share
-          if (whatsappError.message !== "User did not share") {
-            console.log("Retrying WhatsApp share with generic method...");
+        const filePrefix = Platform.OS === "android" ? "file://" : "";
+        const shareUrl = shareableUri.startsWith("file://") ? shareableUri : filePrefix + shareableUri;
+        let shared = false;
+
+        // Method A: react-native-share (image + message together)
+        if (Share && !shared) {
+          try {
+            console.log("📤 Trying react-native-share for WhatsApp...");
             await Share.open({
               title: `${companyName}'s Business Card`,
               message: whatsappMessage,
-              url: `file://${uri}`,
+              url: shareUrl,
               type: "image/png",
+              filename: fileName,
             });
-          } else {
-            throw whatsappError;
+            shared = true;
+            console.log("✅ Shared via react-native-share");
+          } catch (shareError: any) {
+            if (shareError?.message === "User did not share") {
+              shared = true; // cancelled, don't retry
+            } else {
+              console.warn("⚠️ react-native-share failed:", shareError?.message);
+            }
           }
         }
-        break;
 
-      case "save":
+        // Method B: expo-sharing (shares image, copies message to clipboard)
+        if (Sharing && !shared) {
+          try {
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+              console.log("📤 Trying expo-sharing...");
+              // Copy WhatsApp message to clipboard since expo-sharing only shares the file
+              const { Clipboard } = require("react-native");
+              Clipboard.setString(whatsappMessage);
+              Alert.alert("Message Copied!", "Card message copied to clipboard. Paste it after sharing the image.", [{ text: "OK" }]);
+              await Sharing.shareAsync(shareableUri, {
+                mimeType: "image/png",
+                dialogTitle: `Share ${companyName}'s Business Card`,
+              });
+              shared = true;
+              console.log("✅ Shared via expo-sharing");
+            }
+          } catch (expoError: any) {
+            console.warn("⚠️ expo-sharing failed:", expoError?.message);
+          }
+        }
+
+        // Method C: RN Share (text-only, no image support)
+        if (!shared) {
+          console.log("📤 Falling back to text-only share");
+          await RNShare.share({ message: whatsappMessage, title: `${companyName}'s Business Card` });
+        }
+        break;
+      }
+
+      case "save": {
         // Save to device
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri, {
+        if (Sharing && await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(shareableUri, {
             mimeType: "image/png",
             dialogTitle: "Save Business Card",
             UTI: "public.png",
@@ -347,34 +401,59 @@ export async function generateAndShareCardImage(
           throw new Error("Sharing is not available on this device");
         }
         break;
+      }
 
       case "native":
-      default:
+      default: {
         // Use native share sheet
         const shareMessage =
           `${companyName}'s Digital Business Card\n\n` +
           `🎯 Create your FREE Digital Visiting Card with Instantlly Cards!\n` +
           `📱 https://play.google.com/store/apps/details?id=com.instantllycards.www.twa`;
 
-        if (Platform.OS === "android") {
-          await Share.open({
-            title: `${companyName}'s Business Card`,
-            message: shareMessage,
-            url: `file://${uri}`,
-            type: "image/png",
-            filename: fileName,
-          });
-        } else {
-          // iOS
-          await Share.open({
-            title: `${companyName}'s Business Card`,
-            message: shareMessage,
-            url: uri,
-            type: "image/png",
-            filename: fileName,
-          });
+        const filePrefix = Platform.OS === "android" ? "file://" : "";
+        const nativeShareUrl = shareableUri.startsWith("file://") ? shareableUri : filePrefix + shareableUri;
+        let nativeShared = false;
+
+        if (Share && !nativeShared) {
+          try {
+            await Share.open({
+              title: `${companyName}'s Business Card`,
+              message: shareMessage,
+              url: nativeShareUrl,
+              type: "image/png",
+              filename: fileName,
+            });
+            nativeShared = true;
+          } catch (shareError: any) {
+            if (shareError?.message === "User did not share") {
+              nativeShared = true;
+            } else {
+              console.warn("⚠️ react-native-share failed for native:", shareError?.message);
+            }
+          }
+        }
+
+        if (Sharing && !nativeShared) {
+          try {
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+              await Sharing.shareAsync(shareableUri, {
+                mimeType: "image/png",
+                dialogTitle: `Share ${companyName}'s Business Card`,
+              });
+              nativeShared = true;
+            }
+          } catch (expoError: any) {
+            console.warn("⚠️ expo-sharing failed:", expoError?.message);
+          }
+        }
+
+        if (!nativeShared) {
+          await RNShare.share({ message: shareMessage, title: `${companyName}'s Business Card` });
         }
         break;
+      }
     }
 
     console.log("✅ Card shared successfully");
@@ -416,7 +495,12 @@ export async function generateCardImageFile(
 
     console.log("📸 Generating card image file...");
 
-    const uri = await captureRef(viewRef, {
+    const viewToCapture = viewRef?.current !== undefined ? viewRef.current : viewRef;
+    if (!viewToCapture) {
+      return { success: false, error: "view_ref_not_ready" };
+    }
+
+    const uri = await captureRef(viewToCapture, {
       format: "png",
       quality: 1,
       result: "tmpfile",

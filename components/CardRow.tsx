@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, Linking, Modal, Share, Alert, TouchableOpacity, ActivityIndicator, Animated, Dimensions } from "react-native";
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_TEMPLATE_WIDTH = 1050;
+const CARD_TEMPLATE_HEIGHT = 600;
+const CARD_PADDING = 56;
+const CARD_SCALE = (SCREEN_WIDTH - CARD_PADDING) / CARD_TEMPLATE_WIDTH;
+const SCALED_HEIGHT = CARD_TEMPLATE_HEIGHT * CARD_SCALE * 0.75;
+const CARD_TOP_OFFSET = -120 * CARD_SCALE;
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -296,47 +304,91 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
         <View>
             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                 <TouchableOpacity 
-                    style={s.card} 
+                    style={showEditButton ? s.card : s.cardClassic} 
                     onPress={handleCardPress} 
                     activeOpacity={0.7}
                 >
-                    <BusinessAvatar 
-                        companyPhoto={c.companyPhoto}
-                        companyName={companyName}
-                        size={80}
-                        style={s.logo}
-                    />
-                    
-                    <View style={s.info}>
-                        <Text style={s.companyName} numberOfLines={1}>{companyName}</Text>
-                        <Text style={s.ownerName} numberOfLines={1}>{ownerName}</Text>
-                        {!!location && (
-                            <Text style={s.location} numberOfLines={1}>{location}</Text>
-                        )}
-                    </View>
-                    
-                    <View style={s.actions}>
-                        {showEditButton ? (
-                            <TouchableOpacity 
-                                onPress={(e) => { 
-                                    e.stopPropagation(); 
-                                    setMenuModalVisible(true); 
-                                }} 
-                                style={s.menuBtn}
-                            >
-                                <Text style={s.menuBtnText}>⋮</Text>
-                            </TouchableOpacity>
-                        ) : (
-                            (fullCompany || fullPersonal) && (
+                    {showEditButton ? (
+                        <>
+                            {/* Scaled Business Card Template - My Cards only */}
+                            <View style={s.templateContainer}>
+                                <View style={{
+                                    width: CARD_TEMPLATE_WIDTH,
+                                    height: CARD_TEMPLATE_HEIGHT,
+                                    transform: [{ scale: CARD_SCALE }, { translateY: CARD_TOP_OFFSET }],
+                                    transformOrigin: 'top left' as any,
+                                }}>
+                                    <BusinessCardTemplate
+                                        name={c.name || ''}
+                                        designation={c.designation || ''}
+                                        companyName={c.companyName || c.name || 'Company'}
+                                        personalPhone={fullPersonal}
+                                        companyPhone={fullCompany}
+                                        email={c.email}
+                                        companyEmail={c.companyEmail}
+                                        website={c.website}
+                                        companyWebsite={c.companyWebsite}
+                                        address={c.location || c.companyAddress}
+                                        companyAddress={c.companyAddress}
+                                        companyPhoto={c.companyPhoto}
+                                        location={c.location}
+                                        mapsLink={c.mapsLink}
+                                        companyMapsLink={c.companyMapsLink}
+                                        message={c.message}
+                                        linkedin={c.linkedin}
+                                        twitter={c.twitter}
+                                        instagram={c.instagram}
+                                        facebook={c.facebook}
+                                        youtube={c.youtube}
+                                        whatsapp={c.whatsapp}
+                                        telegram={c.telegram}
+                                    />
+                                </View>
+                            </View>
+                            
+                            {/* Overlay menu button */}
+                            <View style={s.overlayActions}>
                                 <TouchableOpacity 
-                                    onPress={handleCallPress} 
-                                    style={s.callBtn}
+                                    onPress={(e) => { 
+                                        e.stopPropagation(); 
+                                        setMenuModalVisible(true); 
+                                    }} 
+                                    style={s.menuBtn}
                                 >
-                                    <Ionicons name="call" size={24} color="white" />
+                                    <Text style={s.menuBtnText}>⋮</Text>
                                 </TouchableOpacity>
-                            )
-                        )}
-                    </View>
+                            </View>
+                        </>
+                    ) : (
+                        <>
+                            {/* Classic layout - All Cards */}
+                            <BusinessAvatar 
+                                companyPhoto={c.companyPhoto}
+                                companyName={companyName}
+                                size={80}
+                                style={s.logo}
+                            />
+                            
+                            <View style={s.info}>
+                                <Text style={s.companyName} numberOfLines={1}>{companyName}</Text>
+                                <Text style={s.ownerName} numberOfLines={1}>{ownerName}</Text>
+                                {!!location && (
+                                    <Text style={s.location} numberOfLines={1}>{location}</Text>
+                                )}
+                            </View>
+                            
+                            <View style={s.actions}>
+                                {(fullCompany || fullPersonal) && (
+                                    <TouchableOpacity 
+                                        onPress={handleCallPress} 
+                                        style={s.callBtn}
+                                    >
+                                        <Ionicons name="call" size={24} color="white" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </>
+                    )}
                 </TouchableOpacity>
             </Animated.View>
 
@@ -465,6 +517,18 @@ export default function CardRow({ c, showEditButton = false, onRefresh }: { c: a
 
 const s = StyleSheet.create({
     card: {
+        backgroundColor: "#E8EAED",
+        borderRadius: 12,
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 4,
+        marginHorizontal: 4,
+        overflow: "hidden",
+        position: "relative",
+    },
+    cardClassic: {
         flexDirection: "row",
         alignItems: "center",
         padding: 12,
@@ -476,7 +540,18 @@ const s = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
         marginHorizontal: 4,
-        position: "relative", // For loading overlay
+    },
+    templateContainer: {
+        width: '100%',
+        height: SCALED_HEIGHT,
+        overflow: 'hidden',
+        marginBottom: 4,
+    },
+    overlayActions: {
+        position: 'absolute',
+        bottom: 10,
+        right: 12,
+        zIndex: 10,
     },
     loadingOverlay: {
         position: "absolute",
@@ -544,19 +619,23 @@ const s = StyleSheet.create({
         fontWeight: "bold",
     },
     menuBtn: {
-        backgroundColor: "#F3F4F6",
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        backgroundColor: "rgba(255,255,255,0.95)",
+        paddingHorizontal: 8,
+        paddingVertical: 12,
         borderRadius: 6,
-        borderWidth: 1,
-        borderColor: "#D1D5DB",
-        minWidth: 40,
         alignItems: "center",
+        justifyContent: "center",
+        elevation: 3,
+        shadowColor: "#000",
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 1 },
     },
     menuBtnText: {
         fontSize: 20,
-        color: "#6B7280",
-        fontWeight: "600",
+        color: "#1F2937",
+        fontWeight: "800",
+        lineHeight: 22,
     },
     deleteOption: {
         backgroundColor: '#FEE2E2',

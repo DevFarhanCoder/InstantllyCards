@@ -1005,6 +1005,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 
+
 const { width } = Dimensions.get('window');
 const STATUSBAR_HEIGHT =
   Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
@@ -1467,12 +1468,12 @@ export default function BusinessCardDetailScreen() {
 
             <View style={styles.ratingRow}>
               <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>3.7 ★</Text>
+                <Text style={styles.ratingBadgeText}>3.7 \u2605</Text>
               </View>
               <Text style={styles.ratingsText}>95 Ratings</Text>
               {business.isVerified && (
                 <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedBadgeText}>✓ Verified</Text>
+                  <Text style={styles.verifiedBadgeText}>\u2713 Verified</Text>
                 </View>
               )}
             </View>
@@ -1486,7 +1487,7 @@ export default function BusinessCardDetailScreen() {
 
             <Text style={styles.categoryText}>
               {business.category?.join(', ') || 'Category'}
-              {yearsInBusiness && yearsInBusiness > 0 ? ` • ${yearsInBusiness} ${yearsInBusiness === 1 ? 'Year' : 'Years'} in Business` : ''}
+              {yearsInBusiness && yearsInBusiness > 0 ? ` \u2022 ${yearsInBusiness} ${yearsInBusiness === 1 ? 'Year' : 'Years'} in Business` : ''}
             </Text>
           </View>
         </View>
@@ -1683,6 +1684,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
+
   businessHeader: {
     backgroundColor: '#fff',
     paddingBottom: 16,

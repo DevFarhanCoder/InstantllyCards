@@ -327,9 +327,17 @@ export default function CardDetail() {
         referralCode: userReferralCode || 'INSTANTLLY'
       };
       // Wait for template to render
-      await new Promise(resolve => setTimeout(resolve, 2500));
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Pass .current (the view instance) not the ref object
+      const viewInstance = cardTemplateRef.current;
+      if (!viewInstance) {
+        console.warn('⚠️ Card template ref not ready, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
       const result = await generateAndShareCardImage(
-        cardTemplateRef,
+        cardTemplateRef.current || cardTemplateRef,
         cardDataWithReferral,
         'whatsapp'
       );
@@ -489,7 +497,7 @@ export default function CardDetail() {
           {/* Services as Categories */}
           {services.length > 0 && (
             <View style={s.infoRow}>
-              <Text style={s.infoText}>{services.slice(0, 2).join(' • ')}</Text>
+              <Text style={s.infoText}>{services.slice(0, 2).join(' \u2022 ')}</Text>
             </View>
           )}
 
@@ -738,8 +746,8 @@ export default function CardDetail() {
 
       {/* Hidden BusinessCardTemplate for image capture */}
       {card && (
-        <View style={{ position: 'absolute', left: 0, top: 0, opacity: 0, zIndex: -1, pointerEvents: 'none' }}>
-          <View ref={cardTemplateRef} collapsable={false}>
+        <View style={{ position: 'absolute', left: 0, top: 0, zIndex: -1, pointerEvents: 'none', transform: [{ translateY: -10000 }] }}>
+          <View ref={cardTemplateRef} collapsable={false} style={{ backgroundColor: '#FFFFFF', width: 1050, height: 600 }}>
             <BusinessCardTemplate
               name={card.name || ''}
               designation={card.designation || ''}
@@ -1044,17 +1052,19 @@ const s = StyleSheet.create({
   // Bottom Actions
   bottomActions: {
     flexDirection: "row",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
-    gap: 12,
+    gap: 8,
+    alignItems: "stretch",
   },
   primaryButton: {
     flex: 1,
     backgroundColor: "#10B981",
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -1066,13 +1076,15 @@ const s = StyleSheet.create({
   },
   primaryButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
+    textAlign: "center",
   },
   whatsappButton: {
     flex: 1,
     backgroundColor: "#25D366",
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -1084,13 +1096,15 @@ const s = StyleSheet.create({
   },
   whatsappButtonText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
+    textAlign: "center",
   },
   secondaryButton: {
     flex: 1,
     backgroundColor: "#3B82F6",
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -1102,8 +1116,9 @@ const s = StyleSheet.create({
   },
   secondaryButtonText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
+    textAlign: "center",
   },
   // ⚡ Animated Skeleton loading styles
   skeletonPhoto: {

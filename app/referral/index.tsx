@@ -23,15 +23,30 @@ import { router, useFocusEffect } from "expo-router";
 let RNShare: any = null;
 try {
   RNShare = require("react-native-share").default;
+  console.log("✅ react-native-share loaded");
 } catch (error) {
-  console.log("react-native-share not available, using fallback Share");
+  console.log("⚠️ react-native-share not available, will use expo-sharing fallback");
 }
 let captureRef: any = null;
 try {
   captureRef = require("react-native-view-shot").captureRef;
   console.log("✅ react-native-view-shot loaded for referral");
 } catch (error) {
-  console.log("react-native-view-shot not available");
+  console.log("⚠️ react-native-view-shot not available");
+}
+let ExpoSharing: any = null;
+try {
+  ExpoSharing = require("expo-sharing");
+  console.log("✅ expo-sharing loaded");
+} catch (error) {
+  console.log("⚠️ expo-sharing not available");
+}
+let ExpoFileSystem: any = null;
+try {
+  ExpoFileSystem = require("expo-file-system/legacy");
+  console.log("✅ expo-file-system loaded");
+} catch (error) {
+  console.log("⚠️ expo-file-system not available");
 }
 import api from "@/lib/api";
 import { formatIndianNumber } from "@/utils/formatNumber";
@@ -68,7 +83,8 @@ export default function ReferralPage() {
   const [isSharing, setIsSharing] = useState(false);
   const [userCard, setUserCard] = useState<any>(null);
   const [componentError, setComponentError] = useState<string | null>(null);
-  const cardTemplateRef = useRef(null);
+  const cardTemplateRef = useRef<View>(null);
+  const [cardReady, setCardReady] = useState(false);
 
   // Compute formatted phone numbers for the card template (same as card/[id].tsx)
   const fullPersonal = useMemo(() => {
@@ -262,43 +278,109 @@ export default function ReferralPage() {
 ▪️ *If you have any problem then join this whatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
 ▪️ *Video for Channel Partner Explanation* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
-      // Capture the BusinessCardTemplate as an image (same approach as card/[id].tsx)
+      // --- Step 1: Capture the BusinessCardTemplate as an image ---
       let imageUri: string | null = null;
+      console.log("🔍 Share debug - captureRef:", !!captureRef, "| cardTemplateRef.current:", !!cardTemplateRef.current, "| cardReady:", cardReady, "| userCard:", !!userCard);
+      
       if (captureRef && cardTemplateRef.current) {
         try {
-          // Wait for template to render fully (same 2500ms as card detail page)
-          await new Promise(resolve => setTimeout(resolve, 2500));
-          imageUri = await captureRef(cardTemplateRef, {
+          // Wait for template to render fully (images, layout, etc.)
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          const capturedUri = await captureRef(cardTemplateRef.current, {
             format: "png",
             quality: 1,
             result: "tmpfile",
           });
-          console.log("✅ Business card template captured:", imageUri);
-        } catch (captureError) {
-          console.log("Could not capture card template:", captureError);
+          console.log("✅ Business card template captured:", capturedUri);
+          
+          // Copy to a known writable location with proper extension for sharing
+          if (ExpoFileSystem && capturedUri) {
+            const destUri = ExpoFileSystem.cacheDirectory + "referral_card_" + Date.now() + ".png";
+            await ExpoFileSystem.copyAsync({ from: capturedUri, to: destUri });
+            const fileInfo = await ExpoFileSystem.getInfoAsync(destUri);
+            console.log("📊 Image copied to:", destUri, "| exists:", fileInfo.exists, "| size:", fileInfo.size);
+            if (fileInfo.exists && fileInfo.size > 0) {
+              imageUri = destUri;
+            } else {
+              // Use original if copy had issues but original exists
+              imageUri = capturedUri;
+            }
+          } else {
+            imageUri = capturedUri;
+          }
+        } catch (captureError: any) {
+          console.warn("⚠️ Could not capture card template:", captureError?.message || captureError);
         }
       } else {
-        console.log("⚠️ captureRef:", !!captureRef, "cardTemplateRef.current:", !!cardTemplateRef.current);
+        console.warn("⚠️ Cannot capture card image.", 
+          !captureRef ? "react-native-view-shot not loaded." : "",
+          !cardTemplateRef.current ? "Card template ref not attached (card may not be rendered yet)." : ""
+        );
       }
 
-      // Share with image + referral message
-      if (imageUri && RNShare) {
-        try {
-          await RNShare.open({
-            title: "Join InstantllyCards",
-            message: message,
-            url: `file://${imageUri}`,
-            type: "image/png",
-            subject: "Join InstantllyCards",
-          });
-        } catch (shareError: any) {
-          if (shareError?.message !== "User did not share") {
-            // Fallback to text-only share
-            await Share.share({ message, title: "Join InstantllyCards" });
+      console.log("🔍 Share debug - imageUri:", imageUri, "| RNShare:", !!RNShare, "| ExpoSharing:", !!ExpoSharing);
+
+      // --- Step 2: Share with image using best available method ---
+      if (imageUri) {
+        let shared = false;
+        
+        // Method A: react-native-share (supports image + message together)
+        if (RNShare && !shared) {
+          try {
+            console.log("📤 Trying react-native-share with image...");
+            const filePrefix = Platform.OS === "android" ? "file://" : "";
+            const shareUrl = imageUri.startsWith("file://") ? imageUri : filePrefix + imageUri;
+            await RNShare.open({
+              title: "Join InstantllyCards",
+              message: message,
+              url: shareUrl,
+              type: "image/png",
+              subject: "Join InstantllyCards",
+            });
+            shared = true;
+            console.log("✅ Shared via react-native-share");
+          } catch (shareError: any) {
+            if (shareError?.message === "User did not share") {
+              shared = true; // User cancelled, don't retry
+            } else {
+              console.warn("⚠️ react-native-share failed:", shareError?.message);
+            }
           }
         }
+
+        // Method B: expo-sharing (reliable Expo-managed fallback, shares image file)
+        if (ExpoSharing && !shared) {
+          try {
+            const isAvailable = await ExpoSharing.isAvailableAsync();
+            if (isAvailable) {
+              console.log("📤 Trying expo-sharing with image...");
+              // expo-sharing only shares the file, so copy message to clipboard first
+              Clipboard.setString(message);
+              Alert.alert(
+                "Referral Message Copied!",
+                "The referral message has been copied to your clipboard. Paste it along with the card image.",
+                [{ text: "OK" }]
+              );
+              await ExpoSharing.shareAsync(imageUri, {
+                mimeType: "image/png",
+                dialogTitle: "Share Referral Card",
+              });
+              shared = true;
+              console.log("✅ Shared via expo-sharing");
+            }
+          } catch (expoShareError: any) {
+            console.warn("⚠️ expo-sharing failed:", expoShareError?.message);
+          }
+        }
+
+        // Method C: Text-only fallback
+        if (!shared) {
+          console.log("📤 Falling back to text-only share");
+          await Share.share({ message, title: "Join InstantllyCards" });
+        }
       } else {
-        // Fallback to text-only share
+        // No image captured - text-only share
+        console.log("📤 No image available, sharing text only");
         await Share.share({ message, title: "Join InstantllyCards" });
       }
     } catch (error: any) {
@@ -601,10 +683,22 @@ export default function ReferralPage() {
         <View style={{ height: 20 }} />
       </ScrollView>
 
-      {/* Hidden BusinessCardTemplate for image capture - same pattern as card/[id].tsx */}
+      {/* Hidden BusinessCardTemplate for image capture
+          - Card template is 1050x600px - container must be big enough
+          - Using transform translateY to move off-screen (Android still renders transformed views)
+          - collapsable={false} prevents Android from optimizing away the view
+      */}
       {userCard && (
-        <View style={{ position: 'absolute', left: 0, top: 0, opacity: 0, zIndex: -1, pointerEvents: 'none' }}>
-          <View ref={cardTemplateRef} collapsable={false}>
+        <View style={{ position: 'absolute', left: 0, top: 0, zIndex: -1, pointerEvents: 'none', transform: [{ translateY: -10000 }] }}>
+          <View 
+            ref={cardTemplateRef} 
+            collapsable={false} 
+            onLayout={() => {
+              console.log('✅ Card template rendered and laid out');
+              setCardReady(true);
+            }}
+            style={{ backgroundColor: '#FFFFFF', width: 1050, height: 600 }}
+          >
             <BusinessCardTemplate
               name={userCard.name || ''}
               designation={userCard.designation || ''}
