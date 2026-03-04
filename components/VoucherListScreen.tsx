@@ -75,11 +75,14 @@ export default function VoucherListScreen({
             "/mlm/vouchers?source=admin&isPublished=true",
           );
           if (adminVouchersResponse?.success) {
-            // Merge admin vouchers with user vouchers
-            allVouchers = [
-              ...(adminVouchersResponse.vouchers || []),
-              ...allVouchers,
-            ];
+            // Merge admin vouchers, deduplicating by _id
+            const existingIds = new Set(
+              allVouchers.map((v: Voucher) => String(v._id)),
+            );
+            const newAdminVouchers = (
+              adminVouchersResponse.vouchers || []
+            ).filter((v: Voucher) => !existingIds.has(String(v._id)));
+            allVouchers = [...newAdminVouchers, ...allVouchers];
           }
         } catch (adminError) {
           console.log("No admin vouchers or error fetching:", adminError);

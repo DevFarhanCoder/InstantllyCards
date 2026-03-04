@@ -55,7 +55,12 @@ export default function VouchersScreen() {
         ) : null;
 
       case "dashboard":
-        return <VoucherDashboard onBack={handleBackToDetail} />;
+        return (
+          <VoucherDashboard
+            onBack={handleBackToDetail}
+            voucherId={selectedVoucher?._id}
+          />
+        );
 
       default:
         return <VoucherListScreen onVoucherSelect={handleVoucherSelect} />;
