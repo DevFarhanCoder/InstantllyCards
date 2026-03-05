@@ -106,10 +106,8 @@ export default function VoucherDashboard({
 
   const mapTree = (node: any): NetworkUser => {
     const children = (node.directChildren || []).map(mapTree);
-    const totalNetworkCount = children.reduce(
-      (sum, child) => sum + 1 + child.totalNetworkCount,
-      0,
-    );
+    // Show only immediate depth children count for each node.
+    const totalNetworkCount = children.length;
 
     return {
       id: node.id,
