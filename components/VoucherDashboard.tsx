@@ -175,7 +175,9 @@ export default function VoucherDashboard({
         api.get("/users/profile"),
         api.get("/mlm/distribution-credits"),
         api.get("/mlm/network/tree?depth=3&perParentLimit=5"),
-        api.get(`/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`),
+        api.get(
+          `/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`,
+        ),
       ]);
 
       // Check if user is voucher admin from overview
