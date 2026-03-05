@@ -231,11 +231,13 @@ export default function VoucherDashboard({
         setRootUser(mapTree(treeRes.tree));
       }
 
-      // For users with special credits, override with network slots
+      // For users with special credits, override with network slots.
+      // When voucherId is set, ALWAYS use voucher-scoped data (even if empty)
+      // to prevent stale global tree from bleeding into a different voucher's view.
       if (
         (isAdmin || userHasSpecialCredits) &&
-        networkSlotsData &&
-        networkSlotsData.length > 0
+        networkSlotsData !== null &&
+        (networkSlotsData.length > 0 || !!voucherId)
       ) {
         // Create a root user node with slot children
         // Filter out placeholders - only show actual users who received credits
