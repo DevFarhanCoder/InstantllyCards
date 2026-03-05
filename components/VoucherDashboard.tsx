@@ -130,34 +130,8 @@ export default function VoucherDashboard({
 
   const loadDashboard = async () => {
     try {
-      // Reset all state first so switching vouchers never shows stale data
       setLoading(true);
       setError(null);
-      setMetrics({
-        availableCredits: 0,
-        totalVouchersTransferred: 0,
-        totalNetworkUsers: 0,
-        virtualCommission: 0,
-        currentDiscountPercent: 0,
-      });
-      setCreditStats({
-        totalCreditReceived: 0,
-        totalCreditTransferred: 0,
-        totalCreditBalance: 0,
-        creditTransferToEachPerson: [],
-        creditTransferredReceivedBack: 0,
-        activeCredits: 0,
-        timers: [],
-      });
-      setDirectBuyers([]);
-      setVouchers([]);
-      setNetworkSlots([]);
-      setSpecialCredits(null);
-      setHasSpecialCredits(false);
-      setIsVoucherAdmin(false);
-      setDistributionCredits([]);
-      setRootUser(null);
-
       const [
         overview,
         creditDashboard,
@@ -175,7 +149,7 @@ export default function VoucherDashboard({
         api.get("/users/profile"),
         api.get("/mlm/distribution-credits"),
         api.get("/mlm/network/tree?depth=3&perParentLimit=5"),
-        api.get(`/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`),
+        api.get("/mlm/network/direct-buyers?limit=10"),
       ]);
 
       // Check if user is voucher admin from overview
