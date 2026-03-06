@@ -607,7 +607,11 @@ export default function VoucherDashboard({
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.historyButton}
-              onPress={() => router.push("/referral/credits-history")}
+              onPress={() =>
+                router.push(
+                  `/referral/credits-history${voucherId ? `?voucherId=${voucherId}` : ""}` as any,
+                )
+              }
               activeOpacity={0.7}
             >
               <Ionicons name="time-outline" size={20} color="#1F2937" />
