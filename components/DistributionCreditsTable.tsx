@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -10,17 +10,9 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
-
-interface DistributionCredit {
-  level: number;
-  creditsToTransfer: number;
-  recipientName: string;
-  recipientPhone: string;
-  recipientId: string;
-  vouchersShared: number;
-  isLocked: boolean; // Locked until 5 vouchers are shared
-  timeLeft?: string; // Time left to connect (2 days)
-}
+import { DistributionCredit } from "../types/network";
+import { useMlmTransferStore } from "../lib/mlmTransferStore";
+import { formatSecondsCompact, statusLabel } from "../lib/mlmTransferUi";
 
 interface DistributionCreditsTableProps {
   credits: DistributionCredit[];
@@ -33,13 +25,8 @@ export default function DistributionCreditsTable({
   onTransfer,
   loading = false,
 }: DistributionCreditsTableProps) {
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    // Update timer every minute
-    const interval = setInterval(() => setTick((prev) => prev + 1), 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const transfersById = useMlmTransferStore((state) => state.transfersById);
+  const slotLocks = useMlmTransferStore((state) => state.slotLocksBySlotNumber);
 
   const formatCredits = (amount: number): string => {
     if (amount >= 10000000) {
@@ -68,7 +55,7 @@ export default function DistributionCreditsTable({
           <View>
             <Text style={styles.title}>Distribution Credits</Text>
             <Text style={styles.subtitle}>
-              Credits unlock after sharing 5 vouchers
+              Track lock status, timer, and voucher unlock progress
             </Text>
           </View>
           <View style={styles.iconBadge}>
@@ -109,16 +96,38 @@ export default function DistributionCreditsTable({
               </View>
             ) : (
               credits.map((credit, index) => (
-                <View
-                  key={`${credit.recipientId}-${index}`}
-                  style={[
-                    styles.tableRow,
-                    index % 2 === 0 && styles.tableRowEven,
-                  ]}
-                >
-                  <Text style={[styles.tableCell, { width: 60 }]}>
-                    {credit.level}
-                  </Text>
+                (() => {
+                  const transfer =
+                    credit.transferId ? transfersById[credit.transferId] : undefined;
+                  const slotLock =
+                    typeof credit.slotNumber === "number"
+                      ? slotLocks[credit.slotNumber]
+                      : undefined;
+                  const locked = credit.isLocked ?? slotLock?.isLocked ?? false;
+                  const lockReason =
+                    credit.lockReason ??
+                    slotLock?.lockReason ??
+                    (locked ? "Voucher requirement pending" : null);
+                  const effectiveSeconds =
+                    slotLock?.timeLeftSeconds ??
+                    transfer?.timeLeftSeconds ??
+                    credit.timeLeftSeconds;
+                  const effectiveStatus =
+                    transfer?.status ?? (locked ? "pending_unlock" : "unlocked");
+                  const currentVoucher = transfer?.currentVoucherCount ?? 0;
+                  const requiredVoucher = transfer?.requiredVoucherCount ?? 0;
+
+                  return (
+                    <View
+                      key={`${credit.recipientId}-${index}`}
+                      style={[
+                        styles.tableRow,
+                        index % 2 === 0 && styles.tableRowEven,
+                      ]}
+                    >
+                      <Text style={[styles.tableCell, { width: 60 }]}>
+                        {credit.level ?? "-"}
+                      </Text>
                   <View style={[styles.tableCell, { width: 150 }]}>
                     <Text style={styles.recipientName}>
                       {credit.recipientName}
@@ -126,6 +135,12 @@ export default function DistributionCreditsTable({
                     <Text style={styles.recipientPhone}>
                       {credit.recipientPhone}
                     </Text>
+                    <Text style={styles.metaText}>{statusLabel(effectiveStatus)}</Text>
+                    {typeof effectiveSeconds === "number" && (
+                      <Text style={styles.metaTimer}>
+                        {formatSecondsCompact(effectiveSeconds)}
+                      </Text>
+                    )}
                   </View>
                   <Text
                     style={[
@@ -142,7 +157,9 @@ export default function DistributionCreditsTable({
                         name="ticket"
                         size={12}
                         color={
-                          credit.vouchersShared >= 5 ? "#10B981" : "#F59E0B"
+                          (credit.vouchersShared || 0) >= 5
+                            ? "#10B981"
+                            : "#F59E0B"
                         }
                       />
                       <Text
@@ -150,18 +167,20 @@ export default function DistributionCreditsTable({
                           styles.voucherText,
                           {
                             color:
-                              credit.vouchersShared >= 5
+                              (credit.vouchersShared || 0) >= 5
                                 ? "#10B981"
                                 : "#F59E0B",
                           },
                         ]}
                       >
-                        {credit.vouchersShared}/5
+                        {requiredVoucher > 0
+                          ? `${currentVoucher}/${requiredVoucher}`
+                          : `${credit.vouchersShared || 0}/5`}
                       </Text>
                     </View>
                   </View>
                   <View style={[styles.tableCell, { width: 100 }]}>
-                    {credit.isLocked ? (
+                    {locked ? (
                       <View style={styles.statusBadge}>
                         <Ionicons
                           name="lock-closed"
@@ -179,24 +198,24 @@ export default function DistributionCreditsTable({
                   </View>
                   <View style={[styles.tableCell, { width: 120 }]}>
                     <TouchableOpacity
-                      disabled={credit.isLocked}
+                      disabled={locked}
                       onPress={() =>
                         onTransfer(credit.recipientId, credit.creditsToTransfer)
                       }
                       style={[
                         styles.transferButton,
-                        credit.isLocked && styles.transferButtonDisabled,
+                        locked && styles.transferButtonDisabled,
                       ]}
                     >
                       <Text
                         style={[
                           styles.transferButtonText,
-                          credit.isLocked && styles.transferButtonTextDisabled,
+                          locked && styles.transferButtonTextDisabled,
                         ]}
                       >
-                        {credit.isLocked ? "Locked" : "Transfer"}
+                        {locked ? "Locked" : "Transfer"}
                       </Text>
-                      {!credit.isLocked && (
+                      {!locked && (
                         <Ionicons
                           name="arrow-forward"
                           size={12}
@@ -204,8 +223,13 @@ export default function DistributionCreditsTable({
                         />
                       )}
                     </TouchableOpacity>
+                    {locked && !!lockReason && (
+                      <Text style={styles.lockReasonInline}>{lockReason}</Text>
+                    )}
                   </View>
-                </View>
+                    </View>
+                  );
+                })()
               ))
             )}
           </View>
@@ -215,8 +239,8 @@ export default function DistributionCreditsTable({
         <View style={styles.footer}>
           <Ionicons name="information-circle" size={16} color="#6B7280" />
           <Text style={styles.footerText}>
-            Share 5 vouchers to unlock credit transfer. You have 2 days to
-            connect 5 people.
+            Locked transfers unlock after voucher requirements are met within
+            the active timer window.
           </Text>
         </View>
       </LinearGradient>
@@ -309,6 +333,17 @@ const styles = StyleSheet.create({
     fontSize: scaleFontSize(11),
     color: "#6B7280",
   },
+  metaText: {
+    fontSize: scaleFontSize(10),
+    color: "#1E3A8A",
+    marginTop: scaleSize(2),
+  },
+  metaTimer: {
+    fontSize: scaleFontSize(10),
+    color: "#EF4444",
+    marginTop: scaleSize(1),
+    fontWeight: "700",
+  },
   creditsCell: {
     fontWeight: "700",
     color: "#10B981",
@@ -368,6 +403,11 @@ const styles = StyleSheet.create({
   },
   transferButtonTextDisabled: {
     color: "#9CA3AF",
+  },
+  lockReasonInline: {
+    fontSize: scaleFontSize(10),
+    color: "#991B1B",
+    marginTop: scaleSize(4),
   },
   loadingContainer: {
     paddingVertical: scaleSize(20),
