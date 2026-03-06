@@ -33,7 +33,9 @@ export default function RootLayout() {
   console.log("🚀 App starting - minimal layout");
 
   useEffect(() => {
-    captureInitialReferralIfPresent().catch((e) => console.log('[referral] error', e));
+    captureInitialReferralIfPresent().catch((e) =>
+      console.log("[referral] error", e),
+    );
     checkForOTAUpdate();
   }, []);
 
