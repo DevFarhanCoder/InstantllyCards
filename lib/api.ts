@@ -1,9 +1,8 @@
 // lib/api.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-
 // Production fallback URL
-const PRODUCTION_URL = "https://api.instantllycards.com";
+const PRODUCTION_URL = "http://10.202.164.187:8080";
 
 const getApiBase = () => {
   const sources = [
@@ -17,8 +16,7 @@ const getApiBase = () => {
       return source.replace(/\/$/, "");
     }
   }
-
-  console.log(`🔧 [API] No config found, using production: ${PRODUCTION_URL}`);
+console.log(`⚠️ [API] No API Base found in config, falling back to default: ${PRODUCTION_URL}`);
   return PRODUCTION_URL;
 };
 

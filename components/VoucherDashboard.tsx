@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Animated,
   ActivityIndicator,
+  AppState,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,10 +22,10 @@ import SpecialCreditsTransferModal from "./SpecialCreditsTransferModal";
 import VoucherTransferModal from "./VoucherTransferModal";
 import NetworkDetailBottomSheet from "./NetworkDetailBottomSheet";
 import DiscountDashboardCard from "./DiscountDashboardCard";
-import VoucherList from "./VoucherList";
 import DirectBuyersList from "./DirectBuyersList";
 import BuyVoucherScreen from "./BuyVoucherScreen";
 import DistributionCreditsTable from "./DistributionCreditsTable";
+import MLMTransferStatusCard from "./MLMTransferStatusCard";
 import api from "../lib/api";
 import {
   DiscountSummary,
@@ -35,15 +37,19 @@ import {
   ViewMode,
 } from "../types/network";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
+import { useMlmTransferStore } from "../lib/mlmTransferStore";
+import { formatSecondsCompact } from "../lib/mlmTransferUi";
 
 interface VoucherDashboardProps {
   onBack: () => void;
   voucherId?: string;
+  isActive?: boolean;
 }
 
 export default function VoucherDashboard({
   onBack,
   voucherId,
+  isActive = true,
 }: VoucherDashboardProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [transferModalVisible, setTransferModalVisible] = useState(false);
@@ -99,17 +105,34 @@ export default function VoucherDashboard({
   const [hasSpecialCredits, setHasSpecialCredits] = useState(false); // Track if user has special credits slots
   const [specialCredits, setSpecialCredits] = useState<any>(null); // Special credits data for admin
   const [networkSlots, setNetworkSlots] = useState<any[]>([]); // Network slots with placeholders
-
-  useEffect(() => {
-    loadDashboard();
-  }, [voucherId]);
+  const [slotsSummary, setSlotsSummary] = useState<any>(null);
+  const transfersById = useMlmTransferStore((state) => state.transfersById);
+  const syncDashboardTransfers = useMlmTransferStore((state) => state.setFromDashboard);
+  const syncDistributionLocks = useMlmTransferStore((state) => state.setFromDistribution);
+  const syncSlotLocks = useMlmTransferStore((state) => state.setFromSlots);
+  const clearMlmTransferState = useMlmTransferStore((state) => state.clear);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const foregroundDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeVoucherIdRef = useRef<string | null>(voucherId || null);
+  const requestSeqRef = useRef(0);
+  const [slotsApiVoucherIdUsed, setSlotsApiVoucherIdUsed] = useState<string>("");
+  const [treeApiVoucherIdUsed, setTreeApiVoucherIdUsed] = useState<string>("");
+  const [lastSlotsUrl, setLastSlotsUrl] = useState<string>("");
+  const [lastTreeUrl, setLastTreeUrl] = useState<string>("");
+  const [slotsCountDebug, setSlotsCountDebug] = useState<number>(0);
+  const [treeDirectChildrenCountDebug, setTreeDirectChildrenCountDebug] =
+    useState<number>(0);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const activeTransfers = useMemo(
+    () => Object.values(transfersById),
+    [transfersById],
+  );
 
   const mapTree = (node: any): NetworkUser => {
     const children = (node.directChildren || []).map(mapTree);
-    const totalNetworkCount = children.reduce(
-      (sum, child) => sum + 1 + child.totalNetworkCount,
-      0,
-    );
+    // Show only immediate depth children count for each node.
+    const totalNetworkCount = children.length;
 
     return {
       id: node.id,
@@ -128,10 +151,79 @@ export default function VoucherDashboard({
     };
   };
 
-  const loadDashboard = async () => {
+  const sleep = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+  const pickPayload = (res: any) =>
+    res?.success !== undefined ? res : res?.data;
+
+  const withRetry = async <T,>(
+    fn: () => Promise<T>,
+    retries = 2,
+  ): Promise<T> => {
+    let lastErr: any;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        return await fn();
+      } catch (err: any) {
+        lastErr = err;
+        const status = err?.status ?? 0;
+        const transient =
+          status === 0 ||
+          status >= 500 ||
+          err?.name === "AbortError" ||
+          err?.message?.includes("Network") ||
+          err?.message?.includes("Failed to fetch");
+        if (!transient || attempt === retries) break;
+        await sleep(500 * 2 ** attempt);
+      }
+    }
+    throw lastErr;
+  };
+
+  const normalizeSlotsPayload = (slots: any[] = []) =>
+    slots.map((slot: any) => ({
+      id: slot.recipientId || `slot-${slot.slotNumber}`,
+      slotNumber: slot.slotNumber,
+      status: slot.status,
+      isPlaceholder:
+        slot?.isPlaceholder === true ||
+        slot?.isAvailable === true ||
+        slot?.status === "available",
+      name: slot.recipientName || slot.name || "",
+      phone: slot.recipientPhone || slot.phone || "",
+      credits: slot.creditAmount ?? slot.credits ?? 0,
+      recipientLevel: slot.recipientLevel || slot.level || 1,
+      sentAt: slot.sentAt,
+      transferId: slot.transferId ?? null,
+      isLocked: slot.isLocked === true,
+      lockReason: slot.lockReason ?? null,
+      timeLeftSeconds: Number(slot.timeLeftSeconds) || 0,
+    }));
+
+  const loadDashboard = async (showLoader: boolean = true) => {
+    const requestId = ++requestSeqRef.current;
+    const requestedVoucherId = voucherId || null;
+    const isStale = () => requestId !== requestSeqRef.current;
+    const isVoucherStale = (id: string | null) =>
+      activeVoucherIdRef.current !== id;
+
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      }
+      setTreeLoading(true);
+      if (voucherId) {
+        setSlotsLoading(true);
+      }
       setError(null);
+      const treeVoucherParam = voucherId ? `&voucherId=${voucherId}` : "";
+      const treePath = `/mlm/network/tree?depth=3&perParentLimit=5${treeVoucherParam}`;
+      const buyersPath = `/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`;
+      console.log("[TreeAPI] URL", treePath);
+      setLastTreeUrl(treePath);
+      setTreeApiVoucherIdUsed(voucherId || "");
+
       const [
         overview,
         creditDashboard,
@@ -142,169 +234,331 @@ export default function VoucherDashboard({
         treeRes,
         buyerRes,
       ] = await Promise.all([
-        api.get("/mlm/overview"),
-        api.get("/mlm/credits/dashboard"),
-        api.get("/mlm/discount/summary"),
-        api.get("/mlm/vouchers?limit=20"),
-        api.get("/users/profile"),
-        api.get("/mlm/distribution-credits"),
-        api.get("/mlm/network/tree?depth=3&perParentLimit=5"),
-        api.get(
-          `/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`,
-        ),
+        withRetry(() => api.get("/mlm/overview")),
+        withRetry(() => api.get("/mlm/credits/dashboard")),
+        withRetry(() => api.get("/mlm/discount/summary")),
+        withRetry(() => api.get("/mlm/vouchers?limit=20")),
+        withRetry(() => api.get("/users/profile")),
+        withRetry(() => api.get("/mlm/distribution-credits")),
+        withRetry(() => api.get(treePath)),
+        withRetry(() => api.get(buyersPath)),
       ]);
+      if (isStale()) return;
+      if (isVoucherStale(requestedVoucherId)) return;
+      const pOverview = pickPayload(overview);
+      const pCreditDashboard = pickPayload(creditDashboard);
+      const pDiscount = pickPayload(discount);
+      const pVoucherRes = pickPayload(voucherRes);
+      const pUserProfile = pickPayload(userProfile);
+      const pDistributionRes = pickPayload(distributionRes);
+      const pTreeRes = pickPayload(treeRes);
+      const pBuyerRes = pickPayload(buyerRes);
+      console.log("[TreeAPI] raw", treeRes);
+      console.log("[TreeAPI] raw.data", treeRes?.data);
+      setTreeDirectChildrenCountDebug(
+        pTreeRes?.tree?.directChildren?.length || 0,
+      );
 
       // Check if user is voucher admin from overview
-      const isAdmin = overview?.user?.isVoucherAdmin === true;
+      const isAdmin = pOverview?.user?.isVoucherAdmin === true;
       setIsVoucherAdmin(isAdmin);
 
       // Check if user has special credits (slots > 0)
       const userHasSpecialCredits =
-        overview?.user?.specialCredits?.availableSlots > 0;
+        pOverview?.user?.specialCredits?.availableSlots > 0;
       setHasSpecialCredits(userHasSpecialCredits);
 
       let specialCreditsData = null;
-      let networkSlotsData = null;
+      let networkSlotsData: any[] | null = null;
 
-      // If admin OR has special credits, load special credits data
-      if (isAdmin || userHasSpecialCredits) {
+      // When a specific voucher is selected, ALWAYS load per-voucher data
+      // for ALL users — ensures every voucher shows its own isolated stats (zeros for new vouchers)
+      if (isAdmin || userHasSpecialCredits || voucherId) {
         try {
           const voucherParam = voucherId ? `?voucherId=${voucherId}` : "";
-          const [specialCreditsRes, networkSlotsRes] = await Promise.all([
-            api.get(`/mlm/special-credits/dashboard${voucherParam}`),
-            api.get(`/mlm/special-credits/network${voucherParam}`),
-          ]);
+          const specialDashboardPath = `/mlm/special-credits/dashboard${voucherParam}`;
+          const specialNetworkPath = `/mlm/special-credits/network${voucherParam}`;
+          const specialSlotsPath = `/mlm/special-credits/slots${voucherParam}`;
+          console.log("[SlotsAPI] URL", specialSlotsPath);
+          setLastSlotsUrl(specialSlotsPath);
+          setSlotsApiVoucherIdUsed(voucherId || "");
 
-          if (specialCreditsRes?.dashboard) {
-            specialCreditsData = specialCreditsRes.dashboard;
+          const [specialCreditsRes, networkSlotsRes, slotsRes] = await Promise.all([
+            withRetry(() => api.get(specialDashboardPath)),
+            withRetry(() => api.get(specialNetworkPath)),
+            withRetry(() => api.get(specialSlotsPath)),
+          ]);
+          if (isStale()) return;
+          if (isVoucherStale(requestedVoucherId)) return;
+          console.log("[SlotsAPI] raw", slotsRes);
+          console.log("[SlotsAPI] raw.data", slotsRes?.data);
+          const pSpecialCreditsRes = pickPayload(specialCreditsRes);
+          const pNetworkSlotsRes = pickPayload(networkSlotsRes);
+          const pSlotsRes = pickPayload(slotsRes);
+
+          if (pSpecialCreditsRes?.dashboard) {
+            specialCreditsData = pSpecialCreditsRes.dashboard;
             setSpecialCredits(specialCreditsData);
           }
 
-          if (networkSlotsRes?.networkUsers) {
-            networkSlotsData = networkSlotsRes.networkUsers;
+          const slotsPayload = pSlotsRes?.slots || [];
+          setSlotsSummary(pSlotsRes?.summary ?? null);
+          if (Array.isArray(slotsPayload)) {
+            syncSlotLocks(slotsPayload);
+            networkSlotsData = normalizeSlotsPayload(slotsPayload);
             setNetworkSlots(networkSlotsData);
+            setSlotsCountDebug(networkSlotsData.length);
+          } else if (pNetworkSlotsRes?.networkUsers) {
+            networkSlotsData = pNetworkSlotsRes.networkUsers;
+            syncSlotLocks(pNetworkSlotsRes.networkUsers);
+            setNetworkSlots(networkSlotsData);
+            setSlotsCountDebug(networkSlotsData.length || 0);
+          } else {
+            setSlotsCountDebug(0);
+            setNetworkSlots([]);
           }
+          setSlotsLoading(false);
         } catch (err) {
           console.error("Special credits load error", err);
+          setSlotsLoading(false);
+          setNetworkSlots([]);
+          setSlotsCountDebug(0);
         }
+      } else {
+        setSlotsLoading(false);
       }
 
-      if (overview?.metrics) {
-        // For users with special credits, override metrics
+      if (voucherId) {
+        // Per-voucher mode: always show isolated data for THIS voucher only.
+        // Regular users with no slots assigned for this voucher see zeros + buy screen.
+        const totalSlotsForVoucher = specialCreditsData?.slots?.total ?? 0;
+        if (!isAdmin && totalSlotsForVoucher === 0) {
+          setShowBuyVoucherScreen(true);
+        }
+        setMetrics({
+          availableCredits: specialCreditsData?.specialCredits?.balance ?? 0,
+          totalVouchersTransferred:
+            specialCreditsData?.specialCredits?.totalSent ?? 0,
+          totalNetworkUsers: specialCreditsData?.slots?.used ?? 0,
+          virtualCommission: specialCreditsData?.specialCredits?.totalSent ?? 0,
+          currentDiscountPercent: 0,
+          vouchersFigure: specialCreditsData?.vouchersFigure ?? 0,
+        });
+      } else if (pOverview?.metrics) {
+        // No specific voucher — global view (original behaviour)
         if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
           setMetrics({
-            availableCredits: specialCreditsData.specialCredits?.balance || 0, // Total available credits
+            availableCredits: specialCreditsData.specialCredits?.balance || 0,
             totalVouchersTransferred:
-              specialCreditsData.specialCredits?.totalSent || 0, // Credits actually sent (0 initially)
-            totalNetworkUsers: specialCreditsData.slots?.used || 0, // Number of users who received credits
+              specialCreditsData.specialCredits?.totalSent || 0,
+            totalNetworkUsers: specialCreditsData.slots?.used || 0,
             virtualCommission:
-              specialCreditsData.specialCredits?.totalSent || 0, // Total credits distributed
+              specialCreditsData.specialCredits?.totalSent || 0,
             currentDiscountPercent: 0,
-            // Use specialCreditsData figure if > 0, else fall back to overview metrics (covers voucherBalance)
             vouchersFigure:
               specialCreditsData.vouchersFigure ||
-              overview.metrics?.vouchersFigure ||
+              pOverview.metrics?.vouchersFigure ||
               0,
           });
         } else {
-          setMetrics(overview.metrics);
+          setMetrics(pOverview.metrics);
         }
       }
 
-      if (creditDashboard) {
+      if (pCreditDashboard) {
+        syncDashboardTransfers(pCreditDashboard.activeTransfers || []);
         setCreditStats({
-          totalCreditReceived: creditDashboard.totalCreditsReceived || 0,
-          totalCreditTransferred: creditDashboard.totalCreditsTransferred || 0,
-          totalCreditBalance: creditDashboard.creditBalance || 0,
-          creditTransferToEachPerson: creditDashboard.recentTransfers || [],
+          totalCreditReceived: pCreditDashboard.totalCreditsReceived || 0,
+          totalCreditTransferred: pCreditDashboard.totalCreditsTransferred || 0,
+          totalCreditBalance: pCreditDashboard.creditBalance || 0,
+          creditTransferToEachPerson: pCreditDashboard.recentTransfers || [],
           creditTransferredReceivedBack: 0,
-          activeCredits: creditDashboard.activeCredits || 0,
-          timers: creditDashboard.timers || [],
+          activeCredits: pCreditDashboard.activeCredits || 0,
+          timers: pCreditDashboard.timers || [],
         });
       }
 
-      if (discount?.summary) {
-        setDiscountSummary(discount.summary);
+      if (pDiscount?.summary) {
+        setDiscountSummary(pDiscount.summary);
       }
 
-      if (treeRes?.tree) {
-        setRootUser(mapTree(treeRes.tree));
+      if (pTreeRes?.tree) {
+        setRootUser(mapTree(pTreeRes.tree));
       }
+      setTreeLoading(false);
 
-      // For users with special credits, override with network slots.
-      // When voucherId is set, ALWAYS use voucher-scoped data (even if empty)
-      // to prevent stale global tree from bleeding into a different voucher's view.
+      // For global view (no voucher filter), admin/special users can still use slots override.
+      // In voucher mode, always trust voucher-scoped /mlm/network/tree response.
       if (
+        !voucherId &&
         (isAdmin || userHasSpecialCredits) &&
         networkSlotsData !== null &&
-        (networkSlotsData.length > 0 || !!voucherId)
+        networkSlotsData.length > 0
       ) {
-        // Create a root user node with slot children
-        // Filter out placeholders - only show actual users who received credits
-        const actualUsers = networkSlotsData.filter(
-          (slot: any) => !slot.isPlaceholder && slot.name,
-        );
+        // Show ALL slots — sent (filled) + available (placeholders)
+        // so admin sees the full 30-slot picture
+        const allSlots = networkSlotsData;
+        const transferSnapshot = useMlmTransferStore.getState().transfersById;
+        const slotLockSnapshot =
+          useMlmTransferStore.getState().slotLocksBySlotNumber;
 
         const rootNode: NetworkUser = {
-          id: overview?.user?.id || "user",
-          name: overview?.user?.name || "User",
-          phone: overview?.user?.phone || "",
+          id: pOverview?.user?.id || "user",
+          name: pOverview?.user?.name || "User",
+          phone: pOverview?.user?.phone || "",
           avatar: undefined,
           creditsReceived: 0,
-          level: overview?.user?.level || 1,
-          directChildren: actualUsers.map((slot: any) => ({
-            id: slot.id || `user-${slot.slotNumber}`,
-            name: slot.name,
-            phone: slot.phone || "Not assigned",
+          level: pOverview?.user?.level || 1,
+          directChildren: allSlots.map((slot: any) => ({
+            ...(slot.transferId && transferSnapshot[slot.transferId]
+              ? {
+                  transferStatus: transferSnapshot[slot.transferId].status,
+                  requiredVoucherCount:
+                    transferSnapshot[slot.transferId].requiredVoucherCount,
+                  currentVoucherCount:
+                    transferSnapshot[slot.transferId].currentVoucherCount,
+                }
+              : {}),
+            id: slot.id || `slot-${slot.slotNumber}`,
+            name: slot.isPlaceholder ? `Slot ${slot.slotNumber}` : slot.name,
+            phone: slot.isPlaceholder ? "" : slot.phone || "",
             avatar: undefined,
-            creditsReceived: slot.credits || 0, // Use 'credits' field from backend
+            creditsReceived: slot.credits || 0,
             level: slot.recipientLevel || slot.level || 1,
             directChildren: [],
             totalNetworkCount: 0,
             directCount: 0,
             joinedDate: slot.sentAt || new Date().toISOString(),
             commissionEarned: 0,
-            isActive: true,
-            isPlaceholder: false,
+            isActive: !slot.isPlaceholder,
+            isPlaceholder: slot.isPlaceholder || false,
+            slotNumber: slot.slotNumber,
+            transferId: slot.transferId ?? null,
+            isLocked:
+              slot.isLocked === true ||
+              slotLockSnapshot[slot.slotNumber]?.isLocked === true,
+            lockReason:
+              slot.lockReason ??
+              slotLockSnapshot[slot.slotNumber]?.lockReason ??
+              null,
+            timeLeftSeconds:
+              Number(slot.timeLeftSeconds) ||
+              slotLockSnapshot[slot.slotNumber]?.timeLeftSeconds ||
+              0,
           })),
-          totalNetworkCount: actualUsers.length,
-          directCount: actualUsers.length,
-          joinedDate: overview?.user?.createdAt || new Date().toISOString(),
+          totalNetworkCount: allSlots.length,
+          directCount: allSlots.length,
+          joinedDate: pOverview?.user?.createdAt || new Date().toISOString(),
           commissionEarned: 0,
           isActive: true,
         };
         setRootUser(rootNode);
       }
 
-      if (voucherRes?.vouchers) {
-        setVouchers(voucherRes.vouchers);
+      if (pVoucherRes?.vouchers) {
+        setVouchers(pVoucherRes.vouchers);
       } else {
         setVouchers([]);
       }
 
       // Check if user is MLM user (came via introducer)
-      if (userProfile?.user?.introducerId) {
+      if (pUserProfile?.user?.introducerId) {
         setIsMLMUser(true);
       }
 
       // Load distribution credits
-      if (distributionRes?.credits) {
-        setDistributionCredits(distributionRes.credits);
+      if (pDistributionRes?.credits) {
+        syncDistributionLocks(pDistributionRes.credits);
+        setDistributionCredits(pDistributionRes.credits);
       }
 
-      if (buyerRes?.buyers) {
-        setDirectBuyers(buyerRes.buyers);
+      if (pBuyerRes?.buyers) {
+        setDirectBuyers(pBuyerRes.buyers);
       }
     } catch (err: any) {
+      if (isStale()) return;
       console.error("MLM dashboard load error", err);
       setError(err?.message || "Failed to load dashboard");
       setVouchers([]);
+      setTreeLoading(false);
+      setSlotsLoading(false);
     } finally {
-      setLoading(false);
+      if (isStale()) return;
+      if (showLoader) {
+        setLoading(false);
+      }
     }
   };
 
+  const loadDashboardRef = useRef(loadDashboard);
+
+  useEffect(() => {
+    loadDashboardRef.current = loadDashboard;
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    activeVoucherIdRef.current = voucherId || null;
+    loadDashboard(true);
+  }, [voucherId, isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const countdownInterval = setInterval(() => {
+      useMlmTransferStore.getState().tick();
+    }, 1000);
+    return () => clearInterval(countdownInterval);
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+    pollIntervalRef.current = setInterval(() => {
+      loadDashboardRef.current(false);
+    }, 20000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [voucherId, isActive]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (!isActive) return;
+      if (state === "active") {
+        if (foregroundDebounceRef.current) {
+          clearTimeout(foregroundDebounceRef.current);
+        }
+        foregroundDebounceRef.current = setTimeout(() => {
+          loadDashboardRef.current(false);
+        }, 500);
+      }
+    });
+
+    return () => {
+      if (foregroundDebounceRef.current) {
+        clearTimeout(foregroundDebounceRef.current);
+        foregroundDebounceRef.current = null;
+      }
+      sub.remove();
+      clearMlmTransferState();
+    };
+  }, [isActive]);
+
   const handleTransferPress = (user: NetworkUser) => {
+    if (user.isLocked) {
+      const message = user.lockReason
+        ? `${user.lockReason}${typeof user.timeLeftSeconds === "number" ? `\nTime left: ${formatSecondsCompact(user.timeLeftSeconds)}` : ""}`
+        : "This transfer is locked until voucher requirements are met.";
+      Alert.alert("Transfer Locked", message);
+      return;
+    }
+
     // For users with special credits (admin OR regular users with slots) clicking placeholder slots
     if ((isVoucherAdmin || hasSpecialCredits) && user.isPlaceholder) {
       // Extract slot number from name (e.g., "User 1" -> 1)
@@ -407,11 +661,18 @@ export default function VoucherDashboard({
       await api.post("/mlm/special-credits/send", {
         recipientPhone: phone,
         slotNumber: selectedSlotNumber,
+        ...(voucherId ? { voucherId } : {}),
       });
       await loadDashboard();
       setSpecialTransferModalVisible(false);
     } catch (error: any) {
       console.error("Special credits transfer error:", error);
+      const lockReason = error?.data?.lockReason || error?.data?.message;
+      const timeLeftSeconds = Number(error?.data?.timeLeftSeconds);
+      if (lockReason) {
+        const lockMessage = `${lockReason}${Number.isFinite(timeLeftSeconds) && timeLeftSeconds > 0 ? `\nTime left: ${formatSecondsCompact(timeLeftSeconds)}` : ""}`;
+        throw new Error(lockMessage);
+      }
       throw error; // Re-throw to let modal handle error display
     }
   };
@@ -542,8 +803,14 @@ export default function VoucherDashboard({
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loadingText}>Loading dashboard...</Text>
+        <View style={styles.skeletonCard} />
+        <View style={styles.skeletonCard} />
+        <View style={styles.skeletonRow}>
+          <View style={styles.skeletonChip} />
+          <View style={styles.skeletonChip} />
+          <View style={styles.skeletonChip} />
+        </View>
+        <ActivityIndicator size="small" color="#10B981" />
       </View>
     );
   }
@@ -552,7 +819,7 @@ export default function VoucherDashboard({
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadDashboard}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => loadDashboard(true)}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -582,6 +849,10 @@ export default function VoucherDashboard({
   const redeemedVouchers = vouchers.filter(
     (v) => v.redeemedStatus === "redeemed",
   ).length;
+  const treeChildrenCount = rootUser?.directChildren?.length || 0;
+  const isSlotsEmpty = !!voucherId && !slotsLoading && networkSlots.length === 0;
+  const isVoucherTreeEmpty =
+    !!voucherId && !treeLoading && treeChildrenCount === 0;
 
   return (
     <View style={styles.container}>
@@ -627,6 +898,34 @@ export default function VoucherDashboard({
       >
         {/* Network Overview Stats */}
         <SummaryCard metrics={metrics} isVoucherAdmin={isVoucherAdmin} />
+        <MLMTransferStatusCard transfers={activeTransfers} />
+        {__DEV__ && (
+          <View style={styles.debugPanel}>
+            <Text style={styles.debugTitle}>MLM Debug</Text>
+            <Text style={styles.debugText}>selectedVoucherId: {voucherId || "-"}</Text>
+            <Text style={styles.debugText}>
+              slotsApiVoucherIdUsed: {slotsApiVoucherIdUsed || "-"}
+            </Text>
+            <Text style={styles.debugText}>
+              treeApiVoucherIdUsed: {treeApiVoucherIdUsed || "-"}
+            </Text>
+            <Text style={styles.debugText}>lastSlotsUrl: {lastSlotsUrl || "-"}</Text>
+            <Text style={styles.debugText}>lastTreeUrl: {lastTreeUrl || "-"}</Text>
+            <Text style={styles.debugText}>slotsCount: {networkSlots.length}</Text>
+            <Text style={styles.debugText}>
+              slotsSummaryTotal: {slotsSummary?.total ?? "-"}
+            </Text>
+            <Text style={styles.debugText}>
+              slotsCountDebug: {slotsCountDebug}
+            </Text>
+            <Text style={styles.debugText}>
+              treeDirectChildrenCount: {treeChildrenCount}
+            </Text>
+            <Text style={styles.debugText}>
+              treeDirectChildrenCountDebug: {treeDirectChildrenCountDebug}
+            </Text>
+          </View>
+        )}
 
         {/* Voucher Stats Card - Clickable to Buy - HIDDEN for Admin and Special Credits Users */}
         {!isVoucherAdmin && !hasSpecialCredits && (
@@ -667,6 +966,20 @@ export default function VoucherDashboard({
 
         {/* Network Visualization */}
         <View style={styles.networkContainer}>
+          {isSlotsEmpty && (
+            <View style={styles.emptySlotsBanner}>
+              <Ionicons name="layers-outline" size={16} color="#9A3412" />
+              <Text style={styles.emptySlotsText}>0 slots for this voucher campaign.</Text>
+            </View>
+          )}
+          {isVoucherTreeEmpty && (
+            <View style={styles.emptyVoucherTreeBanner}>
+              <Ionicons name="information-circle-outline" size={16} color="#1D4ED8" />
+              <Text style={styles.emptyVoucherTreeText}>
+                No network yet for this voucher campaign.
+              </Text>
+            </View>
+          )}
           {viewMode === "list" ? (
             <NetworkListView
               rootUser={rootUser}
@@ -809,6 +1122,24 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginTop: scaleSize(12),
   },
+  skeletonCard: {
+    width: "100%",
+    height: scaleSize(90),
+    borderRadius: scaleSize(14),
+    backgroundColor: "#E5E7EB",
+    marginBottom: scaleSize(14),
+  },
+  skeletonRow: {
+    flexDirection: "row",
+    gap: scaleSize(8),
+    marginBottom: scaleSize(14),
+  },
+  skeletonChip: {
+    width: scaleSize(80),
+    height: scaleSize(26),
+    borderRadius: scaleSize(999),
+    backgroundColor: "#E5E7EB",
+  },
   errorText: {
     fontSize: scaleFontSize(16),
     color: "#EF4444",
@@ -856,5 +1187,56 @@ const styles = StyleSheet.create({
   networkContainer: {
     flex: 1,
     minHeight: scaleSize(400),
+  },
+  emptyVoucherTreeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#DBEAFE",
+    borderRadius: scaleSize(10),
+    paddingHorizontal: scaleSize(12),
+    paddingVertical: scaleSize(10),
+    marginBottom: scaleSize(12),
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  emptyVoucherTreeText: {
+    fontSize: scaleFontSize(13),
+    color: "#1E3A8A",
+    fontWeight: "600",
+  },
+  emptySlotsBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFEDD5",
+    borderRadius: scaleSize(10),
+    paddingHorizontal: scaleSize(12),
+    paddingVertical: scaleSize(10),
+    marginBottom: scaleSize(8),
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+  },
+  emptySlotsText: {
+    fontSize: scaleFontSize(13),
+    color: "#9A3412",
+    fontWeight: "600",
+  },
+  debugPanel: {
+    backgroundColor: "#111827",
+    borderRadius: scaleSize(10),
+    padding: scaleSize(10),
+    marginBottom: scaleSize(12),
+  },
+  debugTitle: {
+    color: "#F9FAFB",
+    fontSize: scaleFontSize(12),
+    fontWeight: "700",
+    marginBottom: scaleSize(6),
+  },
+  debugText: {
+    color: "#D1D5DB",
+    fontSize: scaleFontSize(11),
+    marginBottom: 2,
   },
 });
