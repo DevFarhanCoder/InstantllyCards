@@ -19,7 +19,7 @@
       "url": "https://u.expo.dev/2d7524da-4330-496c-816f-4e011831e6f4",
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 3000
     },
     "runtimeVersion": "1.0.70",
     "splash": {
