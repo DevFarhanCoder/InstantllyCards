@@ -109,8 +109,8 @@ export default function DistributionCreditsTable({
                     slotLock?.lockReason ??
                     (locked ? "Voucher requirement pending" : null);
                   const effectiveSeconds =
-                    slotLock?.timeLeftSeconds ??
                     transfer?.timeLeftSeconds ??
+                    slotLock?.timeLeftSeconds ??
                     credit.timeLeftSeconds;
                   const effectiveStatus =
                     transfer?.status ?? (locked ? "pending_unlock" : "unlocked");

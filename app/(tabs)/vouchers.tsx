@@ -32,6 +32,11 @@ export default function VouchersScreen() {
   );
 
   const handleVoucherSelect = (voucher: Voucher) => {
+    console.log(
+      "[VoucherSelected]",
+      voucher?._id,
+      (voucher as any)?.companyName || voucher?.voucherNumber,
+    );
     setSelectedVoucher(voucher);
     setCurrentScreen("detail");
   };

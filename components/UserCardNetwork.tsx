@@ -38,7 +38,7 @@ export default function UserCard({
   const effectiveLockReason =
     user.lockReason ?? slotLock?.lockReason ?? "Voucher requirement pending";
   const effectiveSeconds =
-    slotLock?.timeLeftSeconds ?? transfer?.timeLeftSeconds ?? user.timeLeftSeconds;
+    transfer?.timeLeftSeconds ?? slotLock?.timeLeftSeconds ?? user.timeLeftSeconds;
   const effectiveStatus =
     user.transferStatus ?? transfer?.status ?? (effectiveLocked ? "pending_unlock" : "unlocked");
   const currentVoucherCount =
