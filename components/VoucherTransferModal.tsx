@@ -139,8 +139,8 @@ export default function VoucherTransferModal({
 
     // Validate quantity
     const qty = parseInt(quantity, 10);
-    if (isNaN(qty) || qty < 1 || qty > 100) {
-      setError("Please enter a valid quantity (1-100)");
+    if (isNaN(qty) || qty < 1 || qty > 10000) {
+      setError("Please enter a valid quantity (1-10000)");
       return;
     }
 
@@ -302,7 +302,7 @@ export default function VoucherTransferModal({
               />
               <TextInput
                 style={styles.input}
-                placeholder="Enter quantity (1-100)"
+                placeholder="Enter quantity (1-10000)"
                 placeholderTextColor="#94A3B8"
                 value={quantity}
                 onChangeText={setQuantity}

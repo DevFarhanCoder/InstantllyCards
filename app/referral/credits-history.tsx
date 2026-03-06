@@ -14,7 +14,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { scaleFontSize, scaleSize } from "@/lib/responsive";
 import api from "@/lib/api";
@@ -65,6 +65,7 @@ interface TransferHistory {
 
 export default function TransferHistoryPage() {
   const insets = useSafeAreaInsets();
+  const { voucherId } = useLocalSearchParams<{ voucherId?: string }>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [history, setHistory] = useState<TransferHistory>({
@@ -93,7 +94,9 @@ export default function TransferHistoryPage() {
         setLoading(true);
       }
 
-      const response = await api.get("/mlm/transfer-history?limit=100");
+      const response = await api.get(
+        `/mlm/transfer-history?limit=100${voucherId ? `&voucherId=${voucherId}` : ""}`,
+      );
 
       if (response.success) {
         setHistory(response.history);
