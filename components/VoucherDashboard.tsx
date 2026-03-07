@@ -107,21 +107,20 @@ export default function VoucherDashboard({
   const [networkSlots, setNetworkSlots] = useState<any[]>([]); // Network slots with placeholders
   const [slotsSummary, setSlotsSummary] = useState<any>(null);
   const transfersById = useMlmTransferStore((state) => state.transfersById);
-  const syncDashboardTransfers = useMlmTransferStore((state) => state.setFromDashboard);
-  const syncDistributionLocks = useMlmTransferStore((state) => state.setFromDistribution);
+  const syncDashboardTransfers = useMlmTransferStore(
+    (state) => state.setFromDashboard,
+  );
+  const syncDistributionLocks = useMlmTransferStore(
+    (state) => state.setFromDistribution,
+  );
   const syncSlotLocks = useMlmTransferStore((state) => state.setFromSlots);
   const clearMlmTransferState = useMlmTransferStore((state) => state.clear);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const foregroundDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const foregroundDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const activeVoucherIdRef = useRef<string | null>(voucherId || null);
   const requestSeqRef = useRef(0);
-  const [slotsApiVoucherIdUsed, setSlotsApiVoucherIdUsed] = useState<string>("");
-  const [treeApiVoucherIdUsed, setTreeApiVoucherIdUsed] = useState<string>("");
-  const [lastSlotsUrl, setLastSlotsUrl] = useState<string>("");
-  const [lastTreeUrl, setLastTreeUrl] = useState<string>("");
-  const [slotsCountDebug, setSlotsCountDebug] = useState<number>(0);
-  const [treeDirectChildrenCountDebug, setTreeDirectChildrenCountDebug] =
-    useState<number>(0);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
   const activeTransfers = useMemo(
@@ -220,9 +219,6 @@ export default function VoucherDashboard({
       const treeVoucherParam = voucherId ? `&voucherId=${voucherId}` : "";
       const treePath = `/mlm/network/tree?depth=3&perParentLimit=5${treeVoucherParam}`;
       const buyersPath = `/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`;
-      console.log("[TreeAPI] URL", treePath);
-      setLastTreeUrl(treePath);
-      setTreeApiVoucherIdUsed(voucherId || "");
 
       const [
         overview,
@@ -253,11 +249,6 @@ export default function VoucherDashboard({
       const pDistributionRes = pickPayload(distributionRes);
       const pTreeRes = pickPayload(treeRes);
       const pBuyerRes = pickPayload(buyerRes);
-      console.log("[TreeAPI] raw", treeRes);
-      console.log("[TreeAPI] raw.data", treeRes?.data);
-      setTreeDirectChildrenCountDebug(
-        pTreeRes?.tree?.directChildren?.length || 0,
-      );
 
       // Check if user is voucher admin from overview
       const isAdmin = pOverview?.user?.isVoucherAdmin === true;
@@ -279,19 +270,15 @@ export default function VoucherDashboard({
           const specialDashboardPath = `/mlm/special-credits/dashboard${voucherParam}`;
           const specialNetworkPath = `/mlm/special-credits/network${voucherParam}`;
           const specialSlotsPath = `/mlm/special-credits/slots${voucherParam}`;
-          console.log("[SlotsAPI] URL", specialSlotsPath);
-          setLastSlotsUrl(specialSlotsPath);
-          setSlotsApiVoucherIdUsed(voucherId || "");
 
-          const [specialCreditsRes, networkSlotsRes, slotsRes] = await Promise.all([
-            withRetry(() => api.get(specialDashboardPath)),
-            withRetry(() => api.get(specialNetworkPath)),
-            withRetry(() => api.get(specialSlotsPath)),
-          ]);
+          const [specialCreditsRes, networkSlotsRes, slotsRes] =
+            await Promise.all([
+              withRetry(() => api.get(specialDashboardPath)),
+              withRetry(() => api.get(specialNetworkPath)),
+              withRetry(() => api.get(specialSlotsPath)),
+            ]);
           if (isStale()) return;
           if (isVoucherStale(requestedVoucherId)) return;
-          console.log("[SlotsAPI] raw", slotsRes);
-          console.log("[SlotsAPI] raw.data", slotsRes?.data);
           const pSpecialCreditsRes = pickPayload(specialCreditsRes);
           const pNetworkSlotsRes = pickPayload(networkSlotsRes);
           const pSlotsRes = pickPayload(slotsRes);
@@ -307,14 +294,11 @@ export default function VoucherDashboard({
             syncSlotLocks(slotsPayload);
             networkSlotsData = normalizeSlotsPayload(slotsPayload);
             setNetworkSlots(networkSlotsData);
-            setSlotsCountDebug(networkSlotsData.length);
           } else if (pNetworkSlotsRes?.networkUsers) {
             networkSlotsData = pNetworkSlotsRes.networkUsers;
             syncSlotLocks(pNetworkSlotsRes.networkUsers);
             setNetworkSlots(networkSlotsData);
-            setSlotsCountDebug(networkSlotsData.length || 0);
           } else {
-            setSlotsCountDebug(0);
             setNetworkSlots([]);
           }
           setSlotsLoading(false);
@@ -322,7 +306,6 @@ export default function VoucherDashboard({
           console.error("Special credits load error", err);
           setSlotsLoading(false);
           setNetworkSlots([]);
-          setSlotsCountDebug(0);
         }
       } else {
         setSlotsLoading(false);
@@ -383,20 +366,38 @@ export default function VoucherDashboard({
       }
 
       if (pTreeRes?.tree) {
-        setRootUser(mapTree(pTreeRes.tree));
+        const treeRoot = mapTree(pTreeRes.tree);
+        // Hydrate creditsReceived from slots data for voucher mode
+        // (slots override only runs for global view below; voucher mode uses tree + slot credits)
+        if (networkSlotsData && networkSlotsData.length > 0) {
+          const creditByRecipientId = new Map<string, number>();
+          for (const slot of networkSlotsData) {
+            if (!slot.isPlaceholder && slot.id) {
+              creditByRecipientId.set(slot.id, slot.credits || 0);
+            }
+          }
+          const hydrateCredits = (node: any): any => ({
+            ...node,
+            creditsReceived:
+              creditByRecipientId.get(node.id) ?? node.creditsReceived,
+            directChildren: (node.directChildren || []).map(hydrateCredits),
+          });
+          setRootUser(hydrateCredits(treeRoot));
+        } else {
+          setRootUser(treeRoot);
+        }
       }
       setTreeLoading(false);
 
-      // For global view (no voucher filter), admin/special users can still use slots override.
-      // In voucher mode, always trust voucher-scoped /mlm/network/tree response.
+      // For both global and voucher-scoped views, admin/special users use the
+      // slots-based grid so the full picture (available + sent) matches the admin panel.
       if (
-        !voucherId &&
         (isAdmin || userHasSpecialCredits) &&
         networkSlotsData !== null &&
         networkSlotsData.length > 0
       ) {
         // Show ALL slots — sent (filled) + available (placeholders)
-        // so admin sees the full 30-slot picture
+        // so the full slot count matches the admin panel
         const allSlots = networkSlotsData;
         const transferSnapshot = useMlmTransferStore.getState().transfersById;
         const slotLockSnapshot =
@@ -819,7 +820,10 @@ export default function VoucherDashboard({
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => loadDashboard(true)}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => loadDashboard(true)}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -850,7 +854,8 @@ export default function VoucherDashboard({
     (v) => v.redeemedStatus === "redeemed",
   ).length;
   const treeChildrenCount = rootUser?.directChildren?.length || 0;
-  const isSlotsEmpty = !!voucherId && !slotsLoading && networkSlots.length === 0;
+  const isSlotsEmpty =
+    !!voucherId && !slotsLoading && networkSlots.length === 0;
   const isVoucherTreeEmpty =
     !!voucherId && !treeLoading && treeChildrenCount === 0;
 
@@ -899,33 +904,6 @@ export default function VoucherDashboard({
         {/* Network Overview Stats */}
         <SummaryCard metrics={metrics} isVoucherAdmin={isVoucherAdmin} />
         <MLMTransferStatusCard transfers={activeTransfers} />
-        {__DEV__ && (
-          <View style={styles.debugPanel}>
-            <Text style={styles.debugTitle}>MLM Debug</Text>
-            <Text style={styles.debugText}>selectedVoucherId: {voucherId || "-"}</Text>
-            <Text style={styles.debugText}>
-              slotsApiVoucherIdUsed: {slotsApiVoucherIdUsed || "-"}
-            </Text>
-            <Text style={styles.debugText}>
-              treeApiVoucherIdUsed: {treeApiVoucherIdUsed || "-"}
-            </Text>
-            <Text style={styles.debugText}>lastSlotsUrl: {lastSlotsUrl || "-"}</Text>
-            <Text style={styles.debugText}>lastTreeUrl: {lastTreeUrl || "-"}</Text>
-            <Text style={styles.debugText}>slotsCount: {networkSlots.length}</Text>
-            <Text style={styles.debugText}>
-              slotsSummaryTotal: {slotsSummary?.total ?? "-"}
-            </Text>
-            <Text style={styles.debugText}>
-              slotsCountDebug: {slotsCountDebug}
-            </Text>
-            <Text style={styles.debugText}>
-              treeDirectChildrenCount: {treeChildrenCount}
-            </Text>
-            <Text style={styles.debugText}>
-              treeDirectChildrenCountDebug: {treeDirectChildrenCountDebug}
-            </Text>
-          </View>
-        )}
 
         {/* Voucher Stats Card - Clickable to Buy - HIDDEN for Admin and Special Credits Users */}
         {!isVoucherAdmin && !hasSpecialCredits && (
@@ -969,12 +947,18 @@ export default function VoucherDashboard({
           {isSlotsEmpty && (
             <View style={styles.emptySlotsBanner}>
               <Ionicons name="layers-outline" size={16} color="#9A3412" />
-              <Text style={styles.emptySlotsText}>0 slots for this voucher campaign.</Text>
+              <Text style={styles.emptySlotsText}>
+                0 slots for this voucher campaign.
+              </Text>
             </View>
           )}
           {isVoucherTreeEmpty && (
             <View style={styles.emptyVoucherTreeBanner}>
-              <Ionicons name="information-circle-outline" size={16} color="#1D4ED8" />
+              <Ionicons
+                name="information-circle-outline"
+                size={16}
+                color="#1D4ED8"
+              />
               <Text style={styles.emptyVoucherTreeText}>
                 No network yet for this voucher campaign.
               </Text>
