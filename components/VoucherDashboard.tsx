@@ -200,6 +200,23 @@ export default function VoucherDashboard({
       timeLeftSeconds: Number(slot.timeLeftSeconds) || 0,
     }));
 
+  const getVoucherScopedTransfer = (payload: any, dashboard: any) => {
+    const firstTransfer = Array.isArray(payload?.activeTransfers)
+      ? payload.activeTransfers[0]
+      : null;
+
+    if (!firstTransfer) {
+      return [];
+    }
+
+    return [
+      {
+        ...firstTransfer,
+        currentVoucherCount: Number(dashboard?.vouchersFigure) || 0,
+      },
+    ];
+  };
+
   const loadDashboard = async (showLoader: boolean = true) => {
     const requestId = ++requestSeqRef.current;
     const requestedVoucherId = voucherId || null;
@@ -260,6 +277,7 @@ export default function VoucherDashboard({
       setHasSpecialCredits(userHasSpecialCredits);
 
       let specialCreditsData = null;
+      let specialActiveTransfers: any[] = [];
       let networkSlotsData: any[] | null = null;
 
       // When a specific voucher is selected, ALWAYS load per-voucher data
@@ -269,8 +287,7 @@ export default function VoucherDashboard({
       // return 0 slots. So for non-admins we always load the global (unfiltered) view.
       if (isAdmin || userHasSpecialCredits || voucherId) {
         try {
-          const voucherParam =
-            isAdmin && voucherId ? `?voucherId=${voucherId}` : "";
+          const voucherParam = voucherId ? `?voucherId=${voucherId}` : "";
           const specialDashboardPath = `/mlm/special-credits/dashboard${voucherParam}`;
           const specialNetworkPath = `/mlm/special-credits/network${voucherParam}`;
           const specialSlotsPath = `/mlm/special-credits/slots${voucherParam}`;
@@ -291,6 +308,10 @@ export default function VoucherDashboard({
             specialCreditsData = pSpecialCreditsRes.dashboard;
             setSpecialCredits(specialCreditsData);
           }
+          specialActiveTransfers = getVoucherScopedTransfer(
+            pSpecialCreditsRes,
+            pSpecialCreditsRes?.dashboard,
+          );
 
           const slotsPayload = pSlotsRes?.slots || [];
           setSlotsSummary(pSlotsRes?.summary ?? null);
@@ -316,12 +337,12 @@ export default function VoucherDashboard({
       }
 
       if (voucherId) {
-        // Per-voucher mode (admin only): show isolated data for THIS voucher.
-        // Regular users (non-admin) who received credits show the global dashboard.
+        // Per-voucher mode: show isolated data for the selected voucher only.
         const totalSlotsForVoucher = specialCreditsData?.slots?.total ?? 0;
-        // Only redirect to BuyVoucherScreen if user has no special credit slots anywhere
         if (!isAdmin && totalSlotsForVoucher === 0 && !userHasSpecialCredits) {
           setShowBuyVoucherScreen(true);
+        } else {
+          setShowBuyVoucherScreen(false);
         }
         setMetrics({
           availableCredits: specialCreditsData?.specialCredits?.balance ?? 0,
@@ -354,13 +375,14 @@ export default function VoucherDashboard({
       }
 
       if (pCreditDashboard) {
-        // Merge regular credit transfers + received special-credit-slot transfers
-        const specialActiveTransfers: any[] =
-          specialCreditsData?.activeTransfers ?? [];
-        syncDashboardTransfers([
-          ...(pCreditDashboard.activeTransfers || []),
-          ...specialActiveTransfers,
-        ]);
+        syncDashboardTransfers(
+          voucherId
+            ? specialActiveTransfers
+            : [
+                ...(pCreditDashboard.activeTransfers || []),
+                ...specialActiveTransfers,
+              ],
+        );
         setCreditStats({
           totalCreditReceived: pCreditDashboard.totalCreditsReceived || 0,
           totalCreditTransferred: pCreditDashboard.totalCreditsTransferred || 0,
@@ -511,8 +533,12 @@ export default function VoucherDashboard({
   useEffect(() => {
     if (!isActive) return;
     activeVoucherIdRef.current = voucherId || null;
+    clearMlmTransferState();
+    setNetworkSlots([]);
+    setSlotsSummary(null);
+    setSpecialCredits(null);
     loadDashboard(true);
-  }, [voucherId, isActive]);
+  }, [voucherId, isActive, clearMlmTransferState]);
 
   useEffect(() => {
     if (!isActive) return;
