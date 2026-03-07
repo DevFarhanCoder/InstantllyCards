@@ -14,6 +14,15 @@ export interface NetworkUser {
   joinedDate: string;
   commissionEarned?: number;
   isActive: boolean;
+  isPlaceholder?: boolean; // For special credits placeholder slots
+  slotNumber?: number;
+  transferId?: string | null;
+  isLocked?: boolean;
+  lockReason?: string | null;
+  timeLeftSeconds?: number;
+  transferStatus?: string;
+  requiredVoucherCount?: number;
+  currentVoucherCount?: number;
 }
 
 export interface NetworkMetrics {
@@ -22,6 +31,7 @@ export interface NetworkMetrics {
   totalNetworkUsers: number;
   virtualCommission: number; // Changed from estimatedCommission
   currentDiscountPercent?: number;
+  vouchersFigure?: number; // For admin special credits vouchers
 }
 
 export interface CreditStatistics {
@@ -41,6 +51,34 @@ export interface CreditTimer {
   expiresAt?: string;
   transferExpiresAt?: string;
   remainingTransfers: number;
+}
+
+export interface MlmActiveTransfer {
+  transferId: string;
+  status: "pending_unlock" | "unlocked" | "returned_timeout" | "partial_timeout_review" | string;
+  requiredVoucherCount?: number;
+  currentVoucherCount?: number;
+  timerStartedAt?: string;
+  expiresAt?: string;
+  timeLeftSeconds?: number;
+  slotCount?: number;
+  slotAmount?: number;
+  unlockedSlots?: number;
+}
+
+export interface DistributionCredit {
+  level?: number;
+  creditsToTransfer: number;
+  recipientName: string;
+  recipientPhone: string;
+  recipientId: string;
+  vouchersShared?: number;
+  isLocked?: boolean;
+  timeLeft?: string;
+  transferId?: string | null;
+  slotNumber?: number;
+  lockReason?: string | null;
+  timeLeftSeconds?: number;
 }
 
 export interface CreditTransferRecord {
@@ -72,6 +110,7 @@ export interface VoucherItem {
   issueDate: string;
   expiryDate: string;
   redeemedStatus: "unredeemed" | "redeemed" | "expired";
+  redeemedAt?: string;
   source?: "purchase" | "transfer" | "admin";
   transferredFrom?: {
     _id: string;
@@ -79,6 +118,11 @@ export interface VoucherItem {
     phone: string;
   };
   transferredAt?: string;
+  transferHistory?: Array<{
+    from: string;
+    to: string;
+    transferredAt: string;
+  }>;
   originalOwner?: {
     _id: string;
     name: string;
@@ -89,6 +133,7 @@ export interface VoucherItem {
     name: string;
     phone: string;
   };
+  isSpecialCreditsVoucher?: boolean;
 }
 
 export interface VoucherHistory {

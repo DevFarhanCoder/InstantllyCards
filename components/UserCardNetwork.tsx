@@ -9,6 +9,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { NetworkUser } from "../types/network";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
+import { useMlmTransferStore } from "../lib/mlmTransferStore";
+import { formatSecondsCompact, statusLabel } from "../lib/mlmTransferUi";
 
 interface UserCardProps {
   user: NetworkUser;
@@ -26,6 +28,23 @@ export default function UserCard({
   isDirect = false,
 }: UserCardProps) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const slotLock = useMlmTransferStore((state) =>
+    user.slotNumber ? state.slotLocksBySlotNumber[user.slotNumber] : undefined,
+  );
+  const transfer = useMlmTransferStore((state) =>
+    user.transferId ? state.transfersById[user.transferId] : undefined,
+  );
+  const effectiveLocked = user.isLocked ?? slotLock?.isLocked ?? false;
+  const effectiveLockReason =
+    user.lockReason ?? slotLock?.lockReason ?? "Voucher requirement pending";
+  const effectiveSeconds =
+    transfer?.timeLeftSeconds ?? slotLock?.timeLeftSeconds ?? user.timeLeftSeconds;
+  const effectiveStatus =
+    user.transferStatus ?? transfer?.status ?? (effectiveLocked ? "pending_unlock" : "unlocked");
+  const currentVoucherCount =
+    user.currentVoucherCount ?? transfer?.currentVoucherCount ?? 0;
+  const requiredVoucherCount =
+    user.requiredVoucherCount ?? transfer?.requiredVoucherCount ?? 0;
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -117,6 +136,55 @@ export default function UserCard({
                   <Text style={styles.statText}>Level {user.level}</Text>
                 </View>
               </View>
+              {(effectiveLocked || user.transferId) && (
+                <View style={styles.lockMetaRow}>
+                  <View
+                    style={[
+                      styles.statusPill,
+                      {
+                        backgroundColor:
+                          effectiveStatus === "unlocked"
+                            ? "#D1FAE5"
+                            : effectiveStatus === "returned_timeout"
+                              ? "#FEE2E2"
+                              : "#DBEAFE",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        {
+                          color:
+                            effectiveStatus === "unlocked"
+                              ? "#065F46"
+                              : effectiveStatus === "returned_timeout"
+                                ? "#991B1B"
+                                : "#1E3A8A",
+                        },
+                      ]}
+                    >
+                      {statusLabel(effectiveStatus)}
+                    </Text>
+                  </View>
+                  {typeof effectiveSeconds === "number" && (
+                    <View style={styles.timerPill}>
+                      <Ionicons name="timer-outline" size={12} color="#1E3A8A" />
+                      <Text style={styles.timerPillText}>
+                        {formatSecondsCompact(effectiveSeconds)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+              {requiredVoucherCount > 0 && (
+                <Text style={styles.progressText}>
+                  Voucher Progress {currentVoucherCount}/{requiredVoucherCount}
+                </Text>
+              )}
+              {effectiveLocked && !!effectiveLockReason && (
+                <Text style={styles.lockReasonText}>{effectiveLockReason}</Text>
+              )}
             </View>
           </View>
 
@@ -148,13 +216,17 @@ export default function UserCard({
 
             {showTransferButton && isDirect && (
               <TouchableOpacity
-                style={styles.transferButton}
-                onPress={() => onTransferPress(user)}
+                style={[
+                  styles.transferButton,
+                  effectiveLocked && styles.transferButtonDisabled,
+                ]}
+                onPress={() => !effectiveLocked && onTransferPress(user)}
+                disabled={effectiveLocked}
               >
                 <Ionicons
-                  name="arrow-forward-circle"
+                  name={effectiveLocked ? "lock-closed" : "arrow-forward-circle"}
                   size={20}
-                  color="#10B981"
+                  color={effectiveLocked ? "#6B7280" : "#10B981"}
                 />
               </TouchableOpacity>
             )}
@@ -173,6 +245,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.08)",
     overflow: "hidden",
+  },
+  lockMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+    gap: 6,
+  },
+  statusPill: {
+    borderRadius: scaleSize(8),
+    paddingHorizontal: scaleSize(8),
+    paddingVertical: scaleSize(2),
+  },
+  statusPillText: {
+    fontSize: scaleFontSize(11),
+    fontWeight: "700",
+  },
+  timerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#DBEAFE",
+    borderRadius: scaleSize(8),
+    paddingHorizontal: scaleSize(8),
+    paddingVertical: scaleSize(2),
+  },
+  timerPillText: {
+    fontSize: scaleFontSize(11),
+    fontWeight: "700",
+    color: "#1E3A8A",
+  },
+  progressText: {
+    fontSize: scaleFontSize(11),
+    color: "#1E3A8A",
+    marginBottom: 2,
+  },
+  lockReasonText: {
+    fontSize: scaleFontSize(11),
+    color: "#991B1B",
+    marginBottom: 2,
   },
   cardContent: {
     flexDirection: "row",
@@ -254,5 +365,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  transferButtonDisabled: {
+    backgroundColor: "#E5E7EB",
   },
 });

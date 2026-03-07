@@ -99,10 +99,11 @@ export default function VoucherHistoryPage() {
 
     return history.all.filter((v) => {
       if (activeTab === "purchased") return v.source === "purchase";
-      if (activeTab === "received") return v.source === "transfer";
+      if (activeTab === "received")
+        return v.source === "transfer" || v.source === "admin";
       if (activeTab === "sent") {
-        // Check if voucher was sent by looking at transfer history
-        return v.transferredAt !== undefined;
+        // Check if voucher has transfer history where this user sent it
+        return v.transferHistory && v.transferHistory.length > 0;
       }
       return true;
     });

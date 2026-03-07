@@ -10,16 +10,12 @@ import {
   Platform,
   Animated,
   ActivityIndicator,
-  FlatList,
   Image,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { VoucherItem } from "../types/network";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
-import axios from "axios";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE || "http://localhost:3001";
+import api from "../lib/api";
 
 interface UserSearchResult {
   _id: string;
@@ -34,7 +30,11 @@ interface VoucherTransferModalProps {
   visible: boolean;
   voucher: VoucherItem | null;
   onClose: () => void;
-  onConfirm: (voucherId: string, recipientPhone: string) => Promise<void>;
+  onConfirm: (
+    voucherId: string,
+    recipientPhone: string,
+    quantity: number,
+  ) => Promise<void>;
 }
 
 export default function VoucherTransferModal({
@@ -44,6 +44,7 @@ export default function VoucherTransferModal({
   onConfirm,
 }: VoucherTransferModalProps) {
   const [recipientPhone, setRecipientPhone] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
@@ -82,20 +83,14 @@ export default function VoucherTransferModal({
 
       setSearching(true);
       try {
-        const token = await AsyncStorage.getItem("token");
-        const response = await axios.post(
-          `${API_BASE}/api/credits/search-users`,
-          { query: cleanPhone },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          },
-        );
+        const response = await api.post("/credits/search-users", {
+          query: cleanPhone,
+        });
 
-        if (response.data.success) {
-          setSearchResults(response.data.users);
+        if (response?.success) {
+          setSearchResults(response.users || []);
+        } else {
+          setSearchResults([]);
         }
       } catch (err) {
         console.error("Search error:", err);
@@ -133,9 +128,16 @@ export default function VoucherTransferModal({
       return;
     }
 
+    // Validate quantity
+    const qty = parseInt(quantity, 10);
+    if (isNaN(qty) || qty < 1 || qty > 10000) {
+      setError("Please enter a valid quantity (1-10000)");
+      return;
+    }
+
     setLoading(true);
     try {
-      await onConfirm(voucher._id, phoneToSend);
+      await onConfirm(voucher._id, phoneToSend, qty);
       handleClose();
     } catch (err: any) {
       setError(err?.message || "Transfer failed. Please try again.");
@@ -146,6 +148,7 @@ export default function VoucherTransferModal({
 
   const handleClose = () => {
     setRecipientPhone("");
+    setQuantity("1");
     setError("");
     setLoading(false);
     setSearchResults([]);
@@ -243,11 +246,10 @@ export default function VoucherTransferModal({
             {/* Search Results */}
             {searchResults.length > 0 && (
               <View style={styles.suggestionsContainer}>
-                <FlatList
-                  data={searchResults}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item }) => (
+                <View style={styles.suggestionsList}>
+                  {searchResults.map((item) => (
                     <TouchableOpacity
+                      key={item._id}
                       style={styles.suggestionItem}
                       onPress={() => handleSelectUser(item)}
                     >
@@ -273,13 +275,36 @@ export default function VoucherTransferModal({
                         color="#CBD5E1"
                       />
                     </TouchableOpacity>
-                  )}
-                  nestedScrollEnabled
-                  style={styles.suggestionsList}
-                  keyboardShouldPersistTaps="handled"
-                />
+                  ))}
+                </View>
               </View>
             )}
+          </View>
+
+          {/* Quantity Input */}
+          <View style={styles.inputSection}>
+            <Text style={styles.inputLabel}>Enter Quantity</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="layers-outline"
+                size={20}
+                color="#94A3B8"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter quantity (1-10000)"
+                placeholderTextColor="#94A3B8"
+                value={quantity}
+                onChangeText={setQuantity}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+            </View>
+            <Text style={styles.quantityHint}>
+              The recipient can use this voucher {quantity || "1"} time
+              {parseInt(quantity) > 1 ? "s" : ""}
+            </Text>
           </View>
 
           {error && (
@@ -494,6 +519,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: scaleFontSize(13),
     color: "#DC2626",
+  },
+  quantityHint: {
+    fontSize: scaleFontSize(12),
+    color: "#64748B",
+    marginTop: scaleSize(6),
+    marginLeft: scaleSize(4),
   },
   warningBox: {
     flexDirection: "row",
