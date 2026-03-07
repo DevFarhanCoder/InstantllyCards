@@ -263,10 +263,14 @@ export default function VoucherDashboard({
       let networkSlotsData: any[] | null = null;
 
       // When a specific voucher is selected, ALWAYS load per-voucher data
-      // for ALL users — ensures every voucher shows its own isolated stats (zeros for new vouchers)
+      // for ALL users — ensures every voucher shows its own isolated stats (zeros for new vouchers).
+      // NOTE: Non-admin users receive slots under the SENDER's campaign voucher ID (e.g. DoubtX).
+      // If they navigate via their OWN Instantlly voucher, filtering by that voucher ID would
+      // return 0 slots. So for non-admins we always load the global (unfiltered) view.
       if (isAdmin || userHasSpecialCredits || voucherId) {
         try {
-          const voucherParam = voucherId ? `?voucherId=${voucherId}` : "";
+          const voucherParam =
+            isAdmin && voucherId ? `?voucherId=${voucherId}` : "";
           const specialDashboardPath = `/mlm/special-credits/dashboard${voucherParam}`;
           const specialNetworkPath = `/mlm/special-credits/network${voucherParam}`;
           const specialSlotsPath = `/mlm/special-credits/slots${voucherParam}`;
@@ -312,10 +316,11 @@ export default function VoucherDashboard({
       }
 
       if (voucherId) {
-        // Per-voucher mode: always show isolated data for THIS voucher only.
-        // Regular users with no slots assigned for this voucher see zeros + buy screen.
+        // Per-voucher mode (admin only): show isolated data for THIS voucher.
+        // Regular users (non-admin) who received credits show the global dashboard.
         const totalSlotsForVoucher = specialCreditsData?.slots?.total ?? 0;
-        if (!isAdmin && totalSlotsForVoucher === 0) {
+        // Only redirect to BuyVoucherScreen if user has no special credit slots anywhere
+        if (!isAdmin && totalSlotsForVoucher === 0 && !userHasSpecialCredits) {
           setShowBuyVoucherScreen(true);
         }
         setMetrics({
@@ -349,7 +354,13 @@ export default function VoucherDashboard({
       }
 
       if (pCreditDashboard) {
-        syncDashboardTransfers(pCreditDashboard.activeTransfers || []);
+        // Merge regular credit transfers + received special-credit-slot transfers
+        const specialActiveTransfers: any[] =
+          specialCreditsData?.activeTransfers ?? [];
+        syncDashboardTransfers([
+          ...(pCreditDashboard.activeTransfers || []),
+          ...specialActiveTransfers,
+        ]);
         setCreditStats({
           totalCreditReceived: pCreditDashboard.totalCreditsReceived || 0,
           totalCreditTransferred: pCreditDashboard.totalCreditsTransferred || 0,
