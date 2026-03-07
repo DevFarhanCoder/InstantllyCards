@@ -12,13 +12,10 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { VoucherItem } from "../types/network";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
-import axios from "axios";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE || "http://localhost:3001";
+import api from "../lib/api";
 
 interface UserSearchResult {
   _id: string;
@@ -86,20 +83,14 @@ export default function VoucherTransferModal({
 
       setSearching(true);
       try {
-        const token = await AsyncStorage.getItem("token");
-        const response = await axios.post(
-          `${API_BASE}/api/credits/search-users`,
-          { query: cleanPhone },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          },
-        );
+        const response = await api.post("/credits/search-users", {
+          query: cleanPhone,
+        });
 
-        if (response.data.success) {
-          setSearchResults(response.data.users);
+        if (response?.success) {
+          setSearchResults(response.users || []);
+        } else {
+          setSearchResults([]);
         }
       } catch (err) {
         console.error("Search error:", err);
