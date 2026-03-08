@@ -5,6 +5,7 @@ import { queryClient } from "../lib/query";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { CreditsProvider } from "../contexts/CreditsContext";
 import { captureInitialReferralIfPresent } from "../utils/referral";
+import UpdateChecker from "../components/UpdateChecker";
 
 async function checkForOTAUpdate() {
   // Only runs in production builds (expo-updates is a no-op in dev/Expo Go)
@@ -43,6 +44,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <CreditsProvider>
         <Stack screenOptions={{ headerShown: false }} />
+        <UpdateChecker />
       </CreditsProvider>
     </QueryClientProvider>
   );

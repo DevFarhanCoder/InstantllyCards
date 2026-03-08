@@ -245,58 +245,159 @@ export default function VoucherDashboard({
       return sum;
     }, 0);
 
-  const normalizeDashboardVouchers = (payload: any): VoucherItem[] => {
-    const nextVouchers = Array.isArray(payload?.vouchers) ? payload.vouchers : [];
-    const balance = Number(payload?.voucherBalance) || 0;
-
-    if (balance <= 0) {
-      return nextVouchers;
+  const getVoucherQuantity = (voucher: VoucherItem, payload: any) => {
+    const directQuantity = Number(voucher?.quantity);
+    if (Number.isFinite(directQuantity) && directQuantity >= 0) {
+      return directQuantity;
     }
 
-    return nextVouchers.map((voucher) =>
-      voucher?._id === "instantlly-special-credits"
-        ? { ...voucher, quantity: balance, isBalanceVoucher: true }
-        : voucher,
-    );
+    const balances =
+      payload?.voucherBalances && typeof payload.voucherBalances === "object"
+        ? payload.voucherBalances
+        : {};
+    const mappedQuantity = Number(voucher?._id ? balances[voucher._id] : NaN);
+    if (Number.isFinite(mappedQuantity) && mappedQuantity >= 0) {
+      return mappedQuantity;
+    }
+
+    const fallbackBalance = Number(payload?.voucherBalance);
+    if (
+      voucher?._id === "instantlly-special-credits" &&
+      Number.isFinite(fallbackBalance) &&
+      fallbackBalance >= 0
+    ) {
+      return fallbackBalance;
+    }
+
+    return undefined;
   };
 
-  const pickTransferableVoucher = (items: VoucherItem[]) => {
-    const available = items.filter(
-      (voucher) =>
-        !voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed",
+  const normalizeDashboardVouchers = (payload: any): VoucherItem[] => {
+    const rawVouchers = Array.isArray(payload?.vouchers) ? payload.vouchers : [];
+    const countBasedById = new Map<string, VoucherItem>();
+    const legacyById = new Map<string, VoucherItem>();
+
+    rawVouchers.forEach((voucher: VoucherItem) => {
+      const quantity = getVoucherQuantity(voucher, payload);
+      const normalizedVoucher: VoucherItem = {
+        ...voucher,
+        ...(typeof quantity === "number" ? { quantity } : {}),
+        isBalanceVoucher:
+          voucher.isBalanceVoucher === true || typeof quantity === "number",
+      };
+      const isCountBased =
+        voucher?.isPublished === true || typeof quantity === "number";
+
+      if (isCountBased) {
+        const key = String(voucher._id);
+        const existing = countBasedById.get(key);
+        countBasedById.set(key, {
+          ...existing,
+          ...normalizedVoucher,
+          quantity:
+            typeof normalizedVoucher.quantity === "number"
+              ? normalizedVoucher.quantity
+              : existing?.quantity,
+        });
+        return;
+      }
+
+      legacyById.set(String(voucher._id), normalizedVoucher);
+    });
+
+    const hasCountBasedEntries = countBasedById.size > 0;
+    const legacyVouchers = Array.from(legacyById.values()).filter(
+      (voucher) => !(hasCountBasedEntries && voucher.source === "admin"),
     );
-    const regularVoucher = available.find(
+
+    return [...countBasedById.values(), ...legacyVouchers];
+  };
+
+  const pickTransferableVoucher = (
+    items: VoucherItem[],
+    campaignVoucherId?: string | null,
+  ) => {
+    const scopedVoucher =
+      campaignVoucherId != null
+        ? items.find((voucher) => String(voucher._id) === String(campaignVoucherId))
+        : undefined;
+
+    if (scopedVoucher) {
+      if (
+        typeof scopedVoucher.quantity === "number" &&
+        scopedVoucher.quantity > 0 &&
+        (scopedVoucher.isPublished === true || scopedVoucher.isBalanceVoucher === true)
+      ) {
+        return { voucher: scopedVoucher, reason: null };
+      }
+
+      if (
+        (scopedVoucher.quantity === undefined || scopedVoucher.quantity === null) &&
+        (!scopedVoucher.redeemedStatus ||
+          scopedVoucher.redeemedStatus === "unredeemed") &&
+        scopedVoucher._id !== "instantlly-special-credits" &&
+        !scopedVoucher.isSpecialCreditsVoucher
+      ) {
+        return { voucher: scopedVoucher, reason: null };
+      }
+
+      return {
+        voucher: null,
+        reason:
+          "This campaign is open, but its transferable voucher quantity is 0 right now.",
+      };
+    }
+
+    const countBasedVoucher = items.find(
       (voucher) =>
+        typeof voucher.quantity === "number" &&
+        voucher.quantity > 0 &&
+        (voucher.isPublished === true || voucher.isBalanceVoucher === true),
+    );
+
+    if (countBasedVoucher) {
+      return { voucher: countBasedVoucher, reason: null };
+    }
+
+    const legacyVoucher = items.find(
+      (voucher) =>
+        (voucher.quantity === undefined || voucher.quantity === null) &&
+        (!voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed") &&
         voucher._id !== "instantlly-special-credits" &&
         !voucher.isSpecialCreditsVoucher,
     );
 
-    if (regularVoucher) {
-      return { voucher: regularVoucher, reason: null };
+    if (legacyVoucher) {
+      return { voucher: legacyVoucher, reason: null };
     }
 
-    const balanceVoucher = available.find(
+    const countBasedButEmpty = items.find(
       (voucher) =>
-        voucher._id === "instantlly-special-credits" &&
-        ((voucher.quantity ?? 0) > 0 || voucher.isBalanceVoucher === true),
+        typeof voucher.quantity === "number" &&
+        voucher.quantity <= 0 &&
+        (voucher.isPublished === true || voucher.isBalanceVoucher === true),
     );
 
-    if (balanceVoucher) {
-      return { voucher: balanceVoucher, reason: null };
-    }
-
-    if (available.length === 0) {
+    if (countBasedButEmpty) {
       return {
         voucher: null,
         reason:
-          "No unredeemed voucher is available right now. If you recently unlocked one, refresh the dashboard and try again.",
+          "This campaign voucher is available in the list, but your transferable quantity is 0 right now.",
+      };
+    }
+
+    if (items.length === 0) {
+      return {
+        voucher: null,
+        reason:
+          "No voucher is available right now. If you recently received one, refresh the dashboard and try again.",
       };
     }
 
     return {
       voucher: null,
       reason:
-        "Only non-transferable voucher entries are available right now. If a voucher was just unlocked, refresh the dashboard and try again.",
+        "No transferable voucher count is available right now. If a campaign transfer was just completed, refresh the dashboard and try again.",
     };
   };
 
@@ -790,7 +891,7 @@ export default function VoucherDashboard({
         // Admin can transfer vouchers to anyone - use admin transfer
         handleAdminVoucherTransfer();
       } else {
-        const { voucher, reason } = pickTransferableVoucher(vouchers);
+        const { voucher, reason } = pickTransferableVoucher(vouchers, voucherId);
 
         if (!voucher) {
           Alert.alert("Transfer Unavailable", reason || "No transferable voucher found.");
@@ -1060,12 +1161,24 @@ export default function VoucherDashboard({
     );
   }
 
-  const availableVouchers = vouchers.filter(
-    (v) => !v.redeemedStatus || v.redeemedStatus === "unredeemed",
-  ).length;
-  const redeemedVouchers = vouchers.filter(
-    (v) => v.redeemedStatus === "redeemed",
-  ).length;
+  const availableVouchers = vouchers.reduce((sum, voucher) => {
+    if (typeof voucher.quantity === "number") {
+      return sum + Math.max(0, voucher.quantity);
+    }
+    return sum + (!voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed" ? 1 : 0);
+  }, 0);
+  const redeemedVouchers = vouchers.reduce((sum, voucher) => {
+    if (typeof voucher.quantity === "number") {
+      return sum;
+    }
+    return sum + (voucher.redeemedStatus === "redeemed" ? 1 : 0);
+  }, 0);
+  const totalVoucherUnits = vouchers.reduce((sum, voucher) => {
+    if (typeof voucher.quantity === "number") {
+      return sum + Math.max(0, voucher.quantity);
+    }
+    return sum + 1;
+  }, 0);
   const treeChildrenCount = rootUser?.directChildren?.length || 0;
   const isSlotsEmpty =
     !!voucherId && !slotsLoading && networkSlots.length === 0;
@@ -1121,7 +1234,7 @@ export default function VoucherDashboard({
         {/* Voucher Stats Card - Clickable to Buy - HIDDEN for Admin and Special Credits Users */}
         {!isVoucherAdmin && !hasSpecialCredits && (
           <VoucherStatsCard
-            totalVouchers={vouchers.length}
+            totalVouchers={totalVoucherUnits}
             availableVouchers={availableVouchers}
             redeemedVouchers={redeemedVouchers}
             onBuyNowPress={() => setShowBuyVoucherScreen(true)}

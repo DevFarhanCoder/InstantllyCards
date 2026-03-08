@@ -14,81 +14,92 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import api from "../lib/api";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
-
-interface Voucher {
-  _id: string;
-  voucherNumber: string;
-  MRP: number;
-  issueDate: string;
-  expiryDate: string;
-  redeemedStatus: "unredeemed" | "redeemed" | "expired";
-  source: "purchase" | "transfer" | "admin";
-  voucherImages?: string[];
-  // Admin-created voucher fields
-  companyLogo?: string;
-  companyName?: string;
-  phoneNumber?: string;
-  address?: string;
-  amount?: number;
-  discountPercentage?: number;
-  validity?: string;
-  voucherImage?: string;
-  description?: string;
-  isPublished?: boolean;
-  isSpecialCreditsVoucher?: boolean; // the always-shown Instantlly template card
-  isBalanceVoucher?: boolean;
-  quantity?: number;
-}
+import { VoucherItem } from "../types/network";
 
 interface VoucherListScreenProps {
-  onVoucherSelect: (voucher: Voucher) => void;
+  onVoucherSelect: (voucher: VoucherItem) => void;
 }
 
 export default function VoucherListScreen({
   onVoucherSelect,
 }: VoucherListScreenProps) {
-  const [vouchers, setVouchers] = useState<Voucher[]>([]);
-  const [voucherBalance, setVoucherBalance] = useState(0);
+  const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const getVoucherQuantity = (voucher: VoucherItem, payload: any) => {
+    const directQuantity = Number(voucher?.quantity);
+    if (Number.isFinite(directQuantity) && directQuantity >= 0) {
+      return directQuantity;
+    }
+
+    const balances =
+      payload?.voucherBalances && typeof payload.voucherBalances === "object"
+        ? payload.voucherBalances
+        : {};
+    const mappedQuantity = Number(voucher?._id ? balances[voucher._id] : NaN);
+    if (Number.isFinite(mappedQuantity) && mappedQuantity >= 0) {
+      return mappedQuantity;
+    }
+
+    const fallbackBalance = Number(payload?.voucherBalance);
+    if (
+      voucher?._id === "instantlly-special-credits" &&
+      Number.isFinite(fallbackBalance) &&
+      fallbackBalance >= 0
+    ) {
+      return fallbackBalance;
+    }
+
+    return undefined;
+  };
+
+  const normalizeVoucherList = (payload: any): VoucherItem[] => {
+    const rawVouchers = Array.isArray(payload?.vouchers) ? payload.vouchers : [];
+    const countBasedById = new Map<string, VoucherItem>();
+    const legacyById = new Map<string, VoucherItem>();
+
+    rawVouchers.forEach((voucher: VoucherItem) => {
+      const quantity = getVoucherQuantity(voucher, payload);
+      const normalizedVoucher: VoucherItem = {
+        ...voucher,
+        ...(typeof quantity === "number" ? { quantity } : {}),
+        isBalanceVoucher:
+          voucher.isBalanceVoucher === true || typeof quantity === "number",
+      };
+      const isCountBased =
+        voucher?.isPublished === true || typeof quantity === "number";
+
+      if (isCountBased) {
+        const key = String(voucher._id);
+        const existing = countBasedById.get(key);
+        countBasedById.set(key, {
+          ...existing,
+          ...normalizedVoucher,
+          quantity:
+            typeof normalizedVoucher.quantity === "number"
+              ? normalizedVoucher.quantity
+              : existing?.quantity,
+        });
+        return;
+      }
+
+      legacyById.set(String(voucher._id), normalizedVoucher);
+    });
+
+    const hasCountBasedEntries = countBasedById.size > 0;
+    const legacyVouchers = Array.from(legacyById.values()).filter(
+      (voucher) => !(hasCountBasedEntries && voucher.source === "admin"),
+    );
+
+    return [...countBasedById.values(), ...legacyVouchers];
+  };
 
   const fetchVouchers = async () => {
     try {
       const response = await api.get("/mlm/vouchers");
       if (response?.success) {
-        let allVouchers = response.vouchers || [];
-        const balance = response.voucherBalance || 0;
-        setVoucherBalance(balance);
-
-        // Attach quantity to the Instantlly special template card (no extra cards)
-        if (balance > 0) {
-          allVouchers = allVouchers.map((v: Voucher) =>
-            v._id === "instantlly-special-credits"
-              ? { ...v, quantity: balance }
-              : v,
-          );
-        }
-
-        // Also fetch published admin vouchers (global templates)
-        try {
-          const adminVouchersResponse = await api.get(
-            "/mlm/vouchers?source=admin&isPublished=true",
-          );
-          if (adminVouchersResponse?.success) {
-            // Merge admin vouchers, deduplicating by _id
-            const existingIds = new Set(
-              allVouchers.map((v: Voucher) => String(v._id)),
-            );
-            const newAdminVouchers = (
-              adminVouchersResponse.vouchers || []
-            ).filter((v: Voucher) => !existingIds.has(String(v._id)));
-            allVouchers = [...newAdminVouchers, ...allVouchers];
-          }
-        } catch (adminError) {
-          console.log("No admin vouchers or error fetching:", adminError);
-        }
-
-        setVouchers(allVouchers);
+        setVouchers(normalizeVoucherList(response));
       }
     } catch (error) {
       console.error("Error fetching vouchers:", error);
@@ -134,7 +145,7 @@ export default function VoucherListScreen({
     }
   };
 
-  const renderVoucherCard = ({ item }: { item: Voucher }) => (
+  const renderVoucherCard = ({ item }: { item: VoucherItem }) => (
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={() => onVoucherSelect(item)}
@@ -151,8 +162,8 @@ export default function VoucherListScreen({
           </View>
         )}
 
-        {/* Quantity badge for balance-based vouchers */}
-        {(item.quantity ?? 0) > 0 && (
+        {/* Quantity badge for count-based campaign vouchers */}
+        {typeof item.quantity === "number" && (
           <View style={styles.quantityBadge}>
             <Text style={styles.quantityText}>×{item.quantity}</Text>
           </View>

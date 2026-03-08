@@ -1,149 +1,68 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Modal, View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from 'react-native';
-import VersionCheck from 'react-native-version-check';
+import React, { useEffect, useRef, useState } from "react";
+import { AppState, Platform } from "react-native";
+import ForceUpdateModal from "./ForceUpdateModal";
+import { checkAppVersion, VersionCheckResponse } from "../lib/versionCheck";
 
 interface UpdateCheckerProps {
+  enabled?: boolean;
   onUpdateRequired?: () => void;
 }
 
-export default function UpdateChecker({ onUpdateRequired }: UpdateCheckerProps) {
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [storeUrl, setStoreUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    checkForUpdate();
-  }, []);
+export default function UpdateChecker({
+  enabled = true,
+  onUpdateRequired,
+}: UpdateCheckerProps) {
+  const [versionInfo, setVersionInfo] = useState<VersionCheckResponse | null>(
+    null,
+  );
+  const checkingRef = useRef(false);
 
   const checkForUpdate = async () => {
-    try {
-      // Only check on Android (Play Store)
-      if (Platform.OS !== 'android') {
-        return;
-      }
+    if (!enabled || checkingRef.current || Platform.OS === "web") {
+      return;
+    }
 
-      // Check if update is needed
-      const updateNeeded = await VersionCheck.needUpdate();
-      
-      if (updateNeeded?.isNeeded) {
-        setUpdateAvailable(true);
-        setStoreUrl(updateNeeded.storeUrl);
+    try {
+      checkingRef.current = true;
+      const response = await checkAppVersion();
+
+      if (response?.updateRequired) {
+        setVersionInfo(response);
+        onUpdateRequired?.();
+      } else {
+        setVersionInfo(null);
       }
     } catch (error) {
-      console.warn('Error checking for updates:', error);
+      console.warn("Error checking for updates:", error);
+    } finally {
+      checkingRef.current = false;
     }
   };
 
-  const handleUpdate = () => {
-    if (storeUrl) {
-      Linking.openURL(storeUrl);
-      setUpdateAvailable(false);
-    }
-  };
+  useEffect(() => {
+    // Check once at app start.
+    checkForUpdate();
 
-  const handleDismiss = () => {
-    setUpdateAvailable(false);
-    // Note: We don't store dismissal, so it will show again on next app open
-  };
+    // Re-check when app comes back to foreground.
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        checkForUpdate();
+      }
+    });
 
-  if (!updateAvailable) {
+    return () => subscription.remove();
+  }, [enabled]);
+
+  if (!versionInfo?.updateRequired) {
     return null;
   }
 
   return (
-    <Modal
-      visible={updateAvailable}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={handleDismiss}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
-          <Text style={styles.title}>Update Available</Text>
-          <Text style={styles.message}>
-            A new version of the app is available on Play Store. Please update to continue using the app with the latest features and improvements.
-          </Text>
-          
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.button, styles.updateButton]}
-              onPress={handleUpdate}
-            >
-              <Text style={styles.updateButtonText}>Update Now</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.button, styles.dismissButton]}
-              onPress={handleDismiss}
-            >
-              <Text style={styles.dismissButtonText}>Dismiss</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
+    <ForceUpdateModal
+      visible={versionInfo.updateRequired}
+      updateUrl={versionInfo.updateUrl}
+      currentVersion={versionInfo.currentVersion}
+      latestVersion={versionInfo.latestVersion}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  container: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-    color: '#333',
-  },
-  message: {
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 24,
-    textAlign: 'center',
-    color: '#666',
-  },
-  buttonContainer: {
-    gap: 12,
-  },
-  button: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  updateButton: {
-    backgroundColor: '#007AFF',
-  },
-  updateButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dismissButton: {
-    backgroundColor: '#F0F0F0',
-  },
-  dismissButtonText: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

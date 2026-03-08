@@ -130,8 +130,19 @@ export default function VoucherTransferModal({
 
     // Validate quantity
     const qty = parseInt(quantity, 10);
-    if (isNaN(qty) || qty < 1 || qty > 10000) {
-      setError("Please enter a valid quantity (1-10000)");
+    const availableTransferQuantity =
+      typeof voucher.quantity === "number" && voucher.quantity > 0
+        ? voucher.quantity
+        : voucher._id === "admin-voucher-transfer"
+          ? 10000
+          : 1;
+    const maxTransferQuantity = Math.min(10000, availableTransferQuantity);
+    if (isNaN(qty) || qty < 1 || qty > maxTransferQuantity) {
+      setError(
+        maxTransferQuantity > 1
+          ? `Please enter a valid quantity (1-${maxTransferQuantity})`
+          : "This voucher can only be transferred one time.",
+      );
       return;
     }
 
@@ -161,6 +172,13 @@ export default function VoucherTransferModal({
   // Valid if either a user is selected OR phone has at least 10 digits
   const cleanPhoneDigits = recipientPhone.replace(/\D/g, "");
   const isValid = selectedUser !== null || cleanPhoneDigits.length >= 10;
+  const availableQuantity =
+    typeof voucher.quantity === "number" && voucher.quantity > 0
+      ? voucher.quantity
+      : voucher._id === "admin-voucher-transfer"
+        ? 10000
+        : 1;
+  const maxTransferQuantity = Math.min(10000, availableQuantity);
 
   return (
     <Modal
@@ -212,6 +230,12 @@ export default function VoucherTransferModal({
             <View style={styles.voucherDetails}>
               <Text style={styles.voucherNumber}>#{voucher.voucherNumber}</Text>
               <Text style={styles.voucherMRP}>MRP ₹{voucher.MRP}</Text>
+              <Text style={styles.voucherCount}>
+                Available count: {availableQuantity}
+              </Text>
+              <Text style={styles.voucherCount}>
+                Max per transfer: {maxTransferQuantity}
+              </Text>
               <Text style={styles.voucherExpiry}>
                 Expires{" "}
                 {new Date(voucher.expiryDate).toLocaleDateString("en-IN")}
@@ -293,7 +317,7 @@ export default function VoucherTransferModal({
               />
               <TextInput
                 style={styles.input}
-                placeholder="Enter quantity (1-10000)"
+                placeholder={`Enter quantity (1-${maxTransferQuantity})`}
                 placeholderTextColor="#94A3B8"
                 value={quantity}
                 onChangeText={setQuantity}
@@ -302,7 +326,7 @@ export default function VoucherTransferModal({
               />
             </View>
             <Text style={styles.quantityHint}>
-              The recipient can use this voucher {quantity || "1"} time
+              You can transfer up to {maxTransferQuantity} in one request. The recipient can use this voucher {quantity || "1"} time
               {parseInt(quantity) > 1 ? "s" : ""}
             </Text>
           </View>
@@ -426,6 +450,12 @@ const styles = StyleSheet.create({
     fontSize: scaleFontSize(14),
     color: "#92400E",
     marginTop: 2,
+  },
+  voucherCount: {
+    fontSize: scaleFontSize(12),
+    color: "#92400E",
+    marginTop: 2,
+    fontWeight: "600",
   },
   voucherExpiry: {
     fontSize: scaleFontSize(12),
