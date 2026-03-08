@@ -10,7 +10,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { NetworkUser } from "../types/network";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
 import { useMlmTransferStore } from "../lib/mlmTransferStore";
-import { formatSecondsCompact, statusLabel } from "../lib/mlmTransferUi";
+import {
+  formatSecondsCompact,
+  resolveTransferStatus,
+  shouldShowTransferTimer,
+  statusLabel,
+} from "../lib/mlmTransferUi";
 
 interface UserCardProps {
   user: NetworkUser;
@@ -39,12 +44,22 @@ export default function UserCard({
     user.lockReason ?? slotLock?.lockReason ?? "Voucher requirement pending";
   const effectiveSeconds =
     transfer?.timeLeftSeconds ?? slotLock?.timeLeftSeconds ?? user.timeLeftSeconds;
-  const effectiveStatus =
-    user.transferStatus ?? transfer?.status ?? (effectiveLocked ? "pending_unlock" : "unlocked");
   const currentVoucherCount =
     user.currentVoucherCount ?? transfer?.currentVoucherCount ?? 0;
   const requiredVoucherCount =
     user.requiredVoucherCount ?? transfer?.requiredVoucherCount ?? 0;
+  const effectiveStatus = resolveTransferStatus(
+    user.transferStatus ??
+      transfer?.status ??
+      (effectiveLocked ? "pending_unlock" : "unlocked"),
+    currentVoucherCount,
+    requiredVoucherCount,
+  );
+  const showTimer = shouldShowTransferTimer(
+    effectiveStatus,
+    currentVoucherCount,
+    requiredVoucherCount,
+  );
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -167,7 +182,7 @@ export default function UserCard({
                       {statusLabel(effectiveStatus)}
                     </Text>
                   </View>
-                  {typeof effectiveSeconds === "number" && (
+                  {showTimer && typeof effectiveSeconds === "number" && (
                     <View style={styles.timerPill}>
                       <Ionicons name="timer-outline" size={12} color="#1E3A8A" />
                       <Text style={styles.timerPillText}>

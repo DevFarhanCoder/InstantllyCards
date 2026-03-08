@@ -298,7 +298,7 @@ export default function VoucherTransferModal({
                 value={quantity}
                 onChangeText={setQuantity}
                 keyboardType="number-pad"
-                maxLength={3}
+                maxLength={5}
               />
             </View>
             <Text style={styles.quantityHint}>

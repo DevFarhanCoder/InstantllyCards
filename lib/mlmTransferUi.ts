@@ -13,6 +13,38 @@ export const formatSecondsCompact = (seconds?: number): string => {
   return `${secs}s`;
 };
 
+export const hasMetVoucherRequirement = (
+  currentVoucherCount?: number,
+  requiredVoucherCount?: number,
+): boolean => {
+  const required = Number(requiredVoucherCount) || 0;
+  const current = Number(currentVoucherCount) || 0;
+  return required > 0 && current >= required;
+};
+
+export const resolveTransferStatus = (
+  status?: string,
+  currentVoucherCount?: number,
+  requiredVoucherCount?: number,
+): string => {
+  if (hasMetVoucherRequirement(currentVoucherCount, requiredVoucherCount)) {
+    return "unlocked";
+  }
+  return status || "pending_unlock";
+};
+
+export const isPendingTransferStatus = (status?: string): boolean =>
+  status === "pending_unlock" || status === "partial_timeout_review";
+
+export const isTerminalTransferStatus = (status?: string): boolean =>
+  status === "unlocked" || status === "returned_timeout";
+
+export const shouldShowTransferTimer = (
+  status?: string,
+  currentVoucherCount?: number,
+  requiredVoucherCount?: number,
+): boolean => isPendingTransferStatus(resolveTransferStatus(status, currentVoucherCount, requiredVoucherCount));
+
 export const statusLabel = (status?: string): string => {
   switch (status) {
     case "pending_unlock":
@@ -20,9 +52,9 @@ export const statusLabel = (status?: string): string => {
     case "unlocked":
       return "Unlocked";
     case "returned_timeout":
-      return "Returned";
+      return "Expired / Returned";
     case "partial_timeout_review":
-      return "Review";
+      return "Under Review";
     default:
       return "Pending";
   }

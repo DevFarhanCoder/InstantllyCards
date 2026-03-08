@@ -1,9 +1,5 @@
 import { create } from "zustand";
-
-// Temporary testing override: show MLM unlock timer as 5 minutes in app UI.
-// Backend expiry logic is unchanged.
-const ENABLE_TEST_TIMER_OVERRIDE = true;
-const TEST_UNLOCK_WINDOW_SECONDS = 5 * 60;
+import { hasMetVoucherRequirement, resolveTransferStatus } from "./mlmTransferUi";
 
 export type MlmTransferStatus =
   | "pending_unlock"
@@ -23,6 +19,7 @@ export interface MlmActiveTransfer {
   slotCount?: number;
   slotAmount?: number;
   unlockedSlots?: number;
+  totalCreditAmount?: number;
 }
 
 export interface MlmSlotLock {
@@ -49,19 +46,18 @@ const toInt = (value: any, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const getTimeLeftForTesting = (item: any): number => {
-  if (!ENABLE_TEST_TIMER_OVERRIDE) {
-    return toInt(item?.timeLeftSeconds, 0);
+const getTransferAmount = (item: any): number => {
+  const directAmount = toInt(
+    item?.totalCreditAmount ?? item?.creditAmount ?? item?.amount,
+    NaN,
+  );
+  if (Number.isFinite(directAmount)) {
+    return directAmount;
   }
 
-  const startedAt = item?.timerStartedAt ? Date.parse(item.timerStartedAt) : NaN;
-  if (Number.isFinite(startedAt)) {
-    const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-    return Math.max(0, TEST_UNLOCK_WINDOW_SECONDS - elapsed);
-  }
-
-  // Fallback if timerStartedAt is absent.
-  return Math.min(TEST_UNLOCK_WINDOW_SECONDS, toInt(item?.timeLeftSeconds, 0));
+  const slotAmount = toInt(item?.slotAmount, 0);
+  const slotCount = toInt(item?.slotCount, 0);
+  return slotAmount > 0 && slotCount > 0 ? slotAmount * slotCount : 0;
 };
 
 export const useMlmTransferStore = create<MlmTransferState>((set) => ({
@@ -77,17 +73,30 @@ export const useMlmTransferStore = create<MlmTransferState>((set) => ({
       activeTransfers.forEach((item) => {
         const transferId = item?.transferId;
         if (!transferId) return;
+        const requiredVoucherCount = toInt(item?.requiredVoucherCount, 0);
+        const currentVoucherCount = toInt(item?.currentVoucherCount, 0);
+        const resolvedStatus = resolveTransferStatus(
+          item?.status,
+          currentVoucherCount,
+          requiredVoucherCount,
+        );
         nextTransfers[transferId] = {
           transferId,
-          status: item?.status || "pending_unlock",
-          requiredVoucherCount: toInt(item?.requiredVoucherCount, 0),
-          currentVoucherCount: toInt(item?.currentVoucherCount, 0),
+          status: resolvedStatus,
+          requiredVoucherCount,
+          currentVoucherCount,
           timerStartedAt: item?.timerStartedAt,
           expiresAt: item?.expiresAt,
-          timeLeftSeconds: getTimeLeftForTesting(item),
+          timeLeftSeconds: hasMetVoucherRequirement(
+            currentVoucherCount,
+            requiredVoucherCount,
+          )
+            ? 0
+            : toInt(item?.timeLeftSeconds, 0),
           slotCount: toInt(item?.slotCount, 0),
           slotAmount: toInt(item?.slotAmount, 0),
           unlockedSlots: toInt(item?.unlockedSlots, 0),
+          totalCreditAmount: getTransferAmount(item),
         };
       });
 
@@ -161,8 +170,22 @@ export const useMlmTransferStore = create<MlmTransferState>((set) => ({
     set((state) => {
       const nextTransfers: Record<string, MlmActiveTransfer> = {};
       Object.entries(state.transfersById).forEach(([transferId, transfer]) => {
-        const secs = Math.max(0, toInt(transfer.timeLeftSeconds, 0) - 1);
-        nextTransfers[transferId] = { ...transfer, timeLeftSeconds: secs };
+        const stopTimer = hasMetVoucherRequirement(
+          transfer.currentVoucherCount,
+          transfer.requiredVoucherCount,
+        ) || transfer.status === "unlocked";
+        const secs = stopTimer
+          ? 0
+          : Math.max(0, toInt(transfer.timeLeftSeconds, 0) - 1);
+        nextTransfers[transferId] = {
+          ...transfer,
+          status: resolveTransferStatus(
+            transfer.status,
+            transfer.currentVoucherCount,
+            transfer.requiredVoucherCount,
+          ),
+          timeLeftSeconds: secs,
+        };
       });
 
       const nextLocks: Record<number, MlmSlotLock> = {};

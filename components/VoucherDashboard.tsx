@@ -245,6 +245,61 @@ export default function VoucherDashboard({
       return sum;
     }, 0);
 
+  const normalizeDashboardVouchers = (payload: any): VoucherItem[] => {
+    const nextVouchers = Array.isArray(payload?.vouchers) ? payload.vouchers : [];
+    const balance = Number(payload?.voucherBalance) || 0;
+
+    if (balance <= 0) {
+      return nextVouchers;
+    }
+
+    return nextVouchers.map((voucher) =>
+      voucher?._id === "instantlly-special-credits"
+        ? { ...voucher, quantity: balance, isBalanceVoucher: true }
+        : voucher,
+    );
+  };
+
+  const pickTransferableVoucher = (items: VoucherItem[]) => {
+    const available = items.filter(
+      (voucher) =>
+        !voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed",
+    );
+    const regularVoucher = available.find(
+      (voucher) =>
+        voucher._id !== "instantlly-special-credits" &&
+        !voucher.isSpecialCreditsVoucher,
+    );
+
+    if (regularVoucher) {
+      return { voucher: regularVoucher, reason: null };
+    }
+
+    const balanceVoucher = available.find(
+      (voucher) =>
+        voucher._id === "instantlly-special-credits" &&
+        ((voucher.quantity ?? 0) > 0 || voucher.isBalanceVoucher === true),
+    );
+
+    if (balanceVoucher) {
+      return { voucher: balanceVoucher, reason: null };
+    }
+
+    if (available.length === 0) {
+      return {
+        voucher: null,
+        reason:
+          "No unredeemed voucher is available right now. If you recently unlocked one, refresh the dashboard and try again.",
+      };
+    }
+
+    return {
+      voucher: null,
+      reason:
+        "Only non-transferable voucher entries are available right now. If a voucher was just unlocked, refresh the dashboard and try again.",
+    };
+  };
+
   const loadDashboard = async (showLoader: boolean = true) => {
     const requestId = ++requestSeqRef.current;
     const requestedVoucherId = voucherId || null;
@@ -572,7 +627,7 @@ export default function VoucherDashboard({
       }
 
       if (pVoucherRes?.vouchers) {
-        setVouchers(pVoucherRes.vouchers);
+        setVouchers(normalizeDashboardVouchers(pVoucherRes));
       } else {
         setVouchers([]);
       }
@@ -735,21 +790,14 @@ export default function VoucherDashboard({
         // Admin can transfer vouchers to anyone - use admin transfer
         handleAdminVoucherTransfer();
       } else {
-        // Find an unredeemed voucher to transfer (exclude special voucher)
-        const unredeemedVoucher = vouchers.find(
-          (v) =>
-            v.redeemedStatus === "unredeemed" &&
-            v._id !== "instantlly-special-credits" &&
-            !v.isSpecialCreditsVoucher,
-        );
+        const { voucher, reason } = pickTransferableVoucher(vouchers);
 
-        if (!unredeemedVoucher) {
-          // No vouchers available - this is normal, just return silently
+        if (!voucher) {
+          Alert.alert("Transfer Unavailable", reason || "No transferable voucher found.");
           return;
         }
 
-        // Set the voucher and show voucher transfer modal
-        setSelectedVoucher(unredeemedVoucher);
+        setSelectedVoucher(voucher);
         setVoucherTransferModalVisible(true);
       }
     } catch (error: any) {
