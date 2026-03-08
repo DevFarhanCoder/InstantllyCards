@@ -12,7 +12,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { scaleFontSize, scaleSize } from "../lib/responsive";
 import { DistributionCredit } from "../types/network";
 import { useMlmTransferStore } from "../lib/mlmTransferStore";
-import { formatSecondsCompact, statusLabel } from "../lib/mlmTransferUi";
+import {
+  formatSecondsCompact,
+  resolveTransferStatus,
+  shouldShowTransferTimer,
+  statusColor,
+  statusLabel,
+} from "../lib/mlmTransferUi";
 
 interface DistributionCreditsTableProps {
   credits: DistributionCredit[];
@@ -42,6 +48,40 @@ export default function DistributionCreditsTable({
   if (credits.length === 0) {
     return null; // Don't show table if no distribution credits
   }
+
+  const getStatusBadgeTone = (status: string) => {
+    switch (status) {
+      case "unlocked":
+        return {
+          backgroundColor: "#D1FAE5",
+          textColor: "#10B981",
+          icon: "checkmark-circle" as const,
+          label: "Ready",
+        };
+      case "returned_timeout":
+        return {
+          backgroundColor: "#FEE2E2",
+          textColor: "#EF4444",
+          icon: "refresh-circle" as const,
+          label: "Returned",
+        };
+      case "partial_timeout_review":
+        return {
+          backgroundColor: "#FEF3C7",
+          textColor: "#D97706",
+          icon: "alert-circle" as const,
+          label: "Review",
+        };
+      case "pending_unlock":
+      default:
+        return {
+          backgroundColor: "#DBEAFE",
+          textColor: "#2563EB",
+          icon: "lock-closed" as const,
+          label: "Locked",
+        };
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -109,13 +149,40 @@ export default function DistributionCreditsTable({
                     slotLock?.lockReason ??
                     (locked ? "Voucher requirement pending" : null);
                   const effectiveSeconds =
-                    slotLock?.timeLeftSeconds ??
                     transfer?.timeLeftSeconds ??
+                    slotLock?.timeLeftSeconds ??
                     credit.timeLeftSeconds;
-                  const effectiveStatus =
-                    transfer?.status ?? (locked ? "pending_unlock" : "unlocked");
-                  const currentVoucher = transfer?.currentVoucherCount ?? 0;
-                  const requiredVoucher = transfer?.requiredVoucherCount ?? 0;
+                  const currentVoucher =
+                    transfer?.currentVoucherCount ??
+                    credit.currentVoucherCount ??
+                    credit.vouchersShared ??
+                    0;
+                  const requiredVoucher =
+                    transfer?.requiredVoucherCount ??
+                    credit.requiredVoucherCount;
+                  const effectiveStatus = resolveTransferStatus(
+                    credit.status ??
+                      transfer?.status ??
+                      (locked ? "pending_unlock" : "unlocked"),
+                    currentVoucher,
+                    requiredVoucher,
+                  );
+                  const showTimer = shouldShowTransferTimer(
+                    effectiveStatus,
+                    currentVoucher,
+                    requiredVoucher,
+                  );
+                  const voucherProgressText =
+                    typeof requiredVoucher === "number" && requiredVoucher > 0
+                      ? `${currentVoucher}/${requiredVoucher}`
+                      : typeof credit.currentVoucherCount === "number"
+                        ? `${credit.currentVoucherCount}`
+                        : typeof credit.vouchersShared === "number"
+                          ? `${credit.vouchersShared}`
+                          : null;
+                  const voucherTint = statusColor(effectiveStatus);
+                  const statusTone = getStatusBadgeTone(effectiveStatus);
+                  const canTransfer = effectiveStatus === "unlocked";
 
                   return (
                     <View
@@ -136,7 +203,7 @@ export default function DistributionCreditsTable({
                       {credit.recipientPhone}
                     </Text>
                     <Text style={styles.metaText}>{statusLabel(effectiveStatus)}</Text>
-                    {typeof effectiveSeconds === "number" && (
+                    {showTimer && typeof effectiveSeconds === "number" && (
                       <Text style={styles.metaTimer}>
                         {formatSecondsCompact(effectiveSeconds)}
                       </Text>
@@ -152,70 +219,64 @@ export default function DistributionCreditsTable({
                     ₹{formatCredits(credit.creditsToTransfer)}
                   </Text>
                   <View style={[styles.tableCell, { width: 100 }]}>
-                    <View style={styles.voucherBadge}>
+                    <View
+                      style={[
+                        styles.voucherBadge,
+                        { backgroundColor: `${voucherTint}15` },
+                      ]}
+                    >
                       <Ionicons
                         name="ticket"
                         size={12}
-                        color={
-                          (credit.vouchersShared || 0) >= 5
-                            ? "#10B981"
-                            : "#F59E0B"
-                        }
+                        color={voucherTint}
                       />
-                      <Text
-                        style={[
-                          styles.voucherText,
-                          {
-                            color:
-                              (credit.vouchersShared || 0) >= 5
-                                ? "#10B981"
-                                : "#F59E0B",
-                          },
-                        ]}
-                      >
-                        {requiredVoucher > 0
-                          ? `${currentVoucher}/${requiredVoucher}`
-                          : `${credit.vouchersShared || 0}/5`}
+                      <Text style={[styles.voucherText, { color: voucherTint }]}>
+                        {voucherProgressText ?? "Unavailable"}
                       </Text>
                     </View>
                   </View>
                   <View style={[styles.tableCell, { width: 100 }]}>
-                    {locked ? (
-                      <View style={styles.statusBadge}>
-                        <Ionicons
-                          name="lock-closed"
-                          size={12}
-                          color="#EF4444"
-                        />
-                        <Text style={styles.lockedText}>Locked</Text>
-                      </View>
-                    ) : (
-                      <View style={[styles.statusBadge, styles.unlockedBadge]}>
-                        <Ionicons name="lock-open" size={12} color="#10B981" />
-                        <Text style={styles.unlockedText}>Ready</Text>
-                      </View>
-                    )}
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: statusTone.backgroundColor },
+                      ]}
+                    >
+                      <Ionicons
+                        name={statusTone.icon}
+                        size={12}
+                        color={statusTone.textColor}
+                      />
+                      <Text
+                        style={[
+                          styles.statusBadgeText,
+                          { color: statusTone.textColor },
+                        ]}
+                      >
+                        {statusTone.label}
+                      </Text>
+                    </View>
                   </View>
                   <View style={[styles.tableCell, { width: 120 }]}>
                     <TouchableOpacity
-                      disabled={locked}
+                      disabled={!canTransfer}
                       onPress={() =>
                         onTransfer(credit.recipientId, credit.creditsToTransfer)
                       }
                       style={[
                         styles.transferButton,
-                        locked && styles.transferButtonDisabled,
+                        !canTransfer && styles.transferButtonDisabled,
                       ]}
                     >
                       <Text
                         style={[
                           styles.transferButtonText,
-                          locked && styles.transferButtonTextDisabled,
+                          !canTransfer && styles.transferButtonTextDisabled,
                         ]}
                       >
-                        {locked ? "Locked" : "Transfer"}
+                        {canTransfer ? "Transfer" : statusLabel(effectiveStatus)}
                       </Text>
-                      {!locked && (
+                      {canTransfer && (
                         <Ionicons
                           name="arrow-forward"
                           size={12}
@@ -223,7 +284,7 @@ export default function DistributionCreditsTable({
                         />
                       )}
                     </TouchableOpacity>
-                    {locked && !!lockReason && (
+                    {!canTransfer && !!lockReason && (
                       <Text style={styles.lockReasonInline}>{lockReason}</Text>
                     )}
                   </View>
@@ -370,18 +431,9 @@ const styles = StyleSheet.create({
     borderRadius: scaleSize(6),
     gap: 4,
   },
-  unlockedBadge: {
-    backgroundColor: "#D1FAE5",
-  },
-  lockedText: {
+  statusBadgeText: {
     fontSize: scaleFontSize(11),
     fontWeight: "600",
-    color: "#EF4444",
-  },
-  unlockedText: {
-    fontSize: scaleFontSize(11),
-    fontWeight: "600",
-    color: "#10B981",
   },
   transferButton: {
     flexDirection: "row",

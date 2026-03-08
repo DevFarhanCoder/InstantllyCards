@@ -58,6 +58,9 @@ export default function VoucherDashboard({
   const [selectedSlotNumber, setSelectedSlotNumber] = useState<number | null>(
     null,
   );
+  const [selectedCampaignVoucherId, setSelectedCampaignVoucherId] = useState<
+    string | null
+  >(voucherId || null);
   const [selectedSlotCredits, setSelectedSlotCredits] = useState<number>(0);
   const [voucherTransferModalVisible, setVoucherTransferModalVisible] =
     useState(false);
@@ -105,13 +108,24 @@ export default function VoucherDashboard({
   const [hasSpecialCredits, setHasSpecialCredits] = useState(false); // Track if user has special credits slots
   const [specialCredits, setSpecialCredits] = useState<any>(null); // Special credits data for admin
   const [networkSlots, setNetworkSlots] = useState<any[]>([]); // Network slots with placeholders
+  const [slotsSummary, setSlotsSummary] = useState<any>(null);
   const transfersById = useMlmTransferStore((state) => state.transfersById);
-  const syncDashboardTransfers = useMlmTransferStore((state) => state.setFromDashboard);
-  const syncDistributionLocks = useMlmTransferStore((state) => state.setFromDistribution);
+  const syncDashboardTransfers = useMlmTransferStore(
+    (state) => state.setFromDashboard,
+  );
+  const syncDistributionLocks = useMlmTransferStore(
+    (state) => state.setFromDistribution,
+  );
   const syncSlotLocks = useMlmTransferStore((state) => state.setFromSlots);
   const clearMlmTransferState = useMlmTransferStore((state) => state.clear);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const foregroundDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const foregroundDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const activeVoucherIdRef = useRef<string | null>(voucherId || null);
+  const requestSeqRef = useRef(0);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(false);
   const activeTransfers = useMemo(
     () => Object.values(transfersById),
     [transfersById],
@@ -141,6 +155,9 @@ export default function VoucherDashboard({
 
   const sleep = (ms: number) =>
     new Promise((resolve) => setTimeout(resolve, ms));
+
+  const pickPayload = (res: any) =>
+    res?.success !== undefined ? res : res?.data;
 
   const withRetry = async <T,>(
     fn: () => Promise<T>,
@@ -186,12 +203,224 @@ export default function VoucherDashboard({
       timeLeftSeconds: Number(slot.timeLeftSeconds) || 0,
     }));
 
+  const getVoucherScopedTransfer = (payload: any, _dashboard: any) => {
+    const transfers = Array.isArray(payload?.activeTransfers)
+      ? payload.activeTransfers
+      : [];
+
+    if (!transfers.length) {
+      return [];
+    }
+
+    const sortByLatest = (items: any[]) =>
+      [...items].sort((a, b) => {
+        const aTime = Date.parse(a?.timerStartedAt || a?.expiresAt || 0);
+        const bTime = Date.parse(b?.timerStartedAt || b?.expiresAt || 0);
+        return bTime - aTime;
+      });
+
+    const pendingUnlock = sortByLatest(
+      transfers.filter((transfer) => transfer?.status === "pending_unlock"),
+    );
+    if (pendingUnlock.length > 0) {
+      return [pendingUnlock[0]];
+    }
+
+    const unlocked = sortByLatest(
+      transfers.filter((transfer) => transfer?.status === "unlocked"),
+    );
+    if (unlocked.length > 0) {
+      return [unlocked[0]];
+    }
+
+    return [sortByLatest(transfers)[0]];
+  };
+
+  const getUnlockedSpecialCredits = (slots: any[] = []) =>
+    slots.reduce((sum, slot) => {
+      const isAvailable = slot?.status === "available" || slot?.isAvailable === true;
+      if (isAvailable && slot?.isLocked === false) {
+        return sum + (Number(slot?.creditAmount ?? slot?.credits) || 0);
+      }
+      return sum;
+    }, 0);
+
+  const getVoucherQuantity = (voucher: VoucherItem, payload: any) => {
+    const directQuantity = Number(voucher?.quantity);
+    if (Number.isFinite(directQuantity) && directQuantity >= 0) {
+      return directQuantity;
+    }
+
+    const balances =
+      payload?.voucherBalances && typeof payload.voucherBalances === "object"
+        ? payload.voucherBalances
+        : {};
+    const mappedQuantity = Number(voucher?._id ? balances[voucher._id] : NaN);
+    if (Number.isFinite(mappedQuantity) && mappedQuantity >= 0) {
+      return mappedQuantity;
+    }
+
+    const fallbackBalance = Number(payload?.voucherBalance);
+    if (
+      voucher?._id === "instantlly-special-credits" &&
+      Number.isFinite(fallbackBalance) &&
+      fallbackBalance >= 0
+    ) {
+      return fallbackBalance;
+    }
+
+    return undefined;
+  };
+
+  const normalizeDashboardVouchers = (payload: any): VoucherItem[] => {
+    const rawVouchers = Array.isArray(payload?.vouchers) ? payload.vouchers : [];
+    const countBasedById = new Map<string, VoucherItem>();
+    const legacyById = new Map<string, VoucherItem>();
+
+    rawVouchers.forEach((voucher: VoucherItem) => {
+      const quantity = getVoucherQuantity(voucher, payload);
+      const normalizedVoucher: VoucherItem = {
+        ...voucher,
+        ...(typeof quantity === "number" ? { quantity } : {}),
+        isBalanceVoucher:
+          voucher.isBalanceVoucher === true || typeof quantity === "number",
+      };
+      const isCountBased =
+        voucher?.isPublished === true || typeof quantity === "number";
+
+      if (isCountBased) {
+        const key = String(voucher._id);
+        const existing = countBasedById.get(key);
+        countBasedById.set(key, {
+          ...existing,
+          ...normalizedVoucher,
+          quantity:
+            typeof normalizedVoucher.quantity === "number"
+              ? normalizedVoucher.quantity
+              : existing?.quantity,
+        });
+        return;
+      }
+
+      legacyById.set(String(voucher._id), normalizedVoucher);
+    });
+
+    const hasCountBasedEntries = countBasedById.size > 0;
+    const legacyVouchers = Array.from(legacyById.values()).filter(
+      (voucher) => !(hasCountBasedEntries && voucher.source === "admin"),
+    );
+
+    return [...countBasedById.values(), ...legacyVouchers];
+  };
+
+  const pickTransferableVoucher = (
+    items: VoucherItem[],
+    campaignVoucherId?: string | null,
+  ) => {
+    const scopedVoucher =
+      campaignVoucherId != null
+        ? items.find((voucher) => String(voucher._id) === String(campaignVoucherId))
+        : undefined;
+
+    if (scopedVoucher) {
+      if (
+        typeof scopedVoucher.quantity === "number" &&
+        scopedVoucher.quantity > 0 &&
+        (scopedVoucher.isPublished === true || scopedVoucher.isBalanceVoucher === true)
+      ) {
+        return { voucher: scopedVoucher, reason: null };
+      }
+
+      if (
+        (scopedVoucher.quantity === undefined || scopedVoucher.quantity === null) &&
+        (!scopedVoucher.redeemedStatus ||
+          scopedVoucher.redeemedStatus === "unredeemed") &&
+        scopedVoucher._id !== "instantlly-special-credits" &&
+        !scopedVoucher.isSpecialCreditsVoucher
+      ) {
+        return { voucher: scopedVoucher, reason: null };
+      }
+
+      return {
+        voucher: null,
+        reason:
+          "This campaign is open, but its transferable voucher quantity is 0 right now.",
+      };
+    }
+
+    const countBasedVoucher = items.find(
+      (voucher) =>
+        typeof voucher.quantity === "number" &&
+        voucher.quantity > 0 &&
+        (voucher.isPublished === true || voucher.isBalanceVoucher === true),
+    );
+
+    if (countBasedVoucher) {
+      return { voucher: countBasedVoucher, reason: null };
+    }
+
+    const legacyVoucher = items.find(
+      (voucher) =>
+        (voucher.quantity === undefined || voucher.quantity === null) &&
+        (!voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed") &&
+        voucher._id !== "instantlly-special-credits" &&
+        !voucher.isSpecialCreditsVoucher,
+    );
+
+    if (legacyVoucher) {
+      return { voucher: legacyVoucher, reason: null };
+    }
+
+    const countBasedButEmpty = items.find(
+      (voucher) =>
+        typeof voucher.quantity === "number" &&
+        voucher.quantity <= 0 &&
+        (voucher.isPublished === true || voucher.isBalanceVoucher === true),
+    );
+
+    if (countBasedButEmpty) {
+      return {
+        voucher: null,
+        reason:
+          "This campaign voucher is available in the list, but your transferable quantity is 0 right now.",
+      };
+    }
+
+    if (items.length === 0) {
+      return {
+        voucher: null,
+        reason:
+          "No voucher is available right now. If you recently received one, refresh the dashboard and try again.",
+      };
+    }
+
+    return {
+      voucher: null,
+      reason:
+        "No transferable voucher count is available right now. If a campaign transfer was just completed, refresh the dashboard and try again.",
+    };
+  };
+
   const loadDashboard = async (showLoader: boolean = true) => {
+    const requestId = ++requestSeqRef.current;
+    const requestedVoucherId = voucherId || null;
+    const isStale = () => requestId !== requestSeqRef.current;
+    const isVoucherStale = (id: string | null) =>
+      activeVoucherIdRef.current !== id;
+
     try {
       if (showLoader) {
         setLoading(true);
       }
+      setTreeLoading(true);
+      if (voucherId) {
+        setSlotsLoading(true);
+      }
       setError(null);
+      const treeVoucherParam = voucherId ? `&voucherId=${voucherId}` : "";
+      const treePath = `/mlm/network/tree?depth=3&perParentLimit=5${treeVoucherParam}`;
+      const buyersPath = `/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`;
+
       const [
         overview,
         creditDashboard,
@@ -208,65 +437,152 @@ export default function VoucherDashboard({
         withRetry(() => api.get("/mlm/vouchers?limit=20")),
         withRetry(() => api.get("/users/profile")),
         withRetry(() => api.get("/mlm/distribution-credits")),
-        withRetry(() => api.get("/mlm/network/tree?depth=3&perParentLimit=5")),
-        withRetry(() =>
-          api.get(
-            `/mlm/network/direct-buyers?limit=10${voucherId ? `&voucherId=${voucherId}` : ""}`,
-          ),
-        ),
+        withRetry(() => api.get(treePath)),
+        withRetry(() => api.get(buyersPath)),
       ]);
+      if (isStale()) return;
+      if (isVoucherStale(requestedVoucherId)) return;
+      const pOverview = pickPayload(overview);
+      const pCreditDashboard = pickPayload(creditDashboard);
+      const pDiscount = pickPayload(discount);
+      const pVoucherRes = pickPayload(voucherRes);
+      const pUserProfile = pickPayload(userProfile);
+      const pDistributionRes = pickPayload(distributionRes);
+      const pTreeRes = pickPayload(treeRes);
+      const pBuyerRes = pickPayload(buyerRes);
 
       // Check if user is voucher admin from overview
-      const isAdmin = overview?.user?.isVoucherAdmin === true;
+      const isAdmin = pOverview?.user?.isVoucherAdmin === true;
       setIsVoucherAdmin(isAdmin);
 
       // Check if user has special credits (slots > 0)
       const userHasSpecialCredits =
-        overview?.user?.specialCredits?.availableSlots > 0;
+        pOverview?.user?.specialCredits?.availableSlots > 0;
       setHasSpecialCredits(userHasSpecialCredits);
 
       let specialCreditsData = null;
-      let networkSlotsData = null;
+      let specialActiveTransfers: any[] = [];
+      let networkSlotsData: any[] | null = null;
+      let voucherScopedSlots: any[] = [];
+      let slotsLoaded = false;
+      const voucherSlotsErrorMessage =
+        "Failed to load voucher slots for this campaign.";
 
       // When a specific voucher is selected, ALWAYS load per-voucher data
-      // for ALL users — ensures every voucher shows its own isolated stats (zeros for new vouchers)
-      if (isAdmin || userHasSpecialCredits || voucherId) {
+      // for ALL users — ensures every voucher shows its own isolated stats (zeros for new vouchers).
+      // NOTE: Non-admin users receive slots under the SENDER's campaign voucher ID (e.g. DoubtX).
+      // If they navigate via their OWN Instantlly voucher, filtering by that voucher ID would
+      // return 0 slots. So for non-admins we always load the global (unfiltered) view.
+      if (voucherId) {
         try {
           const voucherParam = voucherId ? `?voucherId=${voucherId}` : "";
-          const [specialCreditsRes, networkSlotsRes, slotsRes] = await Promise.all([
-            withRetry(() => api.get(`/mlm/special-credits/dashboard${voucherParam}`)),
-            withRetry(() => api.get(`/mlm/special-credits/network${voucherParam}`)),
-            withRetry(() => api.get(`/mlm/special-credits/slots${voucherParam}`)),
-          ]);
+          const specialDashboardPath = `/mlm/special-credits/dashboard${voucherParam}`;
+          const specialNetworkPath = `/mlm/special-credits/network${voucherParam}`;
+          const specialSlotsPath = `/mlm/special-credits/slots${voucherParam}`;
 
-          if (specialCreditsRes?.dashboard) {
-            specialCreditsData = specialCreditsRes.dashboard;
+          const [specialCreditsRes, networkSlotsRes, slotsRes] =
+            await Promise.all([
+              withRetry(() => api.get(specialDashboardPath)),
+              withRetry(() => api.get(specialNetworkPath)),
+              withRetry(() => api.get(specialSlotsPath)),
+            ]);
+          if (isStale()) return;
+          if (isVoucherStale(requestedVoucherId)) return;
+          const pSpecialCreditsRes = pickPayload(specialCreditsRes);
+          const pNetworkSlotsRes = pickPayload(networkSlotsRes);
+          const pSlotsRes = pickPayload(slotsRes);
+
+          if (pSpecialCreditsRes?.dashboard) {
+            specialCreditsData = pSpecialCreditsRes.dashboard;
             setSpecialCredits(specialCreditsData);
           }
+          specialActiveTransfers = getVoucherScopedTransfer(
+            pSpecialCreditsRes,
+            pSpecialCreditsRes?.dashboard,
+          );
 
-          if (Array.isArray(slotsRes?.slots)) {
-            syncSlotLocks(slotsRes.slots);
-            networkSlotsData = normalizeSlotsPayload(slotsRes.slots);
-            setNetworkSlots(networkSlotsData);
-          } else if (networkSlotsRes?.networkUsers) {
-            networkSlotsData = networkSlotsRes.networkUsers;
-            syncSlotLocks(networkSlotsRes.networkUsers);
-            setNetworkSlots(networkSlotsData);
+          const slotsPayload = pSlotsRes?.slots;
+          if (!Array.isArray(slotsPayload)) {
+            setNetworkSlots([]);
+            setSlotsSummary(null);
+            setSpecialCredits(null);
+            setSlotsLoading(false);
+            setTreeLoading(false);
+            setError(voucherSlotsErrorMessage);
+            return;
           }
+
+          voucherScopedSlots = slotsPayload;
+          setSlotsSummary(pSlotsRes?.summary ?? null);
+          if (Array.isArray(slotsPayload)) {
+            slotsLoaded = true;
+            syncSlotLocks(slotsPayload);
+            const normalizedSlots = normalizeSlotsPayload(slotsPayload);
+            const networkUsersBySlotNumber = new Map<number, any>();
+            (pNetworkSlotsRes?.networkUsers || []).forEach((slot: any) => {
+              const slotNumber = Number(slot?.slotNumber);
+              if (Number.isFinite(slotNumber)) {
+                networkUsersBySlotNumber.set(slotNumber, slot);
+              }
+            });
+            networkSlotsData = normalizedSlots.map((slot) => {
+              const networkSlot = networkUsersBySlotNumber.get(slot.slotNumber);
+              if (!networkSlot) {
+                return slot;
+              }
+              return {
+                ...slot,
+                name: networkSlot.name || slot.name,
+                phone: networkSlot.phone || slot.phone,
+                credits: networkSlot.credits ?? slot.credits,
+                recipientLevel:
+                  networkSlot.recipientLevel ?? slot.recipientLevel,
+                sentAt: networkSlot.sentAt || slot.sentAt,
+                isPlaceholder:
+                  networkSlot.isPlaceholder ?? slot.isPlaceholder,
+              };
+            });
+            setNetworkSlots(networkSlotsData);
+          } else {
+            setNetworkSlots([]);
+            setSlotsSummary(null);
+            setSpecialCredits(null);
+            setSlotsLoading(false);
+            setTreeLoading(false);
+            setError(voucherSlotsErrorMessage);
+            return;
+          }
+          setSlotsLoading(false);
         } catch (err) {
           console.error("Special credits load error", err);
+          clearMlmTransferState();
+          setSlotsLoading(false);
+          setNetworkSlots([]);
+          setSlotsSummary(null);
+          setSpecialCredits(null);
+          setTreeLoading(false);
+          setError(voucherSlotsErrorMessage);
+          return;
         }
+      } else {
+        setSlotsLoading(false);
+        setSlotsSummary(null);
+        setNetworkSlots([]);
+        setSpecialCredits(null);
       }
 
       if (voucherId) {
-        // Per-voucher mode: always show isolated data for THIS voucher only.
-        // Regular users with no slots assigned for this voucher see zeros + buy screen.
+        // Per-voucher mode: show isolated data for the selected voucher only.
         const totalSlotsForVoucher = specialCreditsData?.slots?.total ?? 0;
-        if (!isAdmin && totalSlotsForVoucher === 0) {
+        if (!isAdmin && totalSlotsForVoucher === 0 && !userHasSpecialCredits) {
           setShowBuyVoucherScreen(true);
+        } else {
+          setShowBuyVoucherScreen(false);
         }
+        const unlockedVoucherCredits =
+          getUnlockedSpecialCredits(voucherScopedSlots);
         setMetrics({
-          availableCredits: specialCreditsData?.specialCredits?.balance ?? 0,
+          availableCredits: unlockedVoucherCredits,
           totalVouchersTransferred:
             specialCreditsData?.specialCredits?.totalSent ?? 0,
           totalNetworkUsers: specialCreditsData?.slots?.used ?? 0,
@@ -274,7 +590,7 @@ export default function VoucherDashboard({
           currentDiscountPercent: 0,
           vouchersFigure: specialCreditsData?.vouchersFigure ?? 0,
         });
-      } else if (overview?.metrics) {
+      } else if (pOverview?.metrics) {
         // No specific voucher — global view (original behaviour)
         if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
           setMetrics({
@@ -287,57 +603,84 @@ export default function VoucherDashboard({
             currentDiscountPercent: 0,
             vouchersFigure:
               specialCreditsData.vouchersFigure ||
-              overview.metrics?.vouchersFigure ||
+              pOverview.metrics?.vouchersFigure ||
               0,
           });
         } else {
-          setMetrics(overview.metrics);
+          setMetrics(pOverview.metrics);
         }
       }
 
-      if (creditDashboard) {
-        syncDashboardTransfers(creditDashboard.activeTransfers || []);
+      if (pCreditDashboard) {
+        syncDashboardTransfers(
+          voucherId
+            ? specialActiveTransfers
+            : [
+                ...(pCreditDashboard.activeTransfers || []),
+                ...specialActiveTransfers,
+              ],
+        );
         setCreditStats({
-          totalCreditReceived: creditDashboard.totalCreditsReceived || 0,
-          totalCreditTransferred: creditDashboard.totalCreditsTransferred || 0,
-          totalCreditBalance: creditDashboard.creditBalance || 0,
-          creditTransferToEachPerson: creditDashboard.recentTransfers || [],
+          totalCreditReceived: pCreditDashboard.totalCreditsReceived || 0,
+          totalCreditTransferred: pCreditDashboard.totalCreditsTransferred || 0,
+          totalCreditBalance: pCreditDashboard.creditBalance || 0,
+          creditTransferToEachPerson: pCreditDashboard.recentTransfers || [],
           creditTransferredReceivedBack: 0,
-          activeCredits: creditDashboard.activeCredits || 0,
-          timers: creditDashboard.timers || [],
+          activeCredits: pCreditDashboard.activeCredits || 0,
+          timers: pCreditDashboard.timers || [],
         });
       }
 
-      if (discount?.summary) {
-        setDiscountSummary(discount.summary);
+      if (pDiscount?.summary) {
+        setDiscountSummary(pDiscount.summary);
       }
 
-      if (treeRes?.tree) {
-        setRootUser(mapTree(treeRes.tree));
+      if (pTreeRes?.tree) {
+        const treeRoot = mapTree(pTreeRes.tree);
+        // Hydrate creditsReceived from slots data for voucher mode
+        // (slots override only runs for global view below; voucher mode uses tree + slot credits)
+        if (networkSlotsData && networkSlotsData.length > 0) {
+          const creditByRecipientId = new Map<string, number>();
+          for (const slot of networkSlotsData) {
+            if (!slot.isPlaceholder && slot.id) {
+              creditByRecipientId.set(slot.id, slot.credits || 0);
+            }
+          }
+          const hydrateCredits = (node: any): any => ({
+            ...node,
+            creditsReceived:
+              creditByRecipientId.get(node.id) ?? node.creditsReceived,
+            directChildren: (node.directChildren || []).map(hydrateCredits),
+          });
+          setRootUser(hydrateCredits(treeRoot));
+        } else {
+          setRootUser(treeRoot);
+        }
       }
+      setTreeLoading(false);
 
-      // For users with special credits, override with network slots.
-      // When voucherId is set, ALWAYS use voucher-scoped data (even if empty)
-      // to prevent stale global tree from bleeding into a different voucher's view.
+      // For both global and voucher-scoped views, admin/special users use the
+      // slots-based grid so the full picture (available + sent) matches the admin panel.
       if (
-        (isAdmin || userHasSpecialCredits) &&
+        voucherId &&
+        slotsLoaded &&
         networkSlotsData !== null &&
-        (networkSlotsData.length > 0 || !!voucherId)
+        networkSlotsData.length > 0
       ) {
         // Show ALL slots — sent (filled) + available (placeholders)
-        // so admin sees the full 30-slot picture
+        // so the full slot count matches the admin panel
         const allSlots = networkSlotsData;
         const transferSnapshot = useMlmTransferStore.getState().transfersById;
         const slotLockSnapshot =
           useMlmTransferStore.getState().slotLocksBySlotNumber;
 
         const rootNode: NetworkUser = {
-          id: overview?.user?.id || "user",
-          name: overview?.user?.name || "User",
-          phone: overview?.user?.phone || "",
+          id: pOverview?.user?.id || "user",
+          name: pOverview?.user?.name || "User",
+          phone: pOverview?.user?.phone || "",
           avatar: undefined,
           creditsReceived: 0,
-          level: overview?.user?.level || 1,
+          level: pOverview?.user?.level || 1,
           directChildren: allSlots.map((slot: any) => ({
             ...(slot.transferId && transferSnapshot[slot.transferId]
               ? {
@@ -377,38 +720,42 @@ export default function VoucherDashboard({
           })),
           totalNetworkCount: allSlots.length,
           directCount: allSlots.length,
-          joinedDate: overview?.user?.createdAt || new Date().toISOString(),
+          joinedDate: pOverview?.user?.createdAt || new Date().toISOString(),
           commissionEarned: 0,
           isActive: true,
         };
         setRootUser(rootNode);
       }
 
-      if (voucherRes?.vouchers) {
-        setVouchers(voucherRes.vouchers);
+      if (pVoucherRes?.vouchers) {
+        setVouchers(normalizeDashboardVouchers(pVoucherRes));
       } else {
         setVouchers([]);
       }
 
       // Check if user is MLM user (came via introducer)
-      if (userProfile?.user?.introducerId) {
+      if (pUserProfile?.user?.introducerId) {
         setIsMLMUser(true);
       }
 
       // Load distribution credits
-      if (distributionRes?.credits) {
-        syncDistributionLocks(distributionRes.credits);
-        setDistributionCredits(distributionRes.credits);
+      if (pDistributionRes?.credits) {
+        syncDistributionLocks(pDistributionRes.credits);
+        setDistributionCredits(pDistributionRes.credits);
       }
 
-      if (buyerRes?.buyers) {
-        setDirectBuyers(buyerRes.buyers);
+      if (pBuyerRes?.buyers) {
+        setDirectBuyers(pBuyerRes.buyers);
       }
     } catch (err: any) {
+      if (isStale()) return;
       console.error("MLM dashboard load error", err);
       setError(err?.message || "Failed to load dashboard");
       setVouchers([]);
+      setTreeLoading(false);
+      setSlotsLoading(false);
     } finally {
+      if (isStale()) return;
       if (showLoader) {
         setLoading(false);
       }
@@ -423,8 +770,16 @@ export default function VoucherDashboard({
 
   useEffect(() => {
     if (!isActive) return;
+    activeVoucherIdRef.current = voucherId || null;
+    setSelectedCampaignVoucherId(voucherId || null);
+    setSelectedSlotNumber(null);
+    setSelectedSlotCredits(0);
+    clearMlmTransferState();
+    setNetworkSlots([]);
+    setSlotsSummary(null);
+    setSpecialCredits(null);
     loadDashboard(true);
-  }, [voucherId, isActive]);
+  }, [voucherId, isActive, clearMlmTransferState]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -485,11 +840,17 @@ export default function VoucherDashboard({
 
     // For users with special credits (admin OR regular users with slots) clicking placeholder slots
     if ((isVoucherAdmin || hasSpecialCredits) && user.isPlaceholder) {
-      // Extract slot number from name (e.g., "User 1" -> 1)
-      const match = user.name.match(/User (\d+)/);
-      const slotNumber = match ? parseInt(match[1]) : user.level;
+      const slotNumber = user.slotNumber ?? null;
+      if (!voucherId || !slotNumber) {
+        Alert.alert(
+          "Voucher Required",
+          "Please open a voucher campaign before sending special credits.",
+        );
+        return;
+      }
       setSelectedSlotNumber(slotNumber);
       setSelectedSlotCredits(user.creditsReceived || 0);
+      setSelectedCampaignVoucherId(voucherId);
       setSpecialTransferModalVisible(true);
     } else {
       // Regular transfer modal for non-placeholder users
@@ -530,21 +891,14 @@ export default function VoucherDashboard({
         // Admin can transfer vouchers to anyone - use admin transfer
         handleAdminVoucherTransfer();
       } else {
-        // Find an unredeemed voucher to transfer (exclude special voucher)
-        const unredeemedVoucher = vouchers.find(
-          (v) =>
-            v.redeemedStatus === "unredeemed" &&
-            v._id !== "instantlly-special-credits" &&
-            !v.isSpecialCreditsVoucher,
-        );
+        const { voucher, reason } = pickTransferableVoucher(vouchers, voucherId);
 
-        if (!unredeemedVoucher) {
-          // No vouchers available - this is normal, just return silently
+        if (!voucher) {
+          Alert.alert("Transfer Unavailable", reason || "No transferable voucher found.");
           return;
         }
 
-        // Set the voucher and show voucher transfer modal
-        setSelectedVoucher(unredeemedVoucher);
+        setSelectedVoucher(voucher);
         setVoucherTransferModalVisible(true);
       }
     } catch (error: any) {
@@ -581,23 +935,45 @@ export default function VoucherDashboard({
   };
 
   const handleSpecialCreditsTransfer = async (phone: string) => {
+    const scopedVoucherId = selectedCampaignVoucherId || voucherId || null;
     try {
+      if (!scopedVoucherId || !selectedSlotNumber) {
+        throw new Error("Missing voucher or slot context for special transfer.");
+      }
       await api.post("/mlm/special-credits/send", {
         recipientPhone: phone,
         slotNumber: selectedSlotNumber,
-        ...(voucherId ? { voucherId } : {}),
+        voucherId: scopedVoucherId,
       });
       await loadDashboard();
       setSpecialTransferModalVisible(false);
+      Alert.alert("Success", "Credits transferred successfully!");
     } catch (error: any) {
-      console.error("Special credits transfer error:", error);
-      const lockReason = error?.data?.lockReason || error?.data?.message;
-      const timeLeftSeconds = Number(error?.data?.timeLeftSeconds);
-      if (lockReason) {
-        const lockMessage = `${lockReason}${Number.isFinite(timeLeftSeconds) && timeLeftSeconds > 0 ? `\nTime left: ${formatSecondsCompact(timeLeftSeconds)}` : ""}`;
-        throw new Error(lockMessage);
+      console.error("Special credits transfer error:", {
+        voucherId: scopedVoucherId,
+        slotNumber: selectedSlotNumber,
+        error,
+      });
+      
+      // Extract error message from various possible locations
+      let errorMessage = "Failed to transfer credits. Please try again.";
+      
+      // Check different error structures
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error?.data?.lockReason) {
+        errorMessage = error.data.lockReason;
       }
-      throw error; // Re-throw to let modal handle error display
+      
+      // Add time left if available
+      const timeLeftSeconds = Number(error?.data?.timeLeftSeconds);
+      if (Number.isFinite(timeLeftSeconds) && timeLeftSeconds > 0) {
+        errorMessage += `\nTime left: ${formatSecondsCompact(timeLeftSeconds)}`;
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
@@ -621,6 +997,16 @@ export default function VoucherDashboard({
   };
 
   const handleAdminVoucherTransfer = () => {
+    if (!voucherId) {
+      Alert.alert(
+        "Voucher Required",
+        "Please open a voucher campaign before transferring admin vouchers.",
+      );
+      return;
+    }
+
+    setSelectedCampaignVoucherId(voucherId);
+
     // For admin, create a virtual voucher object to open the modal
     const adminVoucher: VoucherItem = {
       _id: "admin-voucher-transfer",
@@ -638,20 +1024,25 @@ export default function VoucherDashboard({
   };
 
   const handleVoucherTransferConfirm = async (
-    voucherId: string,
+    targetVoucherId: string,
     recipientPhone: string,
     quantity: number,
   ) => {
     try {
       // If admin is transferring, use special endpoint to create vouchers
-      if (isVoucherAdmin && voucherId === "admin-voucher-transfer") {
+      if (isVoucherAdmin && targetVoucherId === "admin-voucher-transfer") {
+        const scopedVoucherId = selectedCampaignVoucherId || voucherId || null;
+        if (!scopedVoucherId) {
+          throw new Error("Missing voucher context for admin voucher transfer.");
+        }
         await api.post(`/mlm/vouchers/admin-transfer`, {
           recipientPhone,
           quantity,
+          voucherId: scopedVoucherId,
         });
       } else {
         // Regular user transferring their own voucher
-        await api.post(`/mlm/vouchers/${voucherId}/transfer`, {
+        await api.post(`/mlm/vouchers/${targetVoucherId}/transfer`, {
           recipientPhone,
           quantity,
         });
@@ -743,7 +1134,10 @@ export default function VoucherDashboard({
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => loadDashboard(true)}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => loadDashboard(true)}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -767,12 +1161,29 @@ export default function VoucherDashboard({
     );
   }
 
-  const availableVouchers = vouchers.filter(
-    (v) => !v.redeemedStatus || v.redeemedStatus === "unredeemed",
-  ).length;
-  const redeemedVouchers = vouchers.filter(
-    (v) => v.redeemedStatus === "redeemed",
-  ).length;
+  const availableVouchers = vouchers.reduce((sum, voucher) => {
+    if (typeof voucher.quantity === "number") {
+      return sum + Math.max(0, voucher.quantity);
+    }
+    return sum + (!voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed" ? 1 : 0);
+  }, 0);
+  const redeemedVouchers = vouchers.reduce((sum, voucher) => {
+    if (typeof voucher.quantity === "number") {
+      return sum;
+    }
+    return sum + (voucher.redeemedStatus === "redeemed" ? 1 : 0);
+  }, 0);
+  const totalVoucherUnits = vouchers.reduce((sum, voucher) => {
+    if (typeof voucher.quantity === "number") {
+      return sum + Math.max(0, voucher.quantity);
+    }
+    return sum + 1;
+  }, 0);
+  const treeChildrenCount = rootUser?.directChildren?.length || 0;
+  const isSlotsEmpty =
+    !!voucherId && !slotsLoading && networkSlots.length === 0;
+  const isVoucherTreeEmpty =
+    !!voucherId && !treeLoading && treeChildrenCount === 0;
 
   return (
     <View style={styles.container}>
@@ -823,7 +1234,7 @@ export default function VoucherDashboard({
         {/* Voucher Stats Card - Clickable to Buy - HIDDEN for Admin and Special Credits Users */}
         {!isVoucherAdmin && !hasSpecialCredits && (
           <VoucherStatsCard
-            totalVouchers={vouchers.length}
+            totalVouchers={totalVoucherUnits}
             availableVouchers={availableVouchers}
             redeemedVouchers={redeemedVouchers}
             onBuyNowPress={() => setShowBuyVoucherScreen(true)}
@@ -859,6 +1270,26 @@ export default function VoucherDashboard({
 
         {/* Network Visualization */}
         <View style={styles.networkContainer}>
+          {isSlotsEmpty && (
+            <View style={styles.emptySlotsBanner}>
+              <Ionicons name="layers-outline" size={16} color="#9A3412" />
+              <Text style={styles.emptySlotsText}>
+                0 slots for this voucher campaign.
+              </Text>
+            </View>
+          )}
+          {isVoucherTreeEmpty && (
+            <View style={styles.emptyVoucherTreeBanner}>
+              <Ionicons
+                name="information-circle-outline"
+                size={16}
+                color="#1D4ED8"
+              />
+              <Text style={styles.emptyVoucherTreeText}>
+                No network yet for this voucher campaign.
+              </Text>
+            </View>
+          )}
           {viewMode === "list" ? (
             <NetworkListView
               rootUser={rootUser}
@@ -1066,5 +1497,56 @@ const styles = StyleSheet.create({
   networkContainer: {
     flex: 1,
     minHeight: scaleSize(400),
+  },
+  emptyVoucherTreeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#DBEAFE",
+    borderRadius: scaleSize(10),
+    paddingHorizontal: scaleSize(12),
+    paddingVertical: scaleSize(10),
+    marginBottom: scaleSize(12),
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  emptyVoucherTreeText: {
+    fontSize: scaleFontSize(13),
+    color: "#1E3A8A",
+    fontWeight: "600",
+  },
+  emptySlotsBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFEDD5",
+    borderRadius: scaleSize(10),
+    paddingHorizontal: scaleSize(12),
+    paddingVertical: scaleSize(10),
+    marginBottom: scaleSize(8),
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+  },
+  emptySlotsText: {
+    fontSize: scaleFontSize(13),
+    color: "#9A3412",
+    fontWeight: "600",
+  },
+  debugPanel: {
+    backgroundColor: "#111827",
+    borderRadius: scaleSize(10),
+    padding: scaleSize(10),
+    marginBottom: scaleSize(12),
+  },
+  debugTitle: {
+    color: "#F9FAFB",
+    fontSize: scaleFontSize(12),
+    fontWeight: "700",
+    marginBottom: scaleSize(6),
+  },
+  debugText: {
+    color: "#D1D5DB",
+    fontSize: scaleFontSize(11),
+    marginBottom: 2,
   },
 });

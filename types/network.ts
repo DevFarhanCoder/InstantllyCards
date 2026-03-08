@@ -64,6 +64,7 @@ export interface MlmActiveTransfer {
   slotCount?: number;
   slotAmount?: number;
   unlockedSlots?: number;
+  totalCreditAmount?: number;
 }
 
 export interface DistributionCredit {
@@ -73,6 +74,9 @@ export interface DistributionCredit {
   recipientPhone: string;
   recipientId: string;
   vouchersShared?: number;
+  status?: string;
+  requiredVoucherCount?: number;
+  currentVoucherCount?: number;
   isLocked?: boolean;
   timeLeft?: string;
   transferId?: string | null;
@@ -110,6 +114,16 @@ export interface VoucherItem {
   issueDate: string;
   expiryDate: string;
   redeemedStatus: "unredeemed" | "redeemed" | "expired";
+  companyLogo?: string;
+  companyName?: string;
+  phoneNumber?: string;
+  address?: string;
+  amount?: number;
+  discountPercentage?: number;
+  validity?: string;
+  voucherImage?: string;
+  description?: string;
+  isPublished?: boolean;
   redeemedAt?: string;
   source?: "purchase" | "transfer" | "admin";
   transferredFrom?: {
@@ -134,6 +148,8 @@ export interface VoucherItem {
     phone: string;
   };
   isSpecialCreditsVoucher?: boolean;
+  isBalanceVoucher?: boolean;
+  quantity?: number;
 }
 
 export interface VoucherHistory {
