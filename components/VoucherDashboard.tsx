@@ -73,6 +73,8 @@ export default function VoucherDashboard({
   const [detailUser, setDetailUser] = useState<NetworkUser | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<string[]>([]);
   const [showBuyVoucherScreen, setShowBuyVoucherScreen] = useState(false);
+  const [voucherRequiresPurchase, setVoucherRequiresPurchase] =
+    useState(false);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<NetworkMetrics>({
     availableCredits: 0,
@@ -245,6 +247,19 @@ export default function VoucherDashboard({
       return sum;
     }, 0);
 
+  const getActiveTransferVoucherCount = (transfers: any[] = []) => {
+    const prioritizedTransfer = transfers.find((transfer) => {
+      const count = Number(transfer?.currentVoucherCount);
+      return Number.isFinite(count) && count >= 0;
+    });
+
+    if (!prioritizedTransfer) {
+      return undefined;
+    }
+
+    return Number(prioritizedTransfer.currentVoucherCount);
+  };
+
   const getVoucherQuantity = (voucher: VoucherItem, payload: any) => {
     const directQuantity = Number(voucher?.quantity);
     if (Number.isFinite(directQuantity) && directQuantity >= 0) {
@@ -401,6 +416,49 @@ export default function VoucherDashboard({
     };
   };
 
+  const applyScopedTransferQuantity = (
+    items: VoucherItem[],
+    campaignVoucherId?: string | null,
+    scopedQuantity?: number,
+  ) => {
+    if (
+      !campaignVoucherId ||
+      !Number.isFinite(scopedQuantity) ||
+      Number(scopedQuantity) < 0
+    ) {
+      return items;
+    }
+
+    return items.map((voucher) =>
+      String(voucher._id) === String(campaignVoucherId)
+        ? {
+            ...voucher,
+            quantity: Number(scopedQuantity),
+            isBalanceVoucher: true,
+          }
+        : voucher,
+    );
+  };
+
+  const getScopedVoucherQuantity = (
+    items: VoucherItem[],
+    campaignVoucherId?: string | null,
+  ) => {
+    if (!campaignVoucherId) {
+      return undefined;
+    }
+
+    const scopedVoucher = items.find(
+      (voucher) => String(voucher._id) === String(campaignVoucherId),
+    );
+    const scopedQuantity = Number(scopedVoucher?.quantity);
+    if (Number.isFinite(scopedQuantity) && scopedQuantity >= 0) {
+      return scopedQuantity;
+    }
+
+    return undefined;
+  };
+
   const loadDashboard = async (showLoader: boolean = true) => {
     const requestId = ++requestSeqRef.current;
     const requestedVoucherId = voucherId || null;
@@ -411,6 +469,17 @@ export default function VoucherDashboard({
     try {
       if (showLoader) {
         setLoading(true);
+      }
+      if (voucherId) {
+        setVoucherRequiresPurchase(false);
+        setMetrics({
+          availableCredits: 0,
+          totalVouchersTransferred: 0,
+          totalNetworkUsers: 0,
+          virtualCommission: 0,
+          currentDiscountPercent: 0,
+          vouchersFigure: 0,
+        });
       }
       setTreeLoading(true);
       if (voucherId) {
@@ -450,6 +519,9 @@ export default function VoucherDashboard({
       const pDistributionRes = pickPayload(distributionRes);
       const pTreeRes = pickPayload(treeRes);
       const pBuyerRes = pickPayload(buyerRes);
+      const normalizedVouchers = pVoucherRes?.vouchers
+        ? normalizeDashboardVouchers(pVoucherRes)
+        : [];
 
       // Check if user is voucher admin from overview
       const isAdmin = pOverview?.user?.isVoucherAdmin === true;
@@ -571,10 +643,46 @@ export default function VoucherDashboard({
         setSpecialCredits(null);
       }
 
+      let scopedTransferQuantity: number | undefined;
+
       if (voucherId) {
         // Per-voucher mode: show isolated data for the selected voucher only.
         const totalSlotsForVoucher = specialCreditsData?.slots?.total ?? 0;
-        if (!isAdmin && totalSlotsForVoucher === 0 && !userHasSpecialCredits) {
+        const voucherListQuantity = getScopedVoucherQuantity(
+          normalizedVouchers,
+          voucherId,
+        );
+        const dashboardVoucherCount = Number(specialCreditsData?.vouchersFigure);
+        const activeTransferVoucherCount = getActiveTransferVoucherCount(
+          specialActiveTransfers,
+        );
+        const availableVoucherCount = Number.isFinite(voucherListQuantity)
+          ? voucherListQuantity
+          : Number.isFinite(dashboardVoucherCount)
+            ? dashboardVoucherCount
+            : activeTransferVoucherCount ?? 0;
+        console.log("[VOUCHER DASHBOARD DEBUG]", {
+          selectedVoucherId: voucherId,
+          voucherListQuantity,
+          dashboardVoucherCount,
+          activeTransferVoucherCount,
+          availableVoucherCount,
+          normalizedVouchers: normalizedVouchers.map((voucher) => ({
+            _id: voucher._id,
+            voucherNumber: voucher.voucherNumber,
+            companyName: voucher.companyName,
+            quantity: voucher.quantity ?? null,
+            isBalanceVoucher: voucher.isBalanceVoucher ?? null,
+          })),
+          slotsSummary: specialCreditsData?.slots ?? null,
+        });
+        scopedTransferQuantity = availableVoucherCount;
+        const shouldRequirePurchase =
+          !isAdmin &&
+          totalSlotsForVoucher === 0 &&
+          availableVoucherCount <= 0;
+        setVoucherRequiresPurchase(shouldRequirePurchase);
+        if (shouldRequirePurchase) {
           setShowBuyVoucherScreen(true);
         } else {
           setShowBuyVoucherScreen(false);
@@ -588,9 +696,10 @@ export default function VoucherDashboard({
           totalNetworkUsers: specialCreditsData?.slots?.used ?? 0,
           virtualCommission: specialCreditsData?.specialCredits?.totalSent ?? 0,
           currentDiscountPercent: 0,
-          vouchersFigure: specialCreditsData?.vouchersFigure ?? 0,
+          vouchersFigure: availableVoucherCount,
         });
       } else if (pOverview?.metrics) {
+        setVoucherRequiresPurchase(false);
         // No specific voucher — global view (original behaviour)
         if ((isAdmin || userHasSpecialCredits) && specialCreditsData) {
           setMetrics({
@@ -601,10 +710,7 @@ export default function VoucherDashboard({
             virtualCommission:
               specialCreditsData.specialCredits?.totalSent || 0,
             currentDiscountPercent: 0,
-            vouchersFigure:
-              specialCreditsData.vouchersFigure ||
-              pOverview.metrics?.vouchersFigure ||
-              0,
+            vouchersFigure: specialCreditsData.vouchersFigure || 0,
           });
         } else {
           setMetrics(pOverview.metrics);
@@ -727,8 +833,14 @@ export default function VoucherDashboard({
         setRootUser(rootNode);
       }
 
-      if (pVoucherRes?.vouchers) {
-        setVouchers(normalizeDashboardVouchers(pVoucherRes));
+      if (normalizedVouchers.length > 0) {
+        setVouchers(
+          applyScopedTransferQuantity(
+            normalizedVouchers,
+            voucherId,
+            scopedTransferQuantity,
+          ),
+        );
       } else {
         setVouchers([]);
       }
@@ -774,6 +886,17 @@ export default function VoucherDashboard({
     setSelectedCampaignVoucherId(voucherId || null);
     setSelectedSlotNumber(null);
     setSelectedSlotCredits(0);
+    setVoucherRequiresPurchase(false);
+    if (voucherId) {
+      setMetrics({
+        availableCredits: 0,
+        totalVouchersTransferred: 0,
+        totalNetworkUsers: 0,
+        virtualCommission: 0,
+        currentDiscountPercent: 0,
+        vouchersFigure: 0,
+      });
+    }
     clearMlmTransferState();
     setNetworkSlots([]);
     setSlotsSummary(null);
@@ -1144,20 +1267,23 @@ export default function VoucherDashboard({
     );
   }
 
+  if (showBuyVoucherScreen || voucherRequiresPurchase) {
+    return (
+      <BuyVoucherScreen
+        onBack={() => {
+          setShowBuyVoucherScreen(false);
+          setVoucherRequiresPurchase(false);
+        }}
+        onSuccess={loadDashboard}
+      />
+    );
+  }
+
   if (!rootUser) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorText}>No network data available</Text>
       </View>
-    );
-  }
-  // Show Buy Voucher Screen if navigated
-  if (showBuyVoucherScreen) {
-    return (
-      <BuyVoucherScreen
-        onBack={() => setShowBuyVoucherScreen(false)}
-        onSuccess={loadDashboard}
-      />
     );
   }
 
