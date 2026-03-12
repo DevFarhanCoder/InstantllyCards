@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Modal, 
   View, 
@@ -10,7 +10,8 @@ import {
   SafeAreaView,
   StatusBar,
   Dimensions,
-  Platform
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -148,8 +149,34 @@ const renderIcon = (subcategory: string) => {
   }
 };
 
-export default function SubCategoryModal({ visible, onClose, title, subcategories }) {
+type SubCategoryModalProps = {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  categoryName?: string;
+  subcategories: string[];
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+};
+
+export default function SubCategoryModal({
+  visible,
+  onClose,
+  title,
+  categoryName,
+  subcategories,
+  loading = false,
+  error = null,
+  onRetry,
+}: SubCategoryModalProps) {
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (!visible) {
+      setSearch('');
+    }
+  }, [visible, title]);
   
   const filtered = subcategories.filter(sub =>
     sub.toLowerCase().includes(search.toLowerCase())
@@ -159,7 +186,7 @@ export default function SubCategoryModal({ visible, onClose, title, subcategorie
     // Navigate to business cards page for this subcategory
     router.push({
       pathname: '/business-cards',
-      params: { subcategory, category: title }
+      params: { subcategory, category: categoryName || title }
     });
   };
 
@@ -223,40 +250,57 @@ export default function SubCategoryModal({ visible, onClose, title, subcategorie
         )}
 
         {/* Subcategories List */}
-        <FlatList
-          data={filtered}
-          keyExtractor={(item, index) => `${item}-${index}`}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="search-off" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No subcategories found</Text>
-              <Text style={styles.emptySubtext}>Try a different search term</Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.subcategoryItem}
-              onPress={() => handleSubcategoryPress(item)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.iconWrapper}>
-                <View style={styles.iconContainer}>
-                  {renderIcon(item)}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3B82F6" />
+            <Text style={styles.loadingText}>Loading subcategories...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="error-outline" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyText}>{error}</Text>
+            {onRetry ? (
+              <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item, index) => `${item}-${index}`}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="search-off" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyText}>No subcategories found</Text>
+                <Text style={styles.emptySubtext}>Try a different search term</Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity 
+                style={styles.subcategoryItem}
+                onPress={() => handleSubcategoryPress(item)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.iconWrapper}>
+                  <View style={styles.iconContainer}>
+                    {renderIcon(item)}
+                  </View>
                 </View>
-              </View>
-              <View style={styles.textContainer}>
-                <Text style={styles.subcategoryText} numberOfLines={2}>
-                  {item}
-                </Text>
-              </View>
-              <View style={styles.arrowContainer}>
-                <Ionicons name="chevron-forward" size={22} color="#6B7280" />
-              </View>
-            </TouchableOpacity>
-          )}
-        />
+                <View style={styles.textContainer}>
+                  <Text style={styles.subcategoryText} numberOfLines={2}>
+                    {item}
+                  </Text>
+                </View>
+                <View style={styles.arrowContainer}>
+                  <Ionicons name="chevron-forward" size={22} color="#6B7280" />
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -400,6 +444,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 80,
   },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 12,
+    fontWeight: '500',
+  },
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
@@ -410,5 +466,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     marginTop: 4,
+  },
+  retryButton: {
+    marginTop: 16,
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

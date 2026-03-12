@@ -27,6 +27,7 @@ import ReferralBanner from "../../components/ReferralBanner";
 import CategoryGrid from "../../components/CategoryGrid";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
 import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
+import { categoryQueryKeys, fetchCategorySummaries } from "../../lib/categories";
 
 type Card = any;
 
@@ -48,6 +49,15 @@ export default function Home() {
   const [userCredits, setUserCredits] = React.useState<number>(0);
   const [creditsLoading, setCreditsLoading] = React.useState(true);
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    console.log("[CATEGORIES] Prefetching categories for home");
+    queryClient.prefetchQuery({
+      queryKey: categoryQueryKeys.summaries,
+      queryFn: fetchCategorySummaries,
+      staleTime: 60 * 1000,
+    });
+  }, [queryClient]);
 
   // Fetch user name and ID for profile initial and filtering
   React.useEffect(() => {
@@ -161,8 +171,15 @@ export default function Home() {
   useFocusEffect(
     React.useCallback(() => {
       // console.log("🔄 Home: Screen focused, refreshing credits...");
+      console.log("[CATEGORIES] Home focused - refreshing category cache");
+      queryClient.invalidateQueries({
+        queryKey: categoryQueryKeys.summaries,
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["mobile-category-subcategories"],
+      });
       fetchCredits();
-    }, [fetchCredits]),
+    }, [fetchCredits, queryClient]),
   );
 
   // Contacts feed - only show cards from my contacts (privacy-focused)
@@ -220,6 +237,13 @@ export default function Home() {
   const handleRefresh = React.useCallback(() => {
     // console.log("🔄 Manual refresh triggered");
     fetchCredits(); // Also refresh credits
+    console.log("[CATEGORIES] Manual refresh - invalidating categories");
+    queryClient.invalidateQueries({
+      queryKey: categoryQueryKeys.summaries,
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["mobile-category-subcategories"],
+    });
     queryClient.invalidateQueries({
       queryKey: ["contacts-feed", currentUserId],
     });

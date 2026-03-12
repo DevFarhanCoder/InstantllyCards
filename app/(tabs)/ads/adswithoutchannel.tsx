@@ -191,18 +191,14 @@ export default function AdsWithoutChannel() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      console.log('📸 Image picked:', type, 'URI:', result.assets[0].uri);
       if (type === 'bottom') {
         setBottomImage(result.assets[0]);
         bottomImageRef = result.assets[0]; // Store in ref too
-        console.log('✅ Bottom image set, ref updated');
       } else {
         setFullscreenImage(result.assets[0]);
         fullscreenImageRef = result.assets[0]; // Store in ref too
-        console.log('✅ Fullscreen image set, ref updated');
       }
     } else {
-      console.log('❌ Image picker cancelled or failed');
     }
   };
 
@@ -270,8 +266,6 @@ export default function AdsWithoutChannel() {
     // Debug logging
     console.log('🔍 Submit Ad Validation Debug:');
     console.log('  adType:', adType);
-    console.log('  bottomImage state:', bottomImage ? 'EXISTS' : 'NULL');
-    console.log('  bottomImageRef:', bottomImageRef ? 'EXISTS' : 'NULL');
     console.log('  bottomVideo state:', bottomVideo ? 'EXISTS' : 'NULL');
     console.log('  bottomVideoRef:', bottomVideoRef ? 'EXISTS' : 'NULL');
 
@@ -280,8 +274,6 @@ export default function AdsWithoutChannel() {
     const actualFullscreenImage = fullscreenImage || fullscreenImageRef;
     const actualBottomVideo = bottomVideo || bottomVideoRef;
     const actualFullscreenVideo = fullscreenVideo || fullscreenVideoRef;
-
-    console.log('  actualBottomImage:', actualBottomImage ? 'EXISTS' : 'NULL');
 
     // Validation
     if (!title.trim()) {
@@ -373,28 +365,22 @@ export default function AdsWithoutChannel() {
         const fullscreenToUpload = fullscreenImage || fullscreenImageRef;
         
         // Add bottom image
-        console.log('📷 Adding bottom image to FormData:', imageToUpload);
-        console.log('📷 Bottom image URI:', imageToUpload?.uri);
         if (imageToUpload && imageToUpload.uri) {
           formData.append('images', {
             uri: imageToUpload.uri,
             type: 'image/jpeg',
             name: 'bottom.jpg'
           } as any);
-          console.log('✅ Bottom image appended to FormData');
         } else {
-          console.error('❌ Bottom image or URI is missing!');
         }
 
         // Add fullscreen image if selected
         if (fullscreenToUpload && fullscreenToUpload.uri) {
-          console.log('📷 Adding fullscreen image to FormData');
           formData.append('images', {
             uri: fullscreenToUpload.uri,
             type: 'image/jpeg',
             name: 'fullscreen.jpg'
           } as any);
-          console.log('✅ Fullscreen image appended to FormData');
         }
       } else {
         // Video ad - use refs as fallback
@@ -421,7 +407,6 @@ export default function AdsWithoutChannel() {
       }
 
       console.log('🚀 Sending request to:', endpoint);
-      console.log('📦 FormData construction complete');
       console.log('📋 Headers being sent:', JSON.stringify(headers));
       
       // IMPORTANT: Do NOT set Content-Type header - let fetch handle multipart/form-data boundaries
@@ -2362,3 +2347,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
 });
+

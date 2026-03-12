@@ -1,4 +1,4 @@
-// import React, { useState, useRef, useEffect } from 'react';
+﻿// import React, { useState, useRef, useEffect } from 'react';
 // import { View, Image, Dimensions, StyleSheet, ScrollView, Animated, TouchableOpacity, Modal, Text, Linking, Alert, ActivityIndicator } from 'react-native';
 // import { router } from 'expo-router';
 // import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,7 +14,7 @@
 
 // const FooterCarousel = () => {
 //   if (!SHOW_ADS) return null;
-//   console.log('🔄 FooterCarousel: Component mounting/re-rendering');
+//   console.log('ðŸ”„ FooterCarousel: Component mounting/re-rendering');
 
 //   // Use shared hook for cached ads (supports 100+ ads smoothly)
 //   const { data: allAds = [], isLoading } = useAds();
@@ -28,7 +28,6 @@
 //   const scrollViewRef = useRef<ScrollView>(null);
 //   const [showVideoModal, setShowVideoModal] = useState(false);
 
-//   console.log(`📊 FooterCarousel: Current ad count - ${allAds.length} ads (cached)`);
 
 //   // Preload banner images for instant display
 //   useEffect(() => {
@@ -40,7 +39,6 @@
 //           });
 //         }
 //       });
-//       console.log('🖼️ Preloading banner images for', allAds.length, 'ads');
 //     }
 //   }, [allAds.length]);
 
@@ -64,9 +62,9 @@
 //           // Calculate next ad index (resume from next ad)
 //           const nextIndex = (parsedIndex % allAds.length) + 1;
 //           startIndex = nextIndex;
-//           console.log(`📺 Resuming ads from index ${nextIndex} (last viewed: ${parsedIndex})`);
+//           console.log(`ðŸ“º Resuming ads from index ${nextIndex} (last viewed: ${parsedIndex})`);
 //         } else {
-//           console.log('📺 Starting ads from beginning');
+//           console.log('ðŸ“º Starting ads from beginning');
 //         }
 
 //         setActiveIndex(startIndex);
@@ -153,7 +151,7 @@
 
 //       try {
 //         await AsyncStorage.setItem('lastFooterAdIndex', adArrayIndex.toString());
-//         console.log(`💾 Saved ad position: ${adArrayIndex}`);
+//         console.log(`ðŸ’¾ Saved ad position: ${adArrayIndex}`);
 //       } catch (error) {
 //         console.error('Error saving ad position:', error);
 //       }
@@ -195,7 +193,7 @@
 //   };
 
 //   const handleAdPress = (ad: Ad) => {
-//     console.log('👆 Ad pressed:', {
+//     console.log('ðŸ‘† Ad pressed:', {
 //       id: ad.id,
 //       name: ad.name,
 //       isFromApi: ad.isFromApi,
@@ -208,7 +206,7 @@
 //     // } else {
 //     //   setShowSimpleModal(true); // Show simple popup
 //     // }
-//     setShowModal(true); // 🔥 FORCE OPEN
+//     setShowModal(true); // ðŸ”¥ FORCE OPEN
 
 //   };
 
@@ -227,14 +225,14 @@
 
 //       const phoneWithoutPlus = selectedAd.phone.replace('+', '');
 
-//       console.log('🔍 Searching for user with phone:', selectedAd.phone);
+//       console.log('ðŸ” Searching for user with phone:', selectedAd.phone);
 
 //       try {
 //         const response = await api.get(`/users/search-by-phone/${phoneWithoutPlus}`);
 
 //         if (response && response.user) {
 //           const user = response.user;
-//           console.log('✅ Found user in database:', user.name, user._id);
+//           console.log('âœ… Found user in database:', user.name, user._id);
 
 //           setShowModal(false);
 //           setIsSearching(false);
@@ -250,7 +248,7 @@
 //           });
 //         }
 //       } catch (error) {
-//         console.log('⚠️ User not found in database, opening chat with phone number');
+//         console.log('âš ï¸ User not found in database, opening chat with phone number');
 
 //         setShowModal(false);
 //         setIsSearching(false);
@@ -267,7 +265,7 @@
 //         });
 //       }
 //     } catch (error: any) {
-//       console.error('❌ Error opening chat:', error);
+//       console.error('âŒ Error opening chat:', error);
 //       setShowModal(false);
 //       setIsSearching(false);
 
@@ -294,7 +292,7 @@
 //       if (token) {
 //         const phoneWithoutPlus = selectedAd.phone.replace('+', '');
 
-//         console.log('📤 Sending default card to advertiser before call:', selectedAd.phone);
+//         console.log('ðŸ“¤ Sending default card to advertiser before call:', selectedAd.phone);
 
 //         try {
 //           // Search for user by phone number
@@ -302,7 +300,7 @@
 
 //           if (response && response.user) {
 //             const user = response.user;
-//             console.log('✅ Found advertiser in database:', user.name, user._id);
+//             console.log('âœ… Found advertiser in database:', user.name, user._id);
 
 //             // Get user's default card
 //             const cardsResponse = await api.get('/cards');
@@ -315,17 +313,17 @@
 //                 content: 'Here is my card',
 //                 cardId: defaultCard._id
 //               });
-//               console.log('✅ Default card sent to advertiser');
+//               console.log('âœ… Default card sent to advertiser');
 //             }
 //           } else {
-//             console.log('⚠️ Advertiser not found in database, skipping card send');
+//             console.log('âš ï¸ Advertiser not found in database, skipping card send');
 //           }
 //         } catch (error) {
-//           console.log('⚠️ Error sending card, proceeding to call anyway:', error);
+//           console.log('âš ï¸ Error sending card, proceeding to call anyway:', error);
 //         }
 //       }
 //     } catch (error) {
-//       console.error('❌ Error in pre-call card send:', error);
+//       console.error('âŒ Error in pre-call card send:', error);
 //     }
 
 //     // Close modal and make the call
@@ -391,21 +389,17 @@
 //         //       style={styles.image}
 //         //       resizeMode="cover"
 //         //       onLoadStart={() => {
-//         //         console.log(`🔄 [IMG LOAD] Starting to load image at index ${index}:`, {
 //         //           adId: ad.id,
 //         //           imageUri: ad.image?.uri || 'NO URI',
 //         //           isFromApi: ad.isFromApi
 //         //         });
 //         //       }}
 //         //       onError={(error) => {
-//         //         console.error(`❌ [IMG LOAD ERROR] Failed to load image at index ${index}:`);
 //         //         console.error(`   Ad ID: ${ad.id}`);
-//         //         console.error(`   Image URI: ${ad.image?.uri || 'NO URI'}`);
 //         //         console.error(`   Is from API: ${ad.isFromApi}`);
 //         //         console.error(`   Error:`, error.nativeEvent.error);
 //         //       }}
 //         //       onLoad={() => {
-//         //         console.log(`✅ [IMG LOAD SUCCESS] Image loaded at index ${index}:`, {
 //         //           adId: ad.id,
 //         //           imageUri: ad.image?.uri || 'NO URI',
 //         //           isFromApi: ad.isFromApi
@@ -459,7 +453,7 @@
 //         </View>
 //       </TouchableOpacity>
 
-//       {/* 🔼 2. FULLSCREEN MODAL – ONLY ONE */}
+//       {/* ðŸ”¼ 2. FULLSCREEN MODAL â€“ ONLY ONE */}
 //       <Modal visible={showVideoModal} animationType="fade" onRequestClose={()=>setShowVideoModal(false)}>
 //         <View style={{ flex: 1, backgroundColor: '#000' }}>
 
@@ -885,7 +879,7 @@
 // const API_BASE = 'https://api.instantllycards.com';
 
 // const IMAGE_SCROLL_TIME = 5000;
-// const VIDEO_MIN_TIME = 10000; // 🔥 10 sec
+// const VIDEO_MIN_TIME = 10000; // ðŸ”¥ 10 sec
 
 // const FooterCarousel = () => {
 //   const { data: ads = [], isLoading } = useAds();
@@ -900,7 +894,7 @@
 //   const infiniteAds =
 //     ads.length > 0 ? [ads[ads.length - 1], ...ads, ads[0]] : [];
 
-//   /* ───── Restore position ───── */
+//   /* â”€â”€â”€â”€â”€ Restore position â”€â”€â”€â”€â”€ */
 //   useEffect(() => {
 //     if (!ads.length) return;
 
@@ -919,7 +913,7 @@
 //     })();
 //   }, [ads.length]);
 
-//   /* ───── Auto scroll with video handling ───── */
+//   /* â”€â”€â”€â”€â”€ Auto scroll with video handling â”€â”€â”€â”€â”€ */
 //   useEffect(() => {
 //     if (!initialized || infiniteAds.length <= 1) return;
 
@@ -956,14 +950,14 @@
 //     };
 //   }, [activeIndex, initialized]);
 
-//   /* ───── Save index ───── */
+//   /* â”€â”€â”€â”€â”€ Save index â”€â”€â”€â”€â”€ */
 //   useEffect(() => {
 //     if (initialized) {
 //       AsyncStorage.setItem('footerAdIndex', String(activeIndex));
 //     }
 //   }, [activeIndex, initialized]);
 
-//   /* ───── Bottom media render ───── */
+//   /* â”€â”€â”€â”€â”€ Bottom media render â”€â”€â”€â”€â”€ */
 //   const renderBottomMedia = (ad: Ad, index: number) => {
 //     let url = ad.bottomMediaUrl;
 //     const type = ad.bottomMediaType;
@@ -989,7 +983,7 @@
 //     return <Image source={{ uri: url }} style={styles.media} />;
 //   };
 
-//   /* ───── Fullscreen media render ───── */
+//   /* â”€â”€â”€â”€â”€ Fullscreen media render â”€â”€â”€â”€â”€ */
 //   const renderFullscreenMedia = (ad: Ad) => {
 //     let url = ad.fullscreenMediaUrl || ad.bottomMediaUrl;
 //     const type = ad.fullscreenMediaType || ad.bottomMediaType;
@@ -1032,7 +1026,7 @@
 //             <View key={`${ad.id}-${index}`} style={styles.slide}>
 //               {renderBottomMedia(ad, index)}
 
-//               {/* 🔥 FIX: Transparent press layer */}
+//               {/* ðŸ”¥ FIX: Transparent press layer */}
 //               <Pressable
 //                 style={StyleSheet.absoluteFill}
 //                 onPress={() => {
@@ -1049,7 +1043,7 @@
 //         </ScrollView>
 //       )}
 
-//       {/* ───── FULLSCREEN MODAL ───── */}
+//       {/* â”€â”€â”€â”€â”€ FULLSCREEN MODAL â”€â”€â”€â”€â”€ */}
 //       <Modal visible={showModal} animationType="fade">
 //         <View style={styles.modal}>
 //           {selectedAd && renderFullscreenMedia(selectedAd)}
@@ -1075,7 +1069,7 @@
 
 // export default FooterCarousel;
 
-// /* ───── STYLES ───── */
+// /* â”€â”€â”€â”€â”€ STYLES â”€â”€â”€â”€â”€ */
 // const styles = StyleSheet.create({
 //   container: {
 //     position: 'absolute',
@@ -1163,7 +1157,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const IMAGE_TIME = 5000; // Auto-scroll delay for all ads
 
-/* 🔗 URL builder – ONLY http / https */
+/* ðŸ”— URL builder â€“ ONLY http / https */
 
 const buildUrl = (url?: string | null) => {
   if (!url) return null;
@@ -1188,7 +1182,7 @@ const buildUrl = (url?: string | null) => {
     return fixed;
   }
 
-  // console.warn("❌ Invalid media URL:", url);
+  // console.warn("âŒ Invalid media URL:", url);
   return null;
 };
 
@@ -1207,14 +1201,14 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [showModal, setShowModal] = useState(false);
   
-  // 🔒 Create stable data key to detect REAL data changes (not just array reference changes)
+  // ðŸ”’ Create stable data key to detect REAL data changes (not just array reference changes)
   const adsDataKey = useMemo(() => {
     if (ads.length === 0) return 'empty';
     // Create unique key from ad IDs to detect actual data changes
     return ads.map(ad => ad.id).join('-');
   }, [ads]);
   
-  // 🔒 Memoize infiniteAds to prevent recreation on every render
+  // ðŸ”’ Memoize infiniteAds to prevent recreation on every render
   const infiniteAds = useMemo(() => {
     if (ads.length === 0) return [];
     return [ads[ads.length - 1], ...ads, ads[0]];
@@ -1225,32 +1219,30 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     if (ads.length === 0) return;
     
     // console.log('');
-    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    // console.log('🎬 FOOTER CAROUSEL INITIALIZED');
-    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    // console.log(`📊 Total Ads Loaded: ${ads.length}`);
-    // console.log(`🔄 Carousel Mode: Sequential (1→2→3...→${ads.length}→1)`);
-    // console.log(`⏱️ Display Time: ${IMAGE_TIME/1000} seconds per ad`);
-    // console.log(`📈 Full Cycle Duration: ${(ads.length * IMAGE_TIME / 1000)} seconds (${Math.floor(ads.length * IMAGE_TIME / 60000)} min ${Math.floor((ads.length * IMAGE_TIME % 60000) / 1000)} sec)`);
+    // console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+    // console.log('ðŸŽ¬ FOOTER CAROUSEL INITIALIZED');
+    // console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+    // console.log(`ðŸ“Š Total Ads Loaded: ${ads.length}`);
+    // console.log(`ðŸ”„ Carousel Mode: Sequential (1â†’2â†’3...â†’${ads.length}â†’1)`);
     // console.log('');
-    // console.log('📋 AD SEQUENCE LIST:');
-    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // console.log('ðŸ“‹ AD SEQUENCE LIST:');
+    // console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
     
     ads.forEach((ad, index) => {
       const position = index + 1;
       // console.log(`  ${position.toString().padStart(3, '0')}. ${ad.title || ad.name || 'Untitled'} (ID: ${ad.id}, Phone: ${ad.phone || 'N/A'})`);
     });
     
-    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    // console.log('✅ Carousel will play in EXACT ORDER listed above');
-    // console.log('🔒 No randomization - Sequential play guaranteed');
-    // console.log('♻️  After last ad, automatically returns to first ad');
-    // console.log('🚫 Auto-scroll NEVER restarts once started');
-    // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+    // console.log('âœ… Carousel will play in EXACT ORDER listed above');
+    // console.log('ðŸ”’ No randomization - Sequential play guaranteed');
+    // console.log('â™»ï¸  After last ad, automatically returns to first ad');
+    // console.log('ðŸš« Auto-scroll NEVER restarts once started');
+    // console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
     // console.log('');
-  }, [adsDataKey]); // ✅ Only log when actual data changes, not on every render
+  }, [adsDataKey]); // âœ… Only log when actual data changes, not on every render
 
-  // ⚡ Preload fullscreen images for instant display
+  // âš¡ Preload fullscreen images for instant display
   useEffect(() => {
     if (ads.length === 0) return;
 
@@ -1272,22 +1264,21 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
           }
         }
       }
-      // console.log(`⚡ Preloaded ${preloadCount}/${ads.length} fullscreen images`);
     };
 
     preloadImages();
-  }, [adsDataKey]); // ✅ Only preload when actual data changes
+  }, [adsDataKey]); // âœ… Only preload when actual data changes
 
-  /* 🔁 Initialize carousel - ALWAYS START FROM BEGINNING FOR SEQUENTIAL PLAY */
+  /* ðŸ” Initialize carousel - ALWAYS START FROM BEGINNING FOR SEQUENTIAL PLAY */
   useEffect(() => {
     if (!ads.length || isLoading) return;
 
-    // ✅ Reset carousel ONLY when ads data actually changes (new ads loaded)
+    // âœ… Reset carousel ONLY when ads data actually changes (new ads loaded)
     // console.log('');
-    // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
-    // console.log('🔄 INITIALIZING CAROUSEL WITH NEW DATA');
-    // console.log(`🔄 Total ads to show: ${ads.length}`);
-    // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+    // console.log('ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„');
+    // console.log('ðŸ”„ INITIALIZING CAROUSEL WITH NEW DATA');
+    // console.log(`ðŸ”„ Total ads to show: ${ads.length}`);
+    // console.log('ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„');
     // console.log('');
     
     setActiveIndex(1); // Always start from first ad
@@ -1305,16 +1296,16 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
         animated: false,
       });
       setInitialized(true);
-      console.log('✅ Carousel initialized at position 1');
+      console.log('âœ… Carousel initialized at position 1');
     }, 100);
-  }, [adsDataKey, isLoading]); // ✅ Only reinitialize when actual data changes
+  }, [adsDataKey, isLoading]); // âœ… Only reinitialize when actual data changes
 
-  /* ⏱️ Auto scroll - NEVER RESTARTS ONCE STARTED */
+  /* â±ï¸ Auto scroll - NEVER RESTARTS ONCE STARTED */
   useEffect(() => {
-    // ✅ Only start auto-scroll once initialized and ads are loaded
+    // âœ… Only start auto-scroll once initialized and ads are loaded
     if (!initialized || infiniteAds.length <= 1) return;
 
-    // console.log('🚀 Starting auto-scroll sequence (will run continuously)');
+    // console.log('ðŸš€ Starting auto-scroll sequence (will run continuously)');
     
     // Clear any existing timer (safety check)
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -1324,7 +1315,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
         setActiveIndex((currentIndex) => {
           const next = currentIndex + 1;
           
-          // 🔍 DEBUG: Determine actual ad position in sequence (1-based)
+          // ðŸ” DEBUG: Determine actual ad position in sequence (1-based)
           let actualAdPosition: number;
           if (next === 0) {
             actualAdPosition = ads.length; // Last ad (duplicate)
@@ -1334,17 +1325,17 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
             actualAdPosition = next; // Current ad (1-based)
           }
           
-          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          // console.log(`🎯 AD TRANSITION: Moving from position ${currentIndex} to ${next}`);
-          // console.log(`📍 ACTUAL AD SEQUENCE: Now showing ad #${actualAdPosition} of ${ads.length}`);
+          // console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+          // console.log(`ðŸŽ¯ AD TRANSITION: Moving from position ${currentIndex} to ${next}`);
+          // console.log(`ðŸ“ ACTUAL AD SEQUENCE: Now showing ad #${actualAdPosition} of ${ads.length}`);
           
           const adToShow = infiniteAds[next];
           // if (adToShow) {
-          //   console.log(`📱 AD DETAILS: "${adToShow.title || adToShow.name || 'Unknown'}"`);
-          //   console.log(`📞 PHONE: ${adToShow.phone || 'No phone'}`);
-          //   console.log(`🆔 AD ID: ${adToShow.id}`);
+          //   console.log(`ðŸ“± AD DETAILS: "${adToShow.title || adToShow.name || 'Unknown'}"`);
+          //   console.log(`ðŸ“ž PHONE: ${adToShow.phone || 'No phone'}`);
+          //   console.log(`ðŸ†” AD ID: ${adToShow.id}`);
           // }
-          // console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          // console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
 
           // Scroll to next position
           scrollRef.current?.scrollTo({
@@ -1362,11 +1353,11 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
               });
             }, 300);
             // console.log('');
-            // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
-            // console.log('✅ CYCLE COMPLETE: All ads shown! Back to start!');
-            // console.log(`⏱️ Full cycle: ${ads.length} ads × 5 seconds = ${(ads.length * 5)} seconds total`);
-            // console.log('🔄 Restarting from ad #1');
-            // console.log('🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄🔄');
+            // console.log('ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„');
+            // console.log('âœ… CYCLE COMPLETE: All ads shown! Back to start!');
+            // console.log(`â±ï¸ Full cycle: ${ads.length} ads Ã— 5 seconds = ${(ads.length * 5)} seconds total`);
+            // console.log('ðŸ”„ Restarting from ad #1');
+            // console.log('ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„ðŸ”„');
             // console.log('');
             return 1; // Reset to first real ad
           } else {
@@ -1381,12 +1372,12 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
 
     // Log startup message
     // console.log('');
-    // console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
-    // console.log('🚀 AUTO-SCROLL STARTED - SEQUENTIAL MODE ACTIVE');
-    // console.log(`🚀 Will show ${ads.length} ads in order: 1→2→3...→${ads.length}→1`);
-    // console.log('🚀 Display interval: 5 seconds per ad');
-    // console.log('🚀 Auto-scroll will NEVER restart until data changes');
-    // console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
+    // console.log('ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€');
+    // console.log('ðŸš€ AUTO-SCROLL STARTED - SEQUENTIAL MODE ACTIVE');
+    // console.log(`ðŸš€ Will show ${ads.length} ads in order: 1â†’2â†’3...â†’${ads.length}â†’1`);
+    // console.log('ðŸš€ Display interval: 5 seconds per ad');
+    // console.log('ðŸš€ Auto-scroll will NEVER restart until data changes');
+    // console.log('ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€ðŸš€');
     // console.log('');
     
     startAutoScroll();
@@ -1398,22 +1389,22 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
         timerRef.current = null;
       }
     };
-  }, [initialized]); // ✅ CRITICAL: Only depends on 'initialized', never restarts mid-sequence
+  }, [initialized]); // âœ… CRITICAL: Only depends on 'initialized', never restarts mid-sequence
 
-  /* 💾 Save index - DISABLED: Always start from beginning */
+  /* ðŸ’¾ Save index - DISABLED: Always start from beginning */
   // useEffect(() => {
   //   if (initialized) {
   //     AsyncStorage.setItem("footerAdIndex", String(activeIndex));
   //   }
   // }, [activeIndex, initialized]);
 
-  /* � Handle manual scroll by user - UPDATE activeIndex to stay in sync */
+  /* ï¿½ Handle manual scroll by user - UPDATE activeIndex to stay in sync */
   const handleScrollEnd = (event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const newIndex = Math.round(contentOffsetX / SCREEN_WIDTH);
     
     if (newIndex !== activeIndex) {
-      // console.log(`👆 User scrolled manually from ${activeIndex} to ${newIndex}`);
+      // console.log(`ðŸ‘† User scrolled manually from ${activeIndex} to ${newIndex}`);
       setActiveIndex(newIndex);
       
       // Handle boundary: if user scrolled to duplicate first/last slide
@@ -1439,11 +1430,11 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     }
   };
 
-  /* �🖼️ Bottom media - Images only */
+  /* ï¿½ðŸ–¼ï¸ Bottom media - Images only */
   const renderBottomMedia = (ad: Ad) => {
     const url = buildUrl(ad.bottomMediaUrl);
 
-    // console.log("🖼️ Rendering bottom media:", {
+    // console.log("ðŸ–¼ï¸ Rendering bottom media:", {
     //   adId: ad.id,
     //   rawUrl: ad.bottomMediaUrl,
     //   builtUrl: url,
@@ -1451,7 +1442,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
     // });
 
     if (!url) {
-      // console.warn("⚠️ No valid URL for ad:", ad.id);
+      // console.warn("âš ï¸ No valid URL for ad:", ad.id);
       return (
         <View
           style={[
@@ -1475,21 +1466,14 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
         source={{ uri: url }}
         style={styles.media}
         resizeMode="cover"
-        onError={(e) => {
-          console.error("❌ Image load error:", {
-            adId: ad.id,
-            url,
-            error: e.nativeEvent.error,
-          });
-        }}
+        onError={() => {}}
         // onLoad={() => {
-        //   console.log("✅ Image loaded successfully:", ad.id);
         // }}
       />
     );
   };
 
-  /* 🖥️ Fullscreen media - Images only */
+  /* ðŸ–¥ï¸ Fullscreen media - Images only */
   const renderFullscreenMedia = (ad: Ad) => {
     const url = buildUrl(ad.fullscreenMediaUrl || ad.bottomMediaUrl);
 
@@ -1502,23 +1486,21 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
         source={{ uri: url }}
         style={styles.fullMedia}
         resizeMode="contain"
-        onError={(e) => {
-          console.error("❌ Fullscreen image error:", ad.id);
-        }}
+        onError={() => {}}
       />
     );
   };
 
   const handleChat = (ad: Ad | null) => {
     if (!ad?.phone) {
-      console.warn("❌ No phone number for chat");
+      console.warn("âŒ No phone number for chat");
       return;
     }
 
     // +91 remove + spaces remove
     const phoneOnly = ad.phone.replace(/\+/g, "").replace(/\s/g, "");
 
-    // console.log("💬 Opening chat with:", phoneOnly);
+    // console.log("ðŸ’¬ Opening chat with:", phoneOnly);
 
     setShowModal(false);
 
@@ -1567,11 +1549,11 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
             <View key={`${ad.id}-${index}`} style={styles.slide}>
               {renderBottomMedia(ad)}
 
-              {/* 🔥 Tap Layer */}
+              {/* ðŸ”¥ Tap Layer */}
               <Pressable
                 style={StyleSheet.absoluteFill}
                 onPress={() => {
-                  // console.log("🎯 Ad clicked:", {
+                  // console.log("ðŸŽ¯ Ad clicked:", {
                   //   id: ad.id,
                   //   name: ad.name,
                   //   hasFullscreenMediaUrl: !!ad.fullscreenMediaUrl,
@@ -1588,19 +1570,19 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
         </ScrollView>
       )}
 
-      {/* 🔲 FULLSCREEN MODAL */}
+      {/* ðŸ”² FULLSCREEN MODAL */}
       <Modal visible={showModal} animationType="fade">
         <View style={styles.modal}>
           {selectedAd && renderFullscreenMedia(selectedAd)}
 
-          {/* ❌ Close */}
+          {/* âŒ Close */}
           <Pressable style={styles.close} onPress={() => setShowModal(false)}>
             <Ionicons name="close" size={28} color="#fff" />
           </Pressable>
 
           {/* Horizontal Button Row */}
           <View style={styles.buttonRow}>
-            {/* 💬 Chat */}
+            {/* ðŸ’¬ Chat */}
             <Pressable
               style={[styles.ctaButton, { backgroundColor: "#3B82F6" }]}
               onPress={() => handleChat(selectedAd)}
@@ -1608,7 +1590,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
               <Text style={styles.ctaText}>Chat</Text>
             </Pressable>
 
-            {/* 📞 Call */}
+            {/* ðŸ“ž Call */}
             <Pressable
               style={[styles.ctaButton, { backgroundColor: "#10B981" }]}
               onPress={() => Linking.openURL(`tel:${selectedAd?.phone}`)}
@@ -1624,7 +1606,7 @@ const FooterCarousel: React.FC<FooterCarouselProps> = ({ showPromoteButton = fal
 
 export default FooterCarousel;
 
-/* ───── STYLES ───── */
+/* â”€â”€â”€â”€â”€ STYLES â”€â”€â”€â”€â”€ */
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
@@ -1702,3 +1684,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
