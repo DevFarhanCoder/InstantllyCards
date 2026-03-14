@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import api from '../lib/api';
-import type { CategoryNode } from './CategoryGrid';
+import { getCategoryChildren } from '../lib/categoryService';
+import type { CategoryNode } from '../types/category';
 
 const { width } = Dimensions.get('window');
 
@@ -68,16 +68,40 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
     }
     setLoadingId(targetNode._id);
     try {
-      const res = await api.get<{ success: boolean; data: CategoryNode[] }>(
-        `/categories/${targetNode._id}/children`
-      );
-      return res?.success && Array.isArray(res.data) ? res.data : [];
+      return await getCategoryChildren(targetNode._id);
     } catch {
       return [];
     } finally {
       setLoadingId(null);
     }
   }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadInitialChildren = async () => {
+      if (!visible || !node) {
+        return;
+      }
+
+      if ((node.children || []).length > 0) {
+        return;
+      }
+
+      const children = await fetchChildren(node);
+      if (isCancelled) {
+        return;
+      }
+
+      setStack([{ node: { ...node, children }, children }]);
+    };
+
+    loadInitialChildren();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [visible, node, fetchChildren]);
 
   // ── Handle pressing a child node ──
   const handleChildPress = async (child: CategoryNode) => {
