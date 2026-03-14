@@ -1,201 +1,231 @@
-import React, { useState } from 'react';
-import { 
-  Modal, 
-  View, 
-  Text, 
-  TextInput, 
-  FlatList, 
-  TouchableOpacity, 
-  StyleSheet, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
   SafeAreaView,
   StatusBar,
   Dimensions,
-  Platform
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { getCategoryChildren } from '../lib/categoryService';
+import type { CategoryNode } from '../types/category';
 
 const { width } = Dimensions.get('window');
 
-// Icon mapping for subcategories
-const getIconForSubcategory = (subcategory: string) => {
-  const name = subcategory.toLowerCase();
-  
-  // Automotive
-  if (name.includes('car') || name.includes('automobile')) return { type: 'FontAwesome5', name: 'car', size: 22 };
-  if (name.includes('taxi') || name.includes('cab')) return { type: 'Ionicons', name: 'car-sport', size: 24 };
-  if (name.includes('towing')) return { type: 'FontAwesome5', name: 'truck-pickup', size: 20 };
-  if (name.includes('transport')) return { type: 'FontAwesome5', name: 'truck', size: 22 };
-  if (name.includes('tempo')) return { type: 'Ionicons', name: 'bus', size: 24 };
-  
-  // Business
-  if (name.includes('chartered') || name.includes('accountant')) return { type: 'MaterialIcons', name: 'account-balance', size: 24 };
-  if (name.includes('lawyer') || name.includes('legal')) return { type: 'Ionicons', name: 'briefcase', size: 24 };
-  if (name.includes('event') || name.includes('wedding') || name.includes('party')) return { type: 'MaterialIcons', name: 'celebration', size: 24 };
-  if (name.includes('interior')) return { type: 'MaterialIcons', name: 'chair', size: 24 };
-  if (name.includes('packer') || name.includes('mover')) return { type: 'FontAwesome5', name: 'box', size: 22 };
-  if (name.includes('website') || name.includes('digital') || name.includes('sms')) return { type: 'Ionicons', name: 'globe', size: 24 };
-  if (name.includes('consultant') || name.includes('gst') || name.includes('tax')) return { type: 'MaterialIcons', name: 'business-center', size: 24 };
-  
-  // Construction
-  if (name.includes('borewell')) return { type: 'MaterialIcons', name: 'water-drop', size: 24 };
-  if (name.includes('builder') || name.includes('contractor')) return { type: 'FontAwesome5', name: 'hard-hat', size: 22 };
-  if (name.includes('carpenter')) return { type: 'FontAwesome5', name: 'hammer', size: 22 };
-  if (name.includes('electric')) return { type: 'Ionicons', name: 'flash', size: 24 };
-  if (name.includes('paint')) return { type: 'FontAwesome5', name: 'paint-roller', size: 22 };
-  if (name.includes('plumber')) return { type: 'FontAwesome5', name: 'wrench', size: 22 };
-  if (name.includes('kitchen')) return { type: 'MaterialIcons', name: 'kitchen', size: 24 };
-  if (name.includes('housekeeping') || name.includes('home service')) return { type: 'MaterialIcons', name: 'home-repair-service', size: 24 };
-  if (name.includes('waterproof')) return { type: 'Ionicons', name: 'water', size: 24 };
-  if (name.includes('concrete')) return { type: 'FontAwesome5', name: 'cube', size: 22 };
-  
-  // Education
-  if (name.includes('school')) return { type: 'Ionicons', name: 'school', size: 24 };
-  if (name.includes('play') || name.includes('kinder')) return { type: 'MaterialIcons', name: 'child-care', size: 24 };
-  if (name.includes('tutor') || name.includes('tutorial') || name.includes('coaching')) return { type: 'FontAwesome5', name: 'chalkboard-teacher', size: 20 };
-  if (name.includes('training')) return { type: 'MaterialIcons', name: 'model-training', size: 24 };
-  if (name.includes('language')) return { type: 'Ionicons', name: 'language', size: 24 };
-  if (name.includes('motor') || name.includes('driving')) return { type: 'FontAwesome5', name: 'car-side', size: 22 };
-  if (name.includes('overseas') || name.includes('abroad')) return { type: 'FontAwesome5', name: 'plane', size: 22 };
-  if (name.includes('yoga') || name.includes('wellness')) return { type: 'MaterialIcons', name: 'self-improvement', size: 24 };
-  
-  // Health
-  if (name.includes('physician') || name.includes('doctor') || name.includes('surgeon')) return { type: 'FontAwesome5', name: 'user-md', size: 22 };
-  if (name.includes('cardio')) return { type: 'FontAwesome5', name: 'heartbeat', size: 22 };
-  if (name.includes('child') || name.includes('paed')) return { type: 'MaterialIcons', name: 'child-friendly', size: 24 };
-  if (name.includes('dentist')) return { type: 'MaterialIcons', name: 'local-hospital', size: 24 };
-  if (name.includes('dermat') || name.includes('skin') || name.includes('hair')) return { type: 'Ionicons', name: 'person', size: 24 };
-  if (name.includes('ent') || name.includes('ear')) return { type: 'MaterialIcons', name: 'hearing', size: 24 };
-  if (name.includes('eye') || name.includes('ophthal')) return { type: 'Ionicons', name: 'eye', size: 24 };
-  if (name.includes('gastro')) return { type: 'MaterialIcons', name: 'medical-services', size: 24 };
-  if (name.includes('gynae') || name.includes('obstet')) return { type: 'MaterialIcons', name: 'pregnant-woman', size: 24 };
-  if (name.includes('neuro')) return { type: 'MaterialIcons', name: 'psychology', size: 24 };
-  if (name.includes('ortho') || name.includes('bone')) return { type: 'FontAwesome5', name: 'bone', size: 22 };
-  if (name.includes('ayurvedic')) return { type: 'FontAwesome5', name: 'leaf', size: 22 };
-  if (name.includes('homeo')) return { type: 'FontAwesome5', name: 'capsules', size: 22 };
-  if (name.includes('pathology') || name.includes('lab')) return { type: 'FontAwesome5', name: 'flask', size: 22 };
-  if (name.includes('physio')) return { type: 'MaterialIcons', name: 'accessible', size: 24 };
-  if (name.includes('vaccin')) return { type: 'FontAwesome5', name: 'syringe', size: 22 };
-  if (name.includes('hearing aid')) return { type: 'MaterialIcons', name: 'hearing', size: 24 };
-  
-  // Lifestyle
-  if (name.includes('astro')) return { type: 'Ionicons', name: 'star', size: 24 };
-  if (name.includes('beauty') || name.includes('salon')) return { type: 'MaterialIcons', name: 'face', size: 24 };
-  if (name.includes('makeup') || name.includes('bridal')) return { type: 'MaterialIcons', name: 'face-retouching-natural', size: 24 };
-  if (name.includes('dance')) return { type: 'Ionicons', name: 'musical-notes', size: 24 };
-  if (name.includes('music')) return { type: 'Ionicons', name: 'musical-note', size: 24 };
-  if (name.includes('fitness') || name.includes('gym')) return { type: 'FontAwesome5', name: 'dumbbell', size: 22 };
-  if (name.includes('photo') || name.includes('video')) return { type: 'Ionicons', name: 'camera', size: 24 };
-  if (name.includes('tattoo')) return { type: 'MaterialIcons', name: 'colorize', size: 24 };
-  if (name.includes('weight loss')) return { type: 'MaterialIcons', name: 'monitor-weight', size: 24 };
-  if (name.includes('movie')) return { type: 'Ionicons', name: 'film', size: 24 };
-  if (name.includes('night') || name.includes('parties')) return { type: 'MaterialIcons', name: 'nightlife', size: 24 };
-  
-  // Rentals
-  if (name.includes('bus')) return { type: 'Ionicons', name: 'bus', size: 24 };
-  if (name.includes('car') || name.includes('cab')) return { type: 'FontAwesome5', name: 'car', size: 22 };
-  if (name.includes('generator')) return { type: 'MaterialIcons', name: 'power', size: 24 };
-  if (name.includes('equipment')) return { type: 'FontAwesome5', name: 'toolbox', size: 22 };
-  if (name.includes('tempo')) return { type: 'FontAwesome5', name: 'truck', size: 22 };
-  
-  // Shopping
-  if (name.includes('cake') || name.includes('baker')) return { type: 'Ionicons', name: 'pizza', size: 24 };
-  if (name.includes('daily') || name.includes('grocer')) return { type: 'FontAwesome5', name: 'shopping-basket', size: 22 };
-  if (name.includes('florist') || name.includes('flower')) return { type: 'Ionicons', name: 'flower', size: 24 };
-  if (name.includes('restaurant') || name.includes('food')) return { type: 'Ionicons', name: 'restaurant', size: 24 };
-  if (name.includes('exchange') || name.includes('forex')) return { type: 'FontAwesome5', name: 'exchange-alt', size: 22 };
-  if (name.includes('furniture')) return { type: 'MaterialIcons', name: 'chair', size: 24 };
-  if (name.includes('wallpaper') || name.includes('decor')) return { type: 'MaterialIcons', name: 'wallpaper', size: 24 };
-  if (name.includes('water')) return { type: 'Ionicons', name: 'water', size: 24 };
-  if (name.includes('medical store') || name.includes('pharmac')) return { type: 'FontAwesome5', name: 'pills', size: 22 };
-  if (name.includes('optical') || name.includes('glasses')) return { type: 'FontAwesome5', name: 'glasses', size: 22 };
-  if (name.includes('pet')) return { type: 'FontAwesome5', name: 'paw', size: 22 };
-  if (name.includes('online shopping')) return { type: 'Ionicons', name: 'cart', size: 24 };
-  if (name.includes('t-shirt') || name.includes('printing')) return { type: 'Ionicons', name: 'shirt', size: 24 };
-  
-  // Technology
-  if (name.includes('cctv') || name.includes('security')) return { type: 'MaterialIcons', name: 'security', size: 24 };
-  if (name.includes('computer')) return { type: 'FontAwesome5', name: 'desktop', size: 22 };
-  if (name.includes('laptop')) return { type: 'FontAwesome5', name: 'laptop', size: 22 };
-  if (name.includes('mobile') || name.includes('internet')) return { type: 'Ionicons', name: 'phone-portrait', size: 24 };
-  if (name.includes('refrigerator') || name.includes('appliance')) return { type: 'MaterialIcons', name: 'kitchen', size: 24 };
-  if (name.includes('training') || name.includes('institute')) return { type: 'FontAwesome5', name: 'laptop-code', size: 20 };
-  if (name.includes('website') || name.includes('app')) return { type: 'Ionicons', name: 'code-slash', size: 24 };
-  
-  // Travel
-  if (name.includes('hotel')) return { type: 'FontAwesome5', name: 'hotel', size: 22 };
-  if (name.includes('resort')) return { type: 'FontAwesome5', name: 'umbrella-beach', size: 22 };
-  if (name.includes('hostel') || name.includes('pg')) return { type: 'FontAwesome5', name: 'bed', size: 22 };
-  if (name.includes('travel agent') || name.includes('tour')) return { type: 'FontAwesome5', name: 'suitcase', size: 22 };
-  if (name.includes('visa')) return { type: 'FontAwesome5', name: 'passport', size: 22 };
-  if (name.includes('air') || name.includes('flight')) return { type: 'FontAwesome5', name: 'plane', size: 22 };
-  if (name.includes('train')) return { type: 'FontAwesome5', name: 'train', size: 22 };
-  
-  // Default icon
-  return { type: 'MaterialIcons', name: 'business', size: 24 };
-};
+// ─────────────────────────────────────────────────────────────
+// Props
+// ─────────────────────────────────────────────────────────────
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  node: CategoryNode | null; // the parent node whose children we display
+}
 
-const renderIcon = (subcategory: string) => {
-  const icon = getIconForSubcategory(subcategory);
-  const iconColor = '#3B82F6'; // Blue color for icons
-  
-  if (icon.type === 'FontAwesome5') {
-    return <FontAwesome5 name={icon.name as any} size={icon.size} color={iconColor} />;
-  } else if (icon.type === 'Ionicons') {
-    return <Ionicons name={icon.name as any} size={icon.size} color={iconColor} />;
-  } else {
-    return <MaterialIcons name={icon.name as any} size={icon.size} color={iconColor} />;
-  }
-};
+// ─────────────────────────────────────────────────────────────
+// Breadcrumb entry
+// ─────────────────────────────────────────────────────────────
+interface Crumb {
+  node: CategoryNode;
+  children: CategoryNode[];
+}
 
-export default function SubCategoryModal({ visible, onClose, title, subcategories }) {
+// ─────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────
+export default function SubCategoryModal({ visible, onClose, node }: Props) {
   const [search, setSearch] = useState('');
-  
-  const filtered = subcategories.filter(sub =>
-    sub.toLowerCase().includes(search.toLowerCase())
-  );
+  const [stack, setStack] = useState<Crumb[]>([]);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  const handleSubcategoryPress = (subcategory: string) => {
-    // Navigate to business cards page for this subcategory
-    router.push({
-      pathname: '/business-cards',
-      params: { subcategory, category: title }
-    });
+  // Initialise stack whenever the root node changes
+  useEffect(() => {
+    if (!visible || !node) {
+      setStack([]);
+      setSearch('');
+      return;
+    }
+    // Seed stack with the root node + its already-loaded children
+    setStack([{ node, children: node.children ?? [] }]);
+    setSearch('');
+  }, [visible, node]);
+
+  // Current level = top of stack
+  const current = stack[stack.length - 1] ?? null;
+
+  // ── Fetch children on-demand (if not already loaded) ──
+  const fetchChildren = useCallback(async (targetNode: CategoryNode): Promise<CategoryNode[]> => {
+    // Already loaded in tree
+    if (targetNode.children && targetNode.children.length > 0) {
+      return targetNode.children;
+    }
+    setLoadingId(targetNode._id);
+    try {
+      return await getCategoryChildren(targetNode._id);
+    } catch {
+      return [];
+    } finally {
+      setLoadingId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadInitialChildren = async () => {
+      if (!visible || !node) {
+        return;
+      }
+
+      if ((node.children || []).length > 0) {
+        return;
+      }
+
+      const children = await fetchChildren(node);
+      if (isCancelled) {
+        return;
+      }
+
+      setStack([{ node: { ...node, children }, children }]);
+    };
+
+    loadInitialChildren();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [visible, node, fetchChildren]);
+
+  // ── Handle pressing a child node ──
+  const handleChildPress = async (child: CategoryNode) => {
+    // If this child has sub-categories → drill down
+    const hasChildren =
+      (child.children && child.children.length > 0) ||
+      // We don't know yet — check subcategoryCount or just try fetching
+      child.level < 3; // allow up to level 3 depth exploration
+
+    // Always try fetching children; if none → go to business-cards
+    const children = await fetchChildren(child);
+
+    if (children.length > 0) {
+      setStack((prev) => [...prev, { node: child, children }]);
+      setSearch('');
+    } else {
+      // Leaf node → navigate to business cards
+      const categoryPath = [...stack.map((s) => s.node.name), child.name].join(' > ');
+      router.push({
+        pathname: '/business-cards',
+        params: {
+          subcategory: child.name,
+          subcategoryId: child._id,
+          category: stack[0]?.node.name ?? child.name,
+          categoryId: stack[0]?.node._id ?? child._id,
+          categoryPath,
+        },
+      });
+      handleClose();
+    }
   };
 
+  // ── Navigate back one level ──
+  const handleBack = () => {
+    if (stack.length <= 1) {
+      handleClose();
+    } else {
+      setStack((prev) => prev.slice(0, -1));
+      setSearch('');
+    }
+  };
+
+  const handleClose = () => {
+    setStack([]);
+    setSearch('');
+    onClose();
+  };
+
+  // ── Filtered list ──
+  const allItems = current?.children ?? [];
+  const filtered = search.trim()
+    ? allItems.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+    : allItems;
+
+  // ── Title ──
+  const title = current?.node.name ?? '';
+
+  // ─────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────
   return (
-    <Modal 
-      visible={visible} 
-      animationType="slide" 
+    <Modal
+      visible={visible}
+      animationType="slide"
       transparent={false}
       statusBarTranslucent={false}
+      onRequestClose={handleBack}
     >
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-        
-        {/* Header */}
+
+        {/* ── Header ── */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <TouchableOpacity 
-              style={styles.backButton} 
-              onPress={onClose}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="arrow-back" size={24} color="#1F2937" />
             </TouchableOpacity>
             <View style={styles.titleContainer}>
-              <Text style={styles.title} numberOfLines={2}>{title}</Text>
+              <Text style={styles.titleEmoji}>{current?.node.icon ?? '📁'}</Text>
+              <Text style={styles.title} numberOfLines={1}>{title}</Text>
             </View>
           </View>
+
+          {/* ── Breadcrumb ── */}
+          {stack.length > 1 && (
+            <View style={styles.breadcrumbRow}>
+              {stack.map((crumb, idx) => (
+                <React.Fragment key={crumb.node._id}>
+                  {idx > 0 && (
+                    <Ionicons name="chevron-forward" size={12} color="#9CA3AF" style={styles.breadcrumbChevron} />
+                  )}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setStack((prev) => prev.slice(0, idx + 1));
+                      setSearch('');
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.breadcrumbText,
+                        idx === stack.length - 1 && styles.breadcrumbActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {crumb.node.name}
+                    </Text>
+                  </TouchableOpacity>
+                </React.Fragment>
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* Search Bar */}
+        {/* ── Search ── */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
+            <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search subcategories..."
+              placeholder="Search..."
               placeholderTextColor="#9CA3AF"
               value={search}
               onChangeText={setSearch}
@@ -203,59 +233,81 @@ export default function SubCategoryModal({ visible, onClose, title, subcategorie
               autoCorrect={false}
             />
             {search.length > 0 && (
-              <TouchableOpacity 
-                onPress={() => setSearch('')}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* Results Count */}
+        {/* ── Results count ── */}
         {search.length > 0 && (
           <View style={styles.resultsContainer}>
             <Text style={styles.resultsText}>
-              {filtered.length} {filtered.length === 1 ? 'result' : 'results'} found
+              {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
             </Text>
           </View>
         )}
 
-        {/* Subcategories List */}
+        {/* ── List ── */}
         <FlatList
           data={filtered}
-          keyExtractor={(item, index) => `${item}-${index}`}
+          keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="search-off" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No subcategories found</Text>
-              <Text style={styles.emptySubtext}>Try a different search term</Text>
+              <Ionicons name="folder-open-outline" size={56} color="#D1D5DB" />
+              <Text style={styles.emptyText}>
+                {search ? 'No results found' : 'No sub-categories yet'}
+              </Text>
+              {search ? (
+                <Text style={styles.emptySubtext}>Try a different search term</Text>
+              ) : null}
             </View>
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.subcategoryItem}
-              onPress={() => handleSubcategoryPress(item)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.iconWrapper}>
+          renderItem={({ item }) => {
+            const hasKnownChildren =
+              (item.children && item.children.length > 0);
+            const isLoading = loadingId === item._id;
+
+            return (
+              <TouchableOpacity
+                style={styles.subcategoryItem}
+                onPress={() => handleChildPress(item)}
+                activeOpacity={0.7}
+                disabled={isLoading}
+              >
+                {/* Icon */}
                 <View style={styles.iconContainer}>
-                  {renderIcon(item)}
+                  <Text style={styles.itemEmoji}>{item.icon || '📁'}</Text>
                 </View>
-              </View>
-              <View style={styles.textContainer}>
-                <Text style={styles.subcategoryText} numberOfLines={2}>
-                  {item}
-                </Text>
-              </View>
-              <View style={styles.arrowContainer}>
-                <Ionicons name="chevron-forward" size={22} color="#6B7280" />
-              </View>
-            </TouchableOpacity>
-          )}
+
+                {/* Name + child count */}
+                <View style={styles.textContainer}>
+                  <Text style={styles.subcategoryText} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  {hasKnownChildren && (
+                    <Text style={styles.childCount}>
+                      {item.children.length} sub-categor{item.children.length === 1 ? 'y' : 'ies'}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Arrow / Loader */}
+                <View style={styles.arrowContainer}>
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#7C3AED" />
+                  ) : hasKnownChildren ? (
+                    <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
+                  ) : (
+                    <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
         />
       </SafeAreaView>
     </Modal>
@@ -263,9 +315,9 @@ export default function SubCategoryModal({ visible, onClose, title, subcategorie
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F9FAFB' 
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
   },
   header: {
     backgroundColor: '#fff',
@@ -273,22 +325,15 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     paddingTop: Platform.OS === 'android' ? 50 : 40,
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
+      android: { elevation: 2 },
     }),
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     minHeight: 56,
   },
   backButton: {
@@ -297,17 +342,41 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flex: 1,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  title: { 
-    fontSize: 20, 
-    fontWeight: '700', 
+  titleEmoji: {
+    fontSize: 22,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
     color: '#1F2937',
-    lineHeight: 26,
+    flex: 1,
+  },
+  breadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    flexWrap: 'nowrap',
+  },
+  breadcrumbText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    maxWidth: width / 4,
+  },
+  breadcrumbActive: {
+    color: '#7C3AED',
+    fontWeight: '600',
+  },
+  breadcrumbChevron: {
+    marginHorizontal: 4,
   },
   searchContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: '#fff',
   },
   searchBar: {
@@ -320,27 +389,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  searchIcon: {
-    marginRight: 8,
-  },
+  searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: '#1F2937',
     padding: 0,
-    paddingVertical: 2,
   },
   resultsContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F3F4F6',
   },
   resultsText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
-    fontWeight: '500',
   },
   listContainer: {
     paddingTop: 8,
@@ -351,48 +416,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     marginHorizontal: 16,
-    marginVertical: 6,
-    paddingVertical: 16,
+    marginVertical: 5,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4 },
+      android: { elevation: 2 },
     }),
-  },
-  iconWrapper: {
-    marginRight: 16,
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F5F3FF',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 14,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: '#EDE9FE',
+  },
+  itemEmoji: {
+    fontSize: 24,
   },
   textContainer: {
     flex: 1,
     justifyContent: 'center',
   },
-  subcategoryText: { 
-    fontSize: 16,
+  subcategoryText: {
+    fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
-    lineHeight: 22,
+    lineHeight: 21,
+  },
+  childCount: {
+    fontSize: 12,
+    color: '#7C3AED',
+    marginTop: 2,
   },
   arrowContainer: {
-    marginLeft: 12,
+    marginLeft: 10,
     justifyContent: 'center',
+    width: 24,
+    alignItems: 'center',
   },
   emptyContainer: {
     flex: 1,
@@ -401,13 +467,13 @@ const styles = StyleSheet.create({
     paddingVertical: 80,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: '#6B7280',
-    marginTop: 16,
+    marginTop: 14,
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#9CA3AF',
     marginTop: 4,
   },
