@@ -73,8 +73,7 @@ export default function VoucherDashboard({
   const [detailUser, setDetailUser] = useState<NetworkUser | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<string[]>([]);
   const [showBuyVoucherScreen, setShowBuyVoucherScreen] = useState(false);
-  const [voucherRequiresPurchase, setVoucherRequiresPurchase] =
-    useState(false);
+  const [voucherRequiresPurchase, setVoucherRequiresPurchase] = useState(false);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<NetworkMetrics>({
     availableCredits: 0,
@@ -240,7 +239,8 @@ export default function VoucherDashboard({
 
   const getUnlockedSpecialCredits = (slots: any[] = []) =>
     slots.reduce((sum, slot) => {
-      const isAvailable = slot?.status === "available" || slot?.isAvailable === true;
+      const isAvailable =
+        slot?.status === "available" || slot?.isAvailable === true;
       if (isAvailable && slot?.isLocked === false) {
         return sum + (Number(slot?.creditAmount ?? slot?.credits) || 0);
       }
@@ -288,7 +288,9 @@ export default function VoucherDashboard({
   };
 
   const normalizeDashboardVouchers = (payload: any): VoucherItem[] => {
-    const rawVouchers = Array.isArray(payload?.vouchers) ? payload.vouchers : [];
+    const rawVouchers = Array.isArray(payload?.vouchers)
+      ? payload.vouchers
+      : [];
     const countBasedById = new Map<string, VoucherItem>();
     const legacyById = new Map<string, VoucherItem>();
 
@@ -334,20 +336,24 @@ export default function VoucherDashboard({
   ) => {
     const scopedVoucher =
       campaignVoucherId != null
-        ? items.find((voucher) => String(voucher._id) === String(campaignVoucherId))
+        ? items.find(
+            (voucher) => String(voucher._id) === String(campaignVoucherId),
+          )
         : undefined;
 
     if (scopedVoucher) {
       if (
         typeof scopedVoucher.quantity === "number" &&
         scopedVoucher.quantity > 0 &&
-        (scopedVoucher.isPublished === true || scopedVoucher.isBalanceVoucher === true)
+        (scopedVoucher.isPublished === true ||
+          scopedVoucher.isBalanceVoucher === true)
       ) {
         return { voucher: scopedVoucher, reason: null };
       }
 
       if (
-        (scopedVoucher.quantity === undefined || scopedVoucher.quantity === null) &&
+        (scopedVoucher.quantity === undefined ||
+          scopedVoucher.quantity === null) &&
         (!scopedVoucher.redeemedStatus ||
           scopedVoucher.redeemedStatus === "unredeemed") &&
         scopedVoucher._id !== "instantlly-special-credits" &&
@@ -610,8 +616,7 @@ export default function VoucherDashboard({
                 recipientLevel:
                   networkSlot.recipientLevel ?? slot.recipientLevel,
                 sentAt: networkSlot.sentAt || slot.sentAt,
-                isPlaceholder:
-                  networkSlot.isPlaceholder ?? slot.isPlaceholder,
+                isPlaceholder: networkSlot.isPlaceholder ?? slot.isPlaceholder,
               };
             });
             setNetworkSlots(networkSlotsData);
@@ -652,7 +657,9 @@ export default function VoucherDashboard({
           normalizedVouchers,
           voucherId,
         );
-        const dashboardVoucherCount = Number(specialCreditsData?.vouchersFigure);
+        const dashboardVoucherCount = Number(
+          specialCreditsData?.vouchersFigure,
+        );
         const activeTransferVoucherCount = getActiveTransferVoucherCount(
           specialActiveTransfers,
         );
@@ -660,7 +667,7 @@ export default function VoucherDashboard({
           ? voucherListQuantity
           : Number.isFinite(dashboardVoucherCount)
             ? dashboardVoucherCount
-            : activeTransferVoucherCount ?? 0;
+            : (activeTransferVoucherCount ?? 0);
         console.log("[VOUCHER DASHBOARD DEBUG]", {
           selectedVoucherId: voucherId,
           voucherListQuantity,
@@ -678,9 +685,7 @@ export default function VoucherDashboard({
         });
         scopedTransferQuantity = availableVoucherCount;
         const shouldRequirePurchase =
-          !isAdmin &&
-          totalSlotsForVoucher === 0 &&
-          availableVoucherCount <= 0;
+          !isAdmin && totalSlotsForVoucher === 0 && availableVoucherCount <= 0;
         setVoucherRequiresPurchase(shouldRequirePurchase);
         if (shouldRequirePurchase) {
           setShowBuyVoucherScreen(true);
@@ -1014,10 +1019,16 @@ export default function VoucherDashboard({
         // Admin can transfer vouchers to anyone - use admin transfer
         handleAdminVoucherTransfer();
       } else {
-        const { voucher, reason } = pickTransferableVoucher(vouchers, voucherId);
+        const { voucher, reason } = pickTransferableVoucher(
+          vouchers,
+          voucherId,
+        );
 
         if (!voucher) {
-          Alert.alert("Transfer Unavailable", reason || "No transferable voucher found.");
+          Alert.alert(
+            "Transfer Unavailable",
+            reason || "No transferable voucher found.",
+          );
           return;
         }
 
@@ -1061,7 +1072,9 @@ export default function VoucherDashboard({
     const scopedVoucherId = selectedCampaignVoucherId || voucherId || null;
     try {
       if (!scopedVoucherId || !selectedSlotNumber) {
-        throw new Error("Missing voucher or slot context for special transfer.");
+        throw new Error(
+          "Missing voucher or slot context for special transfer.",
+        );
       }
       await api.post("/mlm/special-credits/send", {
         recipientPhone: phone,
@@ -1077,10 +1090,10 @@ export default function VoucherDashboard({
         slotNumber: selectedSlotNumber,
         error,
       });
-      
+
       // Extract error message from various possible locations
       let errorMessage = "Failed to transfer credits. Please try again.";
-      
+
       // Check different error structures
       if (error?.message) {
         errorMessage = error.message;
@@ -1089,13 +1102,13 @@ export default function VoucherDashboard({
       } else if (error?.data?.lockReason) {
         errorMessage = error.data.lockReason;
       }
-      
+
       // Add time left if available
       const timeLeftSeconds = Number(error?.data?.timeLeftSeconds);
       if (Number.isFinite(timeLeftSeconds) && timeLeftSeconds > 0) {
         errorMessage += `\nTime left: ${formatSecondsCompact(timeLeftSeconds)}`;
       }
-      
+
       throw new Error(errorMessage);
     }
   };
@@ -1130,15 +1143,20 @@ export default function VoucherDashboard({
 
     setSelectedCampaignVoucherId(voucherId);
 
+    // Look up the actual voucher to get its real MRP and expiry
+    const matchedVoucher = vouchers.find(
+      (v) => String(v._id) === String(voucherId),
+    );
+
     // For admin, create a virtual voucher object to open the modal
     const adminVoucher: VoucherItem = {
       _id: "admin-voucher-transfer",
       voucherNumber: "ADMIN-TRANSFER",
-      MRP: 1200,
-      issueDate: new Date().toISOString(),
-      expiryDate: new Date(
-        Date.now() + 365 * 24 * 60 * 60 * 1000,
-      ).toISOString(),
+      MRP: matchedVoucher?.MRP ?? 1200,
+      issueDate: matchedVoucher?.issueDate ?? new Date().toISOString(),
+      expiryDate:
+        matchedVoucher?.expiryDate ??
+        new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       redeemedStatus: "unredeemed",
       isSpecialCreditsVoucher: true,
     };
@@ -1156,7 +1174,9 @@ export default function VoucherDashboard({
       if (isVoucherAdmin && targetVoucherId === "admin-voucher-transfer") {
         const scopedVoucherId = selectedCampaignVoucherId || voucherId || null;
         if (!scopedVoucherId) {
-          throw new Error("Missing voucher context for admin voucher transfer.");
+          throw new Error(
+            "Missing voucher context for admin voucher transfer.",
+          );
         }
         await api.post(`/mlm/vouchers/admin-transfer`, {
           recipientPhone,
@@ -1291,7 +1311,12 @@ export default function VoucherDashboard({
     if (typeof voucher.quantity === "number") {
       return sum + Math.max(0, voucher.quantity);
     }
-    return sum + (!voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed" ? 1 : 0);
+    return (
+      sum +
+      (!voucher.redeemedStatus || voucher.redeemedStatus === "unredeemed"
+        ? 1
+        : 0)
+    );
   }, 0);
   const redeemedVouchers = vouchers.reduce((sum, voucher) => {
     if (typeof voucher.quantity === "number") {
