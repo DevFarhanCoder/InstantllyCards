@@ -19,53 +19,53 @@ import { getCategoryChildren } from '../lib/categoryService';
 import type { CategoryNode } from '../types/category';
 
 const { width } = Dimensions.get('window');
+const FALLBACK_ICON = '\uD83D\uDCC1';
+const GRID_COLUMNS = 4;
 
-// ─────────────────────────────────────────────────────────────
-// Props
-// ─────────────────────────────────────────────────────────────
+const getSingleIcon = (icon?: string) => {
+  const trimmedIcon = icon?.trim();
+  if (!trimmedIcon) {
+    return FALLBACK_ICON;
+  }
+
+  const [firstToken] = trimmedIcon.split(/\s+/);
+  return Array.from(firstToken || '')[0] || FALLBACK_ICON;
+};
+
 interface Props {
   visible: boolean;
   onClose: () => void;
-  node: CategoryNode | null; // the parent node whose children we display
+  node: CategoryNode | null;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Breadcrumb entry
-// ─────────────────────────────────────────────────────────────
 interface Crumb {
   node: CategoryNode;
   children: CategoryNode[];
 }
 
-// ─────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────
 export default function SubCategoryModal({ visible, onClose, node }: Props) {
   const [search, setSearch] = useState('');
   const [stack, setStack] = useState<Crumb[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  // Initialise stack whenever the root node changes
   useEffect(() => {
     if (!visible || !node) {
       setStack([]);
       setSearch('');
       return;
     }
-    // Seed stack with the root node + its already-loaded children
+
     setStack([{ node, children: node.children ?? [] }]);
     setSearch('');
   }, [visible, node]);
 
-  // Current level = top of stack
   const current = stack[stack.length - 1] ?? null;
 
-  // ── Fetch children on-demand (if not already loaded) ──
   const fetchChildren = useCallback(async (targetNode: CategoryNode): Promise<CategoryNode[]> => {
-    // Already loaded in tree
     if (targetNode.children && targetNode.children.length > 0) {
       return targetNode.children;
     }
+
     setLoadingId(targetNode._id);
     try {
       return await getCategoryChildren(targetNode._id);
@@ -103,45 +103,37 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
     };
   }, [visible, node, fetchChildren]);
 
-  // ── Handle pressing a child node ──
   const handleChildPress = async (child: CategoryNode) => {
-    // If this child has sub-categories → drill down
-    const hasChildren =
-      (child.children && child.children.length > 0) ||
-      // We don't know yet — check subcategoryCount or just try fetching
-      child.level < 3; // allow up to level 3 depth exploration
-
-    // Always try fetching children; if none → go to business-cards
     const children = await fetchChildren(child);
 
     if (children.length > 0) {
       setStack((prev) => [...prev, { node: child, children }]);
       setSearch('');
-    } else {
-      // Leaf node → navigate to business cards
-      const categoryPath = [...stack.map((s) => s.node.name), child.name].join(' > ');
-      router.push({
-        pathname: '/business-cards',
-        params: {
-          subcategory: child.name,
-          subcategoryId: child._id,
-          category: stack[0]?.node.name ?? child.name,
-          categoryId: stack[0]?.node._id ?? child._id,
-          categoryPath,
-        },
-      });
-      handleClose();
+      return;
     }
+
+    const categoryPath = [...stack.map((s) => s.node.name), child.name].join(' > ');
+    router.push({
+      pathname: '/business-cards',
+      params: {
+        subcategory: child.name,
+        subcategoryId: child._id,
+        category: stack[0]?.node.name ?? child.name,
+        categoryId: stack[0]?.node._id ?? child._id,
+        categoryPath,
+      },
+    });
+    handleClose();
   };
 
-  // ── Navigate back one level ──
   const handleBack = () => {
     if (stack.length <= 1) {
       handleClose();
-    } else {
-      setStack((prev) => prev.slice(0, -1));
-      setSearch('');
+      return;
     }
+
+    setStack((prev) => prev.slice(0, -1));
+    setSearch('');
   };
 
   const handleClose = () => {
@@ -150,18 +142,22 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
     onClose();
   };
 
-  // ── Filtered list ──
   const allItems = current?.children ?? [];
   const filtered = search.trim()
-    ? allItems.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+    ? allItems.filter((item) =>
+        item.name.toLowerCase().includes(search.toLowerCase()),
+      )
     : allItems;
-
-  // ── Title ──
+  const remainder = filtered.length % GRID_COLUMNS;
+  const gridData =
+    remainder === 0
+      ? filtered
+      : [
+          ...filtered,
+          ...Array.from({ length: GRID_COLUMNS - remainder }, () => null),
+        ];
   const title = current?.node.name ?? '';
 
-  // ─────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────
   return (
     <Modal
       visible={visible}
@@ -173,7 +169,6 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-        {/* ── Header ── */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <TouchableOpacity
@@ -184,18 +179,21 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
               <Ionicons name="arrow-back" size={24} color="#1F2937" />
             </TouchableOpacity>
             <View style={styles.titleContainer}>
-              <Text style={styles.titleEmoji}>{current?.node.icon ?? '📁'}</Text>
               <Text style={styles.title} numberOfLines={1}>{title}</Text>
             </View>
           </View>
 
-          {/* ── Breadcrumb ── */}
           {stack.length > 1 && (
             <View style={styles.breadcrumbRow}>
               {stack.map((crumb, idx) => (
                 <React.Fragment key={crumb.node._id}>
                   {idx > 0 && (
-                    <Ionicons name="chevron-forward" size={12} color="#9CA3AF" style={styles.breadcrumbChevron} />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={12}
+                      color="#9CA3AF"
+                      style={styles.breadcrumbChevron}
+                    />
                   )}
                   <TouchableOpacity
                     onPress={() => {
@@ -219,10 +217,14 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
           )}
         </View>
 
-        {/* ── Search ── */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
+            <Ionicons
+              name="search"
+              size={18}
+              color="#9CA3AF"
+              style={styles.searchIcon}
+            />
             <TextInput
               style={styles.searchInput}
               placeholder="Search..."
@@ -233,14 +235,16 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
               autoCorrect={false}
             />
             {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity
+                onPress={() => setSearch('')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Ionicons name="close-circle" size={18} color="#9CA3AF" />
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* ── Results count ── */}
         {search.length > 0 && (
           <View style={styles.resultsContainer}>
             <Text style={styles.resultsText}>
@@ -249,11 +253,12 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
           </View>
         )}
 
-        {/* ── List ── */}
         <FlatList
-          data={filtered}
-          keyExtractor={(item) => item._id}
+          data={gridData}
+          keyExtractor={(item, index) => item?._id ?? `placeholder-${index}`}
+          numColumns={GRID_COLUMNS}
           contentContainerStyle={styles.listContainer}
+          columnWrapperStyle={styles.gridRow}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -267,8 +272,12 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
             </View>
           }
           renderItem={({ item }) => {
+            if (!item) {
+              return <View style={[styles.subcategoryItem, styles.placeholderItem]} />;
+            }
+
             const hasKnownChildren =
-              (item.children && item.children.length > 0);
+              item.children && item.children.length > 0;
             const isLoading = loadingId === item._id;
 
             return (
@@ -278,33 +287,19 @@ export default function SubCategoryModal({ visible, onClose, node }: Props) {
                 activeOpacity={0.7}
                 disabled={isLoading}
               >
-                {/* Icon */}
-                <View style={styles.iconContainer}>
-                  <Text style={styles.itemEmoji}>{item.icon || '📁'}</Text>
-                </View>
-
-                {/* Name + child count */}
-                <View style={styles.textContainer}>
-                  <Text style={styles.subcategoryText} numberOfLines={2}>
-                    {item.name}
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#1A1A1A" />
+                ) : (
+                  <Text style={styles.itemEmoji}>{getSingleIcon(item.icon)}</Text>
+                )}
+                <Text style={styles.subcategoryText} numberOfLines={2}>
+                  {item.name}
+                </Text>
+                {hasKnownChildren ? (
+                  <Text style={styles.childCount}>
+                    {item.children.length} more
                   </Text>
-                  {hasKnownChildren && (
-                    <Text style={styles.childCount}>
-                      {item.children.length} sub-categor{item.children.length === 1 ? 'y' : 'ies'}
-                    </Text>
-                  )}
-                </View>
-
-                {/* Arrow / Loader */}
-                <View style={styles.arrowContainer}>
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color="#7C3AED" />
-                  ) : hasKnownChildren ? (
-                    <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
-                  ) : (
-                    <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-                  )}
-                </View>
+                ) : null}
               </TouchableOpacity>
             );
           }}
@@ -325,7 +320,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     paddingTop: Platform.OS === 'android' ? 50 : 40,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
       android: { elevation: 2 },
     }),
   },
@@ -342,12 +342,6 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  titleEmoji: {
-    fontSize: 22,
   },
   title: {
     fontSize: 20,
@@ -368,7 +362,7 @@ const styles = StyleSheet.create({
     maxWidth: width / 4,
   },
   breadcrumbActive: {
-    color: '#7C3AED',
+    color: '#1A1A1A',
     fontWeight: '600',
   },
   breadcrumbChevron: {
@@ -389,7 +383,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  searchIcon: { marginRight: 8 },
+  searchIcon: {
+    marginRight: 8,
+  },
   searchInput: {
     flex: 1,
     fontSize: 15,
@@ -409,56 +405,52 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingTop: 8,
+    paddingHorizontal: 16,
     paddingBottom: 24,
   },
-  subcategoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginVertical: 5,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4 },
-      android: { elevation: 2 },
-    }),
+  gridRow: {
+    columnGap: 10,
+    marginBottom: 10,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F5F3FF',
+  subcategoryItem: {
+    flex: 1,
+    minHeight: 96,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
-    borderWidth: 1,
-    borderColor: '#EDE9FE',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 0,
+  },
+  placeholderItem: {
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   itemEmoji: {
-    fontSize: 24,
-  },
-  textContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    fontSize: 22,
+    lineHeight: 26,
+    marginBottom: 8,
   },
   subcategoryText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-    lineHeight: 21,
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#1A1A1A',
+    lineHeight: 14,
+    textAlign: 'center',
   },
   childCount: {
-    fontSize: 12,
-    color: '#7C3AED',
-    marginTop: 2,
-  },
-  arrowContainer: {
-    marginLeft: 10,
-    justifyContent: 'center',
-    width: 24,
-    alignItems: 'center',
+    fontSize: 10,
+    color: '#6B7280',
+    marginTop: 4,
+    textAlign: 'center',
   },
   emptyContainer: {
     flex: 1,

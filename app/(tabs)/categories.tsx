@@ -11,12 +11,14 @@ import {
   View,
   type ViewToken,
 } from "react-native";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import SubCategoryModal from "../components/SubCategoryModal";
-import { getCategoryChildren, getCategoryTree } from "../lib/categoryService";
-import type { CategoryNode } from "../types/category";
+import FooterCarousel from "../../components/FooterCarousel";
+import SubCategoryModal from "../../components/SubCategoryModal";
+import { getCategoryChildren, getCategoryTree } from "../../lib/categoryService";
+import type { CategoryNode } from "../../types/category";
 
 interface CategoryCardItem {
   type: "category";
@@ -49,21 +51,33 @@ interface CategorySection {
 }
 
 const FALLBACK_ICON = "\uD83D\uDCC1";
+const GRID_COLUMNS = 4;
 const SECTION_PREVIEW_LIMIT = 8;
 const SECTION_PREVIEW_VISIBLE_COUNT = 7;
 
 const toRows = (sectionId: string, items: SectionGridItem[]): CategoryRow[] => {
   const rows: CategoryRow[] = [];
-  for (let index = 0; index < items.length; index += 2) {
+  for (let index = 0; index < items.length; index += GRID_COLUMNS) {
     rows.push({
       id: `${sectionId}-row-${index}`,
-      items: items.slice(index, index + 2),
+      items: items.slice(index, index + GRID_COLUMNS),
     });
   }
   return rows;
 };
 
+const getSingleIcon = (icon?: string) => {
+  const trimmedIcon = icon?.trim();
+  if (!trimmedIcon) {
+    return FALLBACK_ICON;
+  }
+
+  const [firstToken] = trimmedIcon.split(/\s+/);
+  return Array.from(firstToken || "")[0] || FALLBACK_ICON;
+};
+
 export default function CategoriesPage() {
+  const tabBarHeight = useBottomTabBarHeight();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -75,6 +89,11 @@ export default function CategoriesPage() {
   const tabsRef = useRef<ScrollView>(null);
   const tabLayoutsRef = useRef<Record<string, { x: number; width: number }>>({});
   const tabContainerWidthRef = useRef(0);
+  const pendingScrollRef = useRef<{
+    sectionIndex: number;
+    itemIndex: number;
+    sectionId: string;
+  } | null>(null);
 
   const fetchCategories = useCallback(async () => {
     setLoading(true);
@@ -251,17 +270,28 @@ export default function CategoriesPage() {
     });
   }, []);
 
-  const handleTabPress = useCallback(
-    (section: CategorySection, index: number) => {
-      setActiveSectionId(section.id);
+  const scrollToSection = useCallback((section: CategorySection, index: number) => {
+    pendingScrollRef.current = {
+      sectionIndex: index,
+      itemIndex: 0,
+      sectionId: section.id,
+    };
+    setTimeout(() => {
       listRef.current?.scrollToLocation({
         animated: true,
         sectionIndex: index,
         itemIndex: 0,
         viewOffset: 8,
       });
+    }, 0);
+  }, []);
+
+  const handleTabPress = useCallback(
+    (section: CategorySection, index: number) => {
+      setActiveSectionId(section.id);
+      scrollToSection(section, index);
     },
-    [],
+    [scrollToSection],
   );
 
   const handleTabsLayout = useCallback((event: LayoutChangeEvent) => {
@@ -275,6 +305,40 @@ export default function CategoriesPage() {
     },
     [],
   );
+
+  const handleScrollToIndexFailed = useCallback(() => {
+    setTimeout(() => {
+      const pending = pendingScrollRef.current;
+      if (pending) {
+        const resolvedIndex = sections.findIndex(
+          (section) => section.id === pending.sectionId,
+        );
+        const targetIndex =
+          resolvedIndex >= 0 ? resolvedIndex : pending.sectionIndex;
+        if (targetIndex >= 0 && targetIndex < sections.length) {
+          listRef.current?.scrollToLocation({
+            sectionIndex: targetIndex,
+            itemIndex: pending.itemIndex,
+            animated: true,
+            viewOffset: 8,
+          });
+          return;
+        }
+      }
+
+      const activeIndex = sections.findIndex(
+        (section) => section.id === activeSectionId,
+      );
+      if (activeIndex >= 0) {
+        listRef.current?.scrollToLocation({
+          sectionIndex: activeIndex,
+          itemIndex: 0,
+          animated: true,
+          viewOffset: 8,
+        });
+      }
+    }, 120);
+  }, [activeSectionId, sections]);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -362,7 +426,10 @@ export default function CategoriesPage() {
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled={false}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 120 + tabBarHeight },
+          ]}
           onViewableItemsChanged={onViewableItemsChanged.current}
           viewabilityConfig={viewabilityConfig.current}
           initialNumToRender={8}
@@ -370,21 +437,7 @@ export default function CategoriesPage() {
           windowSize={7}
           updateCellsBatchingPeriod={16}
           removeClippedSubviews
-          onScrollToIndexFailed={() => {
-            setTimeout(() => {
-              const activeIndex = sections.findIndex(
-                (section) => section.id === activeSectionId,
-              );
-              if (activeIndex >= 0) {
-                listRef.current?.scrollToLocation({
-                  sectionIndex: activeIndex,
-                  itemIndex: 0,
-                  animated: true,
-                  viewOffset: 8,
-                });
-              }
-            }, 120);
-          }}
+          onScrollToIndexFailed={handleScrollToIndexFailed}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyTitle}>No categories found</Text>
@@ -395,7 +448,6 @@ export default function CategoriesPage() {
           }
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionIcon}>{section.icon || FALLBACK_ICON}</Text>
               <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
           )}
@@ -427,7 +479,7 @@ export default function CategoriesPage() {
                     activeOpacity={0.75}
                   >
                     <Text style={styles.cardIcon}>
-                      {categoryItem.icon || FALLBACK_ICON}
+                      {getSingleIcon(categoryItem.icon)}
                     </Text>
                     <Text style={styles.cardText} numberOfLines={2}>
                       {categoryItem.name}
@@ -436,13 +488,20 @@ export default function CategoriesPage() {
                 );
               })}
 
-              {item.items.length === 1 && (
-                <View style={[styles.card, styles.cardPlaceholder]} />
-              )}
+              {Array.from({
+                length: Math.max(0, GRID_COLUMNS - item.items.length),
+              }).map((_, index) => (
+                <View
+                  key={`${item.id}-placeholder-${index}`}
+                  style={[styles.card, styles.cardPlaceholder]}
+                />
+              ))}
             </View>
           )}
         />
       )}
+
+      <FooterCarousel showPromoteButton={true} />
 
       <SubCategoryModal
         visible={selectedNode !== null}
@@ -562,14 +621,8 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
     marginBottom: 10,
     marginTop: 10,
-  },
-  sectionIcon: {
-    fontSize: 20,
-    marginRight: 8,
   },
   sectionTitle: {
     fontSize: 18,
@@ -578,52 +631,59 @@ const styles = StyleSheet.create({
   },
   cardRow: {
     flexDirection: "row",
-    columnGap: 12,
-    marginBottom: 12,
+    columnGap: 10,
+    marginBottom: 10,
   },
   card: {
     flex: 1,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    minHeight: 86,
+    borderRadius: 12,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#EEEEEE",
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    minHeight: 96,
+    alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#111827",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 0,
   },
   moreCard: {
     alignItems: "center",
   },
   moreDots: {
-    fontSize: 30,
-    color: "#007AFF",
+    fontSize: 28,
+    color: "#1A1A1A",
     fontWeight: "700",
-    marginTop: -6,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   moreText: {
-    fontSize: 13,
-    color: "#374151",
-    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
+    color: "#1A1A1A",
+    fontWeight: "500",
+    textAlign: "center",
   },
   cardPlaceholder: {
     backgroundColor: "transparent",
+    borderWidth: 0,
     shadowOpacity: 0,
     elevation: 0,
   },
   cardIcon: {
-    fontSize: 24,
+    fontSize: 22,
+    lineHeight: 26,
     marginBottom: 8,
   },
   cardText: {
-    fontSize: 14,
-    lineHeight: 19,
-    color: "#1F2937",
-    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
+    color: "#1A1A1A",
+    fontWeight: "500",
+    textAlign: "center",
   },
   emptyContainer: {
     paddingTop: 56,

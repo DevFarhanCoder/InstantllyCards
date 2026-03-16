@@ -115,6 +115,18 @@ export default function TabsLayout() {
           href: null, // Hide from tab bar
         }}
       />
+      <Tabs.Screen
+        name="categories"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="category-focus"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="business-cards"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 }

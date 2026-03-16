@@ -14,9 +14,11 @@ import {
   ActivityIndicator,
   Linking,
 } from 'react-native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { router, useLocalSearchParams, Href } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import api from '../lib/api';
+import api from '../../lib/api';
+import FooterCarousel from '../../components/FooterCarousel';
 
 const { width } = Dimensions.get('window');
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
@@ -56,6 +58,7 @@ const getImageUrl = (url?: string): string => {
 };
 
 export default function BusinessCardsScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
   const { subcategory, category } = useLocalSearchParams<{ subcategory?: string; category?: string }>();
   const [search, setSearch] = useState('');
   const [businessCards, setBusinessCards] = useState<BusinessListing[]>([]);
@@ -344,7 +347,10 @@ export default function BusinessCardsScreen() {
           renderItem={renderBusinessCard}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            { paddingBottom: 120 + tabBarHeight },
+          ]}
           showsVerticalScrollIndicator={false}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.4}
@@ -364,6 +370,8 @@ export default function BusinessCardsScreen() {
           }
         />
       )}
+
+      <FooterCarousel showPromoteButton={true} />
     </SafeAreaView>
   );
 }

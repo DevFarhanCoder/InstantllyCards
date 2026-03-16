@@ -8,28 +8,40 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import SubCategoryModal from "../components/SubCategoryModal";
-import { getCategoryChildren, getCategoryTree } from "../lib/categoryService";
-import type { CategoryNode } from "../types/category";
+import FooterCarousel from "../../components/FooterCarousel";
+import SubCategoryModal from "../../components/SubCategoryModal";
+import { getCategoryChildren, getCategoryTree } from "../../lib/categoryService";
+import type { CategoryNode } from "../../types/category";
 
 const FALLBACK_ICON = "\uD83D\uDCC1";
+const GRID_COLUMNS = 4;
 
 const getParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
+const getSingleIcon = (icon?: string) => {
+  const trimmedIcon = icon?.trim();
+  if (!trimmedIcon) {
+    return FALLBACK_ICON;
+  }
+
+  const [firstToken] = trimmedIcon.split(/\s+/);
+  return Array.from(firstToken || "")[0] || FALLBACK_ICON;
+};
+
 export default function CategoryFocusPage() {
+  const tabBarHeight = useBottomTabBarHeight();
   const params = useLocalSearchParams<{
     rootId?: string;
     rootName?: string;
-    rootIcon?: string;
   }>();
 
   const rootId = getParam(params.rootId);
   const rootNameParam = getParam(params.rootName) || "Category";
-  const rootIconParam = getParam(params.rootIcon) || FALLBACK_ICON;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,8 +100,12 @@ export default function CategoryFocusPage() {
   }, [rootNode, search]);
 
   const gridData = useMemo(() => {
-    if (displayItems.length % 2 === 0) return displayItems;
-    return [...displayItems, null] as Array<CategoryNode | null>;
+    const remainder = displayItems.length % GRID_COLUMNS;
+    if (remainder === 0) return displayItems;
+    return [
+      ...displayItems,
+      ...Array.from({ length: GRID_COLUMNS - remainder }, () => null),
+    ] as Array<CategoryNode | null>;
   }, [displayItems]);
 
   const handleCategoryPress = useCallback(
@@ -140,7 +156,6 @@ export default function CategoryFocusPage() {
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </TouchableOpacity>
           <View style={styles.titleWrap}>
-            <Text style={styles.titleIcon}>{rootNode?.icon || rootIconParam}</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {rootNode?.name || rootNameParam}
             </Text>
@@ -184,8 +199,11 @@ export default function CategoryFocusPage() {
           keyExtractor={(item, index) =>
             item ? item._id : `placeholder-${index.toString()}`
           }
-          numColumns={2}
-          contentContainerStyle={styles.listContent}
+          numColumns={GRID_COLUMNS}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 120 + tabBarHeight },
+          ]}
           columnWrapperStyle={styles.row}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -203,7 +221,7 @@ export default function CategoryFocusPage() {
                 activeOpacity={0.75}
                 onPress={() => handleCategoryPress(item)}
               >
-                <Text style={styles.cardIcon}>{item.icon || FALLBACK_ICON}</Text>
+                <Text style={styles.cardIcon}>{getSingleIcon(item.icon)}</Text>
                 <Text style={styles.cardText} numberOfLines={2}>
                   {item.name}
                 </Text>
@@ -212,6 +230,8 @@ export default function CategoryFocusPage() {
           }}
         />
       )}
+
+      <FooterCarousel showPromoteButton={true} />
 
       <SubCategoryModal
         visible={selectedNode !== null}
@@ -250,14 +270,8 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
     marginHorizontal: 8,
-    gap: 8,
-  },
-  titleIcon: {
-    fontSize: 20,
   },
   headerTitle: {
     fontSize: 18,
@@ -316,37 +330,43 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   row: {
-    columnGap: 12,
-    marginBottom: 12,
+    columnGap: 10,
+    marginBottom: 10,
   },
   card: {
     flex: 1,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    minHeight: 86,
+    borderRadius: 12,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#EEEEEE",
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    minHeight: 96,
+    alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#111827",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 0,
   },
   placeholderCard: {
     backgroundColor: "transparent",
+    borderWidth: 0,
     elevation: 0,
     shadowOpacity: 0,
   },
   cardIcon: {
-    fontSize: 24,
+    fontSize: 22,
+    lineHeight: 26,
     marginBottom: 8,
   },
   cardText: {
-    fontSize: 14,
-    lineHeight: 19,
-    color: "#1F2937",
-    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
+    color: "#1A1A1A",
+    fontWeight: "500",
+    textAlign: "center",
   },
   emptyContainer: {
     paddingTop: 56,
