@@ -15,7 +15,7 @@ import type { CategoryNode } from "../types/category";
 
 const { width } = Dimensions.get("window");
 const PER_ROW = 4;
-const INITIAL_COUNT = 8;
+const INITIAL_COUNT = 15;
 const DEFAULT_CATEGORY_ICON = "\uD83D\uDCC1";
 
 interface ControlItem {
@@ -112,7 +112,7 @@ export default function CategoryGrid() {
                   <View style={styles.iconBox}>
                     <Ionicons
                       name="ellipsis-horizontal-circle"
-                      size={28}
+                      size={22}
                       color="#6B7280"
                     />
                   </View>
@@ -187,28 +187,27 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   iconBox: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "transparent",
     borderRadius: 16,
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
     borderWidth: 1,
     borderColor: "#D1D5DB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   emojiIcon: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 22,
+    lineHeight: 26,
   },
   label: {
     fontSize: 12,
-    color: "#374151",
+    color: "#333333",
+    fontWeight: "400",
+    letterSpacing: 0.2,
     textAlign: "center",
     marginTop: 2,
     lineHeight: 16,

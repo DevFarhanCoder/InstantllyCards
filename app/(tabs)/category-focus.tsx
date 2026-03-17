@@ -276,7 +276,8 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: "#111111",
+    letterSpacing: 0.2,
     maxWidth: "85%",
   },
   headerSpacer: {
@@ -364,8 +365,9 @@ const styles = StyleSheet.create({
   cardText: {
     fontSize: 11,
     lineHeight: 14,
-    color: "#1A1A1A",
-    fontWeight: "500",
+    color: "#333333",
+    fontWeight: "400",
+    letterSpacing: 0.2,
     textAlign: "center",
   },
   emptyContainer: {
@@ -376,6 +378,6 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: "#111111",
   },
 });

@@ -346,7 +346,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#111111',
+    letterSpacing: 0.2,
     flex: 1,
   },
   breadcrumbRow: {
@@ -358,7 +359,8 @@ const styles = StyleSheet.create({
   },
   breadcrumbText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#333333',
+    letterSpacing: 0.2,
     maxWidth: width / 4,
   },
   breadcrumbActive: {
@@ -401,7 +403,8 @@ const styles = StyleSheet.create({
   },
   resultsText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: '#333333',
+    letterSpacing: 0.2,
   },
   listContainer: {
     paddingTop: 8,
@@ -441,14 +444,16 @@ const styles = StyleSheet.create({
   },
   subcategoryText: {
     fontSize: 11,
-    fontWeight: '500',
-    color: '#1A1A1A',
+    fontWeight: '400',
+    color: '#333333',
     lineHeight: 14,
+    letterSpacing: 0.2,
     textAlign: 'center',
   },
   childCount: {
     fontSize: 10,
-    color: '#6B7280',
+    color: '#333333',
+    letterSpacing: 0.2,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -460,13 +465,15 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 17,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: '500',
+    color: '#333333',
+    letterSpacing: 0.2,
     marginTop: 14,
   },
   emptySubtext: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: '#333333',
+    letterSpacing: 0.2,
     marginTop: 4,
   },
 });

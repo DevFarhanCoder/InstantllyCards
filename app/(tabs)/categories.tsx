@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: "#111111",
   },
   headerSpacer: {
     width: 40,
@@ -576,11 +576,12 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#6B7280",
+    fontWeight: "400",
+    color: "#333333",
+    letterSpacing: 0.2,
   },
   tabTextActive: {
-    color: "#007AFF",
+    color: "#111111",
   },
   tabIndicator: {
     width: "100%",
@@ -627,7 +628,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: "#111111",
+    letterSpacing: 0.2,
   },
   cardRow: {
     flexDirection: "row",
@@ -663,8 +665,9 @@ const styles = StyleSheet.create({
   moreText: {
     fontSize: 11,
     lineHeight: 14,
-    color: "#1A1A1A",
-    fontWeight: "500",
+    color: "#333333",
+    fontWeight: "400",
+    letterSpacing: 0.2,
     textAlign: "center",
   },
   cardPlaceholder: {
@@ -681,8 +684,9 @@ const styles = StyleSheet.create({
   cardText: {
     fontSize: 11,
     lineHeight: 14,
-    color: "#1A1A1A",
-    fontWeight: "500",
+    color: "#333333",
+    fontWeight: "400",
+    letterSpacing: 0.2,
     textAlign: "center",
   },
   emptyContainer: {
@@ -693,7 +697,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: "#111111",
   },
   emptyText: {
     marginTop: 6,

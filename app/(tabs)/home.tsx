@@ -396,7 +396,7 @@ export default function Home() {
           )}
           ListHeaderComponent={
             <>
-              <ReferralBanner />
+              {false && <ReferralBanner />}
               {/* Categories Header with Arrow and Promote Button - Same Line */}
               {FEATURE_FLAGS.SHOW_CATEGORIES && (
                 <View style={s.categoriesHeaderRow}>
@@ -843,7 +843,7 @@ const s = StyleSheet.create({
   categoriesHeaderText: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#111111",
     letterSpacing: 0.3,
   },
   categoriesArrow: {
