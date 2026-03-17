@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   StyleSheet,
   Text,
@@ -38,10 +39,12 @@ export default function CategoryFocusPage() {
   const params = useLocalSearchParams<{
     rootId?: string;
     rootName?: string;
+    returnTo?: string;
   }>();
 
   const rootId = getParam(params.rootId);
   const rootNameParam = getParam(params.rootName) || "Category";
+  const returnTo = getParam(params.returnTo);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,12 +147,33 @@ export default function CategoryFocusPage() {
     [rootNode],
   );
 
+  const handleBack = useCallback(() => {
+    if (returnTo) {
+      router.push(returnTo);
+      return;
+    }
+    router.back();
+  }, [returnTo]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          handleBack();
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, [handleBack]),
+  );
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={handleBack}
             style={styles.backButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
