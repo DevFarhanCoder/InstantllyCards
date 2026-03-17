@@ -142,7 +142,6 @@ export default function BusinessPromotionScreen() {
   // Validation errors for required fields
   const [businessNameError, setBusinessNameError] = useState<string | null>(null);
   const [ownerNameError, setOwnerNameError] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [pincodeError, setPincodeError] = useState<string | null>(null);
   const [localityError, setLocalityError] = useState<string | null>(null);
@@ -460,7 +459,6 @@ export default function BusinessPromotionScreen() {
     // Clear previous errors
     setBusinessNameError(null);
     setOwnerNameError(null);
-    setEmailError(null);
     setPhoneError(null);
 
     // Validate required fields for current step
@@ -499,19 +497,6 @@ export default function BusinessPromotionScreen() {
 
     if (currentStep === 'contact') {
       let hasError = false;
-
-      // Required: Email, Phone Number
-      if (!formData.email.trim()) {
-        setEmailError('Email Address is required');
-        hasError = true;
-      } else {
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.email)) {
-          setEmailError('Please enter a valid email address');
-          hasError = true;
-        }
-      }
 
       if (!formData.phone.trim() || phoneNumbers.every(p => !p.trim())) {
         setPhoneError('At least one Phone Number is required');
@@ -1001,7 +986,7 @@ export default function BusinessPromotionScreen() {
   const renderContactDetails = () => (
     <View style={styles.stepContent}>
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email Address *</Text>
+        <Text style={styles.label}>Email Address (Optional)</Text>
         <TextInput
           style={styles.input}
           placeholder="business@example.com"
@@ -1009,14 +994,10 @@ export default function BusinessPromotionScreen() {
           value={formData.email}
           onChangeText={(text) => {
             updateField('email', text);
-            if (text.trim()) setEmailError(null);
           }}
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        {emailError && (
-          <Text style={styles.errorText}>{emailError}</Text>
-        )}
       </View>
 
       <View style={styles.inputGroup}>

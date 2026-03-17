@@ -167,7 +167,7 @@ export default function BusinessPromoteForm({ visible, onClose }: BusinessPromot
   const renderContactDetails = () => (
     <View style={styles.stepContent}>
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email Address *</Text>
+        <Text style={styles.label}>Email Address (Optional)</Text>
         <TextInput
           style={styles.input}
           placeholder="business@example.com"

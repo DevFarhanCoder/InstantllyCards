@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   LayoutChangeEvent,
-  ScrollView,
-  SectionList,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
   type ViewToken,
 } from "react-native";
@@ -16,55 +16,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import FooterCarousel from "../../components/FooterCarousel";
-import SubCategoryModal from "../../components/SubCategoryModal";
-import { getCategoryChildren, getCategoryTree } from "../../lib/categoryService";
+import { getCategoryTree } from "../../lib/categoryService";
 import type { CategoryNode } from "../../types/category";
-
-interface CategoryCardItem {
-  type: "category";
-  node: CategoryNode;
-}
-
-interface SectionMoreItem {
-  type: "more";
-  id: string;
-  rootId: string;
-  title: string;
-  icon: string;
-  hiddenCount: number;
-}
-
-type SectionGridItem = CategoryCardItem | SectionMoreItem;
-
-interface CategoryRow {
-  id: string;
-  items: SectionGridItem[];
-}
-
-interface CategorySection {
-  id: string;
-  title: string;
-  icon: string;
-  rootId: string;
-  totalItems: number;
-  data: CategoryRow[];
-}
 
 const FALLBACK_ICON = "\uD83D\uDCC1";
 const GRID_COLUMNS = 4;
-const SECTION_PREVIEW_LIMIT = 8;
-const SECTION_PREVIEW_VISIBLE_COUNT = 7;
-
-const toRows = (sectionId: string, items: SectionGridItem[]): CategoryRow[] => {
-  const rows: CategoryRow[] = [];
-  for (let index = 0; index < items.length; index += GRID_COLUMNS) {
-    rows.push({
-      id: `${sectionId}-row-${index}`,
-      items: items.slice(index, index + GRID_COLUMNS),
-    });
-  }
-  return rows;
-};
+const BASE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const LIST_PADDING_LEFT = 16;
+const LIST_PADDING_RIGHT = 24;
+const CARD_GAP = 10;
+const ROW_GAP = 10;
+const LIST_PADDING_TOP = 14;
+const LIST_PADDING_BOTTOM = 24;
+const ALPHABET_CENTER_OFFSET = -22;
 
 const getSingleIcon = (icon?: string) => {
   const trimmedIcon = icon?.trim();
@@ -82,18 +46,14 @@ export default function CategoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [tree, setTree] = useState<CategoryNode[]>([]);
-  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<CategoryNode | null>(null);
+  const [visibleSectionIds, setVisibleSectionIds] = useState<string[]>([]);
+  const [listHeight, setListHeight] = useState(0);
+  const [alphabetHeight, setAlphabetHeight] = useState(0);
+  const [cardHeight, setCardHeight] = useState(0);
 
-  const listRef = useRef<SectionList<CategoryRow, CategorySection>>(null);
-  const tabsRef = useRef<ScrollView>(null);
-  const tabLayoutsRef = useRef<Record<string, { x: number; width: number }>>({});
-  const tabContainerWidthRef = useRef(0);
-  const pendingScrollRef = useRef<{
-    sectionIndex: number;
-    itemIndex: number;
-    sectionId: string;
-  } | null>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const listRef = useRef<FlatList<CategoryNode>>(null);
+  const dataRef = useRef<CategoryNode[]>([]);
 
   const fetchCategories = useCallback(async () => {
     setLoading(true);
@@ -123,80 +83,47 @@ export default function CategoriesPage() {
     }, [fetchCategories]),
   );
 
-  const sections = useMemo<CategorySection[]>(() => {
+  const getLetterBucket = useCallback((name: string) => {
+    const firstChar = name.trim().charAt(0);
+    if (!firstChar) return "#";
+    const upper = firstChar.toUpperCase();
+    return upper >= "A" && upper <= "Z" ? upper : "#";
+  }, []);
+
+  const activeRoots = useMemo(
+    () => (tree || []).filter((root) => root.isActive !== false),
+    [tree],
+  );
+
+  const filteredRoots = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return (tree || [])
-      .filter((root) => root.isActive !== false)
-      .map((root) => {
-        const allChildren = (root.children || []).filter(
-          (child) => child.isActive !== false,
-        );
-        const sectionItems = allChildren.length > 0 ? allChildren : [root];
-        const rootMatches = root.name.toLowerCase().includes(query);
-        const filteredChildren =
-          query.length === 0 || rootMatches
-            ? sectionItems
-            : sectionItems.filter((child) =>
-                child.name.toLowerCase().includes(query),
-              );
-
-        const allCards: CategoryCardItem[] = filteredChildren.map((child) => ({
-          type: "category",
-          node: child,
-        }));
-
-        const needsMoreCard =
-          query.length === 0 && allCards.length > SECTION_PREVIEW_LIMIT;
-        const previewItems: SectionGridItem[] = needsMoreCard
-          ? [
-              ...allCards.slice(0, SECTION_PREVIEW_VISIBLE_COUNT),
-              {
-                type: "more",
-                id: `${root._id}-more`,
-                rootId: root._id,
-                title: root.name,
-                icon: root.icon || FALLBACK_ICON,
-                hiddenCount: allCards.length - SECTION_PREVIEW_VISIBLE_COUNT,
-              },
-            ]
-          : allCards;
-
-        return {
-          id: root._id,
-          rootId: root._id,
-          title: root.name,
-          icon: root.icon || FALLBACK_ICON,
-          totalItems: allCards.length,
-          data: toRows(root._id, previewItems),
-        };
-      })
-      .filter((section) => section.totalItems > 0);
-  }, [search, tree]);
-
-  useEffect(() => {
-    if (!sections.length) {
-      setActiveSectionId(null);
-      return;
-    }
-
-    if (!activeSectionId || !sections.some((s) => s.id === activeSectionId)) {
-      setActiveSectionId(sections[0].id);
-    }
-  }, [activeSectionId, sections]);
-
-  useEffect(() => {
-    if (!activeSectionId) return;
-
-    const activeLayout = tabLayoutsRef.current[activeSectionId];
-    const containerWidth = tabContainerWidthRef.current;
-    if (!activeLayout || containerWidth <= 0) return;
-
-    const targetX = Math.max(
-      0,
-      activeLayout.x - containerWidth / 2 + activeLayout.width / 2,
+    if (!query) return activeRoots;
+    return activeRoots.filter((root) =>
+      root.name.toLowerCase().includes(query),
     );
-    tabsRef.current?.scrollTo({ x: targetX, animated: true });
-  }, [activeSectionId]);
+  }, [activeRoots, search]);
+
+  const sortedRoots = useMemo(
+    () =>
+      [...filteredRoots].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+      ),
+    [filteredRoots],
+  );
+
+  useEffect(() => {
+    dataRef.current = sortedRoots;
+  }, [sortedRoots]);
+
+  const alphabetList = useMemo(() => {
+    let hasOther = false;
+    sortedRoots.forEach((root) => {
+      if (getLetterBucket(root.name) === "#") {
+        hasOther = true;
+      }
+    });
+    return hasOther ? [...BASE_ALPHABET, "#"] : BASE_ALPHABET;
+  }, [getLetterBucket, sortedRoots]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 30,
@@ -207,138 +134,87 @@ export default function CategoriesPage() {
     ({
       viewableItems,
     }: {
-      viewableItems: Array<ViewToken & { section?: CategorySection }>;
+      viewableItems: Array<ViewToken & { item?: CategoryNode }>;
     }) => {
-      const visible = viewableItems.find(
-        (item) => item.isViewable && item.section?.id,
+      const letters = Array.from(
+        new Set(
+          viewableItems
+            .filter((item) => item.isViewable && item.item?.name)
+            .map((item) => getLetterBucket(item.item?.name || "")),
+        ),
       );
-      if (!visible?.section?.id) return;
-      const newSectionId = visible.section.id;
-      setActiveSectionId((prev) => (prev === newSectionId ? prev : newSectionId));
+      setVisibleSectionIds(letters);
     },
   );
 
-  const handleSubcategoryPress = useCallback(
-    async (section: CategorySection, item: CategoryNode) => {
-      console.log("[CATEGORIES] Subcategory selected", {
-        categoryName: section.title,
-        categoryId: section.rootId,
-        subcategoryName: item.name,
-        subcategoryId: item._id,
-      });
-
-      const knownChildren = (item.children || []).filter(
-        (child) => child.isActive !== false,
-      );
-      if (knownChildren.length > 0) {
-        setSelectedNode({ ...item, children: knownChildren });
-        return;
-      }
-
-      try {
-        const lazyChildren = await getCategoryChildren(item._id);
-        if (lazyChildren.length > 0) {
-          setSelectedNode({ ...item, children: lazyChildren });
-          return;
-        }
-      } catch {
-        // no-op
-      }
-
-      router.push({
-        pathname: "/business-cards",
-        params: {
-          category: section.title,
-          categoryId: section.rootId,
-          subcategory: item.name,
-          subcategoryId: item._id,
-          categoryPath: `${section.title} > ${item.name}`,
-        },
-      });
-    },
-    [],
-  );
-
-  const handleOpenSectionDetail = useCallback((section: CategorySection) => {
+  const handleOpenSectionDetail = useCallback((item: CategoryNode) => {
     router.push({
       pathname: "/category-focus",
       params: {
-        rootId: section.rootId,
-        rootName: section.title,
-        rootIcon: section.icon || FALLBACK_ICON,
+        rootId: item._id,
+        rootName: item.name,
+        rootIcon: item.icon || FALLBACK_ICON,
+        returnTo: "/categories",
       },
     });
   }, []);
 
-  const scrollToSection = useCallback((section: CategorySection, index: number) => {
-    pendingScrollRef.current = {
-      sectionIndex: index,
-      itemIndex: 0,
-      sectionId: section.id,
-    };
-    setTimeout(() => {
-      listRef.current?.scrollToLocation({
-        animated: true,
-        sectionIndex: index,
-        itemIndex: 0,
-        viewOffset: 8,
-      });
-    }, 0);
-  }, []);
-
-  const handleTabPress = useCallback(
-    (section: CategorySection, index: number) => {
-      setActiveSectionId(section.id);
-      scrollToSection(section, index);
-    },
-    [scrollToSection],
-  );
-
-  const handleTabsLayout = useCallback((event: LayoutChangeEvent) => {
-    tabContainerWidthRef.current = event.nativeEvent.layout.width;
-  }, []);
-
-  const handleTabItemLayout = useCallback(
-    (sectionId: string, event: LayoutChangeEvent) => {
-      const { x, width } = event.nativeEvent.layout;
-      tabLayoutsRef.current[sectionId] = { x, width };
-    },
-    [],
-  );
-
-  const handleScrollToIndexFailed = useCallback(() => {
-    setTimeout(() => {
-      const pending = pendingScrollRef.current;
-      if (pending) {
-        const resolvedIndex = sections.findIndex(
-          (section) => section.id === pending.sectionId,
-        );
-        const targetIndex =
-          resolvedIndex >= 0 ? resolvedIndex : pending.sectionIndex;
-        if (targetIndex >= 0 && targetIndex < sections.length) {
-          listRef.current?.scrollToLocation({
-            sectionIndex: targetIndex,
-            itemIndex: pending.itemIndex,
-            animated: true,
-            viewOffset: 8,
-          });
-          return;
-        }
+  const letterIndexMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    sortedRoots.forEach((item, index) => {
+      const letter = getLetterBucket(item.name);
+      if (map[letter] === undefined) {
+        map[letter] = index;
       }
+    });
+    return map;
+  }, [getLetterBucket, sortedRoots]);
 
-      const activeIndex = sections.findIndex(
-        (section) => section.id === activeSectionId,
+  const handleAlphabetPress = useCallback(
+    (letter: string) => {
+      const currentData = dataRef.current;
+      const index = currentData.findIndex(
+        (item) => getLetterBucket(item.name) === letter,
       );
-      if (activeIndex >= 0) {
-        listRef.current?.scrollToLocation({
-          sectionIndex: activeIndex,
-          itemIndex: 0,
-          animated: true,
-          viewOffset: 8,
-        });
+      if (
+        index < 0 ||
+        index >= currentData.length ||
+        currentData.length === 0
+      ) {
+        return;
       }
-    }, 120);
-  }, [activeSectionId, sections]);
+      setVisibleSectionIds([letter]);
+      const rowIndex = Math.floor(index / GRID_COLUMNS);
+      const estimatedRowHeight = (cardHeight || 120) + ROW_GAP;
+      const offset = rowIndex * estimatedRowHeight + LIST_PADDING_TOP;
+      listRef.current?.scrollToOffset({ offset, animated: true });
+    },
+    [cardHeight, getLetterBucket],
+  );
+
+  const handleListLayout = useCallback((event: LayoutChangeEvent) => {
+    setListHeight(event.nativeEvent.layout.height);
+  }, []);
+
+  const handleAlphabetLayout = useCallback((event: LayoutChangeEvent) => {
+    setAlphabetHeight(event.nativeEvent.layout.height);
+  }, []);
+
+  const cardWidth = useMemo(() => {
+    const availableWidth =
+      windowWidth - LIST_PADDING_LEFT - LIST_PADDING_RIGHT;
+    const totalGap = CARD_GAP * (GRID_COLUMNS - 1);
+    const width = (availableWidth - totalGap) / GRID_COLUMNS;
+    return Math.max(0, Math.floor(width));
+  }, [windowWidth]);
+
+  const alphabetTop = useMemo(() => {
+    if (listHeight <= 0 || alphabetHeight <= 0) return 0;
+    return Math.max(
+      0,
+      (listHeight - alphabetHeight) / 2 + ALPHABET_CENTER_OFFSET,
+    );
+  }, [alphabetHeight, listHeight]);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -373,141 +249,109 @@ export default function CategoriesPage() {
           )}
         </View>
 
-        <ScrollView
-          ref={tabsRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContent}
-          onLayout={handleTabsLayout}
-        >
-          {sections.map((section, index) => {
-            const isActive = activeSectionId === section.id;
-            return (
-              <TouchableOpacity
-                key={section.id}
-                style={styles.tabItem}
-                onPress={() => handleTabPress(section, index)}
-                activeOpacity={0.8}
-                onLayout={(event) => handleTabItemLayout(section.id, event)}
-              >
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                  {section.title}
-                </Text>
-                <View
-                  style={[
-                    styles.tabIndicator,
-                    isActive && styles.tabIndicatorActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
       </View>
 
-      {loading ? (
-        <View style={styles.centeredState}>
-          <ActivityIndicator color="#007AFF" size="large" />
-        </View>
-      ) : error ? (
-        <View style={styles.centeredState}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            onPress={() => fetchCategories()}
-            style={styles.retryButton}
-          >
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <SectionList
-          ref={listRef}
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          stickySectionHeadersEnabled={false}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: 120 + tabBarHeight },
-          ]}
-          onViewableItemsChanged={onViewableItemsChanged.current}
-          viewabilityConfig={viewabilityConfig.current}
-          initialNumToRender={8}
-          maxToRenderPerBatch={8}
-          windowSize={7}
-          updateCellsBatchingPeriod={16}
-          removeClippedSubviews
-          onScrollToIndexFailed={handleScrollToIndexFailed}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>No categories found</Text>
-              <Text style={styles.emptyText}>
-                Try a different search keyword.
-              </Text>
-            </View>
-          }
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-            </View>
-          )}
-          renderItem={({ item, section }) => (
-            <View style={styles.cardRow}>
-              {item.items.map((cardItem) => {
-                if (cardItem.type === "more") {
-                  return (
-                    <TouchableOpacity
-                      key={cardItem.id}
-                      style={[styles.card, styles.moreCard]}
-                      onPress={() => handleOpenSectionDetail(section)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.moreDots}>...</Text>
-                      <Text style={styles.moreText}>
-                        View {cardItem.hiddenCount} more
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }
+      <View style={styles.listWrap} onLayout={handleListLayout}>
+        {loading ? (
+          <View style={styles.centeredState}>
+            <ActivityIndicator color="#007AFF" size="large" />
+          </View>
+        ) : error ? (
+          <View style={styles.centeredState}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              onPress={() => fetchCategories()}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={sortedRoots}
+            keyExtractor={(item) => item._id}
+            numColumns={GRID_COLUMNS}
+            columnWrapperStyle={styles.cardRow}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: LIST_PADDING_BOTTOM + 120 + tabBarHeight },
+            ]}
+            onViewableItemsChanged={onViewableItemsChanged.current}
+            viewabilityConfig={viewabilityConfig.current}
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={8}
+            updateCellsBatchingPeriod={16}
+            removeClippedSubviews
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyTitle}>No categories found</Text>
+                <Text style={styles.emptyText}>
+                  Try a different search keyword.
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.card, { width: cardWidth }]}
+                onPress={() => handleOpenSectionDetail(item)}
+                activeOpacity={0.75}
+                onLayout={(event) => {
+                  if (cardHeight === 0) {
+                    setCardHeight(event.nativeEvent.layout.height);
+                  }
+                }}
+              >
+                <Text style={styles.cardIcon}>{getSingleIcon(item.icon)}</Text>
+                <Text style={styles.cardText} numberOfLines={2}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
 
-                const categoryItem = cardItem.node;
+        {sortedRoots.length > 0 && (
+          <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+            <View
+              pointerEvents="auto"
+              onLayout={handleAlphabetLayout}
+              style={[
+                styles.alphabetIndex,
+                { top: alphabetTop, right: 8 },
+              ]}
+            >
+              {alphabetList.map((letter) => {
+                const isActive = visibleSectionIds.includes(letter);
+                const isDisabled = letterIndexMap[letter] === undefined;
                 return (
                   <TouchableOpacity
-                    key={categoryItem._id}
-                    style={styles.card}
-                    onPress={() => handleSubcategoryPress(section, categoryItem)}
-                    activeOpacity={0.75}
+                    key={letter}
+                    onPress={() => handleAlphabetPress(letter)}
+                    activeOpacity={0.7}
+                    disabled={isDisabled}
+                    style={styles.alphabetItem}
                   >
-                    <Text style={styles.cardIcon}>
-                      {getSingleIcon(categoryItem.icon)}
-                    </Text>
-                    <Text style={styles.cardText} numberOfLines={2}>
-                      {categoryItem.name}
+                    <Text
+                      style={[
+                        styles.alphabetText,
+                        isDisabled && styles.alphabetTextDisabled,
+                        isActive && styles.alphabetTextActive,
+                      ]}
+                    >
+                      {letter}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
-
-              {Array.from({
-                length: Math.max(0, GRID_COLUMNS - item.items.length),
-              }).map((_, index) => (
-                <View
-                  key={`${item.id}-placeholder-${index}`}
-                  style={[styles.card, styles.cardPlaceholder]}
-                />
-              ))}
             </View>
-          )}
-        />
-      )}
+          </View>
+        )}
+      </View>
 
       <FooterCarousel showPromoteButton={true} />
-
-      <SubCategoryModal
-        visible={selectedNode !== null}
-        onClose={() => setSelectedNode(null)}
-        node={selectedNode}
-      />
     </SafeAreaView>
   );
 }
@@ -565,34 +409,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     marginRight: 8,
   },
-  tabsContent: {
-    paddingTop: 10,
-    paddingBottom: 2,
-    gap: 18,
-  },
-  tabItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "400",
-    color: "#333333",
-    letterSpacing: 0.2,
-  },
-  tabTextActive: {
-    color: "#111111",
-  },
-  tabIndicator: {
-    width: "100%",
-    height: 2,
-    marginTop: 6,
-    borderRadius: 2,
-    backgroundColor: "transparent",
-  },
-  tabIndicatorActive: {
-    backgroundColor: "#007AFF",
-  },
   centeredState: {
     flex: 1,
     justifyContent: "center",
@@ -616,28 +432,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
   },
+  listWrap: {
+    flex: 1,
+  },
   listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 24,
-  },
-  sectionHeader: {
-    marginBottom: 10,
-    marginTop: 10,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111111",
-    letterSpacing: 0.2,
+    paddingLeft: LIST_PADDING_LEFT,
+    paddingRight: LIST_PADDING_RIGHT,
+    paddingTop: LIST_PADDING_TOP,
+    paddingBottom: LIST_PADDING_BOTTOM,
   },
   cardRow: {
     flexDirection: "row",
-    columnGap: 10,
-    marginBottom: 10,
+    justifyContent: "flex-start",
+    columnGap: CARD_GAP,
+    marginBottom: ROW_GAP,
   },
   card: {
-    flex: 1,
     borderRadius: 12,
     backgroundColor: "transparent",
     borderWidth: 1,
@@ -652,29 +462,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 2,
     elevation: 0,
-  },
-  moreCard: {
-    alignItems: "center",
-  },
-  moreDots: {
-    fontSize: 28,
-    color: "#1A1A1A",
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  moreText: {
-    fontSize: 11,
-    lineHeight: 14,
-    color: "#333333",
-    fontWeight: "400",
-    letterSpacing: 0.2,
-    textAlign: "center",
-  },
-  cardPlaceholder: {
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    shadowOpacity: 0,
-    elevation: 0,
+    flexGrow: 0,
+    flexShrink: 0,
   },
   cardIcon: {
     fontSize: 22,
@@ -703,5 +492,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     color: "#6B7280",
+  },
+  alphabetIndex: {
+    position: "absolute",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 0,
+  },
+  alphabetItem: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  alphabetText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#9CA3AF",
+  },
+  alphabetTextActive: {
+    color: "#111111",
+  },
+  alphabetTextDisabled: {
+    color: "#D1D5DB",
   },
 });
