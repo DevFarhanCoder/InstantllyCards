@@ -102,6 +102,25 @@ export default function CategoryFocusPage() {
     return base.filter((item) => item.name.toLowerCase().includes(query));
   }, [rootNode, search]);
 
+  const nestedCountById = useMemo(() => {
+    const map = new Map<string, number>();
+    const countDescendants = (node: CategoryNode): number => {
+      const activeChildren = (node.children || []).filter(
+        (child) => child.isActive !== false,
+      );
+      const subCount = (node.subcategories || []).filter(Boolean).length;
+      let total = subCount;
+      for (const child of activeChildren) {
+        total += 1 + countDescendants(child);
+      }
+      map.set(node._id, total);
+      return total;
+    };
+
+    displayItems.forEach((item) => countDescendants(item));
+    return map;
+  }, [displayItems]);
+
   const gridData = useMemo(() => {
     const remainder = displayItems.length % GRID_COLUMNS;
     if (remainder === 0) return displayItems;
@@ -245,6 +264,15 @@ export default function CategoryFocusPage() {
                 activeOpacity={0.75}
                 onPress={() => handleCategoryPress(item)}
               >
+                {(() => {
+                  const count = nestedCountById.get(item._id) || 0;
+                  if (count <= 0) return null;
+                  return (
+                    <View style={styles.countBadge}>
+                      <Text style={styles.countBadgeText}>{count}</Text>
+                    </View>
+                  );
+                })()}
                 <Text style={styles.cardIcon}>{getSingleIcon(item.icon)}</Text>
                 <Text style={styles.cardText} numberOfLines={2}>
                   {item.name}
@@ -374,6 +402,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 2,
     elevation: 0,
+    position: "relative",
   },
   placeholderCard: {
     backgroundColor: "transparent",
@@ -393,6 +422,23 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     letterSpacing: 0.2,
     textAlign: "center",
+  },
+  countBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   emptyContainer: {
     paddingTop: 56,

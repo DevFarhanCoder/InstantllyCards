@@ -111,6 +111,25 @@ export default function CategoriesPage() {
     [filteredRoots],
   );
 
+  const nestedCountById = useMemo(() => {
+    const map = new Map<string, number>();
+    const countDescendants = (node: CategoryNode): number => {
+      const activeChildren = (node.children || []).filter(
+        (child) => child.isActive !== false,
+      );
+      const subCount = (node.subcategories || []).filter(Boolean).length;
+      let total = subCount;
+      for (const child of activeChildren) {
+        total += 1 + countDescendants(child);
+      }
+      map.set(node._id, total);
+      return total;
+    };
+
+    sortedRoots.forEach((root) => countDescendants(root));
+    return map;
+  }, [sortedRoots]);
+
   useEffect(() => {
     dataRef.current = sortedRoots;
   }, [sortedRoots]);
@@ -304,6 +323,15 @@ export default function CategoriesPage() {
                   }
                 }}
               >
+                {(() => {
+                  const count = nestedCountById.get(item._id) || 0;
+                  if (count <= 0) return null;
+                  return (
+                    <View style={styles.countBadge}>
+                      <Text style={styles.countBadgeText}>{count}</Text>
+                    </View>
+                  );
+                })()}
                 <Text style={styles.cardIcon}>{getSingleIcon(item.icon)}</Text>
                 <Text style={styles.cardText} numberOfLines={2}>
                   {item.name}
@@ -464,6 +492,7 @@ const styles = StyleSheet.create({
     elevation: 0,
     flexGrow: 0,
     flexShrink: 0,
+    position: "relative",
   },
   cardIcon: {
     fontSize: 22,
@@ -477,6 +506,23 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     letterSpacing: 0.2,
     textAlign: "center",
+  },
+  countBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   emptyContainer: {
     paddingTop: 56,

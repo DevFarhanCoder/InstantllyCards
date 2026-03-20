@@ -12,10 +12,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { WebView } from 'react-native-webview';
 import api from '@/lib/api';
 
-type AreaType = 'pincode' | 'tehsil' | 'district';
+type AreaType = 'pincode' | 'tehsil' | 'district' | 'division' | 'state' | 'zone' | 'india';
 
 type PricingPlan = {
   _id: string;
@@ -61,6 +60,26 @@ const getRazorpayCheckout = (): { open: (options: Record<string, any>) => Promis
   }
 };
 
+const AREA_TYPES: AreaType[] = [
+  'pincode',
+  'tehsil',
+  'district',
+  'division',
+  'state',
+  'zone',
+  'india',
+];
+
+const AREA_TYPE_LABELS: Record<AreaType, string> = {
+  pincode: 'Pincode',
+  tehsil: 'Tehsil',
+  district: 'District',
+  division: 'Division',
+  state: 'State',
+  zone: 'Zone',
+  india: 'India',
+};
+
 export default function PromotionPricing() {
   const { promotionId } = useLocalSearchParams<{ promotionId?: string }>();
 
@@ -80,11 +99,6 @@ export default function PromotionPricing() {
   const [rankModalVisible, setRankModalVisible] = useState(false);
   const [areaModalVisible, setAreaModalVisible] = useState(false);
   const [durationModalVisible, setDurationModalVisible] = useState(false);
-  const [webCheckoutVisible, setWebCheckoutVisible] = useState(false);
-  const [webCheckoutHtml, setWebCheckoutHtml] = useState('');
-  const webCheckoutResolveRef = React.useRef<((value: any) => void) | null>(null);
-  const webCheckoutRejectRef = React.useRef<((reason?: any) => void) | null>(null);
-  const checkoutMode: 'native' | 'web' = getRazorpayCheckout() ? 'native' : 'web';
 
   const loadCatalog = async () => {
     try {
@@ -119,6 +133,46 @@ export default function PromotionPricing() {
     return unique.sort((a, b) => a - b);
   }, [plans]);
 
+  const areaTypeOptions = useMemo(() => {
+    const available = new Set(plans.map((p) => p.areaType));
+    return AREA_TYPES.filter((type) => available.has(type)).map((type) => ({
+      label: AREA_TYPE_LABELS[type],
+      value: type,
+    }));
+  }, [plans]);
+
+  const tableColumns = useMemo(() => {
+    const available = new Set(plans.map((p) => p.areaType));
+    const types = AREA_TYPES.filter((type) => available.has(type));
+    const shortLabels: Record<AreaType, string> = {
+      pincode: 'PIN',
+      tehsil: 'TEH',
+      district: 'DIST',
+      division: 'DIV',
+      state: 'STATE',
+      zone: 'ZONE',
+      india: 'INDIA',
+    };
+    const flexMap: Record<AreaType, number> = {
+      pincode: 0.9,
+      tehsil: 0.9,
+      district: 1,
+      division: 1,
+      state: 1.1,
+      zone: 1.1,
+      india: 1.2,
+    };
+    return [
+      { key: 'rank', label: 'RANK', flex: 0.8, isRank: true },
+      ...types.map((type) => ({
+        key: type,
+        label: shortLabels[type],
+        flex: flexMap[type],
+        areaType: type,
+      })),
+    ];
+  }, [plans]);
+
   const rankOptions = useMemo(() => {
     const map = new Map<number, string>();
     plans.forEach((plan) => {
@@ -132,7 +186,7 @@ export default function PromotionPricing() {
   const chartRows = useMemo(() => {
     if (!durationDays) return [];
     const filtered = plans.filter((p) => p.durationDays === durationDays);
-    const rankMap = new Map<number, { rank: number; pincode?: number; tehsil?: number; district?: number }>();
+    const rankMap = new Map<number, { rank: number } & Partial<Record<AreaType, number>>>();
 
     filtered.forEach((plan) => {
       if (!rankMap.has(plan.rank)) rankMap.set(plan.rank, { rank: plan.rank });
@@ -186,41 +240,6 @@ export default function PromotionPricing() {
     router.replace('/profile');
   };
 
-  const openWebRazorpayCheckout = (options: Record<string, any>) =>
-    new Promise<any>((resolve, reject) => {
-      webCheckoutResolveRef.current = resolve;
-      webCheckoutRejectRef.current = reject;
-      const serialized = encodeURIComponent(JSON.stringify(options));
-      const html = `<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  </head>
-  <body style="margin:0;background:#fff;">
-    <script>
-      (function () {
-        try {
-          var options = JSON.parse(decodeURIComponent("${serialized}"));
-          options.handler = function (response) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'success', payload: response }));
-          };
-          var rzp = new Razorpay(options);
-          rzp.on('payment.failed', function (response) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'failed', payload: response && response.error ? response.error : response }));
-          });
-          rzp.open();
-        } catch (e) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', payload: String(e && e.message ? e.message : e) }));
-        }
-      })();
-    </script>
-  </body>
-</html>`;
-      setWebCheckoutHtml(html);
-      setWebCheckoutVisible(true);
-    });
-
   const handlePayNow = async () => {
     if (!promotionId) {
       Alert.alert('Error', 'Promotion ID is missing. Please go back and submit listing again.');
@@ -270,7 +289,8 @@ export default function PromotionPricing() {
 
       const razorpay = getRazorpayCheckout();
       if (!razorpay) {
-        console.log('[PAYMENT] native razorpay unavailable, falling back to web checkout');
+        setPaymentError('Razorpay SDK is not available on this device.');
+        return;
       }
 
       const checkoutOptions: any = {
@@ -289,9 +309,7 @@ export default function PromotionPricing() {
         amount: createOrderResponse.checkout.amount,
         currency: createOrderResponse.checkout.currency,
       });
-      const razorpayResult = razorpay
-        ? await razorpay.open(checkoutOptions)
-        : await openWebRazorpayCheckout(checkoutOptions);
+      const razorpayResult = await razorpay.open(checkoutOptions);
       console.log('[PAYMENT] razorpay checkout success', {
         razorpay_order_id: razorpayResult?.razorpay_order_id,
         razorpay_payment_id: razorpayResult?.razorpay_payment_id,
@@ -353,29 +371,18 @@ export default function PromotionPricing() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.selectionContainer}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Promotion Configuration</Text>
-            <View
-              style={[
-                styles.modeBadge,
-                checkoutMode === 'native' ? styles.modeBadgeNative : styles.modeBadgeWeb,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modeBadgeText,
-                  checkoutMode === 'native' ? styles.modeBadgeTextNative : styles.modeBadgeTextWeb,
-                ]}
-              >
-                {checkoutMode === 'native' ? 'Native SDK' : 'WebView Fallback'}
-              </Text>
-            </View>
+            <Text style={styles.sectionTitle}>Selection Parameters</Text>
           </View>
-
+          <Text style={styles.sectionSubtitle}>
+            Select area type, rank, and duration. Quote updates instantly.
+          </Text>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Area Type</Text>
             <TouchableOpacity style={styles.pickerContainer} onPress={() => setAreaModalVisible(true)}>
-              <Text style={styles.pickerText}>{areaType ? areaType.toUpperCase() : 'Select area type'}</Text>
-              <Ionicons name="chevron-down" size={20} color="#000000" />
+              <Text style={styles.pickerText}>
+                {areaType ? AREA_TYPE_LABELS[areaType] : 'Select area type'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
@@ -385,7 +392,7 @@ export default function PromotionPricing() {
               <Text style={styles.pickerText}>
                 {rank !== null ? (rank === 21 ? 'No Rank' : `Rank ${rank}`) : 'Select ranking'}
               </Text>
-              <Ionicons name="chevron-down" size={20} color="#000000" />
+              <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
@@ -395,21 +402,30 @@ export default function PromotionPricing() {
               <Text style={styles.pickerText}>
                 {durationDays !== null ? `${durationDays} days` : 'Select duration'}
               </Text>
-              <Ionicons name="chevron-down" size={20} color="#000000" />
+              <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
           <View style={styles.priceDisplay}>
-            <Text style={styles.priceLabel}>Current Quote</Text>
-            {quoteLoading ? (
-              <ActivityIndicator size="small" color="#2563EB" />
-            ) : quote ? (
-              <Text style={styles.priceValue}>
-                {quote.currency} {quote.amount}
-              </Text>
-            ) : (
-              <Text style={styles.priceValue}>-</Text>
-            )}
+            <View>
+              <Text style={styles.priceLabel}>CURRENT QUOTE</Text>
+              {quoteLoading ? (
+                <ActivityIndicator size="small" color="#2563EB" />
+              ) : quote ? (
+                <Text style={styles.priceValue}>
+                  {quote.currency} {quote.amount}
+                </Text>
+              ) : (
+                <Text style={styles.priceValue}>-</Text>
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.quoteRefreshButton}
+              onPress={loadQuote}
+              disabled={quoteLoading}
+            >
+              <Ionicons name="refresh" size={18} color="#2563EB" />
+            </TouchableOpacity>
           </View>
 
           {quoteError ? (
@@ -425,20 +441,52 @@ export default function PromotionPricing() {
 
         <View style={styles.tableContainer}>
           <Text style={styles.tableTitle}>Catalog (for selected duration)</Text>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, styles.rankColumn]}>Rank</Text>
-            <Text style={[styles.tableHeaderCell, styles.priceColumn]}>Pincode</Text>
-            <Text style={[styles.tableHeaderCell, styles.priceColumn]}>Tehsil</Text>
-            <Text style={[styles.tableHeaderCell, styles.priceColumn]}>District</Text>
-          </View>
-          {chartRows.map((row) => (
-            <View key={row.rank} style={styles.tableRow}>
-              <Text style={[styles.tableCell, styles.rankColumn]}>{row.rank === 21 ? 'No Rank' : `Rank ${row.rank}`}</Text>
-              <Text style={[styles.tableCell, styles.priceColumn]}>{row.pincode ?? '-'}</Text>
-              <Text style={[styles.tableCell, styles.priceColumn]}>{row.tehsil ?? '-'}</Text>
-              <Text style={[styles.tableCell, styles.priceColumn]}>{row.district ?? '-'}</Text>
+          <View style={styles.tableWrapper}>
+            <View style={styles.tableHeader}>
+              {tableColumns.map((column, index) => (
+                <Text
+                  key={column.key}
+                  style={[
+                    styles.tableHeaderCell,
+                    { flex: column.flex },
+                    index !== tableColumns.length - 1 && styles.tableCellBorder,
+                  ]}
+                >
+                  {column.label}
+                </Text>
+              ))}
             </View>
-          ))}
+            {chartRows.map((row, index) => (
+              <View
+                key={row.rank}
+                style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}
+              >
+                {tableColumns.map((column, colIndex) => (
+                  <Text
+                    key={column.key}
+                    style={[
+                      styles.tableCell,
+                      { flex: column.flex },
+                      colIndex !== tableColumns.length - 1 && styles.tableCellBorder,
+                    ]}
+                  >
+                    {column.isRank
+                      ? row.rank === 21
+                        ? 'NR'
+                        : `${row.rank}`
+                      : (row as any)[column.key] ?? '-'}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.summaryBanner}>
+          <Ionicons name="checkmark-circle" size={16} color="#166534" />
+          <Text style={styles.summaryText}>
+            This pricing reflects your Platinum tier benefits.
+          </Text>
         </View>
       </ScrollView>
 
@@ -462,11 +510,7 @@ export default function PromotionPricing() {
       <SelectionModal
         visible={areaModalVisible}
         title="Select Area Type"
-        options={[
-          { label: 'Pincode', value: 'pincode' },
-          { label: 'Tehsil', value: 'tehsil' },
-          { label: 'District', value: 'district' },
-        ]}
+        options={areaTypeOptions}
         selected={areaType}
         onSelect={(value) => {
           setAreaType(value as AreaType);
@@ -499,44 +543,6 @@ export default function PromotionPricing() {
         onClose={() => setDurationModalVisible(false)}
       />
 
-      <Modal visible={webCheckoutVisible} animationType="slide" onRequestClose={() => {
-        setWebCheckoutVisible(false);
-        webCheckoutRejectRef.current?.(new Error('Checkout closed'));
-      }}>
-        <SafeAreaView style={styles.container}>
-          <View style={styles.webHeader}>
-            <TouchableOpacity
-              style={styles.webCloseButton}
-              onPress={() => {
-                setWebCheckoutVisible(false);
-                webCheckoutRejectRef.current?.(new Error('Checkout cancelled by user'));
-              }}
-            >
-              <Ionicons name="close" size={22} color="#111827" />
-            </TouchableOpacity>
-            <Text style={styles.webHeaderTitle}>Secure Payment</Text>
-            <View style={styles.webHeaderSpacer} />
-          </View>
-          <WebView
-            source={{ html: webCheckoutHtml }}
-            onMessage={(event) => {
-              try {
-                const data = JSON.parse(event.nativeEvent.data || '{}');
-                if (data.type === 'success') {
-                  setWebCheckoutVisible(false);
-                  webCheckoutResolveRef.current?.(data.payload || {});
-                } else {
-                  setWebCheckoutVisible(false);
-                  webCheckoutRejectRef.current?.(new Error(data?.payload?.description || data?.payload || 'Checkout failed'));
-                }
-              } catch (e: any) {
-                setWebCheckoutVisible(false);
-                webCheckoutRejectRef.current?.(new Error(e?.message || 'Checkout parsing failed'));
-              }
-            }}
-          />
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -627,57 +633,44 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  modeBadge: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  modeBadgeNative: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  modeBadgeWeb: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FDBA74',
-  },
-  modeBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  modeBadgeTextNative: {
-    color: '#047857',
-  },
-  modeBadgeTextWeb: {
-    color: '#C2410C',
-  },
-  inputGroup: { marginBottom: 16 },
-  label: { fontSize: 15, fontWeight: '700', color: '#000000', marginBottom: 10 },
+  sectionSubtitle: { fontSize: 12, color: '#6B7280', marginBottom: 12 },
+  inputGroup: { marginBottom: 14 },
+  label: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8 },
   pickerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#000000',
+    borderColor: '#E5E7EB',
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
-  pickerText: { fontSize: 16, color: '#000000', flex: 1 },
+  pickerText: { fontSize: 14, color: '#111827', flex: 1 },
   priceDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#EFF6FF',
-    padding: 16,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#BFDBFE',
     marginTop: 8,
   },
-  priceLabel: { fontSize: 16, fontWeight: '600', color: '#1E40AF' },
-  priceValue: { fontSize: 20, fontWeight: '700', color: '#2563EB' },
+  priceLabel: { fontSize: 10, fontWeight: '800', color: '#2563EB', letterSpacing: 0.6 },
+  priceValue: { fontSize: 22, fontWeight: '800', color: '#2563EB', marginTop: 2 },
+  quoteRefreshButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
   tableContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -688,26 +681,60 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  tableTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  tableTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 8 },
+  tableWrapper: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#2563EB',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    backgroundColor: '#F9FAFB',
   },
-  tableHeaderCell: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  tableHeaderCell: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 3,
+    letterSpacing: 0.3,
+  },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
   },
-  tableCell: { fontSize: 13, color: '#374151', textAlign: 'center' },
-  rankColumn: { flex: 1.2 },
-  priceColumn: { flex: 1 },
+  tableRowAlt: {
+    backgroundColor: '#F9FAFB',
+  },
+  tableCellBorder: {
+    borderRightWidth: 1,
+    borderRightColor: '#E5E7EB',
+  },
+  tableCell: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#111827',
+    textAlign: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 3,
+  },
+  summaryBanner: {
+    marginTop: 14,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryText: { fontSize: 11, color: '#166534', flex: 1 },
   fixedButtonContainer: {
     position: 'absolute',
     bottom: 0,
@@ -770,17 +797,4 @@ const styles = StyleSheet.create({
   },
   quoteRetryText: { color: '#111827', fontWeight: '600', fontSize: 12 },
   helperText: { marginTop: 12, color: '#6B7280' },
-  webHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  webCloseButton: { padding: 6 },
-  webHeaderTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  webHeaderSpacer: { width: 34 },
 });
