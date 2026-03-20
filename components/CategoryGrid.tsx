@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import SubCategoryModal from "./SubCategoryModal";
 import { getCategoryTree } from "../lib/categoryService";
 import type { CategoryNode } from "../types/category";
 
@@ -28,7 +27,6 @@ export default function CategoryGrid() {
   const [tree, setTree] = useState<CategoryNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<CategoryNode | null>(null);
 
   const fetchCategories = useCallback(async (fresh = false) => {
     setLoading(true);
@@ -62,6 +60,25 @@ export default function CategoryGrid() {
   const rootCategories = tree;
   const displayCategories = rootCategories.slice(0, INITIAL_COUNT);
   const gridItems: (CategoryNode | ControlItem)[] = [...displayCategories];
+
+  const nestedCountById = React.useMemo(() => {
+    const map = new Map<string, number>();
+    const countDescendants = (node: CategoryNode): number => {
+      const activeChildren = (node.children || []).filter(
+        (child) => child.isActive !== false,
+      );
+      const subCount = (node.subcategories || []).filter(Boolean).length;
+      let total = subCount;
+      for (const child of activeChildren) {
+        total += 1 + countDescendants(child);
+      }
+      map.set(node._id, total);
+      return total;
+    };
+
+    rootCategories.forEach((root) => countDescendants(root));
+    return map;
+  }, [rootCategories]);
 
   if (rootCategories.length > INITIAL_COUNT) {
     gridItems.push({ _id: "__more__", name: "More", isControl: "more" });
@@ -122,14 +139,29 @@ export default function CategoryGrid() {
             }
 
             const node = item as CategoryNode;
+            const nestedCount = nestedCountById.get(node._id) || 0;
             return (
               <TouchableOpacity
                 key={node._id}
                 style={styles.item}
-                onPress={() => setSelectedNode(node)}
+                onPress={() =>
+                  router.push({
+                    pathname: "/category-focus",
+                    params: {
+                      rootId: node._id,
+                      rootName: node.name,
+                      rootIcon: node.icon || DEFAULT_CATEGORY_ICON,
+                    },
+                  })
+                }
                 activeOpacity={0.7}
               >
                 <View style={styles.iconBox}>
+                  {nestedCount > 0 && (
+                    <View style={styles.countBadge}>
+                      <Text style={styles.countBadgeText}>{nestedCount}</Text>
+                    </View>
+                  )}
                   <Text style={styles.emojiIcon}>
                     {node.icon || DEFAULT_CATEGORY_ICON}
                   </Text>
@@ -151,11 +183,6 @@ export default function CategoryGrid() {
         </View>
       ))}
 
-      <SubCategoryModal
-        visible={selectedNode !== null}
-        onClose={() => setSelectedNode(null)}
-        node={selectedNode}
-      />
     </View>
   );
 }
@@ -198,6 +225,24 @@ const styles = StyleSheet.create({
     borderColor: "#D1D5DB",
     shadowOpacity: 0,
     elevation: 0,
+    position: "relative",
+  },
+  countBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   emojiIcon: {
     fontSize: 22,
