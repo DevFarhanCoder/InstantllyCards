@@ -30,6 +30,10 @@ let fullscreenImageRef: any = null;
 let bottomVideoRef: any = null;
 let fullscreenVideoRef: any = null;
 const API_BASE_URL = `${process.env.EXPO_PUBLIC_API_BASE}${process.env.EXPO_PUBLIC_API_PREFIX}`;
+const AD_APPROVAL_FEE_AMOUNT = Math.max(
+  0,
+  Number(process.env.EXPO_PUBLIC_AD_APPROVAL_FEE_AMOUNT || 1200),
+);
 
 interface Ad {
   id: string;
@@ -38,6 +42,8 @@ interface Ad {
   startDate: string;
   endDate: string;
   status: 'pending' | 'approved' | 'rejected';
+  paymentStatus?: string;
+  paymentOrderId?: string;
   rejectionReason?: string;
   createdAt: string;
   adType?: 'image' | 'video';
@@ -67,13 +73,16 @@ export default function AdsWithoutChannel() {
   const [adType, setAdType] = useState<'image' | 'video'>('image');
   const [needsVideoResize, setNeedsVideoResize] = useState<'bottom' | 'fullscreen' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [creditsLoading, setCreditsLoading] = useState(true);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherBalance, setVoucherBalance] = useState(0);
+  const [voucherValuePerUnit, setVoucherValuePerUnit] = useState(0);
+  const [voucherTotalValue, setVoucherTotalValue] = useState(0);
+  const [redeemVouchers, setRedeemVouchers] = useState(false);
   
   // Status State
   const [myAds, setMyAds] = useState<Ad[]>([]);
   const [isLoadingAds, setIsLoadingAds] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [userCredits, setUserCredits] = useState(0);
   
   // Filter State
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
@@ -92,37 +101,51 @@ export default function AdsWithoutChannel() {
   const [endDateObj, setEndDateObj] = useState<Date>(new Date());
 
   useEffect(() => {
-    loadUserData();
     if (activeTab === 'status') {
       loadMyAds();
     }
+    if (activeTab === 'create') {
+      loadVoucherBalance();
+    }
   }, [activeTab]);
 
-  const loadUserData = async () => {
-    setCreditsLoading(true);
+  const loadVoucherBalance = async () => {
+    setVoucherLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      if (token) {
-        // Load user credits
-        const response = await fetch(`${API_BASE_URL}/credits/balance`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const data = await response.json();
-        if (data.success) {
-          setUserCredits(data.credits || 0);
-          console.log('✅ Credits loaded:', data.credits);
+      if (!token) {
+        setVoucherBalance(0);
+        setVoucherValuePerUnit(0);
+        setVoucherTotalValue(0);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/channel-partner/ads/voucher-balance`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data?.success) {
+        const balance = Number(data.balance || 0);
+        const mrp = Number(data?.voucher?.mrp || 0);
+        const totalValue = Number(data.totalValue || 0);
+        setVoucherBalance(balance);
+        setVoucherValuePerUnit(mrp);
+        setVoucherTotalValue(totalValue);
+        if (balance <= 0) {
+          setRedeemVouchers(false);
         }
       } else {
-        console.log('⚠️ No auth token found');
-        setUserCredits(0);
+        setVoucherBalance(0);
+        setVoucherValuePerUnit(0);
+        setVoucherTotalValue(0);
       }
     } catch (error) {
-      console.error('❌ Load user data error:', error);
-      setUserCredits(0);
+      console.error('❌ Load voucher balance error:', error);
+      setVoucherBalance(0);
+      setVoucherValuePerUnit(0);
+      setVoucherTotalValue(0);
     } finally {
-      setCreditsLoading(false);
+      setVoucherLoading(false);
     }
   };
 
@@ -310,16 +333,26 @@ export default function AdsWithoutChannel() {
       }
     }
 
-    // Check credits
-    if (userCredits < 1200) {
-      Alert.alert('Insufficient Credits', `You need 1200 credits to create an ad. Current balance: ${userCredits}`);
+    if (!hasRequiredVouchers) {
+      Alert.alert(
+        'Insufficient Vouchers',
+        `You need ${requiredVoucherQty} Instantlly voucher(s) (₹${formatIndianNumber(AD_APPROVAL_FEE_AMOUNT)}) to create an ad.`,
+      );
+      return;
+    }
+
+    if (!redeemVouchers) {
+      Alert.alert(
+        'Redeem Required',
+        `Please redeem ${requiredVoucherQty} Instantlly voucher(s) to continue.`,
+      );
       return;
     }
 
     // Confirm ad submission with cost breakdown
     Alert.alert(
       '📢 Ad Submission Cost',
-      `💳 Credits: 1200 (will be deducted now)\n💵 Cash Payment: ₹180 (after admin approval)\n📊 Total Cost: 1200 credits + ₹180\n\n⚠️ Admin will review your ad. After approval, you will be contacted to pay ₹180.\n\nDo you want to proceed?`,
+      `🎟️ Redeem Vouchers: ${requiredVoucherQty} voucher(s) (₹${formatIndianNumber(AD_APPROVAL_FEE_AMOUNT)})\n\n⚠️ Admin will review your ad. After approval, confirm redeem from the Redeem tab.\n\nDo you want to proceed?`,
       [
         {
           text: 'Cancel',
@@ -359,6 +392,7 @@ export default function AdsWithoutChannel() {
       formData.append('userId', userId || '');
       formData.append('startDate', startDate);
       formData.append('endDate', endDate);
+      formData.append('redeemVouchers', redeemVouchers ? 'true' : 'false');
 
       let endpoint = `${API_BASE_URL}/channel-partner/ads`;
       
@@ -470,9 +504,16 @@ export default function AdsWithoutChannel() {
       console.log('📥 Response data:', JSON.stringify(data));
 
       if (response.ok) {
+        const voucherQtyApplied = Number(data?.voucherQtyApplied || 0);
+        const voucherAmountApplied = Number(data?.voucherAmountApplied || 0);
+        const voucherLine =
+          voucherQtyApplied > 0
+            ? `🎟️ Redeemed: ${voucherQtyApplied} voucher(s) (₹${formatIndianNumber(voucherAmountApplied)})`
+            : "🎟️ Redeem Vouchers applied";
+
         Alert.alert(
           '✅ Ad Submitted Successfully!',
-          `💳 1200 credits deducted\n📊 Remaining credits: ${data.remainingCredits ? formatIndianNumber(data.remainingCredits) : 'N/A'}\n\n⏳ Your ${adType} ad is now pending admin approval.\n💵 After approval, admin will contact you for ₹180 payment.`,
+          `${voucherLine}\n\n⏳ Your ${adType} ad is now pending admin approval.\n✅ After approval, confirm redeem from the Redeem tab.`,
           [{ text: 'OK', onPress: () => {
             // Reset form
             setTitle('');
@@ -483,6 +524,7 @@ export default function AdsWithoutChannel() {
             setFullscreenImage(null);
             setBottomVideo(null);
             setFullscreenVideo(null);
+            setRedeemVouchers(false);
             // Also clear refs
             bottomImageRef = null;
             fullscreenImageRef = null;
@@ -582,6 +624,18 @@ export default function AdsWithoutChannel() {
     return filtered;
   };
 
+  const requiredVoucherQty =
+    voucherValuePerUnit > 0
+      ? Math.ceil(AD_APPROVAL_FEE_AMOUNT / voucherValuePerUnit)
+      : 0;
+  const requiredVoucherValue = requiredVoucherQty * voucherValuePerUnit;
+  const hasRequiredVouchers =
+    requiredVoucherQty > 0 && voucherBalance >= requiredVoucherQty;
+
+  useEffect(() => {
+    setRedeemVouchers(hasRequiredVouchers);
+  }, [hasRequiredVouchers]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved': return '#10b981';
@@ -654,17 +708,41 @@ export default function AdsWithoutChannel() {
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={24} color="#4F6AF3" />
             <Text style={styles.infoText}>
-              Create an ad for 1200 credits. Your ad will be reviewed by admin before appearing in the app.
+              Create an ad by redeeming Instantlly vouchers worth ₹{formatIndianNumber(AD_APPROVAL_FEE_AMOUNT)}. Your ad will be reviewed by admin before appearing in the app.
             </Text>
           </View>
 
-          <View style={styles.creditsCard}>
-            <Text style={styles.creditsLabel}>Available Credits</Text>
-            {creditsLoading ? (
-              <ActivityIndicator size="small" color="#15803d" />
-            ) : (
-              <Text style={styles.creditsValue}>{formatIndianNumber(userCredits)}</Text>
-            )}
+          <View style={styles.voucherCard}>
+            <View style={styles.voucherHeader}>
+              <Text style={styles.voucherTitle}>Instantlly Voucher Balance</Text>
+              {voucherLoading ? (
+                <ActivityIndicator size="small" color="#1D4ED8" />
+              ) : null}
+            </View>
+            <Text style={styles.voucherMeta}>
+              {voucherBalance} voucher(s) · ₹{formatIndianNumber(voucherValuePerUnit)} each
+            </Text>
+            <Text style={styles.voucherMeta}>
+              Total Value: ₹{formatIndianNumber(voucherTotalValue)}
+            </Text>
+            <Text style={styles.voucherMeta}>
+              Required: {requiredVoucherQty} voucher(s) (₹{formatIndianNumber(AD_APPROVAL_FEE_AMOUNT)})
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.voucherApplyButton,
+                (!hasRequiredVouchers || voucherLoading) && styles.voucherApplyButtonDisabled,
+                hasRequiredVouchers && styles.voucherApplyButtonSelected,
+              ]}
+              disabled
+            >
+              <Text style={styles.voucherApplyText}>
+                {hasRequiredVouchers ? "Redeem Vouchers (Required)" : "Insufficient Vouchers"}
+              </Text>
+            </TouchableOpacity>
+            {hasRequiredVouchers ? (
+              <Text style={styles.voucherAppliedNote}>Payable after approval: ₹0</Text>
+            ) : null}
           </View>
 
           <View style={styles.formGroup}>
@@ -990,7 +1068,7 @@ export default function AdsWithoutChannel() {
           <View style={styles.warningCard}>
             <Ionicons name="warning" size={20} color="#f59e0b" />
             <Text style={styles.warningText}>
-              1200 credits will be deducted upon submission
+              Redeem {requiredVoucherQty} Instantlly voucher(s) (₹{formatIndianNumber(AD_APPROVAL_FEE_AMOUNT)}) to submit
             </Text>
           </View>
 
@@ -1004,7 +1082,7 @@ export default function AdsWithoutChannel() {
             ) : (
               <>
                 <Ionicons name="paper-plane" size={20} color="#fff" />
-                <Text style={styles.submitBtnText}>Submit Ad (1200 Credits)</Text>
+                <Text style={styles.submitBtnText}>Submit Ad (Redeem Vouchers)</Text>
               </>
             )}
           </TouchableOpacity>
@@ -1408,17 +1486,54 @@ const styles = StyleSheet.create({
   },
   infoText: { flex: 1, marginLeft: 10, fontSize: 14, color: '#1e40af' },
   
-  creditsCard: {
-    backgroundColor: '#f0fdf4',
+  voucherCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#86efac',
+    borderColor: '#E5E7EB',
   },
-  creditsLabel: { fontSize: 14, color: '#166534', marginBottom: 4 },
-  creditsValue: { fontSize: 32, fontWeight: '700', color: '#15803d' },
+  voucherHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  voucherTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  voucherMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  voucherApplyButton: {
+    marginTop: 10,
+    backgroundColor: '#4F6AF3',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  voucherApplyButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  voucherApplyButtonSelected: {
+    backgroundColor: '#1D4ED8',
+  },
+  voucherApplyText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  voucherAppliedNote: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#047857',
+    fontWeight: '600',
+  },
   
   // Form
   formGroup: { marginBottom: 16 },
