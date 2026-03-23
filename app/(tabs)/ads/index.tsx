@@ -11,19 +11,9 @@ import FooterCarousel from "../../../components/FooterCarousel";
 export default function Ads() {
   const router = useRouter();
   
-  // With Channel → questionnaire page
-  const handleWithChannel = () => {
+  const handlePublishAds = () => {
     router.push({
       pathname: "/(tabs)/ads/adquestionnaire",
-      params: { type: "withChannel" }
-    });
-  };
-
-  // Without Channel → questionnaire page
-  const handleWithoutChannel = () => {
-    router.push({
-      pathname: "/(tabs)/ads/adquestionnaire",
-      params: { type: "withoutChannel" }
     });
   };
 
@@ -34,17 +24,8 @@ export default function Ads() {
           Here you can manage and view your active ads 📢
         </Text>
 
-        {/* With Channel */}
-        <TouchableOpacity style={styles.button} onPress={handleWithChannel}>
-          <Text style={styles.buttonText}>With Channel</Text>
-        </TouchableOpacity>
-
-        {/* Without Channel */}
-        <TouchableOpacity 
-          style={styles.linkContainer}
-          onPress={handleWithoutChannel}
-        >
-          <Text style={styles.linkText}>Without Channel</Text>
+        <TouchableOpacity style={styles.button} onPress={handlePublishAds}>
+          <Text style={styles.buttonText}>Publish Ads</Text>
         </TouchableOpacity>
       </View>
 
@@ -88,16 +69,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  linkContainer: {
-    marginTop: 16,
-    alignSelf: "center",
-  },
-  linkText: {
-    fontSize: 15,
-    color: "#4F6AF3",
-    fontWeight: "500",
-    textDecorationLine: "underline",
-  },
+
   footerCarouselContainer: {
     position: 'absolute',
     bottom: 0,

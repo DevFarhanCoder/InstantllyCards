@@ -1,12 +1,15 @@
 // app/(main)/card/[id].tsx
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator, Animated } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Image, Linking, TouchableOpacity, Share, ActivityIndicator, Animated, Alert } from "react-native";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureAuth } from "../../../lib/auth";
 import api from "../../../lib/api";
 import BusinessAvatar from "../../../components/BusinessAvatar";
+import BusinessCardTemplate from "../../../components/BusinessCardTemplate";
+import { generateAndShareCardImage } from "../../../utils/cardImageGenerator";
 
 
 export default function CardDetail() {
@@ -14,6 +17,9 @@ export default function CardDetail() {
   const [card, setCard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [userReferralCode, setUserReferralCode] = useState<string>('');
+  const cardTemplateRef = useRef(null);
   
   // ⚡ Animated shimmer effect for skeleton
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -289,6 +295,63 @@ export default function CardDetail() {
   //   }
   // };
 
+  // Fetch user's referral code on mount
+  useEffect(() => {
+    const fetchUserReferralCode = async () => {
+      try {
+        const response = await api.get('/credits/referral-stats');
+        if (response.success && response.referralCode) {
+          setUserReferralCode(response.referralCode);
+        }
+      } catch (error) {
+        try {
+          const userStr = await AsyncStorage.getItem('user');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            if (user.referralCode) setUserReferralCode(user.referralCode);
+          }
+        } catch (err) {
+          console.error('Error fetching referral code:', err);
+        }
+      }
+    };
+    fetchUserReferralCode();
+  }, []);
+
+  const handleShareWhatsApp = async () => {
+    if (!card) return;
+    try {
+      setIsSharing(true);
+      const cardDataWithReferral = {
+        ...card,
+        referralCode: userReferralCode || 'INSTANTLLY'
+      };
+      // Wait for template to render
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Pass .current (the view instance) not the ref object
+      const viewInstance = cardTemplateRef.current;
+      if (!viewInstance) {
+        console.warn('⚠️ Card template ref not ready, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      const result = await generateAndShareCardImage(
+        cardTemplateRef.current || cardTemplateRef,
+        cardDataWithReferral,
+        'whatsapp'
+      );
+      if (!result.success && result.error !== 'cancelled') {
+        Alert.alert('Share Failed', 'Failed to share card. Please try again.', [{ text: 'OK' }]);
+      }
+    } catch (error) {
+      console.error('Error sharing card via WhatsApp:', error);
+      Alert.alert('Error', 'Failed to share card. Please try again.', [{ text: 'OK' }]);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const handleCall = (phone: string) => {
     if (phone) {
       Linking.openURL(`tel:${phone}`);
@@ -434,7 +497,7 @@ export default function CardDetail() {
           {/* Services as Categories */}
           {services.length > 0 && (
             <View style={s.infoRow}>
-              <Text style={s.infoText}>{services.slice(0, 2).join(' • ')}</Text>
+              <Text style={s.infoText}>{services.slice(0, 2).join(' \u2022 ')}</Text>
             </View>
           )}
 
@@ -681,6 +744,39 @@ export default function CardDetail() {
         )}
       </ScrollView>
 
+      {/* Hidden BusinessCardTemplate for image capture */}
+      {card && (
+        <View style={{ position: 'absolute', left: 0, top: 0, zIndex: -1, pointerEvents: 'none', transform: [{ translateY: -10000 }] }}>
+          <View ref={cardTemplateRef} collapsable={false} style={{ backgroundColor: '#FFFFFF', width: 1050, height: 600 }}>
+            <BusinessCardTemplate
+              name={card.name || ''}
+              designation={card.designation || ''}
+              companyName={card.companyName || card.name || 'Company'}
+              personalPhone={fullPersonal}
+              companyPhone={fullCompany}
+              email={card.email}
+              companyEmail={card.companyEmail}
+              website={card.website}
+              companyWebsite={card.companyWebsite}
+              address={card.location || card.companyAddress}
+              companyAddress={card.companyAddress}
+              companyPhoto={card.companyPhoto}
+              location={card.location}
+              mapsLink={card.mapsLink}
+              companyMapsLink={card.companyMapsLink}
+              message={card.message}
+              linkedin={card.linkedin}
+              twitter={card.twitter}
+              instagram={card.instagram}
+              facebook={card.facebook}
+              youtube={card.youtube}
+              whatsapp={card.whatsapp}
+              telegram={card.telegram}
+            />
+          </View>
+        </View>
+      )}
+
       {/* Bottom Action Buttons */}
       <View style={s.bottomActions}>
         {(fullCompany || fullPersonal) && (
@@ -692,6 +788,18 @@ export default function CardDetail() {
           </TouchableOpacity>
         )}
         
+        <TouchableOpacity 
+          style={s.whatsappButton} 
+          onPress={handleShareWhatsApp}
+          disabled={isSharing}
+        >
+          {isSharing ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={s.whatsappButtonText}>💬 Share WhatsApp</Text>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity 
           style={s.secondaryButton} 
           onPress={() => {
@@ -944,17 +1052,19 @@ const s = StyleSheet.create({
   // Bottom Actions
   bottomActions: {
     flexDirection: "row",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
-    gap: 12,
+    gap: 8,
+    alignItems: "stretch",
   },
   primaryButton: {
     flex: 1,
     backgroundColor: "#10B981",
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -966,13 +1076,35 @@ const s = StyleSheet.create({
   },
   primaryButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
+    textAlign: "center",
+  },
+  whatsappButton: {
+    flex: 1,
+    backgroundColor: "#25D366",
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#25D366",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  whatsappButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
   },
   secondaryButton: {
     flex: 1,
     backgroundColor: "#3B82F6",
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -984,8 +1116,9 @@ const s = StyleSheet.create({
   },
   secondaryButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
+    textAlign: "center",
   },
   // ⚡ Animated Skeleton loading styles
   skeletonPhoto: {

@@ -8,45 +8,29 @@ import {
   View,
   TextInput,
   ActivityIndicator,
-  Image,
-  Dimensions,
-  Linking,
   RefreshControl,
-  Modal,
 } from "react-native";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { router, Link, useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
-import CardRow from "../../components/CardRow";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
-import ReferralBanner from "../../components/ReferralBanner";
 import CategoryGrid from "../../components/CategoryGrid";
+import CardRow from "../../components/CardRow";
+import ReferralBanner from "../../components/ReferralBanner";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
-import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
-
-type Card = any;
-
-const { width: screenWidth } = Dimensions.get("window");
-
-const handleAdClick = () => {
-  const url = "https://ldoia.com/";
-  Linking.openURL(url).catch((err) =>
-    console.error("Failed to open URL:", err),
-  );
-};
+import { formatAmount } from "../../utils/formatNumber";
+import api from "../../lib/api";
 
 export default function Home() {
-  // console.log("🏠 HOME: Component rendering...");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [userName, setUserName] = React.useState<string>("");
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
-  const [showVideoTest, setShowVideoTest] = React.useState(false);
   const [userCredits, setUserCredits] = React.useState<number>(0);
   const [creditsLoading, setCreditsLoading] = React.useState(true);
+  const [hasPromotedBusiness, setHasPromotedBusiness] = React.useState(false);
   const queryClient = useQueryClient();
 
   // Fetch user name and ID for profile initial and filtering
@@ -98,6 +82,70 @@ export default function Home() {
     };
     fetchUserData();
   }, []);
+
+  // Check if user has already promoted a business
+  const checkBusinessPromotion = React.useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        const response = await api.get<{ promotions?: any[]; data?: any[] }>("/business-promotion");
+        const promotions = response?.promotions || response?.data || (Array.isArray(response) ? response : []);
+        setHasPromotedBusiness(Array.isArray(promotions) && promotions.length > 0);
+      }
+    } catch (error) {
+      console.error("Error checking business promotions:", error);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    checkBusinessPromotion();
+  }, [checkBusinessPromotion]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      checkBusinessPromotion();
+    }, [checkBusinessPromotion]),
+  );
+
+  // Contacts feed - show cards from my contacts
+  const feedQ = useQuery({
+    queryKey: ["contacts-feed", currentUserId],
+    enabled: !!currentUserId,
+    queryFn: async () => {
+      try {
+        const token = await AsyncStorage.getItem("token");
+        if (!token) return [];
+
+        const apiBase =
+          Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE ||
+          "https://api.instantllycards.com";
+        const url = `${apiBase}/api/cards/feed/contacts`;
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        return result.data || [];
+      } catch (error) {
+        console.error("❌ Home: Error fetching contacts feed:", error);
+        return [];
+      }
+    },
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: false,
+  });
 
   // Fetch user credits
   const fetchCredits = React.useCallback(async () => {
@@ -165,133 +213,58 @@ export default function Home() {
     }, [fetchCredits]),
   );
 
-  // Contacts feed - only show cards from my contacts (privacy-focused)
-  const feedQ = useQuery({
-    queryKey: ["contacts-feed", currentUserId], // CRITICAL: Include userId to prevent data leakage
-    enabled: !!currentUserId, // Only fetch when user ID is available
-    queryFn: async () => {
-      // console.log("📱 Home: Fetching contacts feed...");
-      try {
-        const token = await AsyncStorage.getItem("token");
-        if (!token) {
-          // console.log("❌ Home: No auth token found");
-          return [];
-        }
-
-        // AWS Cloud primary, Render backup handled by api.ts
-        const apiBase =
-          Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE ||
-          "https://api.instantllycards.com";
-        const url = `${apiBase}/api/cards/feed/contacts`;
-        // console.log("🔍 Home: Fetching from URL:", url);
-
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        // console.log("✅ Home: Contacts Feed Response:", result.success ? "Success" : "Failed");
-        // console.log("📊 Home: Total contacts:", result.meta?.totalContacts);
-        // console.log("📇 Home: Cards count:", result.meta?.totalCards);
-        // console.log("📋 Home: Cards in feed:", result.data?.map((c: any) => c.name).join(', '));
-
-        return result.data || [];
-      } catch (error) {
-        console.error("❌ Home: Error fetching contacts feed:", error);
-        return [];
-      }
-    },
-    staleTime: 30 * 1000, // 30 seconds - reduced cache time
-    gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 mins
-    refetchOnMount: true, // Refetch when screen loads to get fresh data
-    refetchOnWindowFocus: true, // Refetch when app comes to foreground
-    refetchInterval: false, // No auto-refetch - only on manual refresh
-  });
-
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
-    // console.log("🔄 Manual refresh triggered");
-    fetchCredits(); // Also refresh credits
+    fetchCredits();
     queryClient.invalidateQueries({
       queryKey: ["contacts-feed", currentUserId],
     });
-  }, [queryClient, currentUserId, fetchCredits]);
+  }, [fetchCredits, queryClient, currentUserId]);
 
-  // Filter cards: 1) Exclude user's own cards, 2) Deduplicate, 3) Apply search query
+  // Refetch feed when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUserId) {
+        queryClient.invalidateQueries({
+          queryKey: ["contacts-feed", currentUserId],
+        });
+      }
+    }, [currentUserId, queryClient]),
+  );
+
+  // Filter cards: exclude own cards, deduplicate, search
   const filteredCards = React.useMemo(() => {
     let cards = feedQ.data || [];
 
-    // console.log("🔍 Home Filter - Starting with cards:", cards.length);
-    // console.log("🔍 Home Filter - Current User ID:", currentUserId || "NOT SET");
-
-    // CRITICAL: Filter out user's own cards (extra safety on client side)
     if (currentUserId) {
-      const beforeFilter = cards.length;
       cards = cards.filter((card: any) => {
         const cardUserId = (card.userId || card.owner || "").toString();
-        const isOwnCard = cardUserId === currentUserId;
-
-        // console.log(`🔍 Card: "${card.name}" | cardUserId: ${cardUserId} | currentUserId: ${currentUserId} | isOwn: ${isOwnCard}`);
-
-        if (isOwnCard) {
-          // console.log("🚫 Home: Filtering out user's own card:", card.name);
-        }
-        return !isOwnCard;
+        return cardUserId !== currentUserId;
       });
-      // console.log(`✅ Home Filter - Filtered ${beforeFilter - cards.length} own cards. Remaining: ${cards.length}`);
-    } else {
-      console.warn(
-        "⚠️ Home Filter - No currentUserId set, cannot filter own cards!",
-      );
     }
 
-    // Deduplicate cards by _id to prevent React key errors
     const uniqueCards = Array.from(
       new Map(cards.map((card: any) => [card._id, card])).values(),
-    );
-    // console.log(`✅ Home Filter - After deduplication: ${uniqueCards.length} cards`);
+    ) as any[];
 
-    // Apply search filter
-    if (!searchQuery.trim()) return uniqueCards;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      return uniqueCards.filter((card: any) => {
+        const name = (card.name || "").toLowerCase();
+        const company = (card.company || "").toLowerCase();
+        const designation = (card.designation || "").toLowerCase();
+        const category = (card.category || "").toLowerCase();
+        return (
+          name.includes(q) ||
+          company.includes(q) ||
+          designation.includes(q) ||
+          category.includes(q)
+        );
+      });
+    }
 
-    const query = searchQuery.toLowerCase();
-    return uniqueCards.filter((card: any) => {
-      const companyName = (card.companyName || "").toLowerCase();
-      const name = (card.name || "").toLowerCase();
-      const keywords = (card.keywords || "").toLowerCase();
-      const location = (
-        card.companyAddress ||
-        card.location ||
-        ""
-      ).toLowerCase();
-
-      return (
-        companyName.includes(query) ||
-        name.includes(query) ||
-        keywords.includes(query) ||
-        location.includes(query)
-      );
-    });
-  }, [feedQ.data, searchQuery, currentUserId]);
-
-  // console.log("🎯 Home: Query state:", {
-  //   isLoading: feedQ.isLoading,
-  //   isRefetching: feedQ.isRefetching,
-  //   isError: feedQ.isError,
-  //   dataLength: feedQ.data?.length,
-  //   filteredLength: filteredCards?.length
-  // });
-
-  // console.log("🎨 HOME: About to render SafeAreaView");
-
+    return uniqueCards;
+  }, [feedQ.data, currentUserId, searchQuery]);
   return (
     <SafeAreaView style={s.root}>
       {/* Custom Header */}
@@ -363,7 +336,7 @@ export default function Home() {
           />
           <TextInput
             style={s.searchInputModern}
-            placeholder="Search business cards"
+            placeholder="Search categories & subcategories"
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#9CA3AF"
@@ -409,7 +382,8 @@ export default function Home() {
                       style={s.categoriesArrow}
                     />
                   </View>
-                  {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS && (
+                  {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS &&
+                    !hasPromotedBusiness && (
                     <TouchableOpacity
                       style={s.promoteBusinessButton}
                       onPress={() => router.push("/business-promotiontype")}
