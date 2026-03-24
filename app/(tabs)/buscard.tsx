@@ -13,14 +13,16 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import Constants from "expo-constants";
 import CardRow from "../../components/CardRow";
+import FooterCarousel from "../../components/FooterCarousel";
 
 export default function BusCard() {
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Fetch user ID
   React.useEffect(() => {
@@ -192,6 +194,25 @@ export default function BusCard() {
         </View>
       </View>
 
+      {/* My Cards Button */}
+      <View style={s.myCardsRow}>
+        <TouchableOpacity
+          style={s.menuButton}
+          onPress={() => router.push("/(tabs)/mycards" as any)}
+        >
+          <View style={s.menuIconContainer}>
+            <Ionicons name="albums" size={22} color="#4F6AF3" />
+          </View>
+          <View style={s.menuContent}>
+            <Text style={s.menuTitle}>My Cards</Text>
+            <Text style={s.menuSubtitle}>
+              View and manage your business cards
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
+      </View>
+
       {/* Cards List */}
       {feedQ.isLoading ? (
         <View style={s.loadingContainer}>
@@ -229,6 +250,8 @@ export default function BusCard() {
           }
         />
       )}
+
+      <FooterCarousel />
     </SafeAreaView>
   );
 }
@@ -285,6 +308,48 @@ const s = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+  },
+  myCardsRow: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  menuButton: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E8ECEF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  menuIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  menuContent: {
+    flex: 1,
+  },
+  menuTitle: {
+    color: "#1A1A1A",
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  menuSubtitle: {
+    color: "#666",
+    fontSize: 12,
+    fontWeight: "500",
   },
   loadingContainer: {
     flex: 1,
