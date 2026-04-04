@@ -498,9 +498,9 @@ export default function ReferralPage() {
                 </Text>
               </View>
               <Text style={styles.creditsUnit}>Ready to use</Text>
-              <Text style={styles.expiryDateText}>Expires: 31 March 2026 • {(() => {
+              <Text style={styles.expiryDateText}>Expires: 31 December 2026 • {(() => {
                 const today = new Date();
-                const expiryDate = new Date('2026-03-31');
+                const expiryDate = new Date('2026-12-31');
                 const diffTime = expiryDate.getTime() - today.getTime();
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 return diffDays > 0 ? diffDays : 0;
