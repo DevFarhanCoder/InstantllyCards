@@ -393,29 +393,70 @@ export default function TransferHistoryPage() {
         <View style={styles.placeholder} />
       </LinearGradient>
 
-      {/* Summary Cards */}
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryCard}>
-          <Ionicons name="arrow-up" size={22} color="#F59E0B" />
-          <Text style={styles.summaryValue}>
-            {history.summary.specialCreditsSent + history.summary.vouchersSent}
-          </Text>
-          <Text style={styles.summaryLabel}>Sent</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Ionicons name="arrow-down" size={22} color="#10B981" />
-          <Text style={styles.summaryValue}>
-            {history.summary.specialCreditsReceived +
-              history.summary.vouchersReceived}
-          </Text>
-          <Text style={styles.summaryLabel}>Received</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Ionicons name="list" size={22} color="#3B82F6" />
-          <Text style={styles.summaryValue}>
-            {history.summary.totalTransfers}
-          </Text>
-          <Text style={styles.summaryLabel}>Total</Text>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 100 + insets.bottom + 10 },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={["#10B981"]}
+            tintColor="#10B981"
+          />
+        }
+      >
+        {/* Total Credits Banner */}
+        <View style={styles.totalCreditsBanner}>
+          <View style={styles.bannerBackground}>
+            <View style={styles.bannerGlowEffect} />
+          </View>
+          <View style={styles.totalCreditsContent}>
+            {userName && (
+              <View style={styles.userInfoRow}>
+                <View style={styles.userAvatar}>
+                  <Ionicons name="person" size={18} color="#10B981" />
+                </View>
+                <View style={styles.userDetails}>
+                  <Text style={styles.userName}>{userName}</Text>
+                  {userPhone && (
+                    <Text style={styles.userPhone}>{userPhone}</Text>
+                  )}
+                </View>
+              </View>
+            )}
+            <Text style={styles.totalCreditsLabel}>Your Total Balance</Text>
+            <View style={styles.amountContainer}>
+              <View style={styles.currencyBadge}>
+                <Ionicons name="sparkles" size={20} color="#FFD700" />
+              </View>
+              <Text
+                style={styles.totalCreditsAmount}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {formatIndianNumber(totalCredits)}
+              </Text>
+            </View>
+            <View style={styles.creditsUnitContainer}>
+              <View style={styles.creditsTopRow}>
+                <Text style={styles.totalCreditsUnit}>Credits Available</Text>
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+              </View>
+              <Text style={styles.expiryDateText}>Expires: 31 December 2026 • {(() => {
+                const today = new Date();
+                const expiryDate = new Date('2026-12-31');
+                const diffTime = expiryDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays > 0 ? diffDays : 0;
+              })()} days left</Text>
+            </View>
+          </View>
         </View>
       </View>
 

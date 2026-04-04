@@ -85,7 +85,7 @@ export default function Credits() {
                 ) : (
                   <>
                     <Text style={styles.expiryText}>
-                      Expires on: <Text style={styles.expiryDate}>31 March 2026</Text>
+                      Expires on: <Text style={styles.expiryDate}>{new Date(expiryDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
                     </Text>
                     {daysRemaining !== null && (
                       <Text style={styles.daysRemaining}>
@@ -105,7 +105,7 @@ export default function Credits() {
             • Credits are used to post advertisements{'\n'}
             • Each ad costs a certain number of credits{'\n'}
             • Purchase credits to continue posting ads{'\n'}
-            • All credits expire on 31 March 2026
+            • All credits expire on {expiryDate ? new Date(expiryDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : '31 December 2026'}
           </Text>
         </View>
 
