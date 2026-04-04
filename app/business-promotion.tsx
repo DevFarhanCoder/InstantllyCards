@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,77 +19,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import api from '../lib/api';
+import { getCategoryChildren, getCategoryTree } from '../lib/categoryService';
+import type { CategoryNode } from '../types/category';
 import { validateGST, validatePAN } from '../utils/gstPanValidation';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 type FormStep = 'business' | 'category' | 'contact' | 'location';
 
-// Categories with their subcategories
-const SERVICE_CATEGORIES: Record<string, string[]> = {
-  'Travel': [
-    'Hotels', 'Resorts', 'Hostels', 'PG Accommodations', 'Travel Agents',
-    'Domestic Tours', 'International Tours', 'Visa Assistance',
-    'International Air Ticketing', 'Train Ticketing',
-  ],
-  'Technology': [
-    'CCTV Systems', 'Security Systems', 'Computer Repairs', 'Laptop Repairs',
-    'Mobile & Internet Services', 'Refrigerator Repairs', 'Appliance Repairs',
-    'Computer Training Institutes', 'Website & App Development',
-  ],
-  'Shopping': [
-    'Cake Shops & Bakeries', 'Daily Needs Stores', 'Groceries', 'Florists',
-    'Restaurants', 'Food Delivery Services', 'Online Food Ordering',
-    'Foreign Exchange Services', 'Furniture Stores', 'Wallpapers & Home Decor',
-    'Water Suppliers', 'Medical Stores & Pharmacies', 'Optical Stores',
-    'Pet Shops', 'Pet Care Services', 'Online Shopping', 'T-Shirt Printing',
-  ],
-  'Rentals': [
-    'Bus on Hire', 'Car & Cab Rentals', 'Generators on Hire',
-    'Equipment Rentals', 'Tempos on Hire',
-  ],
-  'Lifestyle': [
-    'Astrologers', 'Beauty Salons', 'Bridal Makeup Artists', 'Makeup Artists',
-    'Dance Classes', 'Music Classes', 'Fitness Centres', 'Gyms',
-    'Photographers & Videographers', 'Tattoo Artists', 'Weight Loss Centres',
-    'Movies', 'Online Movie Platforms', 'Parties & Nightlife',
-  ],
-  'Health': [
-    'General Physicians', 'General Surgeons', 'Cardiologists',
-    'Child Specialists', 'Paediatricians', 'Dentists', 'Dermatologists',
-    'Skin & Hair Specialists', 'ENT Doctors', 'Eye Specialists',
-    'Ophthalmologists', 'Gastroenterologists', 'Gynaecologists & Obstetricians',
-    'Neurologists', 'Orthopaedic Doctors', 'Ayurvedic Doctors',
-    'Homeopathic Doctors', 'Pathology Labs', 'Physiotherapists',
-    'Vaccination Centres', 'Hearing Aids & Solutions',
-  ],
-  'Education': [
-    'Schools & Educational Institutions', 'Playgroups', 'Kindergartens',
-    'Home Tutors', 'Tutorials & Coaching Classes', 'Training Institutes',
-    'Language Classes', 'Motor Training Schools', 'Overseas Education Consultants',
-    'Yoga & Wellness Classes',
-  ],
-  'Construction': [
-    'Borewell Contractors', 'Builders & Contractors', 'Carpentry Contractors',
-    'Civil Contractors', 'Electrical Contractors', 'Electricians',
-    'False Ceiling Contractors', 'Home Services', 'Housekeeping Services',
-    'Modular Kitchen Designers', 'Painting Contractors', 'Plumbers',
-    'Ready Mix Concrete Suppliers', 'Waterproofing Contractors',
-  ],
-  'Automotive': [
-    'Automobile Dealers', 'Car Insurance Agents', 'Car Loans & Finance',
-    'Car Repairs & Services', 'Taxi & Cab Services', 'Towing Services',
-    'Transporters & Logistics',
-  ],
-  'Business': [
-    'Bulk SMS & Digital Marketing', 'Chartered Accountants', 'Business Consultants',
-    'GST Registration Consultants', 'Income Tax Consultants', 'Registration Consultants',
-    'Event Organizers', 'Party Organisers', 'Wedding Planners & Requisites',
-    'Interior Designers', 'Lawyers & Legal Services', 'Logistics & Supply Chain',
-    'Online Passport Agents', 'Packers & Movers', 'Repairs & Maintenance Services',
-    'Website Designers & Developers',
-  ],
-};
+interface CategoryModalItem {
+  node: CategoryNode;
+  pathNames: string[];
+  pathNodes: CategoryNode[];
+  hasChildren: boolean;
+}
 
 // Generate time options for time picker (1 AM, 2 AM, 3 AM... style)
 const generateTimeOptions = (): Array<string | { label: string; value: string }> => {
@@ -114,13 +57,36 @@ export default function BusinessPromotionScreen() {
   const params = useLocalSearchParams<{
     listingType?: 'FREE' | 'PREMIUM';
     promotionId?: string;
+    mode?: 'edit' | 'create';
   }>();
-  const listingType = params.listingType || 'FREE';
+  const listingTypeParamRaw = Array.isArray(params.listingType)
+    ? params.listingType[0]
+    : params.listingType;
+  const listingTypeParamUpper = (listingTypeParamRaw || '').toString().toUpperCase();
+  const explicitListingTypeFromParams: 'free' | 'promoted' | null =
+    listingTypeParamUpper === 'PREMIUM'
+      ? 'promoted'
+      : listingTypeParamUpper === 'FREE'
+        ? 'free'
+        : null;
+  const hasExplicitListingTypeParam = explicitListingTypeFromParams !== null;
+  const [normalizedListingType, setNormalizedListingType] = useState<'free' | 'promoted'>(
+    explicitListingTypeFromParams || 'free'
+  );
+
+  useEffect(() => {
+    if (explicitListingTypeFromParams) {
+      setNormalizedListingType(explicitListingTypeFromParams);
+    }
+  }, [explicitListingTypeFromParams]);
 
   // const params = useLocalSearchParams<{ category?: string }>();
   const [currentStep, setCurrentStep] = useState<FormStep>('business');
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
+  const [categoryStack, setCategoryStack] = useState<CategoryNode[]>([]);
+  const [categoryTreeLoading, setCategoryTreeLoading] = useState(false);
+  const [categoryTreeError, setCategoryTreeError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [phoneNumbers, setPhoneNumbers] = useState<string[]>(['']);
   const [customCategoryInput, setCustomCategoryInput] = useState('');
@@ -133,6 +99,10 @@ export default function BusinessPromotionScreen() {
   const [promotionId, setPromotionId] = useState<string | null>(
     params.promotionId || null
   );
+  const modeParamRaw = Array.isArray(params.mode) ? params.mode[0] : params.mode;
+  const isEditMode = (modeParamRaw || '').toString().toLowerCase() === 'edit';
+  const [existingListingType, setExistingListingType] = useState<'free' | 'promoted' | null>(null);
+  const [existingPaymentStatus, setExistingPaymentStatus] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [weeklySchedule, setWeeklySchedule] = useState({
@@ -172,7 +142,6 @@ export default function BusinessPromotionScreen() {
   // Validation errors for required fields
   const [businessNameError, setBusinessNameError] = useState<string | null>(null);
   const [ownerNameError, setOwnerNameError] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [pincodeError, setPincodeError] = useState<string | null>(null);
   const [localityError, setLocalityError] = useState<string | null>(null);
@@ -193,8 +162,19 @@ export default function BusinessPromotionScreen() {
         const p = res.promotion;
         if (!p) return;
 
+        // Keep explicit user choice (FREE/PREMIUM) from route params.
+        // Only infer from backend when route does not provide listing type.
+        const serverIntent = p.listingIntent || p.listingType;
+        if (!hasExplicitListingTypeParam && (serverIntent === 'promoted' || serverIntent === 'free')) {
+          setNormalizedListingType(serverIntent);
+        }
+        if (serverIntent === 'promoted' || serverIntent === 'free') {
+          setExistingListingType(serverIntent);
+        }
+        setExistingPaymentStatus(p.paymentStatus || null);
+
         // If already active free → go to profile
-        if (p.status === 'active' && listingType === 'FREE') {
+        if (p.status === 'active' && serverIntent === 'free') {
           router.replace('/profile');
           return;
         }
@@ -233,7 +213,11 @@ export default function BusinessPromotionScreen() {
     };
 
     fetchPromotion();
-  }, [promotionId]);
+  }, [promotionId, hasExplicitListingTypeParam]);
+
+  const updatePremiumListing = async (promotionIdToUpdate: string, payload: any) => {
+    return api.patch(`/business-promotion/${promotionIdToUpdate}/premium-edit`, payload);
+  };
 
 
 
@@ -306,27 +290,159 @@ export default function BusinessPromotionScreen() {
     updateField('phone', newPhones.filter(p => p.trim() !== '').join(', '));
   };
 
-  const filteredSubcategories = selectedCategory
-    ? SERVICE_CATEGORIES[selectedCategory as keyof typeof SERVICE_CATEGORIES].filter(sub =>
-      sub.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    : [];
+  const currentCategoryNode = categoryStack[categoryStack.length - 1] ?? null;
+  const currentCategoryPath = categoryStack.map((node) => node.name);
+
+  const currentCategoryList = (
+    currentCategoryNode ? currentCategoryNode.children : categoryTree
+  ).filter((node) => node?.isActive !== false);
+
+  const filteredCategoryItems = useMemo<CategoryModalItem[]>(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    const toModalItem = (
+      node: CategoryNode,
+      pathNodes: CategoryNode[],
+      pathNames: string[],
+    ): CategoryModalItem => ({
+      node,
+      pathNames,
+      pathNodes,
+      hasChildren: (node.children || []).some((child) => child.isActive !== false),
+    });
+
+    if (!query) {
+      return currentCategoryList.map((node) =>
+        toModalItem(node, categoryStack, currentCategoryPath),
+      );
+    }
+
+    const rootNodes = currentCategoryNode
+      ? (currentCategoryNode.children || []).filter((node) => node.isActive !== false)
+      : categoryTree.filter((node) => node.isActive !== false);
+
+    const basePathNodes = categoryStack;
+    const basePathNames = currentCategoryPath;
+    const results: CategoryModalItem[] = [];
+
+    const walk = (
+      nodes: CategoryNode[],
+      pathNodes: CategoryNode[],
+      pathNames: string[],
+    ) => {
+      for (const node of nodes) {
+        if (node.isActive === false) continue;
+
+        const childNodes = (node.children || []).filter((child) => child.isActive !== false);
+        if (node.name.toLowerCase().includes(query)) {
+          results.push(toModalItem(node, pathNodes, pathNames));
+        }
+
+        if (childNodes.length > 0) {
+          walk(childNodes, [...pathNodes, node], [...pathNames, node.name]);
+        }
+      }
+    };
+
+    walk(rootNodes, basePathNodes, basePathNames);
+    return results;
+  }, [
+    categoryStack,
+    categoryTree,
+    currentCategoryList,
+    currentCategoryNode,
+    currentCategoryPath,
+    searchQuery,
+  ]);
+
+  const resetCategoryModalState = () => {
+    setCategoryModalVisible(false);
+    setCategoryStack([]);
+    setSearchQuery('');
+    setShowCustomInput(false);
+    setCustomCategoryInput('');
+  };
+
+  const loadCategoryTreeData = useCallback(async (fresh = false) => {
+    setCategoryTreeLoading(true);
+    setCategoryTreeError(null);
+    try {
+      const data = await getCategoryTree({ fresh });
+      setCategoryTree(data.filter((node) => node.isActive !== false));
+      console.log('[CATEGORIES] Promotion categories loaded', {
+        count: data.length,
+        fresh,
+      });
+    } catch (error: any) {
+      setCategoryTreeError(error?.message || 'Failed to load categories');
+    } finally {
+      setCategoryTreeLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!categoryModalVisible) return;
+    if (categoryTreeLoading) return;
+    if (categoryTree.length > 0) return;
+    loadCategoryTreeData();
+  }, [categoryModalVisible, categoryTree.length, categoryTreeLoading, loadCategoryTreeData]);
+
+  const openCategoryModal = () => {
+    setCategoryModalVisible(true);
+    setCategoryTreeError(null);
+    if (categoryTree.length === 0 && !categoryTreeLoading) {
+      loadCategoryTreeData();
+    }
+  };
+
+  const handleCategoryNodePress = async (
+    node: CategoryNode,
+    pathNames: string[] = currentCategoryPath,
+    pathNodes: CategoryNode[] = categoryStack,
+  ) => {
+    const knownChildren = (node.children || []).filter(
+      (child) => child.isActive !== false,
+    );
+
+    if (knownChildren.length > 0) {
+      setCategoryStack([...pathNodes, { ...node, children: knownChildren }]);
+      setSearchQuery('');
+      setShowCustomInput(false);
+      setCustomCategoryInput('');
+      return;
+    }
+
+    try {
+      const lazyChildren = await getCategoryChildren(node._id);
+      if (lazyChildren.length > 0) {
+        setCategoryStack([...pathNodes, { ...node, children: lazyChildren }]);
+        setSearchQuery('');
+        setShowCustomInput(false);
+        setCustomCategoryInput('');
+        return;
+      }
+    } catch (error) {
+      console.log('[CATEGORIES] Promotion nested fetch failed', {
+        nodeId: node._id,
+        nodeName: node.name,
+      });
+    }
+
+    const categoryPathLabel = [...pathNames, node.name].join(' - ');
+    addCategory(categoryPathLabel);
+    resetCategoryModalState();
+  };
 
   const handleAddCustomCategory = () => {
-    if (customCategoryInput.trim()) {
-      if (selectedCategory) {
-        // Adding custom subcategory
-        addCategory(`${selectedCategory} - ${customCategoryInput.trim()}`);
-      } else {
-        // Adding custom category (no main category)
-        addCategory(customCategoryInput.trim());
-      }
-      setCustomCategoryInput('');
-      setShowCustomInput(false);
-      setCategoryModalVisible(false);
-      setSelectedCategory(null);
-      setSearchQuery('');
+    const trimmed = customCategoryInput.trim();
+    if (!trimmed) return;
+
+    if (currentCategoryPath.length > 0) {
+      addCategory(`${currentCategoryPath.join(' - ')} - ${trimmed}`);
+    } else {
+      addCategory(trimmed);
     }
+    resetCategoryModalState();
   };
 
   // Handle Android hardware back button
@@ -343,7 +459,6 @@ export default function BusinessPromotionScreen() {
     // Clear previous errors
     setBusinessNameError(null);
     setOwnerNameError(null);
-    setEmailError(null);
     setPhoneError(null);
 
     // Validate required fields for current step
@@ -383,19 +498,6 @@ export default function BusinessPromotionScreen() {
     if (currentStep === 'contact') {
       let hasError = false;
 
-      // Required: Email, Phone Number
-      if (!formData.email.trim()) {
-        setEmailError('Email Address is required');
-        hasError = true;
-      } else {
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.email)) {
-          setEmailError('Please enter a valid email address');
-          hasError = true;
-        }
-      }
-
       if (!formData.phone.trim() || phoneNumbers.every(p => !p.trim())) {
         setPhoneError('At least one Phone Number is required');
         hasError = true;
@@ -425,7 +527,9 @@ export default function BusinessPromotionScreen() {
 
       const promotionData: any = {
         ...formData,
-        status: 'draft',
+        listingIntent: normalizedListingType,
+        listingType: normalizedListingType,
+        ...(!isEditMode && { status: 'draft' }),
         progress: progressMap[currentStep],
         stepIndex: {
           business: 1,
@@ -433,13 +537,10 @@ export default function BusinessPromotionScreen() {
           contact: 3,
           location: 4,
         }[currentStep],
-        currentStep: nextStepMap[currentStep],  // 👈 ADD THIS
+        currentStep,
         ...(promotionId && { promotionId }),
       };
-
-      if (currentStep === 'business') {
-        promotionData.businessHours = weeklySchedule;
-      }
+      promotionData.businessHours = weeklySchedule;
 
       const response = await api.post('/business-promotion', promotionData);
 
@@ -485,7 +586,14 @@ export default function BusinessPromotionScreen() {
   };
 
   const handleSubmit = async () => {
+    if (currentStep !== 'location') {
+      return;
+    }
+
     // Clear previous errors
+    setBusinessNameError(null);
+    setOwnerNameError(null);
+    setPhoneError(null);
     setPincodeError(null);
     setLocalityError(null);
     setStreetError(null);
@@ -494,6 +602,27 @@ export default function BusinessPromotionScreen() {
 
     // Validate all required fields for location step
     let hasError = false;
+
+    if (!formData.businessName.trim()) {
+      setBusinessNameError('Business Name is required');
+      hasError = true;
+    }
+    if (!formData.ownerName.trim()) {
+      setOwnerNameError('Owner Name is required');
+      hasError = true;
+    }
+    if (!formData.category || formData.category.length === 0) {
+      Alert.alert('Validation', 'Please select at least one category.');
+      hasError = true;
+    }
+    if (!formData.phone.trim()) {
+      setPhoneError('At least one Phone Number is required');
+      hasError = true;
+    }
+    if (!formData.area.trim()) {
+      Alert.alert('Validation', 'Area is required.');
+      hasError = true;
+    }
 
     if (!formData.pincode.trim()) {
       setPincodeError('Pincode is required');
@@ -536,7 +665,10 @@ export default function BusinessPromotionScreen() {
       // Prepare data for backend
       const promotionData: any = {
         ...formData,
-        status: currentStep === 'location' ? 'submitted' : 'draft',
+        listingIntent: normalizedListingType,
+        listingType: normalizedListingType,
+        ...(!isEditMode && { status: currentStep === 'location' ? 'submitted' : 'draft' }),
+        currentStep,
         progress: progressMap[currentStep],
         stepIndex: {
           business: 1,
@@ -546,8 +678,50 @@ export default function BusinessPromotionScreen() {
         }[currentStep],
         ...(promotionId && { promotionId }), // Include promotionId if updating
       };
-      if (currentStep === 'business') {
-        promotionData.businessHours = weeklySchedule;
+      promotionData.businessHours = weeklySchedule;
+
+      const effectiveListingType = existingListingType || normalizedListingType;
+      const isPaidPremiumEdit =
+        isEditMode &&
+        effectiveListingType === 'promoted' &&
+        existingPaymentStatus === 'paid' &&
+        !!promotionId;
+
+      if (isPaidPremiumEdit) {
+        const premiumEditPayload = {
+          businessName: promotionData.businessName,
+          ownerName: promotionData.ownerName,
+          description: promotionData.description,
+          category: promotionData.category,
+          email: promotionData.email,
+          phone: promotionData.phone,
+          whatsapp: promotionData.whatsapp,
+          website: promotionData.website,
+          businessHours: promotionData.businessHours,
+          area: promotionData.area,
+          pincode: promotionData.pincode,
+          plotNo: promotionData.plotNo,
+          buildingName: promotionData.buildingName,
+          streetName: promotionData.streetName,
+          landmark: promotionData.landmark,
+          city: promotionData.city,
+          state: promotionData.state,
+          gstNumber: promotionData.gstNumber,
+          panNumber: promotionData.panNumber,
+          currentStep: promotionData.currentStep,
+          progress: promotionData.progress,
+          stepIndex: promotionData.stepIndex,
+        };
+
+        const response = await updatePremiumListing(promotionId, premiumEditPayload);
+        console.log('✅ [BUSINESS-PROMOTION] Premium listing updated successfully:', response);
+        Alert.alert('Success', 'Premium listing updated successfully.');
+        router.replace({
+          pathname: '/business/manage-listing/[id]',
+          params: { id: promotionId },
+        } as any);
+        setLoading(false);
+        return;
       }
 
       // Call API to save/update promotion
@@ -562,17 +736,40 @@ export default function BusinessPromotionScreen() {
       }
       setPromotionId(finalPromotionId);
 
-
       // If completed all steps, navigate to pricing
       if (currentStep === 'location') {
-        if (listingType === 'FREE') {
+        if (normalizedListingType === 'free') {
           // 1️⃣ Activate free
           await api.post(`/business-promotion/${finalPromotionId}/activate-free`);
 
           // 2️⃣ Redirect to profile
           router.replace('/profile');
         } else {
-          // PREMIUM → Pricing
+          const p = response?.promotion;
+          const serverIntent = p?.listingIntent || p?.listingType;
+          const stepComplete =
+            (typeof p?.stepIndex === 'number' && p.stepIndex >= 4) ||
+            (typeof p?.progress === 'number' && p.progress >= 100) ||
+            currentStep === 'location';
+          const paymentPendingOrUnknown =
+            p?.paymentStatus === undefined ||
+            p?.paymentStatus === null ||
+            p?.paymentStatus === 'pending';
+          const isPendingPaymentReady =
+            serverIntent === 'promoted' &&
+            p?.status === 'submitted' &&
+            paymentPendingOrUnknown &&
+            stepComplete;
+
+          if (!isPendingPaymentReady) {
+            Alert.alert(
+              'Not Ready for Payment',
+              'Complete all required details before proceeding to pricing.'
+            );
+            setLoading(false);
+            return;
+          }
+
           router.push({
             pathname: '/promotion-pricing',
             params: { promotionId: finalPromotionId }
@@ -586,6 +783,15 @@ export default function BusinessPromotionScreen() {
     } catch (error: any) {
       console.error('❌ [BUSINESS-PROMOTION] Error saving form:', error);
       setLoading(false);
+
+      if (error?.status === 400) {
+        Alert.alert('Error', 'Only paid premium listings can be edited without payment.');
+        return;
+      }
+      if (error?.status === 404) {
+        Alert.alert('Error', 'Listing not found.');
+        return;
+      }
 
       Alert.alert(
         'Error',
@@ -747,7 +953,7 @@ export default function BusinessPromotionScreen() {
 
         <TouchableOpacity
           style={styles.categoryTextField}
-          onPress={() => setCategoryModalVisible(true)}
+          onPress={openCategoryModal}
           activeOpacity={0.7}
         >
           <Text style={[styles.categoryTextInput, formData.category.length === 0 && styles.placeholderText]}>
@@ -780,7 +986,7 @@ export default function BusinessPromotionScreen() {
   const renderContactDetails = () => (
     <View style={styles.stepContent}>
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email Address *</Text>
+        <Text style={styles.label}>Email Address (Optional)</Text>
         <TextInput
           style={styles.input}
           placeholder="business@example.com"
@@ -788,14 +994,10 @@ export default function BusinessPromotionScreen() {
           value={formData.email}
           onChangeText={(text) => {
             updateField('email', text);
-            if (text.trim()) setEmailError(null);
           }}
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        {emailError && (
-          <Text style={styles.errorText}>{emailError}</Text>
-        )}
       </View>
 
       <View style={styles.inputGroup}>
@@ -1107,7 +1309,9 @@ export default function BusinessPromotionScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.buttonPrimaryText}>Save & Continue</Text>
+                <Text style={styles.buttonPrimaryText}>
+                  {isEditMode ? 'Update Listing' : 'Save & Continue'}
+                </Text>
               )}
             </TouchableOpacity>
           )}
@@ -1119,13 +1323,7 @@ export default function BusinessPromotionScreen() {
         visible={categoryModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => {
-          setCategoryModalVisible(false);
-          setSelectedCategory(null);
-          setSearchQuery('');
-          setShowCustomInput(false);
-          setCustomCategoryInput('');
-        }}
+        onRequestClose={resetCategoryModalState}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -1134,12 +1332,13 @@ export default function BusinessPromotionScreen() {
               <TouchableOpacity
                 style={styles.modalBackButton}
                 onPress={() => {
-                  if (selectedCategory) {
-                    setSelectedCategory(null);
+                  if (categoryStack.length > 0) {
+                    setCategoryStack((prev) => prev.slice(0, -1));
+                    setSearchQuery('');
                     setShowCustomInput(false);
                     setCustomCategoryInput('');
                   } else {
-                    setCategoryModalVisible(false);
+                    resetCategoryModalState();
                   }
                 }}
                 activeOpacity={0.7}
@@ -1147,17 +1346,11 @@ export default function BusinessPromotionScreen() {
                 <Ionicons name="arrow-back" size={24} color="#111827" />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>
-                {selectedCategory ? selectedCategory : 'Select Category'}
+                {currentCategoryNode ? currentCategoryNode.name : 'Select Category'}
               </Text>
               <TouchableOpacity
                 style={styles.modalCloseButton}
-                onPress={() => {
-                  setCategoryModalVisible(false);
-                  setSelectedCategory(null);
-                  setSearchQuery('');
-                  setShowCustomInput(false);
-                  setCustomCategoryInput('');
-                }}
+                onPress={resetCategoryModalState}
                 activeOpacity={0.7}
               >
                 <Ionicons name="close" size={24} color="#111827" />
@@ -1169,7 +1362,7 @@ export default function BusinessPromotionScreen() {
               <Ionicons name="search" size={20} color="#9CA3AF" style={styles.modalSearchIcon} />
               <TextInput
                 style={styles.searchInput}
-                placeholder={selectedCategory ? 'Search subcategories...' : 'Search categories...'}
+                placeholder={currentCategoryNode ? 'Search subcategories...' : 'Search categories...'}
                 placeholderTextColor="#9CA3AF"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -1185,7 +1378,7 @@ export default function BusinessPromotionScreen() {
               >
                 <Ionicons name="add-circle" size={22} color="#2563EB" />
                 <Text style={styles.addCustomButtonText}>
-                  {selectedCategory ? 'Add Custom Subcategory' : 'Add Custom Category'}
+                  {currentCategoryNode ? 'Add Custom Subcategory' : 'Add Custom Category'}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1195,7 +1388,7 @@ export default function BusinessPromotionScreen() {
               <View style={styles.customInputContainer}>
                 <TextInput
                   style={styles.customInput}
-                  placeholder={selectedCategory ? 'Enter custom subcategory name' : 'Enter custom category name'}
+                  placeholder={currentCategoryNode ? 'Enter custom subcategory name' : 'Enter custom category name'}
                   placeholderTextColor="#9CA3AF"
                   value={customCategoryInput}
                   onChangeText={setCustomCategoryInput}
@@ -1228,36 +1421,64 @@ export default function BusinessPromotionScreen() {
             )}
 
             {/* Categories or Subcategories List */}
-            <FlatList
-              data={selectedCategory ? filteredSubcategories : Object.keys(SERVICE_CATEGORIES).filter(cat =>
-                cat.toLowerCase().includes(searchQuery.toLowerCase())
-              )}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({ item }) => (
+            {categoryTreeLoading ? (
+              <View style={styles.categoryModalStateContainer}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <Text style={styles.categoryModalStateText}>Loading categories...</Text>
+              </View>
+            ) : categoryTreeError ? (
+              <View style={styles.categoryModalStateContainer}>
+                <Text style={styles.categoryModalErrorText}>{categoryTreeError}</Text>
                 <TouchableOpacity
-                  style={styles.categoryItem}
-                  onPress={() => {
-                    if (selectedCategory) {
-                      addCategory(`${selectedCategory} - ${item}`);
-                      setCategoryModalVisible(false);
-                      setSelectedCategory(null);
-                      setSearchQuery('');
-                    } else {
-                      setSelectedCategory(item);
-                      setSearchQuery('');
-                    }
-                  }}
+                  style={styles.categoryRetryButton}
+                  onPress={() => loadCategoryTreeData(true)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.categoryItemText}>{item}</Text>
-                  {!selectedCategory && (
-                    <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-                  )}
+                  <Text style={styles.categoryRetryButtonText}>Retry</Text>
                 </TouchableOpacity>
-              )}
-              showsVerticalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
+              </View>
+            ) : (
+              <FlatList
+                data={filteredCategoryItems}
+                keyExtractor={(item) => item.node._id}
+                renderItem={({ item }) => {
+                  return (
+                    <TouchableOpacity
+                      style={styles.categoryItem}
+                      onPress={() =>
+                        handleCategoryNodePress(
+                          item.node,
+                          item.pathNames,
+                          item.pathNodes,
+                        )
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.categoryItemContent}>
+                        <Text style={styles.categoryItemText}>{item.node.name}</Text>
+                        {item.pathNames.length > 0 && (
+                          <Text style={styles.categoryPathText}>
+                            {item.pathNames.join(' > ')}
+                          </Text>
+                        )}
+                      </View>
+                      {item.hasChildren && (
+                        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+                showsVerticalScrollIndicator={false}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                ListEmptyComponent={
+                  <View style={styles.categoryModalStateContainer}>
+                    <Text style={styles.categoryModalStateText}>
+                      No categories found
+                    </Text>
+                  </View>
+                }
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -1771,6 +1992,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#111827',
   },
+  categoryModalStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  categoryModalStateText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  categoryModalErrorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+  categoryRetryButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  categoryRetryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 13,
+  },
   categoryItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1778,10 +2027,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  categoryItemContent: {
+    flex: 1,
+  },
   categoryItemText: {
     fontSize: 15,
     color: '#111827',
     flex: 1,
+  },
+  categoryPathText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
   },
   separator: {
     height: 1,
@@ -2107,3 +2364,4 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 });
+

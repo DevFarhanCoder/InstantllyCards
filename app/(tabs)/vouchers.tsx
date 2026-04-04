@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { StyleSheet, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import FooterCarousel from "../../components/FooterCarousel";
 import VoucherListScreen from "../../components/VoucherListScreen";
 import VoucherDetailScreen from "../../components/VoucherDetailScreen";
@@ -21,8 +22,21 @@ type ScreenState = "list" | "detail" | "dashboard";
 export default function VouchersScreen() {
   const [currentScreen, setCurrentScreen] = useState<ScreenState>("list");
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
+  const [isFocused, setIsFocused] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, []),
+  );
 
   const handleVoucherSelect = (voucher: Voucher) => {
+    console.log(
+      "[VoucherSelected]",
+      voucher?._id,
+      (voucher as any)?.companyName || voucher?.voucherNumber,
+    );
     setSelectedVoucher(voucher);
     setCurrentScreen("detail");
   };
@@ -55,7 +69,13 @@ export default function VouchersScreen() {
         ) : null;
 
       case "dashboard":
-        return <VoucherDashboard onBack={handleBackToDetail} />;
+        return (
+          <VoucherDashboard
+            onBack={handleBackToDetail}
+            voucherId={selectedVoucher?._id}
+            isActive={isFocused}
+          />
+        );
 
       default:
         return <VoucherListScreen onVoucherSelect={handleVoucherSelect} />;

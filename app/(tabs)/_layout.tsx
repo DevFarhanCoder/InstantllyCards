@@ -3,9 +3,9 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Platform, Image } from "react-native";
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 // fallback for icon visibility
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5 } from "@expo/vector-icons";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -36,7 +36,11 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="home" color={focused ? "#D84315" : "#9CA3AF"} size={size} />
+            <Ionicons
+              name="home"
+              color={focused ? "#D84315" : "#9CA3AF"}
+              size={size}
+            />
           ),
         }}
       />
@@ -55,7 +59,11 @@ export default function TabsLayout() {
           title: "My Cards",
           href: null, // Hide from tab bar - accessible from profile
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="albums" color={focused ? "#4F6AF3" : "#9CA3AF"} size={size} />
+            <Ionicons
+              name="albums"
+              color={focused ? "#4F6AF3" : "#9CA3AF"}
+              size={size}
+            />
           ),
         }}
       />
@@ -64,7 +72,11 @@ export default function TabsLayout() {
         options={{
           title: "Messaging",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="chatbubbles" color={focused ? "#047857" : "#9CA3AF"} size={size} />
+            <Ionicons
+              name="chatbubbles"
+              color={focused ? "#047857" : "#9CA3AF"}
+              size={size}
+            />
           ),
         }}
       />
@@ -73,35 +85,38 @@ export default function TabsLayout() {
         options={{
           title: "Vouchers",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name="gift" color={focused ? "#cc7a00" : "#9CA3AF"} size={size} />
+            <Ionicons
+              name="gift"
+              color={focused ? "#cc7a00" : "#9CA3AF"}
+              size={size}
+            />
           ),
         }}
       />
       <Tabs.Screen
-        name="ads" 
+        name="ads"
         options={{
           title: "Ads",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, size, focused }) =>
             focused ? (
-              <Image 
-                source={require('../../assets/images/google-ads-icon.png')}
-                style={{ 
-                  width: size, 
-                  height: size,
+              <Image
+                source={require("../../assets/images/google-ads-icon.png")}
+                style={{
+                  width: size + 10,
+                  height: size + 10,
                 }}
                 resizeMode="contain"
               />
             ) : (
-              <Image 
-                source={require('../../assets/images/Google Ads.png')}
-                style={{ 
-                  width: size, 
-                  height: size,
+              <Image
+                source={require("../../assets/images/google-ads-inactive.png")}
+                style={{
+                  width: size + 10,
+                  height: size + 10,
                 }}
                 resizeMode="contain"
               />
-            )
-          ),
+            ),
         }}
       />
       <Tabs.Screen
@@ -109,6 +124,18 @@ export default function TabsLayout() {
         options={{
           href: null, // Hide from tab bar
         }}
+      />
+      <Tabs.Screen
+        name="categories"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="category-focus"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="business-cards"
+        options={{ href: null }}
       />
     </Tabs>
   );

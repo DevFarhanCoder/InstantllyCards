@@ -17,6 +17,7 @@ import api from '@/lib/api';
 const { width: screenWidth } = Dimensions.get('window');
 
 type ListingType = 'FREE' | 'PREMIUM';
+type NextAction = 'pending_payment' | 'complete_form' | 'create_new';
 
 interface ListingOption {
     type: ListingType;
@@ -67,27 +68,76 @@ const LISTING_OPTIONS: ListingOption[] = [
 export default function ChooseBusinessListingTypeScreen() {
     const [selectedType, setSelectedType] = useState<ListingType | null>(null);
     const params = useLocalSearchParams<{ promotionId?: string }>();
+    const [hasUserSelectedType, setHasUserSelectedType] = useState(false);
 
     useEffect(() => {
-        api.get('/business-promotion/in-progress')
-            .then(res => {
-                if (res.promotion) {
+        let cancelled = false;
+
+        const loadInProgress = async () => {
+            try {
+                const res = await api.get<{
+                    success?: boolean;
+                    promotion?: any | null;
+                    nextAction?: NextAction;
+                }>('/business-promotion/in-progress');
+
+                if (cancelled || hasUserSelectedType) return;
+
+                const action = res?.nextAction;
+                const promotion = res?.promotion;
+                const promotionId = promotion?._id;
+                const serverIntent = promotion?.listingIntent || promotion?.listingType;
+                const listingType: ListingType = serverIntent === 'promoted' ? 'PREMIUM' : 'FREE';
+                const isPendingPaymentReady =
+                    serverIntent === 'promoted' &&
+                    promotion?.status === 'submitted' &&
+                    promotion?.paymentStatus === 'pending' &&
+                    ((typeof promotion?.stepIndex === 'number' && promotion.stepIndex >= 4) ||
+                        (typeof promotion?.progress === 'number' && promotion.progress >= 100));
+
+                if (action === 'pending_payment' && promotionId && isPendingPaymentReady) {
+                    router.replace({
+                        pathname: '/promotion-pricing',
+                        params: { promotionId }
+                    });
+                    return;
+                }
+
+                if (action === 'complete_form' && promotionId) {
                     router.replace({
                         pathname: '/business-promotion',
-                        params: {
-                            promotionId: res.promotion._id,
-                            listingType: res.promotion.listingType === 'promoted'
-                                ? 'PREMIUM'
-                                : 'FREE'
-                        }
+                        params: { promotionId, listingType }
+                    });
+                    return;
+                }
+
+                if (action === 'create_new') {
+                    return;
+                }
+
+                // Legacy fallback if backend does not send nextAction
+                if (promotionId) {
+                    router.replace({
+                        pathname: '/business-promotion',
+                        params: { promotionId, listingType }
                     });
                 }
-            });
-    }, []);
+            } catch (error) {
+                console.log('Failed to load in-progress promotion:', error);
+            }
+        };
+
+        loadInProgress();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [hasUserSelectedType]);
 
 
     const handleSelectType = (type: ListingType) => {
         setSelectedType(type);
+        setHasUserSelectedType(true);
     };
 
     const handleContinue = () => {

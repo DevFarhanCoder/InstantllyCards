@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import * as Application from "expo-application";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./api";
@@ -20,7 +21,10 @@ export interface VersionCheckResponse {
  */
 export async function checkAppVersion(): Promise<VersionCheckResponse | null> {
   try {
-    const appVersion = Constants.expoConfig?.version || "1.0.0";
+    const appVersion =
+      Application.nativeApplicationVersion ||
+      Constants.expoConfig?.version ||
+      "1.0.0";
     const platform = Platform.OS;
 
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -84,7 +88,11 @@ export async function checkAppVersion(): Promise<VersionCheckResponse | null> {
  * Get the current app version
  */
 export function getCurrentAppVersion(): string {
-  return Constants.expoConfig?.version || "1.0.0";
+  return (
+    Application.nativeApplicationVersion ||
+    Constants.expoConfig?.version ||
+    "1.0.0"
+  );
 }
 
 /**
@@ -109,7 +117,10 @@ export function getAppStoreUrl(): string {
 export async function checkAndHandleVersionChange(): Promise<boolean> {
   try {
     // Get current app version from app.json
-    const currentVersion = Constants.expoConfig?.version || "1.0.0";
+    const currentVersion =
+      Application.nativeApplicationVersion ||
+      Constants.expoConfig?.version ||
+      "1.0.0";
     console.log(`📱 [VERSION CHECK] Current app version: ${currentVersion}`);
 
     // Get previously stored version

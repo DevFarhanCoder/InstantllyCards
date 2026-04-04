@@ -7,265 +7,391 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Dimensions,
-  Alert,
+  Linking,
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { scaleFontSize, scaleSize } from "@/lib/responsive";
 import api from "@/lib/api";
-import { formatIndianNumber } from "@/utils/formatNumber";
-import FooterCarousel from "@/components/FooterCarousel";
-import CustomTabBar from "@/components/CustomTabBar";
+import { formatAmount } from "@/utils/formatNumber";
 
-const { width } = Dimensions.get("window");
+interface TransferItem {
+  type: "special_credit" | "voucher";
+  direction: "sent" | "received";
+  amount?: number;
+  totalAmount?: number;
+  count?: number;
+  voucherNumber?: string;
+  voucherNumbers?: string[];
+  companyName?: string;
+  sender?: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+  recipient?: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+  slotNumber?: number;
+  transferredAt: string;
+  source?: string;
+}
 
-interface Transaction {
-  _id: string;
-  type: string;
+interface TransferHistory {
+  all: TransferItem[];
+  specialCredits: {
+    sent: TransferItem[];
+    received: TransferItem[];
+  };
+  vouchers: {
+    sent: TransferItem[];
+    received: TransferItem[];
+  };
+  summary: {
+    specialCreditsSent: number;
+    specialCreditsReceived: number;
+    vouchersSent: number;
+    vouchersReceived: number;
+    totalTransfers: number;
+  };
+}
+
+interface RedeemItem {
+  id: string;
+  sourceType: "promotion" | "design_fee" | "ad_approval";
+  qty: number;
+  valuePerUnit: number;
   amount: number;
-  description: string;
-  note?: string;
-  createdAt: string;
-  balanceAfter?: number;
-  fromUser?: { name: string; phone: string };
-  toUser?: { name: string; phone: string };
+  currency: string;
+  status: "reserved" | "applied" | "released";
+  reservedAt?: string;
+  appliedAt?: string;
+  releasedAt?: string;
+  releaseReason?: string;
+  createdAt?: string;
+  confirmable?: boolean;
+  orderId?: string | null;
+  payableAmount?: number;
 }
 
-interface CreditBreakdown {
-  quizCredits: number;
-  referralCredits: number;
-  signupBonus: number;
-  selfDownloadCredits: number;
-  transferReceived: number;
-  transferSent: number;
-  adDeductions: number;
-}
-
-export default function CreditsHistoryPage() {
+export default function TransferHistoryPage() {
   const insets = useSafeAreaInsets();
+  const { voucherId } = useLocalSearchParams<{ voucherId?: string }>();
+  const instantllyVoucherId = process.env.EXPO_PUBLIC_INSTANTLLY_VOUCHER_ID;
+  const normalizedVoucherId = Array.isArray(voucherId)
+    ? voucherId[0]
+    : voucherId;
+  const showRedeemTab =
+    !!instantllyVoucherId && normalizedVoucherId === instantllyVoucherId;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [totalCredits, setTotalCredits] = useState(0);
-  const [userName, setUserName] = useState<string>("");
-  const [userPhone, setUserPhone] = useState<string>("");
-  const [breakdown, setBreakdown] = useState<CreditBreakdown>({
-    quizCredits: 0,
-    referralCredits: 0,
-    signupBonus: 0,
-    selfDownloadCredits: 0,
-    transferReceived: 0,
-    transferSent: 0,
-    adDeductions: 0,
+  const [history, setHistory] = useState<TransferHistory>({
+    all: [],
+    specialCredits: { sent: [], received: [] },
+    vouchers: { sent: [], received: [] },
+    summary: {
+      specialCreditsSent: 0,
+      specialCreditsReceived: 0,
+      vouchersSent: 0,
+      vouchersReceived: 0,
+      totalTransfers: 0,
+    },
   });
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const [redeemHistory, setRedeemHistory] = useState<RedeemItem[]>([]);
+  const [activeTab, setActiveTab] = useState<
+    "all" | "credits" | "vouchers" | "redeem"
+  >("all");
 
   useEffect(() => {
-    loadCreditsHistory();
+    loadHistory();
   }, []);
 
-  // Auto-refresh when screen comes into focus (but not on initial mount)
-  useFocusEffect(
-    React.useCallback(() => {
-      // Only refresh if already loaded (skip initial mount)
-      if (transactions.length > 0 || totalCredits > 0) {
-        console.log("🔄 Auto-refreshing credits history...");
-        loadCreditsHistory(true);
-      }
-    }, [transactions.length, totalCredits]),
-  );
+  useEffect(() => {
+    if (!showRedeemTab && activeTab === "redeem") {
+      setActiveTab("all");
+    }
+  }, [showRedeemTab, activeTab]);
 
-  const loadCreditsHistory = async (isRefreshing = false) => {
+  const loadHistory = async (isRefreshing = false) => {
     try {
       if (!isRefreshing) {
         setLoading(true);
       }
 
-      // Fetch credits history and user profile
-      const [historyResponse, profileResponse] = await Promise.all([
-        api.get("/credits/history?limit=100"),
-        api.get("/users/profile"),
+      const transferPromise = api.get(
+        `/mlm/transfer-history?limit=100${normalizedVoucherId ? `&voucherId=${normalizedVoucherId}` : ""}`,
+      );
+      const redeemPromise = showRedeemTab
+        ? api.get(`/mlm/redeem-history?limit=100`)
+        : Promise.resolve({ success: true, redemptions: [] });
+
+      const [transferRes, redeemRes] = await Promise.all([
+        transferPromise,
+        redeemPromise,
       ]);
 
-      if (historyResponse.success) {
-        setTotalCredits(historyResponse.totalCredits || 0);
-        setBreakdown(
-          historyResponse.breakdown || {
-            quizCredits: 0,
-            referralCredits: 0,
-            signupBonus: 0,
-            selfDownloadCredits: 0,
-            transferReceived: 0,
-            transferSent: 0,
-            adDeductions: 0,
-          },
-        );
-
-        // DEBUG: Log transaction amounts
-        console.log(
-          "📊 Transaction data received:",
-          historyResponse.transactions?.slice(0, 3).map((t: any) => ({
-            type: t.type,
-            description: t.description,
-            amount: t.amount,
-          })),
-        );
-
-        setTransactions(historyResponse.transactions || []);
-      } else {
-        console.error(
-          "Failed to load credits history:",
-          historyResponse.message,
-        );
-        Alert.alert(
-          "Unable to Load",
-          historyResponse.message ||
-            "Failed to load credits history. Please try again.",
-          [{ text: "OK" }],
-        );
+      if (transferRes.success) {
+        setHistory(transferRes.history);
       }
 
-      // Set user profile data
-      if (profileResponse?.user) {
-        setUserName(profileResponse.user.name || "");
-        setUserPhone(profileResponse.user.phone || "");
+      if (redeemRes.success) {
+        setRedeemHistory(redeemRes.redemptions || []);
       }
     } catch (error: any) {
-      console.error("Error loading credits history:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Network error occurred";
-      Alert.alert(
-        "Connection Error",
-        `Could not load your credits history. ${errorMessage}`,
-        [
-          { text: "Retry", onPress: () => loadCreditsHistory(isRefreshing) },
-          { text: "Cancel", style: "cancel" },
-        ],
-      );
+      console.error("Error loading transfer history:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const handleRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    await loadCreditsHistory(true);
+    loadHistory(true);
   };
 
-  const getTransactionIcon = (type: string): string => {
-    const iconMap: { [key: string]: string } = {
-      quiz_bonus: "school",
-      referral_bonus: "people",
-      signup_bonus: "gift",
-      self_download_bonus: "download",
-      transfer_received: "arrow-down-circle",
-      transfer_sent: "arrow-up-circle",
-      ad_deduction: "megaphone",
-      admin_adjustment: "settings",
-    };
-    return iconMap[type] || "wallet";
+  const handleCall = (phone: string) => {
+    Linking.openURL(`tel:${phone}`);
   };
 
-  const getTransactionColor = (type: string): string => {
-    const deductionTypes = ["transfer_sent", "ad_deduction"];
-    return deductionTypes.includes(type) ? "#EF4444" : "#10B981";
+  const getFilteredTransfers = () => {
+    if (activeTab === "all") return history.all;
+    if (activeTab === "credits")
+      return [
+        ...history.specialCredits.sent,
+        ...history.specialCredits.received,
+      ].sort(
+        (a, b) =>
+          new Date(b.transferredAt).getTime() -
+          new Date(a.transferredAt).getTime(),
+      );
+    if (activeTab === "vouchers")
+      return [...history.vouchers.sent, ...history.vouchers.received].sort(
+        (a, b) =>
+          new Date(b.transferredAt).getTime() -
+          new Date(a.transferredAt).getTime(),
+      );
+    if (activeTab === "redeem") return [];
+    return [];
   };
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+  const renderTransferItem = (item: TransferItem, index: number) => {
+    const isSent = item.direction === "sent";
+    const contact = isSent ? item.recipient : item.sender;
+    const isSpecialCredit = item.type === "special_credit";
+    const voucherCount = item.count || 1;
+    const isMultiple = voucherCount > 1;
 
-    if (date.toDateString() === today.toDateString()) {
-      return `Today, ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return `Yesterday, ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
-    } else {
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year:
-          date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
-        hour: "2-digit",
-        minute: "2-digit",
+    return (
+      <View key={`${item.type}-${index}`} style={styles.transferItem}>
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor: isSent
+                ? "#FEF3C7"
+                : isSpecialCredit
+                  ? "#DBEAFE"
+                  : "#E9D5FF",
+            },
+          ]}
+        >
+          <Ionicons
+            name={
+              isSent ? "arrow-up-circle" : isSpecialCredit ? "gift" : "ticket"
+            }
+            size={24}
+            color={isSent ? "#F59E0B" : isSpecialCredit ? "#3B82F6" : "#8B5CF6"}
+          />
+        </View>
+
+        <View style={styles.transferInfo}>
+          <Text style={styles.transferType}>
+            {isMultiple && !isSpecialCredit
+              ? `${voucherCount} Vouchers`
+              : isSpecialCredit
+                ? "Special Credit"
+                : "Voucher"}{" "}
+            {isSent ? "Sent" : "Received"}
+          </Text>
+          {contact && (
+            <Text style={styles.contactName}>
+              {isSent ? "To: " : "From: "}
+              {contact.name}
+            </Text>
+          )}
+          {isSpecialCredit && item.amount && (
+            <Text style={styles.amount}>
+              Amount: {formatAmount(item.amount)}
+            </Text>
+          )}
+          {!isSpecialCredit && (
+            <Text style={styles.voucherDetails}>
+              {item.companyName} - ₹
+              {isMultiple ? item.totalAmount : item.amount}
+              {isMultiple && ` (${voucherCount}×)`}
+            </Text>
+          )}
+          <Text style={styles.transferDate}>
+            {new Date(item.transferredAt).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </Text>
+        </View>
+
+        {contact && contact.phone && (
+          <TouchableOpacity
+            style={styles.callButton}
+            onPress={() => handleCall(contact.phone)}
+          >
+            <Ionicons name="call" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  const getRedeemStatusLabel = (status: RedeemItem["status"]) => {
+    if (status === "reserved") return "Pending";
+    if (status === "applied") return "Confirmed";
+    return "Expired";
+  };
+
+  const getRedeemStatusColor = (status: RedeemItem["status"]) => {
+    if (status === "reserved") return "#F59E0B";
+    if (status === "applied") return "#10B981";
+    return "#EF4444";
+  };
+
+  const handleConfirmRedeem = async (item: RedeemItem) => {
+    try {
+      const response = await api.post("/mlm/redeem/confirm", {
+        redemptionId: item.id,
       });
+      if (response.success) {
+        await loadHistory(true);
+      }
+    } catch (error) {
+      console.error("Error confirming redeem:", error);
     }
   };
 
-  const BreakdownCard = ({
-    title,
-    amount,
-    icon,
-    color,
-  }: {
-    title: string;
-    amount: number;
-    icon: string;
-    color: string;
-  }) => (
-    <View style={[styles.breakdownCard, { borderLeftColor: color }]}>
-      <View style={styles.breakdownHeader}>
-        <View
-          style={[
-            styles.breakdownIconContainer,
-            { backgroundColor: color + "20" },
-          ]}
-        >
-          <Ionicons name={icon as any} size={20} color={color} />
+  const renderRedeemItem = (item: RedeemItem, index: number) => {
+    const sourceLabel =
+      item.sourceType === "promotion"
+        ? "Promotion"
+        : item.sourceType === "ad_approval"
+          ? "Ad Approval"
+          : "Design Fee";
+    const statusLabel = getRedeemStatusLabel(item.status);
+    const statusColor = getRedeemStatusColor(item.status);
+    const displayDate =
+      item.appliedAt || item.releasedAt || item.reservedAt || item.createdAt;
+
+    return (
+      <View key={`${item.id}-${index}`} style={styles.transferItem}>
+        <View style={[styles.iconContainer, { backgroundColor: "#E0F2FE" }]}>
+          <Ionicons name="ticket-outline" size={24} color="#0284C7" />
         </View>
-        <View style={styles.breakdownInfo}>
-          <Text style={styles.breakdownTitle}>{title}</Text>
-          <Text style={[styles.breakdownAmount, { color }]}>
-            {amount > 0 ? "+" : ""}
-            {formatIndianNumber(amount)}
+
+        <View style={styles.transferInfo}>
+          <Text style={styles.transferType}>Redeem · {sourceLabel}</Text>
+          <Text style={styles.voucherDetails}>
+            {item.qty} voucher(s) · ₹{formatAmount(item.amount)}
           </Text>
+          <View style={styles.redeemStatusRow}>
+            <View style={[styles.statusChip, { borderColor: statusColor }]}>
+              <Text style={[styles.statusChipText, { color: statusColor }]}>
+                {statusLabel}
+              </Text>
+            </View>
+            {typeof item.payableAmount === "number" ? (
+              <Text style={styles.redeemPayable}>
+                Payable: ₹{formatAmount(item.payableAmount)}
+              </Text>
+            ) : null}
+          </View>
+          {displayDate ? (
+            <Text style={styles.transferDate}>
+              {new Date(displayDate).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          ) : null}
         </View>
+
+        {item.confirmable ? (
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={() => handleConfirmRedeem(item)}
+          >
+            <Text style={styles.confirmButtonText}>Confirm</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
-    </View>
-  );
+    );
+  };
+
+  const isRedeemTab = showRedeemTab && activeTab === "redeem";
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <LinearGradient
+          colors={["#FFFFFF", "#F9FAFB"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
           <TouchableOpacity
-            style={styles.backButton}
             onPress={() => router.back()}
+            style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Credits History</Text>
-          <View style={styles.backButton} />
-        </View>
+          <Text style={styles.headerTitle}>Transfer History</Text>
+          <View style={styles.placeholder} />
+        </LinearGradient>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10B981" />
-          <Text style={styles.loadingText}>Loading credits history...</Text>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading history...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <LinearGradient
+        colors={["#FFFFFF", "#F9FAFB"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
         <TouchableOpacity
-          style={styles.backButton}
           onPress={() => router.back()}
+          style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Credits History</Text>
-        <View style={styles.backButton} />
-      </View>
+        <Text style={styles.headerTitle}>Transfer History</Text>
+        <View style={styles.placeholder} />
+      </LinearGradient>
 
       <ScrollView
         style={styles.scrollView}
@@ -332,209 +458,100 @@ export default function CreditsHistoryPage() {
             </View>
           </View>
         </View>
-
-        {/* Transfer Credits Button */}
-        <View style={styles.transferCreditsSection}>
-          <TouchableOpacity
-            style={styles.transferCreditsButton}
-            onPress={() => router.push("/transfer-credits")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.transferButtonGradient}>
-              <View style={styles.transferIconContainer}>
-                <Ionicons name="swap-horizontal" size={24} color="#10B981" />
-              </View>
-              <View style={styles.transferButtonContent}>
-                <Text style={styles.transferButtonTitle}>Transfer Credits</Text>
-                <Text style={styles.transferButtonSubtitle}>
-                  Send credits to other users instantly
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color="#10B981" />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Breakdown Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Credits Breakdown</Text>
-            <View style={styles.breakdownBadge}>
-              <Ionicons name="pie-chart" size={16} color="#10B981" />
-              <Text style={styles.breakdownBadgeText}>Overview</Text>
-            </View>
-          </View>
-
-          <View style={styles.breakdownGrid}>
-            {/* Earnings Section */}
-            <View style={styles.breakdownSection}>
-              <Text style={styles.breakdownSectionTitle}>Earnings</Text>
-              <BreakdownCard
-                title="Credits Return"
-                amount={breakdown.transferReceived}
-                icon="arrow-down-circle"
-                color="#10B981"
-              />
-            </View>
-
-            {/* Spending Section */}
-            <View style={styles.breakdownSection}>
-              <Text style={styles.breakdownSectionTitle}>Spending</Text>
-              <BreakdownCard
-                title="Transfer Sent"
-                amount={-breakdown.transferSent}
-                icon="arrow-up-circle"
-                color="#EF4444"
-              />
-              <BreakdownCard
-                title="Ad Deduction"
-                amount={-breakdown.adDeductions}
-                icon="megaphone"
-                color="#DC2626"
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Transaction History */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Transaction History</Text>
-            {transactions.length > 5 && (
-              <TouchableOpacity
-                onPress={() => setShowAllTransactions(!showAllTransactions)}
-                activeOpacity={0.7}
-                style={styles.viewMoreHeaderButton}
-              >
-                <Text style={styles.viewMoreHeaderText}>
-                  {showAllTransactions ? "Show Less" : "View More"}
-                </Text>
-                <Ionicons
-                  name={showAllTransactions ? "chevron-up" : "chevron-down"}
-                  size={18}
-                  color="#10B981"
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {transactions.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="receipt-outline" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No transactions yet</Text>
-              <Text style={styles.emptySubtext}>
-                Your credit transactions will appear here
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.transactionContainer}>
-              {(showAllTransactions ? transactions : transactions.slice(0, 5))
-                .filter((txn) => txn.type !== "signup_bonus")
-                .map((txn, index) => {
-                  const displayedTransactions = showAllTransactions
-                    ? transactions
-                    : transactions.slice(0, 5);
-                  const isLastItem = index === displayedTransactions.length - 1;
-                  return (
-                    <View
-                      key={txn._id}
-                      style={[
-                        styles.transactionCard,
-                        isLastItem && styles.lastTransactionCard,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.transactionIconContainer,
-                          {
-                            backgroundColor:
-                              getTransactionColor(txn.type) + "15",
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name={getTransactionIcon(txn.type) as any}
-                          size={22}
-                          color={getTransactionColor(txn.type)}
-                        />
-                      </View>
-
-                      <View style={styles.transactionInfo}>
-                        <Text style={styles.transactionDescription}>
-                          {txn.type === "transfer_received"
-                            ? txn.description.replace(
-                                "Transfer from",
-                                "Received -",
-                              )
-                            : txn.description}
-                        </Text>
-                        {(txn.fromUser?.phone || txn.toUser?.phone) && (
-                          <Text style={styles.transactionPhone}>
-                            {txn.type === "transfer_sent"
-                              ? `To: ${txn.toUser?.phone}`
-                              : txn.type === "transfer_received"
-                                ? `From: ${txn.fromUser?.phone}`
-                                : ""}
-                          </Text>
-                        )}
-                        {txn.note && (
-                          <Text style={styles.transactionNote}>
-                            "{txn.note}"
-                          </Text>
-                        )}
-                        <Text style={styles.transactionDate}>
-                          {formatDate(txn.createdAt)}
-                        </Text>
-                      </View>
-
-                      <View style={styles.transactionAmountContainer}>
-                        <Text
-                          style={[
-                            styles.transactionAmount,
-                            { color: getTransactionColor(txn.type) },
-                          ]}
-                        >
-                          {txn.amount > 0 ? "+" : ""}
-                          {formatIndianNumber(txn.amount)}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })}
-
-              {transactions.length > 5 && (
-                <TouchableOpacity
-                  style={styles.viewMoreBottomButton}
-                  onPress={() => setShowAllTransactions(!showAllTransactions)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.viewMoreBottomText}>
-                    {showAllTransactions
-                      ? "Show Less"
-                      : `View ${transactions.length - 5} More Transaction${transactions.length - 5 > 1 ? "s" : ""}`}
-                  </Text>
-                  <Ionicons
-                    name={showAllTransactions ? "chevron-up" : "chevron-down"}
-                    size={20}
-                    color="#10B981"
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-        </View>
-      </ScrollView>
-      <View
-        style={{
-          position: "absolute",
-          bottom: insets.bottom + 60,
-          left: 0,
-          right: 0,
-        }}
-      >
-        <FooterCarousel />
       </View>
-      <CustomTabBar />
+
+      {/* Filter Tabs */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "all" && styles.activeTab]}
+          onPress={() => setActiveTab("all")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "all" && styles.activeTabText,
+            ]}
+          >
+            All
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "credits" && styles.activeTab]}
+          onPress={() => setActiveTab("credits")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "credits" && styles.activeTabText,
+            ]}
+          >
+            Special Credits
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "vouchers" && styles.activeTab]}
+          onPress={() => setActiveTab("vouchers")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "vouchers" && styles.activeTabText,
+            ]}
+          >
+            Vouchers
+          </Text>
+        </TouchableOpacity>
+        {showRedeemTab && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "redeem" && styles.activeTab]}
+            onPress={() => setActiveTab("redeem")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "redeem" && styles.activeTabText,
+              ]}
+            >
+              Redeem
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Transfers List */}
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {(isRedeemTab ? redeemHistory : getFilteredTransfers())
+          .length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons
+              name="swap-horizontal-outline"
+              size={64}
+              color="#D1D5DB"
+            />
+            <Text style={styles.emptyTitle}>
+              {isRedeemTab ? "No Redemptions" : "No Transfers"}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {isRedeemTab
+                ? "Your redeem history will appear here"
+                : "Your transfer history will appear here"}
+            </Text>
+          </View>
+        ) : (
+          (isRedeemTab ? redeemHistory : getFilteredTransfers()).map(
+            (item: any, index: number) =>
+              isRedeemTab
+                ? renderRedeemItem(item as RedeemItem, index)
+                : renderTransferItem(item as TransferItem, index),
+          )
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -542,462 +559,204 @@ export default function CreditsHistoryPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8FAFC",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: scaleSize(20),
+    paddingVertical: scaleSize(16),
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
   backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+    padding: scaleSize(4),
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: scaleFontSize(20),
     fontWeight: "700",
     color: "#1F2937",
+  },
+  placeholder: {
+    width: scaleSize(32),
   },
   loadingContainer: {
     flex: 1,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
+    marginTop: scaleSize(12),
+    fontSize: scaleFontSize(16),
     color: "#6B7280",
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    // paddingBottom applied dynamically in component
-  },
-  totalCreditsBanner: {
-    margin: 16,
-    marginTop: 20,
-    borderRadius: 24,
-    overflow: "hidden",
-    position: "relative",
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  bannerBackground: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#10B981",
-  },
-  bannerGlowEffect: {
-    position: "absolute",
-    top: -50,
-    right: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-  },
-  totalCreditsContent: {
-    padding: 28,
-    alignItems: "center",
-  },
-  userInfoRow: {
+  summaryContainer: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.3)",
-    width: "100%",
+    paddingHorizontal: scaleSize(20),
+    paddingVertical: scaleSize(16),
+    gap: scaleSize(12),
   },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  userDetails: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 2,
-  },
-  userPhone: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.9)",
-    fontWeight: "500",
-  },
-  totalCreditsIconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    borderWidth: 3,
-    borderColor: "rgba(255, 255, 255, 0.4)",
-  },
-  iconGlow: {
-    shadowColor: "#FFFFFF",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-  },
-  totalCreditsLabel: {
-    fontSize: 15,
-    color: "rgba(255, 255, 255, 0.95)",
-    marginBottom: 12,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-  },
-  amountContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    flexWrap: "nowrap",
-    maxWidth: "100%",
-  },
-  currencyBadge: {
-    marginRight: 8,
-    marginTop: 4,
-  },
-  totalCreditsAmount: {
-    fontSize: 48,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: -1,
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    flexShrink: 1,
-  },
-  creditsUnitContainer: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-  },
-  totalCreditsUnit: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.95)",
-    fontWeight: "600",
-  },
-  creditsTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  expiryDateText: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.7)",
-    fontWeight: "500",
-    marginTop: 4,
-  },
-  verifiedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  verifiedText: {
-    fontSize: 11,
-    color: "#10B981",
-    fontWeight: "700",
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1F2937",
-  },
-  breakdownBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F0FDF4",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    gap: 4,
-  },
-  breakdownBadgeText: {
-    fontSize: 12,
-    color: "#10B981",
-    fontWeight: "700",
-  },
-  breakdownGrid: {
-    paddingHorizontal: 16,
-  },
-  breakdownSection: {
-    marginBottom: 12,
-  },
-  breakdownSectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#374151",
-    marginBottom: 8,
-    paddingLeft: 4,
-  },
-  breakdownCards: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  breakdownCard: {
+  summaryCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 4,
+    borderRadius: scaleSize(16),
+    padding: scaleSize(16),
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
-  breakdownHeader: {
+  summaryValue: {
+    fontSize: scaleFontSize(24),
+    fontWeight: "700",
+    color: "#1F2937",
+    marginTop: scaleSize(8),
+  },
+  summaryLabel: {
+    fontSize: scaleFontSize(12),
+    color: "#6B7280",
+    marginTop: scaleSize(4),
+  },
+  tabsContainer: {
     flexDirection: "row",
+    paddingHorizontal: scaleSize(20),
+    gap: scaleSize(8),
+    marginBottom: scaleSize(16),
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: scaleSize(10),
+    paddingHorizontal: scaleSize(12),
+    borderRadius: scaleSize(12),
+    backgroundColor: "#E5E7EB",
     alignItems: "center",
   },
-  breakdownIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 1,
+  activeTab: {
+    backgroundColor: "#3B82F6",
   },
-  breakdownInfo: {
+  tabText: {
+    fontSize: scaleFontSize(14),
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  activeTabText: {
+    color: "#FFFFFF",
+  },
+  content: {
     flex: 1,
   },
-  breakdownTitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 4,
-    fontWeight: "600",
+  contentContainer: {
+    paddingHorizontal: scaleSize(20),
+    paddingBottom: scaleSize(20),
   },
-  breakdownAmount: {
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
-  transactionCountBadge: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: "#10B981",
-  },
-  transactionCountText: {
-    fontSize: 12,
-    color: "#10B981",
-    fontWeight: "700",
-  },
-  viewMoreHeaderButton: {
+  transferItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  viewMoreHeaderText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#10B981",
-  },
-  transactionContainer: {
     backgroundColor: "#FFFFFF",
-    marginHorizontal: 16,
-    borderRadius: 16,
-    overflow: "hidden",
+    borderRadius: scaleSize(16),
+    padding: scaleSize(16),
+    marginBottom: scaleSize(12),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  transactionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  lastTransactionCard: {
-    borderBottomWidth: 0,
-  },
-  transactionIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
+  iconContainer: {
+    width: scaleSize(48),
+    height: scaleSize(48),
+    borderRadius: scaleSize(24),
     justifyContent: "center",
-    marginRight: 14,
+    alignItems: "center",
+    marginRight: scaleSize(12),
   },
-  transactionInfo: {
+  transferInfo: {
     flex: 1,
   },
-  transactionDescription: {
-    fontSize: 15,
+  transferType: {
+    fontSize: scaleFontSize(16),
     fontWeight: "600",
     color: "#1F2937",
-    marginBottom: 4,
   },
-  transactionPhone: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#10B981",
-    marginBottom: 3,
-  },
-  transactionNote: {
-    fontSize: 13,
-    fontStyle: "italic",
+  contactName: {
+    fontSize: scaleFontSize(14),
     color: "#6B7280",
-    marginBottom: 4,
+    marginTop: scaleSize(4),
   },
-  transactionDate: {
-    fontSize: 13,
+  amount: {
+    fontSize: scaleFontSize(16),
+    fontWeight: "700",
+    color: "#3B82F6",
+    marginTop: scaleSize(4),
+  },
+  voucherDetails: {
+    fontSize: scaleFontSize(14),
+    color: "#8B5CF6",
+    marginTop: scaleSize(4),
+  },
+  transferDate: {
+    fontSize: scaleFontSize(12),
     color: "#9CA3AF",
+    marginTop: scaleSize(4),
   },
-  transactionBalance: {
-    fontSize: 12,
+  redeemStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleSize(8),
+    marginTop: scaleSize(6),
+  },
+  statusChip: {
+    borderWidth: 1,
+    borderRadius: scaleSize(10),
+    paddingHorizontal: scaleSize(8),
+    paddingVertical: scaleSize(2),
+  },
+  statusChipText: {
+    fontSize: scaleFontSize(11),
+    fontWeight: "700",
+  },
+  redeemPayable: {
+    fontSize: scaleFontSize(12),
     color: "#6B7280",
-    marginTop: 2,
   },
-  transactionAmountContainer: {
-    alignItems: "flex-end",
+  confirmButton: {
+    backgroundColor: "#2563EB",
+    borderRadius: scaleSize(12),
+    paddingHorizontal: scaleSize(10),
+    paddingVertical: scaleSize(6),
+    alignSelf: "flex-start",
   },
-  transactionAmount: {
-    fontSize: 18,
+  confirmButtonText: {
+    color: "#FFFFFF",
+    fontSize: scaleFontSize(12),
     fontWeight: "700",
   },
-  emptyContainer: {
-    alignItems: "center",
+  callButton: {
+    backgroundColor: "#10B981",
+    borderRadius: scaleSize(20),
+    width: scaleSize(40),
+    height: scaleSize(40),
     justifyContent: "center",
-    paddingVertical: 48,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  viewMoreButton: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    backgroundColor: "#F0FDF4",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    gap: 8,
   },
-  viewMoreText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#10B981",
-  },
-  viewMoreBottomButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    backgroundColor: "#F0FDF4",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    gap: 8,
-  },
-  viewMoreBottomText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#10B981",
-  },
-  transferCreditsSection: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  transferCreditsButton: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-    borderWidth: 2,
-    borderColor: "#10B98120",
-  },
-  transferButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  transferIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#F0FDF4",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-  transferButtonContent: {
+  emptyState: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: scaleSize(60),
   },
-  transferButtonTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 4,
-  },
-  transferButtonSubtitle: {
-    fontSize: 13,
+  emptyTitle: {
+    fontSize: scaleFontSize(18),
+    fontWeight: "600",
     color: "#6B7280",
-    fontWeight: "500",
+    marginTop: scaleSize(16),
+  },
+  emptySubtitle: {
+    fontSize: scaleFontSize(14),
+    color: "#9CA3AF",
+    marginTop: scaleSize(8),
   },
 });

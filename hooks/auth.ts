@@ -29,6 +29,12 @@ export const useSignup = () =>
 export const useLogout = () =>
   useMutation({
     mutationFn: async () => {
-      await AsyncStorage.multiRemove(["token", "user"]);
+      await AsyncStorage.multiRemove([
+        "token",
+        "user",
+        "currentUserId",
+        "user_name",
+        "user_phone",
+      ]);
     },
   });

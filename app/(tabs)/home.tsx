@@ -1,7 +1,7 @@
 ﻿import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,15 +11,17 @@ import {
   RefreshControl,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Link, useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
 import FooterCarousel from "../../components/FooterCarousel";
 import FAB from "../../components/FAB";
 import CategoryGrid from "../../components/CategoryGrid";
-import PopularBusiness from "../../components/PopularBusiness";
+import CardRow from "../../components/CardRow";
+import ReferralBanner from "../../components/ReferralBanner";
 import { FEATURE_FLAGS } from "../../lib/featureFlags";
-import { formatIndianNumber, formatAmount } from "../../utils/formatNumber";
+import { formatAmount } from "../../utils/formatNumber";
 import api from "../../lib/api";
 
 export default function Home() {
@@ -29,6 +31,7 @@ export default function Home() {
   const [userCredits, setUserCredits] = React.useState<number>(0);
   const [creditsLoading, setCreditsLoading] = React.useState(true);
   const [hasPromotedBusiness, setHasPromotedBusiness] = React.useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch user name and ID for profile initial and filtering
   React.useEffect(() => {
@@ -104,6 +107,46 @@ export default function Home() {
     }, [checkBusinessPromotion]),
   );
 
+  // Contacts feed - show cards from my contacts
+  const feedQ = useQuery({
+    queryKey: ["contacts-feed", currentUserId],
+    enabled: !!currentUserId,
+    queryFn: async () => {
+      try {
+        const token = await AsyncStorage.getItem("token");
+        if (!token) return [];
+
+        const apiBase =
+          Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE ||
+          "https://api.instantllycards.com";
+        const url = `${apiBase}/api/cards/feed/contacts`;
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        return result.data || [];
+      } catch (error) {
+        console.error("❌ Home: Error fetching contacts feed:", error);
+        return [];
+      }
+    },
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: false,
+  });
+
   // Fetch user credits
   const fetchCredits = React.useCallback(async () => {
     try {
@@ -173,7 +216,55 @@ export default function Home() {
   // Manual refresh handler
   const handleRefresh = React.useCallback(() => {
     fetchCredits();
-  }, [fetchCredits]);
+    queryClient.invalidateQueries({
+      queryKey: ["contacts-feed", currentUserId],
+    });
+  }, [fetchCredits, queryClient, currentUserId]);
+
+  // Refetch feed when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUserId) {
+        queryClient.invalidateQueries({
+          queryKey: ["contacts-feed", currentUserId],
+        });
+      }
+    }, [currentUserId, queryClient]),
+  );
+
+  // Filter cards: exclude own cards, deduplicate, search
+  const filteredCards = React.useMemo(() => {
+    let cards = feedQ.data || [];
+
+    if (currentUserId) {
+      cards = cards.filter((card: any) => {
+        const cardUserId = (card.userId || card.owner || "").toString();
+        return cardUserId !== currentUserId;
+      });
+    }
+
+    const uniqueCards = Array.from(
+      new Map(cards.map((card: any) => [card._id, card])).values(),
+    ) as any[];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      return uniqueCards.filter((card: any) => {
+        const name = (card.name || "").toLowerCase();
+        const company = (card.company || "").toLowerCase();
+        const designation = (card.designation || "").toLowerCase();
+        const category = (card.category || "").toLowerCase();
+        return (
+          name.includes(q) ||
+          company.includes(q) ||
+          designation.includes(q) ||
+          category.includes(q)
+        );
+      });
+    }
+
+    return uniqueCards;
+  }, [feedQ.data, currentUserId, searchQuery]);
   return (
     <SafeAreaView style={s.root}>
       {/* Custom Header */}
@@ -263,47 +354,77 @@ export default function Home() {
       </View>
 
       {/* Main Content */}
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: 8, paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={false}
-            onRefresh={handleRefresh}
-            colors={["#3B82F6"]}
-            tintColor="#3B82F6"
-          />
-        }
-      >
-        {/* Categories Header with Arrow and Promote Button - hidden for users who already promoted */}
-        {FEATURE_FLAGS.SHOW_CATEGORIES && !hasPromotedBusiness && (
-          <View style={s.categoriesHeaderRow}>
-            <View style={s.categoriesWithArrow}>
-              <Text style={s.categoriesHeaderText}>Categories</Text>
-              <Ionicons
-                name="arrow-forward"
-                size={20}
-                color="#EF4444"
-                style={s.categoriesArrow}
-              />
+      {feedQ.isLoading ? (
+        <View style={s.loadingContainer}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredCards}
+          keyExtractor={(it: any) => it._id}
+          renderItem={({ item }) => (
+            <View style={{ paddingHorizontal: 16 }}>
+              <CardRow c={item} />
             </View>
-            {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS && (
-              <TouchableOpacity
-                style={s.promoteBusinessButton}
-                onPress={() => router.push("/business-promotiontype")}
-                activeOpacity={0.8}
-              >
-                <Text style={s.promoteButtonText}>Promote Business</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-        {FEATURE_FLAGS.SHOW_CATEGORIES && <CategoryGrid searchQuery={searchQuery} />}
-
-        {/* Popular Business Slider */}
-        <PopularBusiness />
-      </ScrollView>
+          )}
+          ListHeaderComponent={
+            <>
+              {false && <ReferralBanner />}
+              {/* Categories Header with Arrow and Promote Button - Same Line */}
+              {FEATURE_FLAGS.SHOW_CATEGORIES && (
+                <View style={s.categoriesHeaderRow}>
+                  <View style={s.categoriesWithArrow}>
+                    <Text style={s.categoriesHeaderText}>Categories</Text>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={20}
+                      color="#EF4444"
+                      style={s.categoriesArrow}
+                    />
+                  </View>
+                  {FEATURE_FLAGS.SHOW_PROMOTE_BUSINESS &&
+                    !hasPromotedBusiness && (
+                    <TouchableOpacity
+                      style={s.promoteBusinessButton}
+                      onPress={() => router.push("/business-promotiontype")}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={s.promoteButtonText}>Promote Business</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+              {FEATURE_FLAGS.SHOW_CATEGORIES && <CategoryGrid />}
+              <View style={s.cardsHeadingRow}>
+                <View style={s.cardsHeadingLine} />
+                <Text style={s.cardsHeadingText}>Business Cards</Text>
+                <View style={s.cardsHeadingLine} />
+              </View>
+            </>
+          }
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 120 }}
+          initialNumToRender={2}
+          windowSize={5}
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <Text style={s.emptyTxt}>No cards yet.</Text>
+              <Text style={s.emptySubTxt}>
+                Create your first card or sync your contacts to see cards from
+                your network!
+              </Text>
+            </View>
+          }
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={feedQ.isRefetching && !feedQ.isLoading}
+              onRefresh={handleRefresh}
+              colors={["#3B82F6"]}
+              tintColor="#3B82F6"
+            />
+          }
+        />
+      )}
 
       {/* Footer Carousel */}
       <FooterCarousel showPromoteButton={true} />
@@ -696,7 +817,7 @@ const s = StyleSheet.create({
   categoriesHeaderText: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#111111",
     letterSpacing: 0.3,
   },
   categoriesArrow: {

@@ -140,43 +140,9 @@ export default function NetworkListView({
     );
   };
 
-  const getLevelStats = () => {
-    const levelCounts: Record<number, number> = {};
-
-    const countLevel = (user: NetworkUser) => {
-      levelCounts[user.level] = (levelCounts[user.level] || 0) + 1;
-      user.directChildren.forEach(countLevel);
-    };
-
-    rootUser.directChildren.forEach(countLevel);
-
-    return Object.entries(levelCounts)
-      .sort(([a], [b]) => parseInt(a) - parseInt(b))
-      .slice(0, 5); // Show first 5 levels
-  };
-
-  const levelStats = getLevelStats();
-
   return (
     <View style={styles.container}>
-      {/* Level Stats Header */}
-      <View style={styles.statsHeader}>
-        <Text style={styles.statsTitle}>Network Distribution</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.levelStatsContainer}
-        >
-          {levelStats.map(([level, count]) => (
-            <View key={level} style={styles.levelStatCard}>
-              <Text style={styles.levelStatLevel}>Level {level}</Text>
-              <Text style={styles.levelStatCount}>{count}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Scrollable List */}
+      {/* Scrollable List - Network Distribution section removed */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -191,41 +157,6 @@ export default function NetworkListView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  statsHeader: {
-    backgroundColor: "#FFFFFF",
-    padding: scaleSize(16),
-    borderRadius: scaleSize(12),
-    marginBottom: scaleSize(16),
-  },
-  statsTitle: {
-    fontSize: scaleFontSize(16),
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: scaleSize(12),
-  },
-  levelStatsContainer: {
-    gap: 8,
-  },
-  levelStatCard: {
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: scaleSize(16),
-    paddingVertical: scaleSize(10),
-    borderRadius: scaleSize(10),
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.08)",
-    alignItems: "center",
-    minWidth: scaleSize(80),
-  },
-  levelStatLevel: {
-    fontSize: scaleFontSize(16),
-    color: "#6B7280",
-    marginBottom: 2,
-  },
-  levelStatCount: {
-    fontSize: scaleFontSize(18),
-    fontWeight: "700",
-    color: "#10B981",
   },
   scrollView: {
     flex: 1,

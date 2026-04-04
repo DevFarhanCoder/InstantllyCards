@@ -64,9 +64,12 @@ export default function VoucherDetailScreen({
             (v: any) => !v.redeemedStatus || v.redeemedStatus === "unredeemed",
           ).length || 0;
         setAvailableVouchers(available);
+      } else {
+        setAvailableVouchers(0);
       }
     } catch (error) {
       console.error("Error checking voucher availability:", error);
+      setAvailableVouchers(0);
     } finally {
       setLoading(false);
     }
@@ -74,8 +77,8 @@ export default function VoucherDetailScreen({
 
   const handleRedeemNow = () => {
     if (availableVouchers > 0) {
-      // Navigate to Ads/Business Promotion section
-      router.push("/business-promotion");
+      // Navigate to Ads tab
+      router.push("/(tabs)/ads");
     } else {
       Alert.alert(
         "No Vouchers Available",
@@ -101,19 +104,23 @@ export default function VoucherDetailScreen({
         showsVerticalScrollIndicator={false}
       >
         {/* Voucher Image - Full Screen */}
-        <View style={styles.imageContainer}>
-          <Image
-            source={
-              voucher.voucherImage === "local" || !voucher.voucherImage
-                ? require("../assets/images/1stVoucher.jpeg")
-                : voucher.voucherImages && voucher.voucherImages.length > 0
-                  ? { uri: voucher.voucherImages[0] }
-                  : require("../assets/images/1stVoucher.jpeg")
-            }
-            style={styles.voucherImage}
-            resizeMode="contain"
-          />
-        </View>
+        {(() => {
+          const imageUri =
+            voucher.voucherImage && voucher.voucherImage !== "local"
+              ? voucher.voucherImage
+              : voucher.voucherImages && voucher.voucherImages.length > 0
+                ? voucher.voucherImages[0]
+                : null;
+          return imageUri ? (
+            <View style={styles.imageContainer}>
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.voucherImage}
+                resizeMode="contain"
+              />
+            </View>
+          ) : null;
+        })()}
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>

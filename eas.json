@@ -11,6 +11,7 @@
       }
     },
     "preview": {
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       },
@@ -19,6 +20,7 @@
       }
     },
     "production": {
+      "channel": "production",
       "android": {
         "buildType": "app-bundle",
         "credentialsSource": "local"

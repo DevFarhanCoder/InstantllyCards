@@ -132,16 +132,21 @@ export default function ForceUpdateModal({
 
             {/* Action Buttons */}
             <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={styles.moreInfoButton}
-                activeOpacity={0.7}
-                onPress={onDismiss}
-              >
-                <Text style={styles.moreInfoText}>Dismiss</Text>
-              </TouchableOpacity>
+              {onDismiss && (
+                <TouchableOpacity
+                  style={styles.moreInfoButton}
+                  activeOpacity={0.7}
+                  onPress={onDismiss}
+                >
+                  <Text style={styles.moreInfoText}>Dismiss</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
-                style={styles.updateButton}
+                style={[
+                  styles.updateButton,
+                  !onDismiss && styles.updateButtonFullWidth,
+                ]}
                 onPress={handleUpdate}
                 activeOpacity={0.85}
               >
@@ -273,6 +278,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#01875F",
     alignItems: "center",
     justifyContent: "center",
+  },
+  updateButtonFullWidth: {
+    flex: 0,
+    width: "100%",
   },
   updateButtonText: {
     fontSize: 14,
