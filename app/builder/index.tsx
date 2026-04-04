@@ -1142,6 +1142,54 @@ export default function Builder() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [customServiceInput, setCustomServiceInput] = useState("");
   const [showCustomServiceInput, setShowCustomServiceInput] = useState(false);
+
+  // Backend categories (merged with hardcoded ones)
+  const [backendCategories, setBackendCategories] = useState<Record<string, string[]>>({});
+  const [backendCategoryIcons, setBackendCategoryIcons] = useState<Record<string, string>>({});
+
+  // Fetch categories from backend and merge with hardcoded
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await api.get("/categories");
+        if (res.data?.success && res.data?.data) {
+          const apiCats: Record<string, string[]> = {};
+          const apiIcons: Record<string, string> = {};
+          for (const cat of res.data.data) {
+            apiCats[cat.name] = cat.subcategories || [];
+            if (cat.icon) apiIcons[cat.name] = cat.icon;
+          }
+          setBackendCategories(apiCats);
+          setBackendCategoryIcons(apiIcons);
+        }
+      } catch (error) {
+        console.log("⚠️ Failed to fetch categories from backend, using hardcoded");
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Merged categories: hardcoded + backend (backend takes priority for subcategories)
+  const mergedCategories = useMemo(() => {
+    const merged: Record<string, string[]> = { ...SERVICE_CATEGORIES };
+    for (const [catName, subs] of Object.entries(backendCategories)) {
+      if (merged[catName]) {
+        // Merge subcategories: combine hardcoded + backend, remove duplicates
+        const existingSet = new Set(merged[catName].map(s => s.toLowerCase()));
+        const newSubs = subs.filter(s => !existingSet.has(s.toLowerCase()));
+        merged[catName] = [...merged[catName], ...newSubs];
+      } else {
+        // Brand new category from backend (admin-approved)
+        merged[catName] = subs;
+      }
+    }
+    return merged;
+  }, [backendCategories]);
+
+  // Merged icons
+  const mergedIcons = useMemo(() => {
+    return { ...CATEGORY_ICONS, ...backendCategoryIcons };
+  }, [backendCategoryIcons]);
   const [establishedYear, setEstablishedYear] = useState("");
   const [aboutBusiness, setAboutBusiness] = useState("");
   // Social Media
@@ -1198,18 +1246,84 @@ export default function Builder() {
     }
   }, [selectedServices]);
 
-  const handleAddCustomService = () => {
-    if (customServiceInput.trim()) {
-      const customService = selectedCategory
-        ? `${selectedCategory} - ${customServiceInput.trim()}`
-        : customServiceInput.trim();
+  const handleAddCustomService = async () => {
+    if (!customServiceInput.trim()) return;
 
-      if (!selectedServices.includes(customService)) {
-        setSelectedServices((prev) => [...prev, customService]);
+    const serviceName = customServiceInput.trim();
+    const customService = selectedCategory
+      ? `${selectedCategory} - ${serviceName}`
+      : serviceName;
+
+    // Local check: see if this service name already exists in merged categories/subcategories
+    const lowerName = serviceName.toLowerCase();
+    for (const [catName, subs] of Object.entries(mergedCategories)) {
+      if (catName.toLowerCase() === lowerName) {
+        Alert.alert(
+          '⚠️ Already Exists',
+          `"${serviceName}" already exists as a category.\n\nYou can find it in the categories list on the home screen.`,
+          [{ text: 'OK' }]
+        );
+        return;
       }
-      setCustomServiceInput("");
-      setShowCustomServiceInput(false);
+      const matchedSub = subs.find((s: string) => s.toLowerCase() === lowerName);
+      if (matchedSub) {
+        Alert.alert(
+          '⚠️ Already Exists',
+          `"${serviceName}" already exists as a subcategory under "${catName}".\n\nGo to ${catName} → ${matchedSub} to find it.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
     }
+
+    // Add to selected services list
+    if (!selectedServices.includes(customService)) {
+      setSelectedServices((prev) => [...prev, customService]);
+    }
+
+    // Report custom service to backend for admin review
+    try {
+      const userName = name || "Unknown User";
+      const result = await api.post("/categories/custom-service", {
+        serviceName,
+        userId: currentUserId,
+        userName,
+        cardId: isEditMode ? edit : "",
+        parentCategory: selectedCategory || "",
+      });
+
+      if (result?.alreadyExists) {
+        // Backend found it in categories DB
+        Alert.alert(
+          '⚠️ Already Exists',
+          result.message || `"${serviceName}" already exists in our categories.`,
+          [{ text: 'OK' }]
+        );
+      } else if (result?.message === 'Custom service already reported') {
+        Alert.alert(
+          'ℹ️ Already Submitted',
+          `"${serviceName}" has already been submitted and is pending admin review.\n\nYou'll see it once approved!`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          '✅ Submitted for Review',
+          `"${serviceName}" has been submitted!\n\nOur admin will review and add it to the categories soon.`,
+          [{ text: 'Great!' }]
+        );
+        console.log("📤 Custom service reported:", serviceName);
+      }
+    } catch (error) {
+      console.log("⚠️ Failed to report custom service:", error);
+      Alert.alert(
+        '✅ Service Added',
+        `"${serviceName}" added to your card. We'll sync it for review when you're back online.`,
+        [{ text: 'OK' }]
+      );
+    }
+
+    setCustomServiceInput("");
+    setShowCustomServiceInput(false);
   };
 
   // Track if form has been populated to avoid overwriting user changes
@@ -2950,7 +3064,7 @@ export default function Builder() {
 
                 {/* Show Categories List */}
                 <FlatList
-                  data={Object.keys(SERVICE_CATEGORIES)}
+                  data={Object.keys(mergedCategories)}
                   keyExtractor={(item) => item}
                   renderItem={({ item: category }) => (
                     <TouchableOpacity
@@ -2963,7 +3077,7 @@ export default function Builder() {
                     >
                       <View style={s.categoryItemContent}>
                         <Text style={s.categoryIcon}>
-                          {CATEGORY_ICONS[category]}
+                          {mergedIcons[category] || "📁"}
                         </Text>
                         <Text style={s.categoryItemText}>{category}</Text>
                       </View>
@@ -3035,7 +3149,7 @@ export default function Builder() {
 
                 {/* Show Subcategories List */}
                 <FlatList
-                  data={SERVICE_CATEGORIES[selectedCategory].filter((service) =>
+                  data={(mergedCategories[selectedCategory] || []).filter((service) =>
                     service
                       .toLowerCase()
                       .includes(servicesSearchQuery.toLowerCase()),

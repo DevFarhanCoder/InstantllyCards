@@ -2,14 +2,14 @@
   "expo": {
     "name": "Instantlly Cards",
     "slug": "instantllycards",
-    "version": "1.0.74",
+    "version": "1.0.75",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "scheme": "instantllycards",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "extra": {
-      "EXPO_PUBLIC_API_BASE": "https://api.instantllycards.com",
+      "EXPO_PUBLIC_API_BASE": "https://api-test.instantllycards.com",
       "router": {},
       "eas": {
         "projectId": "2d7524da-4330-496c-816f-4e011831e6f4"
@@ -21,7 +21,7 @@
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 3000
     },
-    "runtimeVersion": "1.0.74",
+    "runtimeVersion": "1.0.75",
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
@@ -37,7 +37,7 @@
     },
     "android": {
       "package": "com.instantllycards.www.twa",
-      "versionCode": 74,
+      "versionCode": 75,
       "permissions": ["INTERNET"],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

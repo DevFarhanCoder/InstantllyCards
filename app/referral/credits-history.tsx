@@ -63,9 +63,33 @@ interface TransferHistory {
   };
 }
 
+interface RedeemItem {
+  id: string;
+  sourceType: "promotion" | "design_fee" | "ad_approval";
+  qty: number;
+  valuePerUnit: number;
+  amount: number;
+  currency: string;
+  status: "reserved" | "applied" | "released";
+  reservedAt?: string;
+  appliedAt?: string;
+  releasedAt?: string;
+  releaseReason?: string;
+  createdAt?: string;
+  confirmable?: boolean;
+  orderId?: string | null;
+  payableAmount?: number;
+}
+
 export default function TransferHistoryPage() {
   const insets = useSafeAreaInsets();
   const { voucherId } = useLocalSearchParams<{ voucherId?: string }>();
+  const instantllyVoucherId = process.env.EXPO_PUBLIC_INSTANTLLY_VOUCHER_ID;
+  const normalizedVoucherId = Array.isArray(voucherId)
+    ? voucherId[0]
+    : voucherId;
+  const showRedeemTab =
+    !!instantllyVoucherId && normalizedVoucherId === instantllyVoucherId;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [history, setHistory] = useState<TransferHistory>({
@@ -80,13 +104,20 @@ export default function TransferHistoryPage() {
       totalTransfers: 0,
     },
   });
-  const [activeTab, setActiveTab] = useState<"all" | "credits" | "vouchers">(
-    "all",
-  );
+  const [redeemHistory, setRedeemHistory] = useState<RedeemItem[]>([]);
+  const [activeTab, setActiveTab] = useState<
+    "all" | "credits" | "vouchers" | "redeem"
+  >("all");
 
   useEffect(() => {
     loadHistory();
   }, []);
+
+  useEffect(() => {
+    if (!showRedeemTab && activeTab === "redeem") {
+      setActiveTab("all");
+    }
+  }, [showRedeemTab, activeTab]);
 
   const loadHistory = async (isRefreshing = false) => {
     try {
@@ -94,12 +125,24 @@ export default function TransferHistoryPage() {
         setLoading(true);
       }
 
-      const response = await api.get(
-        `/mlm/transfer-history?limit=100${voucherId ? `&voucherId=${voucherId}` : ""}`,
+      const transferPromise = api.get(
+        `/mlm/transfer-history?limit=100${normalizedVoucherId ? `&voucherId=${normalizedVoucherId}` : ""}`,
       );
+      const redeemPromise = showRedeemTab
+        ? api.get(`/mlm/redeem-history?limit=100`)
+        : Promise.resolve({ success: true, redemptions: [] });
 
-      if (response.success) {
-        setHistory(response.history);
+      const [transferRes, redeemRes] = await Promise.all([
+        transferPromise,
+        redeemPromise,
+      ]);
+
+      if (transferRes.success) {
+        setHistory(transferRes.history);
+      }
+
+      if (redeemRes.success) {
+        setRedeemHistory(redeemRes.redemptions || []);
       }
     } catch (error: any) {
       console.error("Error loading transfer history:", error);
@@ -135,6 +178,7 @@ export default function TransferHistoryPage() {
           new Date(b.transferredAt).getTime() -
           new Date(a.transferredAt).getTime(),
       );
+    if (activeTab === "redeem") return [];
     return [];
   };
 
@@ -218,6 +262,93 @@ export default function TransferHistoryPage() {
     );
   };
 
+  const getRedeemStatusLabel = (status: RedeemItem["status"]) => {
+    if (status === "reserved") return "Pending";
+    if (status === "applied") return "Confirmed";
+    return "Expired";
+  };
+
+  const getRedeemStatusColor = (status: RedeemItem["status"]) => {
+    if (status === "reserved") return "#F59E0B";
+    if (status === "applied") return "#10B981";
+    return "#EF4444";
+  };
+
+  const handleConfirmRedeem = async (item: RedeemItem) => {
+    try {
+      const response = await api.post("/mlm/redeem/confirm", {
+        redemptionId: item.id,
+      });
+      if (response.success) {
+        await loadHistory(true);
+      }
+    } catch (error) {
+      console.error("Error confirming redeem:", error);
+    }
+  };
+
+  const renderRedeemItem = (item: RedeemItem, index: number) => {
+    const sourceLabel =
+      item.sourceType === "promotion"
+        ? "Promotion"
+        : item.sourceType === "ad_approval"
+          ? "Ad Approval"
+          : "Design Fee";
+    const statusLabel = getRedeemStatusLabel(item.status);
+    const statusColor = getRedeemStatusColor(item.status);
+    const displayDate =
+      item.appliedAt || item.releasedAt || item.reservedAt || item.createdAt;
+
+    return (
+      <View key={`${item.id}-${index}`} style={styles.transferItem}>
+        <View style={[styles.iconContainer, { backgroundColor: "#E0F2FE" }]}>
+          <Ionicons name="ticket-outline" size={24} color="#0284C7" />
+        </View>
+
+        <View style={styles.transferInfo}>
+          <Text style={styles.transferType}>Redeem · {sourceLabel}</Text>
+          <Text style={styles.voucherDetails}>
+            {item.qty} voucher(s) · ₹{formatAmount(item.amount)}
+          </Text>
+          <View style={styles.redeemStatusRow}>
+            <View style={[styles.statusChip, { borderColor: statusColor }]}>
+              <Text style={[styles.statusChipText, { color: statusColor }]}>
+                {statusLabel}
+              </Text>
+            </View>
+            {typeof item.payableAmount === "number" ? (
+              <Text style={styles.redeemPayable}>
+                Payable: ₹{formatAmount(item.payableAmount)}
+              </Text>
+            ) : null}
+          </View>
+          {displayDate ? (
+            <Text style={styles.transferDate}>
+              {new Date(displayDate).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          ) : null}
+        </View>
+
+        {item.confirmable ? (
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={() => handleConfirmRedeem(item)}
+          >
+            <Text style={styles.confirmButtonText}>Confirm</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
+
+  const isRedeemTab = showRedeemTab && activeTab === "redeem";
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -262,29 +393,70 @@ export default function TransferHistoryPage() {
         <View style={styles.placeholder} />
       </LinearGradient>
 
-      {/* Summary Cards */}
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryCard}>
-          <Ionicons name="arrow-up" size={22} color="#F59E0B" />
-          <Text style={styles.summaryValue}>
-            {history.summary.specialCreditsSent + history.summary.vouchersSent}
-          </Text>
-          <Text style={styles.summaryLabel}>Sent</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Ionicons name="arrow-down" size={22} color="#10B981" />
-          <Text style={styles.summaryValue}>
-            {history.summary.specialCreditsReceived +
-              history.summary.vouchersReceived}
-          </Text>
-          <Text style={styles.summaryLabel}>Received</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Ionicons name="list" size={22} color="#3B82F6" />
-          <Text style={styles.summaryValue}>
-            {history.summary.totalTransfers}
-          </Text>
-          <Text style={styles.summaryLabel}>Total</Text>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 100 + insets.bottom + 10 },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={["#10B981"]}
+            tintColor="#10B981"
+          />
+        }
+      >
+        {/* Total Credits Banner */}
+        <View style={styles.totalCreditsBanner}>
+          <View style={styles.bannerBackground}>
+            <View style={styles.bannerGlowEffect} />
+          </View>
+          <View style={styles.totalCreditsContent}>
+            {userName && (
+              <View style={styles.userInfoRow}>
+                <View style={styles.userAvatar}>
+                  <Ionicons name="person" size={18} color="#10B981" />
+                </View>
+                <View style={styles.userDetails}>
+                  <Text style={styles.userName}>{userName}</Text>
+                  {userPhone && (
+                    <Text style={styles.userPhone}>{userPhone}</Text>
+                  )}
+                </View>
+              </View>
+            )}
+            <Text style={styles.totalCreditsLabel}>Your Total Balance</Text>
+            <View style={styles.amountContainer}>
+              <View style={styles.currencyBadge}>
+                <Ionicons name="sparkles" size={20} color="#FFD700" />
+              </View>
+              <Text
+                style={styles.totalCreditsAmount}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {formatIndianNumber(totalCredits)}
+              </Text>
+            </View>
+            <View style={styles.creditsUnitContainer}>
+              <View style={styles.creditsTopRow}>
+                <Text style={styles.totalCreditsUnit}>Credits Available</Text>
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+              </View>
+              <Text style={styles.expiryDateText}>Expires: 31 December 2026 • {(() => {
+                const today = new Date();
+                const expiryDate = new Date('2026-12-31');
+                const diffTime = expiryDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays > 0 ? diffDays : 0;
+              })()} days left</Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -329,6 +501,21 @@ export default function TransferHistoryPage() {
             Vouchers
           </Text>
         </TouchableOpacity>
+        {showRedeemTab && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "redeem" && styles.activeTab]}
+            onPress={() => setActiveTab("redeem")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "redeem" && styles.activeTabText,
+              ]}
+            >
+              Redeem
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Transfers List */}
@@ -339,21 +526,29 @@ export default function TransferHistoryPage() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {getFilteredTransfers().length === 0 ? (
+        {(isRedeemTab ? redeemHistory : getFilteredTransfers())
+          .length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons
               name="swap-horizontal-outline"
               size={64}
               color="#D1D5DB"
             />
-            <Text style={styles.emptyTitle}>No Transfers</Text>
+            <Text style={styles.emptyTitle}>
+              {isRedeemTab ? "No Redemptions" : "No Transfers"}
+            </Text>
             <Text style={styles.emptySubtitle}>
-              Your transfer history will appear here
+              {isRedeemTab
+                ? "Your redeem history will appear here"
+                : "Your transfer history will appear here"}
             </Text>
           </View>
         ) : (
-          getFilteredTransfers().map((item, index) =>
-            renderTransferItem(item, index),
+          (isRedeemTab ? redeemHistory : getFilteredTransfers()).map(
+            (item: any, index: number) =>
+              isRedeemTab
+                ? renderRedeemItem(item as RedeemItem, index)
+                : renderTransferItem(item as TransferItem, index),
           )
         )}
       </ScrollView>
@@ -506,6 +701,38 @@ const styles = StyleSheet.create({
     fontSize: scaleFontSize(12),
     color: "#9CA3AF",
     marginTop: scaleSize(4),
+  },
+  redeemStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scaleSize(8),
+    marginTop: scaleSize(6),
+  },
+  statusChip: {
+    borderWidth: 1,
+    borderRadius: scaleSize(10),
+    paddingHorizontal: scaleSize(8),
+    paddingVertical: scaleSize(2),
+  },
+  statusChipText: {
+    fontSize: scaleFontSize(11),
+    fontWeight: "700",
+  },
+  redeemPayable: {
+    fontSize: scaleFontSize(12),
+    color: "#6B7280",
+  },
+  confirmButton: {
+    backgroundColor: "#2563EB",
+    borderRadius: scaleSize(12),
+    paddingHorizontal: scaleSize(10),
+    paddingVertical: scaleSize(6),
+    alignSelf: "flex-start",
+  },
+  confirmButtonText: {
+    color: "#FFFFFF",
+    fontSize: scaleFontSize(12),
+    fontWeight: "700",
   },
   callButton: {
     backgroundColor: "#10B981",

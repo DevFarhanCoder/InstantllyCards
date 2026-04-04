@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,9 @@ import {
   Image,
   Alert,
   ActivityIndicator,
-  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,9 +26,19 @@ type AdTypeOption = "video" | "image" | null;
 type HasDesignOption = "yes" | "no" | null;
 type MediaType = "image" | "video" | null;
 
+const getRazorpayCheckout = (): { open: (options: Record<string, any>) => Promise<any> } | null => {
+  try {
+    const req = (global as any).eval?.("require");
+    if (!req) return null;
+    return req("react-native-razorpay")?.default || null;
+  } catch {
+    return null;
+  }
+};
+
 export default function AdQuestionnaire() {
   const router = useRouter();
-  const { type } = useLocalSearchParams<{ type: "withChannel" | "withoutChannel" }>();
+  // Channel type removed - always submit as withoutChannel
   
   const [adType, setAdType] = useState<AdTypeOption>(null);
   const [hasDesign, setHasDesign] = useState<HasDesignOption>(null);
@@ -81,6 +90,7 @@ export default function AdQuestionnaire() {
       setShowNoDesignForm(true);
     }
   };
+
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -185,7 +195,7 @@ export default function AdQuestionnaire() {
       formData.append('userId', userId || '');
       formData.append('adType', adType || 'image');
       formData.append('needsDesign', 'true');
-      formData.append('channelType', type || 'withoutChannel');
+      formData.append('channelType', 'withoutChannel');
 
       // Append multiple images
       selectedImages.forEach((image, index) => {
@@ -219,30 +229,105 @@ export default function AdQuestionnaire() {
       const data = await response.json();
 
       if (response.ok) {
+        const designRequestId = data?.designRequest?.id;
+        if (!designRequestId) {
+          throw new Error("Design request created but ID missing");
+        }
+
+        // Create design fee order
+        const orderRes = await fetch(`${API_BASE_URL}/channel-partner/ads/design-fee/orders`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ designRequestId }),
+        });
+        const orderData = await orderRes.json();
+        if (!orderRes.ok || !orderData?.success) {
+          throw new Error(orderData?.message || "Failed to create design fee order");
+        }
+
+        const order = orderData.order;
+
+        // Create Razorpay order for remaining amount
+        const payOrderRes = await fetch(
+          `${API_BASE_URL}/channel-partner/ads/design-fee/orders/${order._id}/create-payment-order`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({}),
+          },
+        );
+        const payOrderData = await payOrderRes.json();
+        if (!payOrderRes.ok || !payOrderData?.success) {
+          throw new Error(payOrderData?.message || "Failed to create payment order");
+        }
+
+        const razorpay = getRazorpayCheckout();
+        if (!razorpay) {
+          throw new Error("Razorpay SDK is not available on this device");
+        }
+
+        const razorpayResult = await razorpay.open({
+          key: payOrderData.checkout.keyId,
+          amount: payOrderData.checkout.amount,
+          currency: payOrderData.checkout.currency,
+          name: "InstantllyCards",
+          description: "Design Service Fee",
+          order_id: payOrderData.checkout.razorpayOrderId,
+          theme: { color: "#2563EB" },
+        });
+
+        const verifyRes = await fetch(
+          `${API_BASE_URL}/channel-partner/ads/design-fee/orders/${order._id}/verify-payment`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              razorpay_order_id:
+                razorpayResult?.razorpay_order_id || payOrderData.checkout.razorpayOrderId,
+              razorpay_payment_id: razorpayResult?.razorpay_payment_id,
+              razorpay_signature: razorpayResult?.razorpay_signature,
+            }),
+          },
+        );
+        const verifyData = await verifyRes.json();
+        if (!verifyRes.ok || !verifyData?.success) {
+          throw new Error(verifyData?.message || "Payment verification failed");
+        }
+
         Alert.alert(
-          '✅ Design Request Submitted!',
-          'Our team will create the ad design for you. You will be contacted soon.',
-          [{ 
-            text: 'OK', 
-            onPress: () => {
-              // Reset form and go back
-              setBusinessName('');
-              setEmail('');
-              setWebLinks(['']);
-              setPhoneNumber('');
-              setAdText('');
-              setBusinessAddress('');
-              setSelectedImages([]);
-              setSelectedVideos([]);
-              setShowNoDesignForm(false);
-              setAdType(null);
-              setHasDesign(null);
-              router.back();
-            }
-          }]
+          "✅ Design Request Submitted!",
+          "Payment completed. Our team will create the ad design for you.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setBusinessName("");
+                setEmail("");
+                setWebLinks([""]);
+                setPhoneNumber("");
+                setAdText("");
+                setBusinessAddress("");
+                setSelectedImages([]);
+                setSelectedVideos([]);
+                setShowNoDesignForm(false);
+                setAdType(null);
+                setHasDesign(null);
+                router.back();
+              },
+            },
+          ],
         );
       } else {
-        Alert.alert('Error', data.message || 'Failed to submit design request');
+        Alert.alert("Error", data.message || "Failed to submit design request");
       }
     } catch (error) {
       console.error('Submit design request error:', error);
@@ -560,7 +645,9 @@ export default function AdQuestionnaire() {
             ) : (
               <View style={styles.submitButtonContent}>
                 <Ionicons name="card-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.submitButtonText}>Proceed to Payment (₹400)</Text>
+                <Text style={styles.submitButtonText}>
+                  Proceed to Payment
+                </Text>
               </View>
             )}
           </TouchableOpacity>

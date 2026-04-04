@@ -2700,7 +2700,9 @@ function GroupsFAB({
       </Pressable>
     </>
   );
-}const s = StyleSheet.create({
+}
+
+const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#F4F6FA",

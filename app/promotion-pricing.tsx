@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -38,9 +38,34 @@ type Quote = {
 
 type CatalogResponse = { success: boolean; plans: PricingPlan[] };
 type QuoteResponse = { success: boolean; quote: Quote };
+type VoucherInfo = {
+  id: string;
+  companyName: string;
+  mrp: number;
+  expiresAt?: string;
+};
+type VoucherBalanceResponse = {
+  success: boolean;
+  voucher?: VoucherInfo | null;
+  balance?: number;
+  totalValue?: number;
+  expired?: boolean;
+};
 type CreateOrderResponse = {
   success: boolean;
-  order: { _id: string; status: string; paymentOrderId: string };
+  order: {
+    _id: string;
+    status: string;
+    paymentOrderId?: string;
+    amount?: number;
+    payableAmount?: number;
+    voucherQtyApplied?: number;
+    voucherAmountApplied?: number;
+    voucherStatus?: string;
+    areaType?: AreaType;
+    rank?: number;
+    durationDays?: number;
+  };
   checkout?: { keyId: string; amount: number; currency: string; razorpayOrderId: string };
 };
 type VerifyResponse = {
@@ -95,6 +120,16 @@ export default function PromotionPricing() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherInfo, setVoucherInfo] = useState<VoucherInfo | null>(null);
+  const [voucherBalance, setVoucherBalance] = useState(0);
+  const [voucherTotalValue, setVoucherTotalValue] = useState(0);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderData, setOrderData] = useState<CreateOrderResponse["order"] | null>(null);
+  const [voucherApplied, setVoucherApplied] = useState(false);
+
+  const resumingRef = useRef(false);
+  const lastPromptedOrderIdRef = useRef<string | null>(null);
 
   const [rankModalVisible, setRankModalVisible] = useState(false);
   const [areaModalVisible, setAreaModalVisible] = useState(false);
@@ -127,6 +162,114 @@ export default function PromotionPricing() {
   useEffect(() => {
     loadCatalog();
   }, []);
+
+  const loadVoucherBalance = async () => {
+    try {
+      setVoucherLoading(true);
+      const response = await api.get<VoucherBalanceResponse>('/promotion-pricing/voucher-balance');
+      if (!response?.success) {
+        throw new Error('Failed to load voucher balance');
+      }
+      setVoucherInfo(response.voucher || null);
+      setVoucherBalance(Number(response.balance || 0));
+      setVoucherTotalValue(Number(response.totalValue || 0));
+    } catch {
+      setVoucherInfo(null);
+      setVoucherBalance(0);
+      setVoucherTotalValue(0);
+    } finally {
+      setVoucherLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVoucherBalance();
+  }, []);
+
+  const describeOrderSelection = (order: CreateOrderResponse["order"]) => {
+    const orderArea = order.areaType ? AREA_TYPE_LABELS[order.areaType] : "Unknown area";
+    const orderRank =
+      order.rank === 21 ? "No Rank" : order.rank ? `Rank ${order.rank}` : "Unknown rank";
+    const orderDuration = order.durationDays ? `${order.durationDays} days` : "Unknown duration";
+    return `${orderArea} · ${orderRank} · ${orderDuration}`;
+  };
+
+  const applyOrderState = (order: CreateOrderResponse["order"]) => {
+    setOrderId(order._id);
+    setOrderData(order);
+    setVoucherApplied(
+      order.voucherStatus === "reserved" || order.voucherStatus === "applied",
+    );
+  };
+
+  const resumePendingOrder = (order: CreateOrderResponse["order"]) => {
+    if (!order.areaType || order.rank === undefined || order.durationDays === undefined) {
+      return;
+    }
+    resumingRef.current = true;
+    setAreaType(order.areaType);
+    setRank(order.rank);
+    setDurationDays(order.durationDays);
+    applyOrderState(order);
+    setTimeout(() => {
+      resumingRef.current = false;
+    }, 0);
+  };
+
+  const cancelPendingOrder = async (order: CreateOrderResponse["order"]) => {
+    try {
+      await api.post(`/promotion-pricing/orders/${order._id}/cancel`, {});
+      if (orderId === order._id) {
+        setOrderId(null);
+        setOrderData(null);
+        setVoucherApplied(false);
+      }
+      lastPromptedOrderIdRef.current = null;
+      await loadVoucherBalance();
+      Alert.alert("Order Cancelled", "Your pending order was cancelled and vouchers were returned.");
+    } catch (error: any) {
+      Alert.alert("Cancel Failed", error?.message || "Unable to cancel the pending order");
+    }
+  };
+
+  const isSameSelection = (order: CreateOrderResponse["order"]) => {
+    return (
+      order.areaType === areaType &&
+      Number(order.rank) === Number(rank) &&
+      Number(order.durationDays) === Number(durationDays)
+    );
+  };
+
+  const fetchPendingByPromotion = async (promptIfDifferent: boolean) => {
+    if (!promotionId) return null;
+    const response = await api.get<CreateOrderResponse>(
+      "/promotion-pricing/orders/pending-by-promotion",
+      { params: { businessPromotionId: promotionId } },
+    );
+    if (response?.success && response.order?._id) {
+      const order = response.order;
+      if (isSameSelection(order)) {
+        applyOrderState(order);
+        return order;
+      }
+      if (
+        promptIfDifferent &&
+        lastPromptedOrderIdRef.current !== order._id
+      ) {
+        lastPromptedOrderIdRef.current = order._id;
+        Alert.alert(
+          "Pending Order Found",
+          `You already have a pending order for ${describeOrderSelection(order)}. Please resume or cancel it before creating a new one.`,
+          [
+            { text: "Resume", onPress: () => resumePendingOrder(order) },
+            { text: "Cancel", style: "destructive", onPress: () => cancelPendingOrder(order) },
+          ],
+        );
+      }
+      return order;
+    }
+    return null;
+  };
 
   const durationOptions = useMemo(() => {
     const unique = Array.from(new Set(plans.map((p) => p.durationDays)));
@@ -197,6 +340,8 @@ export default function PromotionPricing() {
     return Array.from(rankMap.values()).sort((a, b) => a.rank - b.rank);
   }, [plans, durationDays]);
 
+  const payableAmount = Number(orderData?.payableAmount ?? quote?.amount ?? 0);
+
   const loadQuote = async () => {
     if (!areaType || !rank || !durationDays) return;
     try {
@@ -220,6 +365,108 @@ export default function PromotionPricing() {
   useEffect(() => {
     loadQuote();
   }, [areaType, rank, durationDays]);
+
+  useEffect(() => {
+    // Reset order/voucher state when selection changes
+    if (resumingRef.current) {
+      return;
+    }
+    lastPromptedOrderIdRef.current = null;
+    setOrderId(null);
+    setOrderData(null);
+    setVoucherApplied(false);
+    if (promotionId && areaType && rank && durationDays) {
+      fetchPendingByPromotion(true);
+    }
+  }, [areaType, rank, durationDays, promotionId]);
+
+  const fetchPendingOrder = async () => {
+    if (!promotionId || !areaType || !rank || !durationDays) return null;
+    const response = await api.get<CreateOrderResponse>(
+      "/promotion-pricing/orders/pending",
+      {
+        params: {
+          businessPromotionId: promotionId,
+          areaType,
+          rank,
+          durationDays,
+        },
+      },
+    );
+    if (response?.success && response.order?._id) {
+      setOrderId(response.order._id);
+      setOrderData(response.order);
+      setVoucherApplied(
+        response.order.voucherStatus === "reserved" ||
+          response.order.voucherStatus === "applied",
+      );
+      return response.order;
+    }
+    return null;
+  };
+
+  const ensureOrder = async () => {
+    if (orderId && orderData) return orderData;
+    if (!promotionId) {
+      throw new Error('Promotion ID is missing. Please go back and submit listing again.');
+    }
+    if (!areaType || !rank || !durationDays) {
+      throw new Error('Please select area type, rank, and duration.');
+    }
+    const pendingForPromotion = await fetchPendingByPromotion(false);
+    if (pendingForPromotion && !isSameSelection(pendingForPromotion)) {
+      throw new Error(
+        "You already have a pending order for this promotion. Please resume or cancel it before creating a new one.",
+      );
+    }
+    const pending = await fetchPendingOrder();
+    if (pending) return pending;
+    const createOrderResponse = await api.post<CreateOrderResponse>('/promotion-pricing/orders', {
+      businessPromotionId: promotionId,
+      areaType,
+      rank,
+      durationDays,
+      paymentProvider: 'razorpay',
+      deferPaymentOrder: true,
+    });
+    if (!createOrderResponse?.success || !createOrderResponse.order?._id) {
+      throw new Error('Failed to create promotion order');
+    }
+    setOrderId(createOrderResponse.order._id);
+    setOrderData(createOrderResponse.order);
+    return createOrderResponse.order;
+  };
+
+  const handleApplyVouchers = async () => {
+    try {
+      setPaymentError(null);
+      setVoucherLoading(true);
+      const order = await ensureOrder();
+      const response = await api.post<CreateOrderResponse>(
+        `/promotion-pricing/orders/${order._id}/apply-vouchers`,
+        {},
+      );
+      if (!response?.success) {
+        throw new Error('Failed to apply vouchers');
+      }
+      if (response.order) {
+        setOrderData(response.order);
+        setVoucherApplied(true);
+      }
+      await loadVoucherBalance();
+    } catch (error: any) {
+      Alert.alert('Voucher Apply Failed', error?.message || 'Unable to apply vouchers');
+    } finally {
+      setVoucherLoading(false);
+    }
+  };
+
+  const handleVoucherInfo = () => {
+    Alert.alert(
+      'Redeem Vouchers',
+      'When you tap “Redeem Vouchers”, your Instantlly vouchers reduce the price of this promotion. We keep those vouchers aside for this order. If you don’t finish payment, the vouchers return to your balance after a short time. You can come back later and continue.',
+    );
+  };
 
   const verifyRazorpayPayment = async (
     orderId: string,
@@ -260,30 +507,26 @@ export default function PromotionPricing() {
       setPaymentLoading(true);
       setPaymentError(null);
 
-      console.log('[PAYMENT] create order request', {
-        businessPromotionId: promotionId,
-        areaType,
-        rank,
-        durationDays,
-        paymentProvider: 'razorpay',
-      });
-      const createOrderResponse = await api.post<CreateOrderResponse>('/promotion-pricing/orders', {
-        businessPromotionId: promotionId,
-        areaType,
-        rank,
-        durationDays,
-        paymentProvider: 'razorpay',
-      });
-      console.log('[PAYMENT] create order response', createOrderResponse);
+      const order = await ensureOrder();
+      const payableAmount = Number(orderData?.payableAmount ?? order.amount ?? quote.amount ?? 0);
 
-      if (!createOrderResponse?.success || !createOrderResponse.order?._id) {
-        throw new Error('Failed to create payment order');
+      if (payableAmount <= 0 && orderData?.voucherStatus === 'reserved') {
+        const confirmResponse = await api.post(`/promotion-pricing/orders/${order._id}/confirm-voucher`, {});
+        if (!confirmResponse?.success) {
+          throw new Error('Failed to confirm voucher redemption');
+        }
+        Alert.alert('Success', confirmResponse.message || 'Voucher redemption successful');
+        router.replace('/profile');
+        return;
       }
 
-      if (!createOrderResponse.checkout) {
-        setPaymentError(
-          'Razorpay checkout payload is missing for this order. Please try again or contact support.'
-        );
+      const paymentOrderResponse = await api.post<CreateOrderResponse>(
+        `/promotion-pricing/orders/${order._id}/create-payment-order`,
+        {},
+      );
+
+      if (!paymentOrderResponse?.success || !paymentOrderResponse.checkout) {
+        setPaymentError('Razorpay checkout payload is missing for this order.');
         return;
       }
 
@@ -294,33 +537,22 @@ export default function PromotionPricing() {
       }
 
       const checkoutOptions: any = {
-        key: createOrderResponse.checkout.keyId,
-        amount: createOrderResponse.checkout.amount,
-        currency: createOrderResponse.checkout.currency,
+        key: paymentOrderResponse.checkout.keyId,
+        amount: paymentOrderResponse.checkout.amount,
+        currency: paymentOrderResponse.checkout.currency,
         name: 'InstantllyCards',
         description: `Promotion - ${areaType} - Rank ${rank}`,
-        order_id: createOrderResponse.checkout.razorpayOrderId,
+        order_id: paymentOrderResponse.checkout.razorpayOrderId,
         theme: { color: '#2563EB' },
       };
 
-      console.log('[PAYMENT] razorpay checkout init', {
-        orderId: createOrderResponse.order._id,
-        razorpayOrderId: createOrderResponse.checkout.razorpayOrderId,
-        amount: createOrderResponse.checkout.amount,
-        currency: createOrderResponse.checkout.currency,
-      });
       const razorpayResult = await razorpay.open(checkoutOptions);
-      console.log('[PAYMENT] razorpay checkout success', {
-        razorpay_order_id: razorpayResult?.razorpay_order_id,
-        razorpay_payment_id: razorpayResult?.razorpay_payment_id,
-        hasSignature: !!razorpayResult?.razorpay_signature,
-      });
 
-      await verifyRazorpayPayment(createOrderResponse.order._id, {
+      await verifyRazorpayPayment(order._id, {
         razorpay_order_id:
-          razorpayResult.razorpay_order_id || createOrderResponse.checkout.razorpayOrderId,
-        razorpay_payment_id: razorpayResult.razorpay_payment_id,
-        razorpay_signature: razorpayResult.razorpay_signature,
+          razorpayResult?.razorpay_order_id || paymentOrderResponse.checkout.razorpayOrderId,
+        razorpay_payment_id: razorpayResult?.razorpay_payment_id,
+        razorpay_signature: razorpayResult?.razorpay_signature,
       });
     } catch (error: any) {
       console.log('[PAYMENT] payment flow error', {
@@ -428,6 +660,58 @@ export default function PromotionPricing() {
             </TouchableOpacity>
           </View>
 
+          <View style={styles.voucherCard}>
+            <View style={styles.voucherHeader}>
+              <Text style={styles.voucherTitle}>Instantlly Voucher Balance</Text>
+              <View style={styles.voucherHeaderRight}>
+                <TouchableOpacity onPress={handleVoucherInfo} style={styles.voucherInfoButton}>
+                  <Ionicons name="information-circle-outline" size={18} color="#2563EB" />
+                </TouchableOpacity>
+                {voucherLoading ? (
+                  <ActivityIndicator size="small" color="#2563EB" />
+                ) : null}
+              </View>
+            </View>
+            {voucherInfo ? (
+              <>
+                <Text style={styles.voucherMeta}>
+                  {voucherBalance} voucher(s) · ₹{voucherInfo.mrp} each
+                </Text>
+                <Text style={styles.voucherMeta}>
+                  Total Value: ₹{voucherTotalValue}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.voucherMeta}>No Instantlly vouchers available.</Text>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.voucherApplyButton,
+                (voucherBalance <= 0 || voucherApplied || voucherLoading) && styles.voucherApplyButtonDisabled,
+              ]}
+              onPress={handleApplyVouchers}
+              disabled={voucherBalance <= 0 || voucherApplied || voucherLoading}
+            >
+              <Text style={styles.voucherApplyText}>
+                {voucherApplied ? 'Vouchers Redeemed' : 'Redeem Vouchers'}
+              </Text>
+            </TouchableOpacity>
+
+            {voucherApplied && orderData?.voucherQtyApplied ? (
+              <Text style={styles.voucherAppliedNote}>
+                Applied {orderData.voucherQtyApplied} voucher(s) · -₹{orderData.voucherAmountApplied || 0}
+              </Text>
+            ) : null}
+          </View>
+
+          {voucherApplied ? (
+            <View style={styles.payableCard}>
+              <Text style={styles.payableLabel}>PAYABLE NOW</Text>
+              <Text style={styles.payableValue}>₹{payableAmount}</Text>
+            </View>
+          ) : null}
+
           {quoteError ? (
             <View style={styles.quoteErrorContainer}>
               <Text style={styles.errorText}>{quoteError}</Text>
@@ -501,7 +785,13 @@ export default function PromotionPricing() {
           ) : (
             <>
               <Ionicons name="card" size={24} color="#FFFFFF" style={styles.payIcon} />
-              <Text style={styles.payButtonText}>Pay Now</Text>
+              <Text style={styles.payButtonText}>
+                {voucherApplied && payableAmount <= 0
+                  ? 'Confirm Voucher'
+                  : payableAmount > 0
+                    ? `Pay ₹${payableAmount}`
+                    : 'Pay Now'}
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -721,6 +1011,80 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 5,
     paddingHorizontal: 3,
+  },
+  voucherCard: {
+    marginTop: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 12,
+  },
+  voucherHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  voucherHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  voucherInfoButton: {
+    padding: 2,
+  },
+  voucherTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  voucherMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  voucherApplyButton: {
+    marginTop: 10,
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  voucherApplyButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  voucherApplyText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  voucherAppliedNote: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#047857',
+    fontWeight: '600',
+  },
+  payableCard: {
+    marginTop: 10,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  payableLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+    letterSpacing: 0.6,
+  },
+  payableValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#166534',
+    marginTop: 4,
   },
   summaryBanner: {
     marginTop: 14,

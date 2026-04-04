@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  Modal,
   Platform,
   Clipboard,
-  Image,
   Share,
 } from "react-native";
 import {
@@ -21,20 +19,41 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
-// Dynamically import react-native-share to prevent crash when native module isn't available
+// Dynamically import native modules to prevent crash when not available
 let RNShare: any = null;
 try {
   RNShare = require("react-native-share").default;
+  console.log("✅ react-native-share loaded");
 } catch (error) {
-  console.log("react-native-share not available, using fallback Share");
+  console.log("⚠️ react-native-share not available, will use expo-sharing fallback");
 }
-// Import legacy FileSystem APIs
-import { copyAsync, cacheDirectory } from "expo-file-system/legacy";
-import { Asset } from "expo-asset";
+let captureRef: any = null;
+try {
+  captureRef = require("react-native-view-shot").captureRef;
+  console.log("✅ react-native-view-shot loaded for referral");
+} catch (error) {
+  console.log("⚠️ react-native-view-shot not available");
+}
+let ExpoSharing: any = null;
+try {
+  ExpoSharing = require("expo-sharing");
+  console.log("✅ expo-sharing loaded");
+} catch (error) {
+  console.log("⚠️ expo-sharing not available");
+}
+let ExpoFileSystem: any = null;
+try {
+  ExpoFileSystem = require("expo-file-system/legacy");
+  console.log("✅ expo-file-system loaded");
+} catch (error) {
+  console.log("⚠️ expo-file-system not available");
+}
 import api from "@/lib/api";
 import { formatIndianNumber } from "@/utils/formatNumber";
 import FooterCarousel from "@/components/FooterCarousel";
 import CustomTabBar from "@/components/CustomTabBar";
+import ReferralBanner from "@/components/ReferralBanner";
+import BusinessCardTemplate from "@/components/BusinessCardTemplate";
 
 interface ReferralStats {
   referralCode: string;
@@ -61,11 +80,26 @@ export default function ReferralPage() {
   const [userPhone, setUserPhone] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [languageModalVisible, setLanguageModalVisible] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<
-    "hindi" | "english" | null
-  >(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [userCard, setUserCard] = useState<any>(null);
   const [componentError, setComponentError] = useState<string | null>(null);
+  const cardTemplateRef = useRef<View>(null);
+  const [cardReady, setCardReady] = useState(false);
+
+  // Compute formatted phone numbers for the card template (same as card/[id].tsx)
+  const fullPersonal = useMemo(() => {
+    if (!userCard?.personalPhone) return "";
+    return userCard?.personalCountryCode
+      ? `+${userCard.personalCountryCode}${userCard.personalPhone}`
+      : userCard.personalPhone;
+  }, [userCard?.personalCountryCode, userCard?.personalPhone]);
+
+  const fullCompany = useMemo(() => {
+    if (!userCard?.companyPhone) return "";
+    return userCard?.companyCountryCode
+      ? `+${userCard.companyCountryCode}${userCard.companyPhone}`
+      : userCard.companyPhone;
+  }, [userCard?.companyCountryCode, userCard?.companyPhone]);
 
   const loadReferralData = async (isRefreshing = false) => {
     try {
@@ -75,12 +109,13 @@ export default function ReferralPage() {
 
       // Fetch referral stats, credit config, and user balance
       // Use Promise.allSettled to handle partial failures gracefully
-      const [statsResult, configResult, creditsResult, profileResult] =
+      const [statsResult, configResult, creditsResult, profileResult, cardsResult] =
         await Promise.allSettled([
           api.get("/credits/referral-stats"),
           api.get("/credits/config"),
           api.get("/credits/balance"),
           api.get("/users/profile"),
+          api.get("/cards"),
         ]);
 
       // Extract values from settled promises
@@ -92,6 +127,8 @@ export default function ReferralPage() {
         creditsResult.status === "fulfilled" ? creditsResult.value : null;
       const profileResponse =
         profileResult.status === "fulfilled" ? profileResult.value : null;
+      const cardsResponse =
+        cardsResult.status === "fulfilled" ? cardsResult.value : null;
 
       console.log(
         "📊 Referral Stats Response:",
@@ -112,6 +149,19 @@ export default function ReferralPage() {
       if (profileResponse?.user) {
         setUserName(profileResponse.user.name || "");
         setUserPhone(profileResponse.user.phone || "");
+      }
+
+      // Set user's first card for sharing
+      if (cardsResponse) {
+        let cards: any[] = [];
+        if (cardsResponse && typeof cardsResponse === 'object' && 'data' in cardsResponse) {
+          cards = cardsResponse.data || [];
+        } else if (Array.isArray(cardsResponse)) {
+          cards = cardsResponse;
+        }
+        if (cards.length > 0) {
+          setUserCard(cards[0]);
+        }
       }
 
       // Force a re-render check
@@ -199,39 +249,22 @@ export default function ReferralPage() {
       return;
     }
 
-    // Reset language selection and show modal
-    setSelectedLanguage(null);
-    setLanguageModalVisible(true);
-  };
-
-  const handleLanguageSelect = (language: "hindi" | "english") => {
-    setSelectedLanguage(language);
-  };
-
-  const handleShareWithLanguage = async () => {
-    if (!selectedLanguage || !stats?.referralCode) return;
-
-    setLanguageModalVisible(false);
+    if (!userCard) {
+      Alert.alert(
+        "No Card Found",
+        "Please create a business card first before sharing your referral.",
+        [{ text: "OK", onPress: () => router.push("/builder" as any) }],
+      );
+      return;
+    }
 
     try {
-      // Include referral code in Play Store URL for tracking
+      setIsSharing(true);
+
       const playStoreUrl = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${stats.referralCode}`;
 
-      const hindiMessage = `*बिना किसी निवेश के रोज़ाना ₹1200 से ₹6000+ कमाने का अवसर*
-
-▪️ *मुझे ₹300 का क्रेडिट मिला* मैंने यह ऐप डाउनलोड किया और मुझे तुरंत ₹300 का क्रेडिट मिला। विजिटिंग कार्ड मैनेजमेंट के लिए यह ऐप बहुत बेहतरीन है। इसके फायदों को नीचे दिए गए वीडियो लिंक में देखा जा सकता है
-▪️ *आपको भी ₹300 मिलेंगे* जब आप इस ऐप को डाउनलोड करेंगे, तो आपको भी ₹300 का क्रेडिट मिलेगा।
-▪️ *₹300 रेफरल बोनस* आपके डाउनलोड करने पर मुझे ₹300 का क्रेडिट मिलेगा। इसी तरह, जब कोई आपके लिंक से डाउनलोड करेगा, तो आपको भी ₹300 मिलेंगे।
-▪️ *रोज़ाना ₹6000 कैसे कमाएं* यदि आप अपना रेफरल मैसेज 6 ग्रुप्स में भेजते हैं और हर ग्रुप में 500 सदस्य हैं, तो आपका मैसेज 3000 लोगों तक पहुँचेगा। सामान्य तौर पर, कम से कम 20 से 50 लोग ऐप डाउनलोड करते हैं। अगर 20 लोग भी डाउनलोड करते हैं, तो ₹300 के हिसाब से आपकी रोज़ाना की कमाई ₹6000 हो जाएगी।
-▪️ *रेफरल आय के लिए क्या करें?* अपना रेफरल मैसेज और लिंक डाउनलोड करें और इसे अपने व्हाट्सएप ग्रुप्स में शेयर करें।
-
-*महत्वपूर्ण लिंक:*
-▪️ *रेफरल कोड के साथ ऐप डाउनलोड करने के लिए इस लिंक पर टैप करें।* ${playStoreUrl}
-▪️ *ऐप के फायदे और उपयोग जानने के लिए वीडियो* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing
-▪️ *सहायता के लिए व्हाट्सएप ग्रुप: यदि आपको कोई समस्या आती है, तो इस ग्रुप से जुड़ें और अपनी समस्या लिखें* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
-▪️ *चैनल पार्टनर बनने की पूरी जानकारी के लिए वीडियो* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
-
-      const englishMessage = `*Earn ₹1200 to ₹6000+ per day Without Investment*
+      // Original referral earning message
+      const message = `*Earn ₹1200 to ₹6000+ per day Without Investment*
 
 ▪️ *I Got ₹300 Credit* I have downloaded this app & Got ₹300 Credit & App is very good for Visiting Card Management Advantage is shown in the video link given below
 ▪️ *You will get ₹300 Credit* When you download you will also get ₹300 Credit.
@@ -245,87 +278,122 @@ export default function ReferralPage() {
 ▪️ *If you have any problem then join this whatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl
 ▪️ *Video for Channel Partner Explanation* https://drive.google.com/drive/folders/1W8AqKhg67PyxQtRIH50hmknzD1Spz6mo?usp=sharing`;
 
-      const message =
-        selectedLanguage === "hindi" ? hindiMessage : englishMessage;
-
-      // Get image resource based on language
-      const imageSource =
-        selectedLanguage === "hindi"
-          ? require("@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg")
-          : require("@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg");
-
-      // Load the asset and get local URI
-      const asset = Asset.fromModule(imageSource);
-      await asset.downloadAsync();
-
-      if (!asset.localUri) {
-        throw new Error("Failed to load image asset");
-      }
-
-      // Copy to cache directory for better compatibility
-      const filename =
-        selectedLanguage === "hindi"
-          ? "referral_hindi.jpg"
-          : "referral_english.jpg";
-      const destPath = `${cacheDirectory}${filename}`;
-
-      // Copy the asset to cache
-      await copyAsync({
-        from: asset.localUri,
-        to: destPath,
-      });
-
-      // Share image with text message - use proper format for better compatibility
-      const shareOptions = {
-        title:
-          selectedLanguage === "hindi"
-            ? "InstantllyCards में शामिल हों"
-            : "Join InstantllyCards",
-        message: message,
-        url: `file://${destPath}`, // Use singular 'url' with file:// protocol
-        type: "image/jpeg",
-        subject:
-          selectedLanguage === "hindi"
-            ? "InstantllyCards में शामिल हों"
-            : "Join InstantllyCards",
-        // Force WhatsApp to include message with image
-        social: Platform.OS === "android" ? undefined : "whatsapp",
-      };
-
-      // Use RNShare if available, otherwise fall back to native Share
-      if (RNShare) {
+      // --- Step 1: Capture the BusinessCardTemplate as an image ---
+      let imageUri: string | null = null;
+      console.log("🔍 Share debug - captureRef:", !!captureRef, "| cardTemplateRef.current:", !!cardTemplateRef.current, "| cardReady:", cardReady, "| userCard:", !!userCard);
+      
+      if (captureRef && cardTemplateRef.current) {
         try {
-          await RNShare.open(shareOptions);
-        } catch (shareError: any) {
-          // If WhatsApp-specific share fails, try generic share
-          if (shareError?.message !== "User did not share") {
-            console.log("Retrying share without WhatsApp-specific options...");
-            await RNShare.open({
-              title: shareOptions.title,
-              message: message,
-              url: `file://${destPath}`,
-              type: "image/jpeg",
-            });
+          // Wait for template to render fully (images, layout, etc.)
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          const capturedUri = await captureRef(cardTemplateRef.current, {
+            format: "png",
+            quality: 1,
+            result: "tmpfile",
+          });
+          console.log("✅ Business card template captured:", capturedUri);
+          
+          // Copy to a known writable location with proper extension for sharing
+          if (ExpoFileSystem && capturedUri) {
+            const destUri = ExpoFileSystem.cacheDirectory + "referral_card_" + Date.now() + ".png";
+            await ExpoFileSystem.copyAsync({ from: capturedUri, to: destUri });
+            const fileInfo = await ExpoFileSystem.getInfoAsync(destUri);
+            console.log("📊 Image copied to:", destUri, "| exists:", fileInfo.exists, "| size:", fileInfo.size);
+            if (fileInfo.exists && fileInfo.size > 0) {
+              imageUri = destUri;
+            } else {
+              // Use original if copy had issues but original exists
+              imageUri = capturedUri;
+            }
           } else {
-            throw shareError;
+            imageUri = capturedUri;
           }
+        } catch (captureError: any) {
+          console.warn("⚠️ Could not capture card template:", captureError?.message || captureError);
         }
       } else {
-        // Fallback to React Native's built-in Share (text only)
-        await Share.share({
-          message: message,
-          title: shareOptions.subject,
-        });
+        console.warn("⚠️ Cannot capture card image.", 
+          !captureRef ? "react-native-view-shot not loaded." : "",
+          !cardTemplateRef.current ? "Card template ref not attached (card may not be rendered yet)." : ""
+        );
+      }
+
+      console.log("🔍 Share debug - imageUri:", imageUri, "| RNShare:", !!RNShare, "| ExpoSharing:", !!ExpoSharing);
+
+      // --- Step 2: Share with image using best available method ---
+      if (imageUri) {
+        let shared = false;
+        
+        // Method A: react-native-share (supports image + message together)
+        if (RNShare && !shared) {
+          try {
+            console.log("📤 Trying react-native-share with image...");
+            const filePrefix = Platform.OS === "android" ? "file://" : "";
+            const shareUrl = imageUri.startsWith("file://") ? imageUri : filePrefix + imageUri;
+            await RNShare.open({
+              title: "Join InstantllyCards",
+              message: message,
+              url: shareUrl,
+              type: "image/png",
+              subject: "Join InstantllyCards",
+            });
+            shared = true;
+            console.log("✅ Shared via react-native-share");
+          } catch (shareError: any) {
+            if (shareError?.message === "User did not share") {
+              shared = true; // User cancelled, don't retry
+            } else {
+              console.warn("⚠️ react-native-share failed:", shareError?.message);
+            }
+          }
+        }
+
+        // Method B: expo-sharing (reliable Expo-managed fallback, shares image file)
+        if (ExpoSharing && !shared) {
+          try {
+            const isAvailable = await ExpoSharing.isAvailableAsync();
+            if (isAvailable) {
+              console.log("📤 Trying expo-sharing with image...");
+              // expo-sharing only shares the file, so copy message to clipboard first
+              Clipboard.setString(message);
+              Alert.alert(
+                "Referral Message Copied!",
+                "The referral message has been copied to your clipboard. Paste it along with the card image.",
+                [{ text: "OK" }]
+              );
+              await ExpoSharing.shareAsync(imageUri, {
+                mimeType: "image/png",
+                dialogTitle: "Share Referral Card",
+              });
+              shared = true;
+              console.log("✅ Shared via expo-sharing");
+            }
+          } catch (expoShareError: any) {
+            console.warn("⚠️ expo-sharing failed:", expoShareError?.message);
+          }
+        }
+
+        // Method C: Text-only fallback
+        if (!shared) {
+          console.log("📤 Falling back to text-only share");
+          await Share.share({ message, title: "Join InstantllyCards" });
+        }
+      } else {
+        // No image captured - text-only share
+        console.log("📤 No image available, sharing text only");
+        await Share.share({ message, title: "Join InstantllyCards" });
       }
     } catch (error: any) {
       if (error?.message !== "User did not share") {
         console.error("Error sharing:", error);
         Alert.alert(
           "Error",
-          `Failed to share message: ${error?.message || "Unknown error"}. Please try again.`,
+          `Failed to share referral: ${error?.message || "Unknown error"}. Please try again.`,
           [{ text: "OK" }],
         );
       }
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -387,6 +455,9 @@ export default function ReferralPage() {
           />
         }
       >
+        {/* Refer & Earn Banner - above the credits card */}
+        <ReferralBanner style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 12 }} />
+
         <TouchableOpacity
           style={styles.creditsBannerContainer}
           onPress={() => router.push("/referral/credits-history" as any)}
@@ -427,9 +498,9 @@ export default function ReferralPage() {
                 </Text>
               </View>
               <Text style={styles.creditsUnit}>Ready to use</Text>
-              <Text style={styles.expiryDateText}>Expires: 31 March 2026 • {(() => {
+              <Text style={styles.expiryDateText}>Expires: 31 December 2026 • {(() => {
                 const today = new Date();
-                const expiryDate = new Date('2026-03-31');
+                const expiryDate = new Date('2026-12-31');
                 const diffTime = expiryDate.getTime() - today.getTime();
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 return diffDays > 0 ? diffDays : 0;
@@ -511,12 +582,19 @@ export default function ReferralPage() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.shareButtonMain}
+            style={[styles.shareButtonMain, isSharing && { opacity: 0.7 }]}
             onPress={handleShare}
+            disabled={isSharing}
           >
-            <Ionicons name="share-social" size={20} color="#FFFFFF" />
-            <Text style={styles.shareButtonMainText}>Share Referral Link</Text>
-            <Ionicons name="arrow-forward-circle" size={20} color="#FFFFFF" />
+            {isSharing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="share-social" size={20} color="#FFFFFF" />
+            )}
+            <Text style={styles.shareButtonMainText}>
+              {isSharing ? "Sharing..." : "Share Referral Link"}
+            </Text>
+            {!isSharing && <Ionicons name="arrow-forward-circle" size={20} color="#FFFFFF" />}
           </TouchableOpacity>
 
           <View style={styles.shareHint}>
@@ -605,87 +683,51 @@ export default function ReferralPage() {
         <View style={{ height: 20 }} />
       </ScrollView>
 
-      {/* Language Selection Modal */}
-      <Modal
-        visible={languageModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setLanguageModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Language</Text>
-              <TouchableOpacity onPress={() => setLanguageModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalSubtitle}>
-              Choose your preferred language for sharing
-            </Text>
-
-            <View style={styles.languageOptions}>
-              <TouchableOpacity
-                style={[
-                  styles.languageOption,
-                  selectedLanguage === "hindi" && styles.languageOptionSelected,
-                ]}
-                onPress={() => handleLanguageSelect("hindi")}
-              >
-                <Image
-                  source={require("@/assets/images/Channel Partner Website Creatives_Download App_Hindi.jpg")}
-                  style={styles.languageImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.radioButton}>
-                  {selectedLanguage === "hindi" && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-                <View style={styles.languageInfo}>
-                  <Text style={styles.languageLabel}>हिंदी</Text>
-                  <Text style={styles.languageSubLabel}>Hindi</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.languageOption,
-                  selectedLanguage === "english" &&
-                    styles.languageOptionSelected,
-                ]}
-                onPress={() => handleLanguageSelect("english")}
-              >
-                <Image
-                  source={require("@/assets/images/Channel Partner Website Creatives_Download App_Eng.jpg")}
-                  style={styles.languageImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.radioButton}>
-                  {selectedLanguage === "english" && (
-                    <View style={styles.radioButtonInner} />
-                  )}
-                </View>
-                <View style={styles.languageInfo}>
-                  <Text style={styles.languageLabel}>English</Text>
-                  <Text style={styles.languageSubLabel}>English</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {selectedLanguage && (
-              <TouchableOpacity
-                style={styles.shareNowButton}
-                onPress={handleShareWithLanguage}
-              >
-                <Ionicons name="share-social" size={20} color="#FFFFFF" />
-                <Text style={styles.shareNowButtonText}>Share Now</Text>
-              </TouchableOpacity>
-            )}
+      {/* Hidden BusinessCardTemplate for image capture
+          - Card template is 1050x600px - container must be big enough
+          - Using transform translateY to move off-screen (Android still renders transformed views)
+          - collapsable={false} prevents Android from optimizing away the view
+      */}
+      {userCard && (
+        <View style={{ position: 'absolute', left: 0, top: 0, zIndex: -1, pointerEvents: 'none', transform: [{ translateY: -10000 }] }}>
+          <View 
+            ref={cardTemplateRef} 
+            collapsable={false} 
+            onLayout={() => {
+              console.log('✅ Card template rendered and laid out');
+              setCardReady(true);
+            }}
+            style={{ backgroundColor: '#FFFFFF', width: 1050, height: 600 }}
+          >
+            <BusinessCardTemplate
+              name={userCard.name || ''}
+              designation={userCard.designation || ''}
+              companyName={userCard.companyName || userCard.name || 'Company'}
+              personalPhone={fullPersonal}
+              companyPhone={fullCompany}
+              email={userCard.email}
+              companyEmail={userCard.companyEmail}
+              website={userCard.website}
+              companyWebsite={userCard.companyWebsite}
+              address={userCard.location || userCard.companyAddress}
+              companyAddress={userCard.companyAddress}
+              companyPhoto={userCard.companyPhoto}
+              location={userCard.location}
+              mapsLink={userCard.mapsLink}
+              companyMapsLink={userCard.companyMapsLink}
+              message={userCard.message}
+              linkedin={userCard.linkedin}
+              twitter={userCard.twitter}
+              instagram={userCard.instagram}
+              facebook={userCard.facebook}
+              youtube={userCard.youtube}
+              whatsapp={userCard.whatsapp}
+              telegram={userCard.telegram}
+            />
           </View>
         </View>
-      </Modal>
+      )}
+
       <View
         style={{
           position: "absolute",
@@ -1141,103 +1183,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#92400E",
-  },
-  // Language Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    width: "100%",
-    maxWidth: 400,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 24,
-  },
-  languageOptions: {
-    gap: 12,
-  },
-  languageOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-  },
-  languageImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  languageOptionSelected: {
-    borderColor: "#8B5CF6",
-    backgroundColor: "#F3E8FF",
-  },
-  radioButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  radioButtonInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#8B5CF6",
-  },
-  languageInfo: {
-    flex: 1,
-  },
-  languageLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  languageSubLabel: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  shareNowButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#8B5CF6",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 20,
-    gap: 8,
-  },
-  shareNowButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

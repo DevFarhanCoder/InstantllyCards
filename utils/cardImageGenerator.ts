@@ -1,4 +1,4 @@
-import { Platform, Alert } from "react-native";
+import { Platform, Alert, Share as RNShare } from "react-native";
 
 // Lazy imports to prevent crash if native modules not available
 let captureRef: any = null;
@@ -12,7 +12,7 @@ const missingModules: string[] = [];
 try {
   const viewShot = require("react-native-view-shot");
   captureRef = viewShot.captureRef;
-  console.log("✅ react-native-view-shot loaded successfully");
+  console.log("✅ [cardImageGen] react-native-view-shot loaded");
 } catch (error) {
   console.warn("⚠️ react-native-view-shot not available:", error);
   missingModules.push("react-native-view-shot");
@@ -20,7 +20,7 @@ try {
 
 try {
   FileSystem = require("expo-file-system/legacy");
-  console.log("✅ expo-file-system loaded successfully");
+  console.log("✅ [cardImageGen] expo-file-system loaded");
 } catch (error) {
   console.warn("⚠️ expo-file-system not available:", error);
   missingModules.push("expo-file-system");
@@ -28,7 +28,7 @@ try {
 
 try {
   Sharing = require("expo-sharing");
-  console.log("✅ expo-sharing loaded successfully");
+  console.log("✅ [cardImageGen] expo-sharing loaded");
 } catch (error) {
   console.warn("⚠️ expo-sharing not available:", error);
   missingModules.push("expo-sharing");
@@ -36,7 +36,7 @@ try {
 
 try {
   Share = require("react-native-share").default;
-  console.log("✅ react-native-share loaded successfully");
+  console.log("✅ [cardImageGen] react-native-share loaded");
 } catch (error) {
   console.warn("⚠️ react-native-share not available:", error);
   missingModules.push("react-native-share");
@@ -55,23 +55,12 @@ export async function generateAndShareCardImage(
   shareMethod: "native" | "whatsapp" | "save" = "native",
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if native modules are available
-    if (!captureRef || !FileSystem || !Sharing || !Share) {
-      const missingList = [
-        !captureRef && "react-native-view-shot",
-        !FileSystem && "expo-file-system",
-        !Sharing && "expo-sharing",
-        !Share && "react-native-share",
-      ]
-        .filter(Boolean)
-        .join(", ");
-
-      console.error("❌ Missing native modules:", missingList);
-      console.error("Missing modules array:", missingModules);
-
+    // Only captureRef is absolutely required for image capture
+    if (!captureRef) {
+      console.error("❌ react-native-view-shot not available - cannot capture card image");
       Alert.alert(
         "Feature Not Available",
-        `Card image sharing requires app rebuild.\n\nMissing: ${missingList}\n\nPlease rebuild the app with:\n\nnpx expo run:android\n\nFor now, use "Share Within App" option.`,
+        "Card image sharing requires app rebuild.\n\nPlease rebuild the app with:\n\nnpx expo run:android",
         [{ text: "OK" }],
       );
       return {
@@ -81,9 +70,20 @@ export async function generateAndShareCardImage(
     }
 
     console.log("📸 Capturing card image...");
+    console.log("📸 viewRef type:", typeof viewRef, "| viewRef:", !!viewRef);
 
     // Capture the view as an image
-    const uri = await captureRef(viewRef, {
+    // viewRef can be either a ref object (.current) or the view instance directly
+    const viewToCapture = viewRef?.current !== undefined ? viewRef.current : viewRef;
+    if (!viewToCapture) {
+      console.error("❌ View ref is null/undefined - card template may not be rendered");
+      return {
+        success: false,
+        error: "view_ref_not_ready",
+      };
+    }
+
+    const uri = await captureRef(viewToCapture, {
       format: "png",
       quality: 1,
       result: "tmpfile",
@@ -91,10 +91,32 @@ export async function generateAndShareCardImage(
 
     console.log("✅ Card image captured:", uri);
 
+    // Copy to cache directory for reliable sharing
+    let shareableUri = uri;
+    if (FileSystem) {
+      try {
+        const destUri = FileSystem.cacheDirectory + "card_share_" + Date.now() + ".png";
+        await FileSystem.copyAsync({ from: uri, to: destUri });
+        const fileInfo = await FileSystem.getInfoAsync(destUri);
+        console.log("📊 Image copied to:", destUri, "| size:", fileInfo.size, "bytes");
+        if (fileInfo.exists && fileInfo.size > 0) {
+          shareableUri = destUri;
+        }
+      } catch (copyErr: any) {
+        console.warn("⚠️ Could not copy image to cache:", copyErr?.message);
+      }
+    }
+
     // Get the file info
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    if (fileInfo.exists && "size" in fileInfo) {
-      console.log("📊 Image size:", fileInfo.size, "bytes");
+    if (FileSystem) {
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(shareableUri);
+        if (fileInfo.exists && "size" in fileInfo) {
+          console.log("📊 Image size:", fileInfo.size, "bytes");
+        }
+      } catch (e) {
+        // ignore
+      }
     }
 
     const companyName = cardData.companyName || cardData.name || "Business";
@@ -186,124 +208,108 @@ export async function generateAndShareCardImage(
       return formatted.trim();
     };
 
-    // Build card details message
+    // Build card details message matching the Instantlly Digital Visiting Card template
     const buildCardDetails = () => {
-      let details = "*This is My Digital Visiting Card* -\n\n";
+      let details = "*This is My Instantlly Digital Visiting Card*\n\n";
 
-      // Personal Information
-      if (cardData.name) details += `👤 *Name:* ${cardData.name}\n`;
-      if (cardData.birthDate)
-        details += `🎂 *Birth Date:* ${cardData.birthDate}\n`;
-      // Gender field removed as per user request
-      if (cardData.designation)
-        details += `💼 *Designation:* ${cardData.designation}\n`;
+      // === Personal Information ===
+      if (cardData.name) details += `▪️ *👤 Name:* ${cardData.name}\n`;
 
-      // Personal Contact
       const personalPhone = cardData.contact || cardData.personalPhone;
       if (personalPhone) {
-        const cleanPhone = personalPhone.replace(/^\+\d+/, "").trim();
-        details += `📱 *Personal Phone:* ${cleanPhone}\n`;
+        const fullPersonalPhone = cardData.personalCountryCode
+          ? `+${cardData.personalCountryCode}${personalPhone}`
+          : personalPhone;
+        details += `▪️ *📱 Personal Phone:* ${fullPersonalPhone}\n`;
       }
+
+      // Personal WhatsApp (use personalPhone as WhatsApp if no dedicated field)
+      const personalWhatsApp = cardData.personalWhatsapp || (personalPhone ? (cardData.personalCountryCode ? `+${cardData.personalCountryCode}${personalPhone}` : personalPhone) : "");
+      if (personalWhatsApp) details += `▪️ *💬 Personal WhatsApp:* ${personalWhatsApp}\n`;
 
       const personalEmail = cardData.email;
-      if (personalEmail) details += `📧 *Personal Email:* ${personalEmail}\n`;
-
-      const personalWebsite = cardData.website;
-      if (personalWebsite)
-        details += `🌐 *Personal Website:* ${personalWebsite}\n`;
+      if (personalEmail) details += `▪️ *📧 Personal Email:* ${personalEmail}\n`;
 
       const personalLocation = cardData.location;
-      if (personalLocation)
-        details += `📍 *Personal Location:* ${personalLocation}\n`;
+      if (personalLocation) details += `▪️ *🏭 Address:* ${personalLocation}\n`;
 
       const personalMapsLink = cardData.mapsLink;
-      if (personalMapsLink)
-        details += `🗺️ *Personal Maps:* ${personalMapsLink}\n`;
+      if (personalMapsLink) details += `▪️ *📍 Google Maps Link:* ${personalMapsLink}\n`;
 
-      // Business Information
-      if (cardData.companyName)
-        details += `\n🏢 *Company:* ${cardData.companyName}\n`;
+      // === Company / Business Information ===
+      details += `\n`;
+      if (cardData.companyName) details += `▪️ *🏢 Company Name:* ${cardData.companyName}\n`;
 
-      // Show all company phones (avoiding duplicates)
-      const shownPhones = new Set();
       const companyPhone = cardData.companyContact || cardData.companyPhone;
       if (companyPhone) {
-        const cleanPhone = companyPhone.replace(/^\+\d+/, "").trim();
-        if (cleanPhone) {
-          details += `☎️ *Company Phone:* ${cleanPhone}\n`;
-          shownPhones.add(cleanPhone);
-        }
+        const fullCompanyPhone = cardData.companyCountryCode
+          ? `+${cardData.companyCountryCode}${companyPhone}`
+          : companyPhone;
+        details += `▪️ *📱 Company Mob:* ${fullCompanyPhone}\n`;
       }
+
       // Show additional company phones from companyPhones array
       if (cardData.companyPhones && Array.isArray(cardData.companyPhones)) {
+        const shownPhones = new Set([companyPhone]);
         let phoneCounter = 2;
         cardData.companyPhones.forEach((phoneObj: any) => {
-          if (phoneObj.phone) {
-            const cleanPhone = phoneObj.phone.replace(/^\+\d+/, "").trim();
-            if (cleanPhone && !shownPhones.has(cleanPhone)) {
-              details += `☎️ *Company Phone ${phoneCounter}:* ${cleanPhone}\n`;
-              shownPhones.add(cleanPhone);
-              phoneCounter++;
-            }
+          if (phoneObj.phone && !shownPhones.has(phoneObj.phone)) {
+            details += `▪️ *📱 Company Mob ${phoneCounter}:* ${phoneObj.phone}\n`;
+            shownPhones.add(phoneObj.phone);
+            phoneCounter++;
           }
         });
       }
 
-      const companyEmail = cardData.companyEmail;
-      if (companyEmail) details += `📨 *Company Email:* ${companyEmail}\n`;
+      // Company WhatsApp
+      const companyWhatsApp = cardData.whatsapp || (companyPhone ? (cardData.companyCountryCode ? `+${cardData.companyCountryCode}${companyPhone}` : companyPhone) : "");
+      if (companyWhatsApp) details += `▪️ *💬 Company WhatsApp:* ${companyWhatsApp}\n`;
+
+      if (cardData.designation) details += `▪️ *💼 Designation:* ${cardData.designation}\n`;
+
+      if (cardData.aboutBusiness) details += `▪️ *🏭 Company Business:* ${cardData.aboutBusiness}\n`;
+
+      if (cardData.servicesOffered) details += `▪️ *🛠️ Business Category:* ${cardData.servicesOffered}\n`;
+
+      if (cardData.keywords) details += `▪️ *🔎 Search Key Word:* ${cardData.keywords}\n`;
 
       const companyWebsite = cardData.companyWebsite;
-      if (companyWebsite) details += `🌍 *Company Website:* ${companyWebsite}\n`;
+      if (companyWebsite) details += `▪️ *🌍 Company Website:* ${companyWebsite}\n`;
+
+      const companyEmail = cardData.companyEmail;
+      if (companyEmail) details += `▪️ *📧 Company Email:* ${companyEmail}\n`;
 
       const companyAddress = cardData.companyAddress;
-      if (companyAddress) details += `🏭 *Company Address:* ${companyAddress}\n`;
+      if (companyAddress) details += `▪️ *🏭 Company Address:* ${companyAddress}\n`;
 
       const companyMapsLink = cardData.companyMapsLink;
-      if (companyMapsLink) details += `🗺️ *Company Maps:* ${companyMapsLink}\n`;
+      if (companyMapsLink) details += `▪️ *📍 Company Maps:* ${companyMapsLink}\n`;
 
-      // Business Details
-      if (cardData.aboutBusiness)
-        details += `\n📝 *About Business:* ${cardData.aboutBusiness}\n`;
       if (cardData.businessHours) {
         const formattedHours = formatBusinessHours(cardData.businessHours);
-        // Only show if there's actual content and not just all closed days
         if (formattedHours && formattedHours.trim() !== '' && !formattedHours.match(/^Mon\s*[-–]\s*Sun:\s*Closed$/i)) {
-          details += `🕐 *Business Hours:*\n${formattedHours}\n`;
+          details += `▪️ *🕐 Business Hours:*\n${formattedHours}\n`;
         }
       }
-      if (cardData.establishedYear)
-        details += `📅 *Established:* ${cardData.establishedYear}\n`;
 
-      const message = cardData.message;
-      if (message) details += `\n💬 *Message:* ${message}\n`;
-
-      if (cardData.additionalInformation)
-        details += `ℹ️ *Additional Info:* ${cardData.additionalInformation}\n`;
-
-      // Social Media Links
-      let socialAdded = false;
+      // === Social Media Links ===
       if (
         cardData.linkedin ||
         cardData.twitter ||
         cardData.instagram ||
         cardData.facebook ||
         cardData.youtube ||
-        cardData.whatsapp ||
-        cardData.whatsappBusiness ||
         cardData.telegram
       ) {
-        details += `\n🔗 *Social Media:*\n`;
-        socialAdded = true;
+        details += `\n▪️ *🔗 Social Media:*\n`;
       }
 
-      if (cardData.linkedin) details += `💼 *LinkedIn:* ${cardData.linkedin}\n`;
-      if (cardData.twitter) details += `𝕏 *Twitter/X:* ${cardData.twitter}\n`;
-      if (cardData.instagram) details += `📷 *Instagram:* ${cardData.instagram}\n`;
-      if (cardData.facebook) details += `👥 *Facebook:* ${cardData.facebook}\n`;
-      if (cardData.youtube) details += `🎥 *YouTube:* ${cardData.youtube}\n`;
-      if (cardData.whatsapp) details += `💬 *WhatsApp:* ${cardData.whatsapp}\n`;
-      if (cardData.whatsappBusiness) details += `💼 *WhatsApp Business:* ${cardData.whatsappBusiness}\n`;
-      if (cardData.telegram) details += `✈️ *Telegram:* ${cardData.telegram}\n`;
+      if (cardData.facebook) details += `▪️ *👥 Facebook:* ${cardData.facebook}\n`;
+      if (cardData.instagram) details += `▪️ *📸 Instagram:* ${cardData.instagram}\n`;
+      if (cardData.youtube) details += `▪️ *▶️ YouTube:* ${cardData.youtube}\n`;
+      if (cardData.linkedin) details += `▪️ *🟦 LinkedIn:* ${cardData.linkedin}\n`;
+      if (cardData.twitter) details += `▪️ *𝕏 Twitter/X:* ${cardData.twitter}\n`;
+      if (cardData.telegram) details += `▪️ *✈️ Telegram:* ${cardData.telegram}\n`;
 
       return details;
     };
@@ -313,49 +319,80 @@ export async function generateAndShareCardImage(
     const referralLink = `https://play.google.com/store/apps/details?id=com.instantllycards.www.twa&referrer=utm_source%3Dreferral%26utm_campaign%3D${referralCode}`;
 
     switch (shareMethod) {
-      case "whatsapp":
-        // Share via WhatsApp with complete card details
+      case "whatsapp": {
+        // Share via WhatsApp with complete card details matching Instantlly template
         const whatsappMessage =
           buildCardDetails() +
-          `\n━━━━━━━━━\n` +
-          `*Earn ₹1200 to ₹6000+ per day Without Investment*\n` +
-          `▪️ *Save Rs 10000 Printing Cost* Use this Free App & Save per year visiting Card Printing Cost\n` +
+          `▪️ *To make your FREE Instantly Digital Visiting Card Touch this link to Download the Mobile App*\n${referralLink}\n\n` +
+          `▪️ *Make Free Digital Card from Instantly Cards Mobile App* You can Make Send Receive Unlimited Digital Cards & do Group Sharing with 100+ persons in 5 Minutes & if you change any information in your Card then it Changes automatically in all the Cards you have already sent.\n\n` +
+          `▪️ *Save ₹10000 Printing Cost* Use this Free App & Save per year visiting Card Printing Cost\n\n` +
+          `▪️ *Video to Know Advantage of the Application & How to use it* https://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing\n\n` +
+          `▪️ *If you have any problem then join this WhatsApp Group and write the Problem you are getting* https://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl\n\n` +
+          `▪️ *Earn upto ₹6000+ per day* Without Investment by sharing to WhatsApp Groups\n` +
           `▪️ *I Got ₹300 Credit* On Self Download\n` +
           `▪️ *Referal Bonus ₹300* On your Download I will get ₹300 Bonus\n\n` +
-          `━━━━━━━━━━━\n` +
-          `📲 *Important Links*\n` +
-          `▪️ *Touch this link to Download the App with Referral Code*\n${referralLink}\n` +
-          `▪️ *Video to Know Advantage of the Application & How to use it*\nhttps://drive.google.com/drive/folders/1ZkLP2dFwOkaBk-najKBIxLXfXUqw8C8l?usp=sharing\n` +
-          `▪️ *If you have any problem then join this WhatsApp Group and write the Problem you are getting*\nhttps://chat.whatsapp.com/G2bHGLYnlKRETTt7sxtqDl`;
+          `▪️ *Website* www.Instantlly.Com`;
 
-        try {
-          await Share.open({
-            title: `${companyName}'s Business Card`,
-            message: whatsappMessage,
-            url: `file://${uri}`,
-            type: "image/png",
-            filename: fileName,
-          });
-        } catch (whatsappError: any) {
-          // If specific share fails, try generic share
-          if (whatsappError.message !== "User did not share") {
-            console.log("Retrying WhatsApp share with generic method...");
+        const filePrefix = Platform.OS === "android" ? "file://" : "";
+        const shareUrl = shareableUri.startsWith("file://") ? shareableUri : filePrefix + shareableUri;
+        let shared = false;
+
+        // Method A: react-native-share (image + message together)
+        if (Share && !shared) {
+          try {
+            console.log("📤 Trying react-native-share for WhatsApp...");
             await Share.open({
               title: `${companyName}'s Business Card`,
               message: whatsappMessage,
-              url: `file://${uri}`,
+              url: shareUrl,
               type: "image/png",
+              filename: fileName,
             });
-          } else {
-            throw whatsappError;
+            shared = true;
+            console.log("✅ Shared via react-native-share");
+          } catch (shareError: any) {
+            if (shareError?.message === "User did not share") {
+              shared = true; // cancelled, don't retry
+            } else {
+              console.warn("⚠️ react-native-share failed:", shareError?.message);
+            }
           }
         }
-        break;
 
-      case "save":
+        // Method B: expo-sharing (shares image, copies message to clipboard)
+        if (Sharing && !shared) {
+          try {
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+              console.log("📤 Trying expo-sharing...");
+              // Copy WhatsApp message to clipboard since expo-sharing only shares the file
+              const { Clipboard } = require("react-native");
+              Clipboard.setString(whatsappMessage);
+              Alert.alert("Message Copied!", "Card message copied to clipboard. Paste it after sharing the image.", [{ text: "OK" }]);
+              await Sharing.shareAsync(shareableUri, {
+                mimeType: "image/png",
+                dialogTitle: `Share ${companyName}'s Business Card`,
+              });
+              shared = true;
+              console.log("✅ Shared via expo-sharing");
+            }
+          } catch (expoError: any) {
+            console.warn("⚠️ expo-sharing failed:", expoError?.message);
+          }
+        }
+
+        // Method C: RN Share (text-only, no image support)
+        if (!shared) {
+          console.log("📤 Falling back to text-only share");
+          await RNShare.share({ message: whatsappMessage, title: `${companyName}'s Business Card` });
+        }
+        break;
+      }
+
+      case "save": {
         // Save to device
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri, {
+        if (Sharing && await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(shareableUri, {
             mimeType: "image/png",
             dialogTitle: "Save Business Card",
             UTI: "public.png",
@@ -364,34 +401,59 @@ export async function generateAndShareCardImage(
           throw new Error("Sharing is not available on this device");
         }
         break;
+      }
 
       case "native":
-      default:
+      default: {
         // Use native share sheet
         const shareMessage =
           `${companyName}'s Digital Business Card\n\n` +
           `🎯 Create your FREE Digital Visiting Card with Instantlly Cards!\n` +
           `📱 https://play.google.com/store/apps/details?id=com.instantllycards.www.twa`;
 
-        if (Platform.OS === "android") {
-          await Share.open({
-            title: `${companyName}'s Business Card`,
-            message: shareMessage,
-            url: `file://${uri}`,
-            type: "image/png",
-            filename: fileName,
-          });
-        } else {
-          // iOS
-          await Share.open({
-            title: `${companyName}'s Business Card`,
-            message: shareMessage,
-            url: uri,
-            type: "image/png",
-            filename: fileName,
-          });
+        const filePrefix = Platform.OS === "android" ? "file://" : "";
+        const nativeShareUrl = shareableUri.startsWith("file://") ? shareableUri : filePrefix + shareableUri;
+        let nativeShared = false;
+
+        if (Share && !nativeShared) {
+          try {
+            await Share.open({
+              title: `${companyName}'s Business Card`,
+              message: shareMessage,
+              url: nativeShareUrl,
+              type: "image/png",
+              filename: fileName,
+            });
+            nativeShared = true;
+          } catch (shareError: any) {
+            if (shareError?.message === "User did not share") {
+              nativeShared = true;
+            } else {
+              console.warn("⚠️ react-native-share failed for native:", shareError?.message);
+            }
+          }
+        }
+
+        if (Sharing && !nativeShared) {
+          try {
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+              await Sharing.shareAsync(shareableUri, {
+                mimeType: "image/png",
+                dialogTitle: `Share ${companyName}'s Business Card`,
+              });
+              nativeShared = true;
+            }
+          } catch (expoError: any) {
+            console.warn("⚠️ expo-sharing failed:", expoError?.message);
+          }
+        }
+
+        if (!nativeShared) {
+          await RNShare.share({ message: shareMessage, title: `${companyName}'s Business Card` });
         }
         break;
+      }
     }
 
     console.log("✅ Card shared successfully");
@@ -433,7 +495,12 @@ export async function generateCardImageFile(
 
     console.log("📸 Generating card image file...");
 
-    const uri = await captureRef(viewRef, {
+    const viewToCapture = viewRef?.current !== undefined ? viewRef.current : viewRef;
+    if (!viewToCapture) {
+      return { success: false, error: "view_ref_not_ready" };
+    }
+
+    const uri = await captureRef(viewToCapture, {
       format: "png",
       quality: 1,
       result: "tmpfile",
